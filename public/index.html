@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dual AI Code Review Pipeline</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5/css/xterm.min.css" />
+</head>
+<body>
+  <!-- Header -->
+  <header>
+    <div class="header-left">
+      <div class="logo">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+        </svg>
+      </div>
+      <h1>Dual AI Review Pipeline</h1>
+      <span class="badge" id="status-badge">대기</span>
+    </div>
+    <div class="header-right">
+    </div>
+  </header>
+
+  <!-- Main Content: Left Pipeline + Right Panel -->
+  <div class="workspace">
+    <!-- Left: Pipeline Visualization (scrollable) -->
+    <section class="pipeline-scroll">
+      <!-- Pipeline selector bar -->
+      <div class="pipeline-selector" id="pipeline-selector">
+        <select id="pipeline-select" onchange="loadPipelineTemplate(this.value)">
+          <option value="code-review" selected>코드 리뷰 파이프라인</option>
+          <option value="default">범용 태스크 파이프라인</option>
+          <option value="testing">테스트 파이프라인</option>
+        </select>
+      </div>
+      <!-- Dynamic pipeline container -->
+      <div class="pipeline-container" id="pipeline-container">
+        <!-- Rendered dynamically by renderPipeline() -->
+      </div>
+    </section>
+
+    <!-- Right: Compact Stats + Terminal -->
+    <section class="right-panel">
+      <!-- Compact Stats Row -->
+      <div class="stats-compact">
+        <!-- Verdict -->
+        <div class="stat-mini verdict-mini" id="verdict-card">
+          <div class="stat-mini-title">판정</div>
+          <div class="verdict-value" id="verdict-value">—</div>
+        </div>
+        <!-- Findings (5tier) -->
+        <div class="stat-mini findings-mini">
+          <div class="stat-mini-title">발견 사항</div>
+          <div class="findings-row findings-5tier">
+            <div class="finding-chip critical"><span class="finding-count-sm" id="count-critical">0</span><span class="finding-label-sm">critical</span></div>
+            <div class="finding-chip high"><span class="finding-count-sm" id="count-high">0</span><span class="finding-label-sm">high</span></div>
+            <div class="finding-chip medium"><span class="finding-count-sm" id="count-medium">0</span><span class="finding-label-sm">medium</span></div>
+            <div class="finding-chip low"><span class="finding-count-sm" id="count-low">0</span><span class="finding-label-sm">low</span></div>
+            <div class="finding-chip note"><span class="finding-count-sm" id="count-note">0</span><span class="finding-label-sm">note</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 2: Tool Feed + Critique Timeline -->
+      <div class="stats-row-2">
+        <div class="stat-mini tool-feed-mini">
+          <div class="stat-mini-title">
+            <span>🔧 툴 호출</span>
+            <span class="feed-counter" id="tool-feed-counter">0</span>
+            <button class="btn-small" onclick="clearToolFeed()">지우기</button>
+          </div>
+          <div class="tool-feed" id="tool-feed"></div>
+        </div>
+
+        <div class="stat-mini critique-mini">
+          <div class="stat-mini-title">
+            <span>💬 Critique 타임라인</span>
+            <span class="feed-counter" id="critique-counter">0</span>
+            <button class="btn-small" onclick="clearCritiqueTimeline()">지우기</button>
+          </div>
+          <div class="critique-timeline" id="critique-timeline"></div>
+        </div>
+      </div>
+
+      <!-- Harness Recommendation Cards (hidden by default) -->
+      <div class="harness-recommend" id="harness-recommend" style="display:none">
+        <div class="recommend-header">
+          <span class="recommend-title">다음 작업 추천</span>
+          <button class="btn-small" onclick="dismissRecommendations()">닫기</button>
+        </div>
+        <div class="recommend-cards" id="recommend-cards"></div>
+      </div>
+
+      <!-- Tab Bar + Terminal/Log -->
+      <div class="right-tabs">
+        <div class="tab-bar">
+          <button class="tab" id="tab-btn-log" onclick="switchTab('log')">이벤트 로그</button>
+          <button class="tab active" id="tab-btn-terminal" onclick="switchTab('terminal')">터미널</button>
+          <div class="tab-spacer"></div>
+          <button class="btn-small" onclick="clearLog()">지우기</button>
+        </div>
+        <div class="tab-content hidden" id="tab-log">
+          <div class="log-content" id="log-content"></div>
+        </div>
+        <div class="tab-content" id="tab-terminal">
+          <div id="terminal-container"></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Stage Detail Modal -->
+  <div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
+    <div class="modal-content">
+      <div class="modal-header">
+        <span class="modal-title" id="modal-title">단계 상세</span>
+        <button class="modal-close" onclick="closeModal()">&times;</button>
+      </div>
+      <div class="modal-body" id="modal-body"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5/lib/xterm.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0/lib/addon-fit.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

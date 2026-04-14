@@ -1,0 +1,403 @@
+// PipelineExecutor — Phase 2 + Phase 3 scope
+//
+// Responsibilities:
+//   1. Detect a task from the user's prompt and activate a pipeline template
+//   2. Enforce `allowedTools` per phase via PreToolUse blocking
+//   3. Auto-run Codex phases (agent === "codex") via CodexRunner
+//   4. Evaluate QualityGate (exitCriteria) on Stop — block + feedback on fail
+//   5. Thread PipelineState across phases; capture artifacts via template rules
+//   6. Inject SKILL.md content into Codex prompts via SkillInjector
+//
+// Phase 4 will add PipelineAdapter mutation.
+//
+// Safety: activation is gated by process.env.HARNESS_ENABLED !== "1" by default.
+
+const { PipelineState } = require("./pipeline-state");
+const { QualityGate } = require("./quality-gate");
+const { SkillInjector } = require("./skill-injector");
+const { PipelineAdapter } = require("./pipeline-adapter");
+
+const TASK_PATTERNS = {
+  "code-review": /리뷰|review|검토/i,
+  "testing": /테스트|test|jest|pytest|vitest|coverage/i,
+  "debugging": /디버그|debug|버그|bug|에러|error|fix|수정|고치|오류/i,
+  "refactoring": /리팩토|refactor|개선|improve|clean[\s-]*up/i,
+  "planning": /계획|plan|설계|design|아키텍처|architecture/i,
+  "implementation": /구현|implement|만들|생성|추가|add|create|feature|기능/i,
+};
+
+const TEMPLATE_MAP = {
+  "code-review": "code-review",
+  "testing": "testing",
+  "debugging": "default",
+  "refactoring": "default",
+  "planning": "default",
+  "implementation": "default",
+};
+
+const MAX_GATE_RETRIES = 3;
+
+class PipelineExecutor {
+  constructor({ broadcast, templates, codex, state, gate, injector, adapter }) {
+    this.broadcast = broadcast;
+    this.templates = templates;
+    this.codex = codex;
+    this.state = state || new PipelineState();
+    this.gate = gate || new QualityGate();
+    this.injector = injector || new SkillInjector({});
+    this.adapter = adapter || new PipelineAdapter({ templates });
+
+    this.active = null;
+    this.enabled = process.env.HARNESS_ENABLED === "1";
+  }
+
+  setEnabled(flag) {
+    this.enabled = !!flag;
+    if (!this.enabled && this.active) {
+      this._complete("disabled");
+    }
+    this.broadcast({ type: "harness_mode", data: { enabled: this.enabled } });
+  }
+
+  getStatus() {
+    return {
+      enabled: this.enabled,
+      active: !!this.active,
+      templateId: this.active?.templateId || null,
+      phaseIdx: this.active?.phaseIdx ?? -1,
+      phase: this._currentPhase()?.id || null,
+      iteration: this.active?.iteration || 0,
+      gateRetries: this.active?.gateRetries || 0,
+      tools: this.state?.metrics?.toolCount || 0,
+      filesEdited: this.state?.metrics?.filesEdited?.size || 0,
+      findings: this.state?.findings?.length || 0,
+    };
+  }
+
+  // ── Hook entry points ─────────────────────────────────────────
+  async startFromPrompt(prompt) {
+    if (!this.enabled) return {};
+    if (!prompt || typeof prompt !== "string") return {};
+
+    const taskType = this._detectTaskType(prompt);
+    if (!taskType) return {};
+
+    const templateId = TEMPLATE_MAP[taskType] || "default";
+    const template = this.templates[templateId];
+    if (!template) return {};
+
+    this.state.reset({ userPrompt: prompt, templateId });
+
+    // Deep clone so Phase 4 mutations don't corrupt the source template
+    this.active = {
+      templateId,
+      template: structuredClone(template),
+      phaseIdx: -1,
+      iteration: 0,
+      gateRetries: 0,
+      userPrompt: prompt,
+      startedAt: Date.now(),
+    };
+
+    this.broadcast({
+      type: "auto_pipeline_detect",
+      data: { templateId, taskType, reason: `hook-driven: ${taskType}`, source: "hook" },
+    });
+
+    await this._enterPhase(0);
+    return {};
+  }
+
+  async onPreTool(tool, _input) {
+    if (!this.enabled || !this.active) return {};
+    const phase = this._currentPhase();
+    if (!phase) return {};
+
+    const allowed = phase.allowedTools;
+    if (!allowed || allowed.length === 0) return {};
+
+    if (!allowed.includes(tool)) {
+      const reason =
+        `Harness ${phase.label || phase.id} (${phase.name}) 단계에서는 ` +
+        `다음 도구만 허용됩니다: ${allowed.join(", ")}. ` +
+        `요청한 도구: ${tool}. ` +
+        `이 단계의 목적을 완수한 후 Stop 시점에 다음 phase로 넘어갑니다.`;
+      this.broadcast({
+        type: "tool_blocked",
+        data: { phase: phase.id, tool, allowed },
+      });
+      return { decision: "block", reason };
+    }
+    return {};
+  }
+
+  async onPostTool(tool, response) {
+    if (!this.enabled || !this.active) return {};
+    const phase = this._currentPhase();
+    if (!phase) return {};
+
+    this.state.recordTool(phase.id, tool, response);
+    this._captureArtifacts(phase, tool, response);
+
+    this.broadcast({
+      type: "tool_recorded",
+      data: {
+        phase: phase.id,
+        tool,
+        filesEdited: this.state.metrics.filesEdited.size,
+      },
+    });
+    return {};
+  }
+
+  async onStop(_payload) {
+    if (!this.enabled || !this.active) return {};
+
+    const phase = this._currentPhase();
+    if (!phase) {
+      await this._advance();
+      return {};
+    }
+
+    const gateResult = await this.gate.evaluate(phase, this.state);
+    this.broadcast({
+      type: "gate_evaluated",
+      data: { phase: phase.id, pass: gateResult.pass, missing: gateResult.missing },
+    });
+
+    if (!gateResult.pass) {
+      this.active.gateRetries = (this.active.gateRetries || 0) + 1;
+
+      if (this.active.gateRetries >= MAX_GATE_RETRIES) {
+        // Give up blocking after too many retries to avoid an infinite loop
+        this.broadcast({
+          type: "gate_bypassed",
+          data: { phase: phase.id, retries: this.active.gateRetries, missing: gateResult.missing },
+        });
+        this.active.gateRetries = 0;
+        await this._advance();
+        return {};
+      }
+
+      const reason =
+        `Harness ${phase.label || phase.id} (${phase.name}) 미완료.\n` +
+        `필요 조건: ${gateResult.missing.join("; ")}.\n` +
+        `이 phase의 작업을 먼저 마친 뒤 턴을 종료하세요. ` +
+        `(시도 ${this.active.gateRetries}/${MAX_GATE_RETRIES})`;
+      this.broadcast({
+        type: "gate_failed",
+        data: { phase: phase.id, missing: gateResult.missing, retries: this.active.gateRetries },
+      });
+      return { decision: "block", reason };
+    }
+
+    this.active.gateRetries = 0;
+    await this._advance();
+    return {};
+  }
+
+  async onSessionEnd(_payload) {
+    if (!this.active) return {};
+    this._complete("session-end");
+    return {};
+  }
+
+  // ── Internal ──────────────────────────────────────────────────
+  _detectTaskType(text) {
+    for (const [type, pattern] of Object.entries(TASK_PATTERNS)) {
+      if (pattern.test(text)) return type;
+    }
+    if (text.length > 10 && /(해줘|세요|만들|implement|create|build|write|make)/i.test(text)) {
+      return "implementation";
+    }
+    return null;
+  }
+
+  _currentPhase() {
+    if (!this.active) return null;
+    return this.active.template.phases[this.active.phaseIdx] || null;
+  }
+
+  _captureArtifacts(phase, tool, response) {
+    const rules = phase.artifactRules;
+    if (!Array.isArray(rules) || rules.length === 0) return;
+
+    const filePath =
+      response && (response.filePath || response.file_path || response.path);
+
+    for (const rule of rules) {
+      if (rule.toolMatch && tool !== rule.toolMatch) continue;
+      if (rule.pathMatch) {
+        if (!filePath) continue;
+        let re;
+        try { re = new RegExp(rule.pathMatch, "i"); } catch (_) { continue; }
+        if (!re.test(filePath)) continue;
+      }
+      this.state.setArtifact(phase.id, rule.artifactKey, filePath || true);
+      this.broadcast({
+        type: "artifact_captured",
+        data: { phase: phase.id, key: rule.artifactKey, path: filePath },
+      });
+    }
+  }
+
+  async _enterPhase(idx) {
+    if (!this.active) return;
+    const template = this.active.template;
+    if (idx >= template.phases.length) {
+      this._complete("end-of-template");
+      return;
+    }
+
+    // Mark previous phase completed
+    if (this.active.phaseIdx >= 0) {
+      const prev = template.phases[this.active.phaseIdx];
+      this.broadcast({ type: "phase_update", data: { phase: prev.id, status: "completed" } });
+      for (const node of prev.nodes || []) {
+        this.broadcast({ type: "node_update", data: { node: node.id, status: "completed" } });
+      }
+    }
+
+    this.active.phaseIdx = idx;
+    this.active.gateRetries = 0;
+    const phase = template.phases[idx];
+
+    // Inject skill context for this phase
+    const skillContent = await this.injector.gather(phase);
+    if (skillContent) this.state.setSkillContext(phase.id, skillContent);
+
+    this.broadcast({ type: "phase_update", data: { phase: phase.id, status: "active" } });
+    for (const node of phase.nodes || []) {
+      this.broadcast({ type: "node_update", data: { node: node.id, status: "active" } });
+    }
+
+    if (phase.agent === "codex") {
+      await this._runCodexPhase(phase);
+    }
+  }
+
+  async _runCodexPhase(phase) {
+    const prompt = this.injector.buildCodexPrompt(phase, this.state);
+    this.broadcast({
+      type: "codex_started",
+      data: { phase: phase.id, promptPreview: prompt.slice(0, 200) },
+    });
+
+    const result = await this.codex.exec(prompt, { timeoutMs: phase.timeoutMs || 120000 });
+    this.state.setCritique(phase.id, result);
+    this.active.lastCritique = { phase: phase.id, ...result };
+
+    this.broadcast({
+      type: "critique_received",
+      data: {
+        phase: phase.id,
+        ok: result.ok,
+        summary: result.summary,
+        findings: result.findings,
+        error: result.error || null,
+      },
+    });
+
+    if (phase.cycle) {
+      const hasCritical = (result.findings || []).some(
+        (f) => f.severity === "critical" || f.severity === "high"
+      );
+      const canIterate = this.active.iteration < (phase.maxIterations || 3);
+      if (hasCritical && canIterate && phase.linkedCycle) {
+        this.active.iteration++;
+        const linkedIdx = this.active.template.phases.findIndex(
+          (p) => p.id === phase.linkedCycle
+        );
+        if (linkedIdx >= 0) {
+          this.broadcast({
+            type: "cycle_iteration",
+            data: {
+              phase: phase.id,
+              iteration: this.active.iteration,
+              linkedTo: phase.linkedCycle,
+            },
+          });
+          await this._enterPhase(linkedIdx);
+          return;
+        }
+      }
+    }
+
+    await this._advance();
+  }
+
+  async _advance() {
+    if (!this.active) return;
+
+    const mutation = await this.adapter.review(this.active, this.state);
+    if (mutation) {
+      const applied = this._applyMutation(mutation);
+      if (applied) {
+        this.broadcast({
+          type: "pipeline_mutated",
+          data: {
+            ruleId: mutation.ruleId,
+            mutationType: mutation.type,
+            phaseIdx: this.active.phaseIdx,
+            templateId: this.active.templateId,
+            template: this.active.template,
+            nextIdx: applied.nextIdx,
+          },
+        });
+        await this._enterPhase(applied.nextIdx);
+        return;
+      }
+    }
+
+    const nextIdx = this.active.phaseIdx + 1;
+    await this._enterPhase(nextIdx);
+  }
+
+  _applyMutation(mutation) {
+    if (!mutation || !this.active) return null;
+    const marks = this.active._adapterMarks || (this.active._adapterMarks = new Set());
+    marks.add(mutation.markId || mutation.ruleId);
+
+    switch (mutation.type) {
+      case "insert-phase": {
+        const at = Math.max(0, Math.min(mutation.at ?? this.active.phaseIdx + 1, this.active.template.phases.length));
+        this.active.template.phases.splice(at, 0, mutation.phase);
+        return { nextIdx: at };
+      }
+      case "switch-template": {
+        const target = this.templates[mutation.templateId];
+        if (!target) return null;
+        this.active.template = structuredClone(target);
+        this.active.templateId = target.id || mutation.templateId;
+        this.active.phaseIdx = -1;
+        this.active.iteration = 0;
+        this.active.gateRetries = 0;
+        return { nextIdx: 0 };
+      }
+      case "merge-template": {
+        const phases = mutation.phases || [];
+        if (phases.length === 0) return null;
+        const at = Math.max(0, Math.min(mutation.at ?? this.active.phaseIdx + 1, this.active.template.phases.length));
+        this.active.template.phases.splice(at, 0, ...phases);
+        return { nextIdx: at };
+      }
+      default:
+        return null;
+    }
+  }
+
+  _complete(reason) {
+    if (!this.active) return;
+    const snapshot = {
+      templateId: this.active.templateId,
+      durationMs: Date.now() - this.active.startedAt,
+      iteration: this.active.iteration,
+      state: this.state.snapshot(),
+      reason,
+    };
+    this.broadcast({ type: "pipeline_complete", data: snapshot });
+    this.active = null;
+  }
+}
+
+module.exports = { PipelineExecutor };

@@ -1,0 +1,317 @@
+{
+  "default": {
+    "id": "default",
+    "name": "범용 태스크 파이프라인",
+    "phases": [
+      {
+        "id": "A",
+        "name": "컨텍스트 수집",
+        "label": "Phase A",
+        "agent": "claude",
+        "allowedTools": ["Read", "Glob", "Grep", "Agent", "TodoWrite"],
+        "exitCriteria": [
+          { "type": "min-tools-in-phase", "count": 3, "message": "최소 3번 파일 탐색 필요 (Read/Glob/Grep)" }
+        ],
+        "nodes": [
+          {
+            "id": "context-analyzer",
+            "icon": "🔎",
+            "iconType": "emoji",
+            "label": "Context Analyzer",
+            "sublabel": "프로젝트 분석"
+          }
+        ]
+      },
+      {
+        "id": "B",
+        "name": "계획 수립",
+        "label": "Phase B",
+        "agent": "claude",
+        "allowedTools": ["Read", "Glob", "Grep", "TodoWrite", "Write"],
+        "artifactRules": [
+          { "toolMatch": "Write", "pathMatch": "plan.*\\.md$", "artifactKey": "plan" }
+        ],
+        "exitCriteria": [
+          { "type": "has-artifact", "key": "plan", "message": "계획 문서(plan*.md)가 Write로 작성되지 않음" }
+        ],
+        "nodes": [
+          {
+            "id": "task-planner",
+            "icon": "C",
+            "iconType": "claude",
+            "label": "Claude Code",
+            "sublabel": "계획 수립"
+          }
+        ]
+      },
+      {
+        "id": "C",
+        "name": "계획 검토",
+        "label": "Phase C",
+        "agent": "codex",
+        "cycle": true,
+        "maxIterations": 3,
+        "linkedCycle": "D",
+        "timeoutMs": 120000,
+        "exitCriteria": [
+          { "type": "critique-received", "message": "Codex 비평이 아직 도착하지 않음" }
+        ],
+        "nodes": [
+          {
+            "id": "plan-critic",
+            "icon": "X",
+            "iconType": "codex",
+            "label": "Codex CLI",
+            "sublabel": "계획 비평"
+          }
+        ]
+      },
+      {
+        "id": "D",
+        "name": "계획 보완",
+        "label": "Phase D",
+        "agent": "claude",
+        "allowedTools": ["Read", "Edit", "Write"],
+        "artifactRules": [
+          { "toolMatch": "Write", "pathMatch": "plan.*\\.md$", "artifactKey": "plan" },
+          { "toolMatch": "Edit", "pathMatch": "plan.*\\.md$", "artifactKey": "plan" }
+        ],
+        "nodes": [
+          {
+            "id": "plan-refiner",
+            "icon": "C",
+            "iconType": "claude",
+            "label": "Claude Code",
+            "sublabel": "계획 보완"
+          }
+        ]
+      },
+      {
+        "id": "E",
+        "name": "실행",
+        "label": "Phase E",
+        "agent": "claude",
+        "allowedTools": ["Read", "Edit", "Write", "Bash", "Glob", "Grep", "TodoWrite"],
+        "exitCriteria": [
+          { "type": "files-edited", "min": 1, "message": "실제 파일 수정이 없음" }
+        ],
+        "nodes": [
+          {
+            "id": "executor",
+            "icon": "⚡",
+            "iconType": "emoji",
+            "label": "Executor",
+            "sublabel": "작업 실행"
+          }
+        ]
+      },
+      {
+        "id": "F",
+        "name": "검증",
+        "label": "Phase F",
+        "agent": "claude",
+        "allowedTools": ["Read", "Bash", "Grep"],
+        "exitCriteria": [
+          { "type": "bash-ran", "min": 1, "message": "검증 명령(Bash)이 실행되지 않음" },
+          { "type": "no-critical-findings", "message": "critical/high finding이 아직 남아있음" }
+        ],
+        "nodes": [
+          {
+            "id": "validator",
+            "icon": "✓",
+            "iconType": "emoji",
+            "label": "Validator",
+            "sublabel": "결과 검증"
+          }
+        ]
+      }
+    ]
+  },
+  "code-review": {
+    "id": "code-review",
+    "name": "코드 리뷰 파이프라인",
+    "phases": [
+      {
+        "id": "A",
+        "name": "공동 플래닝",
+        "label": "Phase A",
+        "layout": "row",
+        "nodes": [
+          {
+            "id": "claude-plan",
+            "icon": "C",
+            "iconType": "claude",
+            "label": "Claude Code",
+            "sublabel": "계획 수립"
+          },
+          {
+            "id": "codex-plan",
+            "icon": "X",
+            "iconType": "codex",
+            "label": "Codex CLI",
+            "sublabel": "계획 리뷰"
+          }
+        ],
+        "connector": "bidirectional"
+      },
+      {
+        "id": "B",
+        "name": "구현",
+        "label": "Phase B",
+        "nodes": [
+          {
+            "id": "claude-code",
+            "icon": "C",
+            "iconType": "claude",
+            "label": "Claude Code",
+            "sublabel": "코드 작성"
+          }
+        ]
+      },
+      {
+        "id": "C",
+        "name": "리뷰 순환",
+        "label": "Phase C",
+        "nodes": [
+          {
+            "id": "orchestrator",
+            "icon": "O",
+            "iconType": "orch",
+            "label": "Orchestrator",
+            "sublabel": "리뷰 총괄"
+          },
+          {
+            "id": "saboteur",
+            "icon": "S",
+            "iconType": "sabo",
+            "label": "Saboteur",
+            "sublabel": "안정성",
+            "group": "reviewers"
+          },
+          {
+            "id": "security",
+            "icon": "🛡",
+            "iconType": "emoji",
+            "label": "Security",
+            "sublabel": "보안",
+            "group": "reviewers"
+          },
+          {
+            "id": "readability",
+            "icon": "R",
+            "iconType": "read",
+            "label": "Readability",
+            "sublabel": "가독성",
+            "group": "reviewers"
+          },
+          {
+            "id": "synthesizer",
+            "icon": "Σ",
+            "iconType": "synth",
+            "label": "Synthesizer",
+            "sublabel": "결과 종합"
+          },
+          {
+            "id": "codex-review",
+            "icon": "X",
+            "iconType": "codex",
+            "label": "Codex CLI",
+            "sublabel": "2차 검토"
+          }
+        ]
+      },
+      {
+        "id": "D",
+        "name": "디버그 & 수정",
+        "label": "Phase D",
+        "nodes": [
+          {
+            "id": "debug",
+            "icon": "D",
+            "iconType": "debug",
+            "label": "Claude Code",
+            "sublabel": "디버그"
+          }
+        ]
+      }
+    ]
+  },
+  "testing": {
+    "id": "testing",
+    "name": "테스트 파이프라인",
+    "phases": [
+      {
+        "id": "A",
+        "name": "분석",
+        "label": "Phase A",
+        "nodes": [
+          {
+            "id": "coverage-analyzer",
+            "icon": "📊",
+            "iconType": "emoji",
+            "label": "Coverage Analyzer",
+            "sublabel": "커버리지 분석"
+          }
+        ]
+      },
+      {
+        "id": "B",
+        "name": "테스트 계획",
+        "label": "Phase B",
+        "nodes": [
+          {
+            "id": "test-planner",
+            "icon": "C",
+            "iconType": "claude",
+            "label": "Claude Code",
+            "sublabel": "테스트 계획"
+          }
+        ]
+      },
+      {
+        "id": "C",
+        "name": "계획 검토",
+        "label": "Phase C",
+        "cycle": true,
+        "maxIterations": 3,
+        "nodes": [
+          {
+            "id": "test-critic",
+            "icon": "X",
+            "iconType": "codex",
+            "label": "Codex CLI",
+            "sublabel": "계획 비평"
+          }
+        ]
+      },
+      {
+        "id": "D",
+        "name": "테스트 작성",
+        "label": "Phase D",
+        "nodes": [
+          {
+            "id": "test-writer",
+            "icon": "C",
+            "iconType": "claude",
+            "label": "Claude Code",
+            "sublabel": "테스트 작성"
+          }
+        ]
+      },
+      {
+        "id": "E",
+        "name": "실행 & 검증",
+        "label": "Phase E",
+        "nodes": [
+          {
+            "id": "test-runner",
+            "icon": "▶",
+            "iconType": "emoji",
+            "label": "Test Runner",
+            "sublabel": "실행"
+          }
+        ]
+      }
+    ]
+  }
+}

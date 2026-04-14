@@ -1,0 +1,96 @@
+{
+  "categories": {
+    "superpowers": {
+      "label": "Superpowers",
+      "icon": "⚡",
+      "description": "고급 사고 및 계획 스킬",
+      "skills": [
+        "brainstorming", "writing-plans", "executing-plans",
+        "tdd-mastery", "systematic-debugging", "focused-fix",
+        "verification-before-completion", "self-eval",
+        "continuous-learning", "self-improving-agent",
+        "using-superpowers", "writing-skills",
+        "dispatching-parallel-agents", "subagent-driven-development"
+      ]
+    },
+    "harness": {
+      "label": "Harness",
+      "icon": "🎯",
+      "description": "에이전트 팀 자동 설계",
+      "skills": ["harness"]
+    },
+    "engineering": {
+      "label": "Engineering",
+      "icon": "🔧",
+      "description": "소프트웨어 엔지니어링 도구",
+      "skills": [
+        "agent-designer", "agent-workflow-designer",
+        "database-designer", "database-schema-designer",
+        "docker-best-practices", "docker-development",
+        "ci-cd-pipeline-builder", "ci-cd-pipelines",
+        "devops-automation", "kubernetes-operations",
+        "monitoring-observability", "performance-optimization",
+        "performance-profiler", "git-advanced",
+        "using-git-worktrees", "finishing-a-development-branch",
+        "release-manager", "mcp-development", "mcp-server-builder",
+        "api-design-patterns"
+      ]
+    },
+    "toolkit": {
+      "label": "Toolkit",
+      "icon": "🛠",
+      "description": "언어 및 프레임워크 전문 스킬",
+      "skills": [
+        "python-best-practices", "react-patterns", "nextjs-mastery",
+        "typescript-advanced", "websocket-realtime",
+        "frontend-excellence", "security-hardening",
+        "testing-strategies", "test-driven-development",
+        "playwright-pro", "postgres-optimization",
+        "llm-integration", "llm-cost-optimizer",
+        "rag-architect", "prompt-engineering",
+        "browser-automation", "data-quality-auditor",
+        "tech-debt-tracker", "spec-driven-workflow"
+      ]
+    },
+    "review": {
+      "label": "Code Review",
+      "icon": "🔍",
+      "description": "코드 리뷰 및 품질 관리",
+      "skills": [
+        "code-review-pipeline", "pr-review-expert",
+        "requesting-code-review", "receiving-code-review",
+        "adversarial-reviewer", "codebase-onboarding",
+        "code-tour", "manage-skills"
+      ]
+    },
+    "product": {
+      "label": "Product & Marketing",
+      "icon": "📦",
+      "description": "제품, 콘텐츠, 마케팅 도구",
+      "skills": [
+        "content-production", "content-humanizer",
+        "copywriting", "landing-page-generator",
+        "launch-strategy", "product-manager-toolkit",
+        "research-summarizer", "ux-researcher-designer",
+        "contract-and-proposal-writer"
+      ]
+    },
+    "roles": {
+      "label": "Senior Roles",
+      "icon": "👤",
+      "description": "시니어 개발자 역할 스킬",
+      "skills": [
+        "senior-backend", "senior-frontend", "senior-fullstack"
+      ]
+    }
+  },
+  "harnessMapping": {
+    "planning": ["brainstorming", "writing-plans", "spec-driven-workflow"],
+    "implementation": ["executing-plans", "subagent-driven-development", "dispatching-parallel-agents"],
+    "code-review": ["code-review-pipeline", "adversarial-reviewer", "pr-review-expert"],
+    "testing": ["tdd-mastery", "test-driven-development", "testing-strategies", "playwright-pro"],
+    "debugging": ["systematic-debugging", "focused-fix"],
+    "refactoring": ["performance-optimization", "tech-debt-tracker", "security-hardening"],
+    "deployment": ["ci-cd-pipeline-builder", "docker-best-practices", "release-manager"]
+  }
+}
