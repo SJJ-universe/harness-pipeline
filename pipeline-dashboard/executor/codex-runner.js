@@ -49,14 +49,20 @@ class CodexRunner {
       // with special characters (`#`, `:`, Korean, quotes) get mangled by the
       // Windows shell when `shell: true` concatenates args. Stdin avoids the
       // whole shell-quoting problem.
-      const args = [...spec.argsPrefix, "exec", "--full-auto", "--skip-git-repo-check"];
+      const baseArgs = [...spec.argsPrefix, "exec", "--full-auto", "--skip-git-repo-check"];
+      // P1-5: Node 24 DEP0190 — see claude-runner.js for the rationale.
+      // Wrap in `cmd.exe /c` on Windows so PATHEXT still resolves `.cmd`
+      // launchers, but with `shell: false` so Node does not re-tokenize
+      // our argv. Prompt is on stdin (P0-3), so argv is all fixed flags.
+      const isWin = process.platform === "win32";
+      const spawnCmd = isWin ? "cmd.exe" : spec.cmd;
+      const spawnArgs = isWin ? ["/c", spec.cmd, ...baseArgs] : baseArgs;
       let child;
       try {
-        child = spawn(spec.cmd, args, {
+        child = spawn(spawnCmd, spawnArgs, {
           stdio: ["pipe", "pipe", "pipe"],
           windowsHide: true,
           cwd: cwd || process.cwd(),
-          shell: process.platform === "win32",
         });
       } catch (err) {
         const f = this._failure(`spawn failed (${spec.cmd}): ${err.message}`);

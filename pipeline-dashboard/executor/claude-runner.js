@@ -47,19 +47,28 @@ class ClaudeRunner {
       //   --bare  skip hooks/memory/auto-discovery (no recursion)
       //   -p      print mode (non-interactive, reads stdin, exits once)
       //   --dangerously-skip-permissions  allow tool use without prompt
-      const args = [
+      const baseArgs = [
         ...spec.argsPrefix,
         "-p",
         "--bare",
         "--dangerously-skip-permissions",
       ];
+      // P1-5: Node 24 DEP0190 — passing an args array together with
+      // `shell: true` is deprecated because the shell re-concatenates and
+      // re-tokenizes them without escaping. On Windows we still need shell
+      // resolution so `claude.cmd`/`codex.cmd` hit PATHEXT, so invoke
+      // `cmd.exe /c` explicitly with `shell: false`. Our argv contains only
+      // fixed flags (prompt is on stdin, see P0-3), so cmd.exe's re-parse
+      // is safe.
+      const isWin = process.platform === "win32";
+      const spawnCmd = isWin ? "cmd.exe" : spec.cmd;
+      const spawnArgs = isWin ? ["/c", spec.cmd, ...baseArgs] : baseArgs;
       let child;
       try {
-        child = spawn(spec.cmd, args, {
+        child = spawn(spawnCmd, spawnArgs, {
           stdio: ["pipe", "pipe", "pipe"],
           windowsHide: true,
           cwd: cwd || process.cwd(),
-          shell: process.platform === "win32",
           env: process.env,
         });
       } catch (err) {
