@@ -428,6 +428,11 @@ app.get("/api/pipeline/templates/:id", (req, res) => {
 });
 
 // ── Session Watcher (auto-pipeline detection) ──
+// P1-3: HARNESS_WATCHER_MODE env controls dedup with HookRouter.
+//   auto    (default) start polling; flip to hook-driven when executor attaches
+//   hook    always hook-driven (broadcasts suppressed)
+//   watcher always watcher-driven (legacy fallback, broadcasts always flow)
+//   off     no polling at all
 const sessionWatcher = new SessionWatcher(broadcast, path.resolve(__dirname, ".."));
 sessionWatcher.start();
 

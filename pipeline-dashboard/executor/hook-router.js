@@ -14,8 +14,12 @@ class HookRouter {
 
   attachExecutor(executor) {
     this.executor = executor;
-    // Hook-driven mode — disable SessionWatcher polling to avoid duplicates
-    if (this.sessionWatcher) this.sessionWatcher.isHookDriven = true;
+    // Hook-driven mode — tell the watcher to stop broadcasting so the
+    // executor is the sole source of pipeline events. The watcher decides
+    // whether the flip sticks based on its configured mode (P1-3).
+    if (this.sessionWatcher && typeof this.sessionWatcher.markHookDriven === "function") {
+      this.sessionWatcher.markHookDriven();
+    }
   }
 
   async route(event, payload) {

@@ -48,10 +48,32 @@ const TOOL_CATEGORIES = {
   delegation: ["Agent"],
 };
 
+// P1-3 — watcher mode resolution.
+// `auto`    default. Start polling; flip to hook-driven (broadcasts off) when
+//           HookRouter.attachExecutor() runs. Falls back to watcher behavior
+//           when no hooks are installed.
+// `hook`    Always hook-driven. Polling still runs for getStatus() state but
+//           broadcasts are suppressed from construction time.
+// `watcher` Always watcher-driven. markHookDriven() is a no-op, broadcasts
+//           always flow — legacy behavior for users who never installed hooks.
+// `off`     No polling at all. start() is a no-op.
+const VALID_MODES = new Set(["auto", "hook", "watcher", "off"]);
+
+function resolveMode(optMode) {
+  const raw = optMode || process.env.HARNESS_WATCHER_MODE || "auto";
+  if (VALID_MODES.has(raw)) return raw;
+  console.warn(`[SessionWatcher] invalid HARNESS_WATCHER_MODE='${raw}', falling back to 'auto'`);
+  return "auto";
+}
+
 class SessionWatcher {
-  constructor(broadcastFn, workspacePath) {
-    this.broadcast = broadcastFn;
+  constructor(broadcastFn, workspacePath, opts = {}) {
+    this._rawBroadcast = broadcastFn || (() => {});
     this.workspacePath = workspacePath;
+    this.mode = resolveMode(opts.mode);
+    // hook mode starts already suppressing; auto flips on attachExecutor;
+    // watcher/off never suppress (off simply never polls).
+    this.isHookDriven = this.mode === "hook";
     this.sessionFile = null;
     this.fileWatcher = null;
     this.dirWatcher = null;
@@ -68,7 +90,28 @@ class SessionWatcher {
     this.checkInterval = null;
   }
 
+  // Called by HookRouter.attachExecutor so the executor can own pipeline
+  // broadcasts. No-ops in 'watcher' mode where we want the legacy behavior
+  // even when hooks happen to be present.
+  markHookDriven() {
+    if (this.mode === "watcher") return;
+    this.isHookDriven = true;
+  }
+
+  // Broadcast gate: suppresses pipeline events when hook-driven. Internal
+  // state (pipelineActive, currentPhase, toolHistory) still updates so
+  // getStatus() remains accurate for /api/watcher/status.
+  broadcast(event) {
+    if (this.isHookDriven) return;
+    this._rawBroadcast(event);
+  }
+
   start() {
+    if (this.mode === "off") {
+      console.log("[SessionWatcher] mode=off — polling disabled");
+      return;
+    }
+    console.log(`[SessionWatcher] mode=${this.mode} isHookDriven=${this.isHookDriven}`);
     this.projectDir = this._findProjectDir();
     if (!this.projectDir) {
       console.log("[SessionWatcher] Project dir not found, will retry...");
