@@ -113,8 +113,11 @@
         <div class="recommend-header">
           <span class="recommend-title">Codex 트리거</span>
           <span class="recommend-sub" id="codex-trigger-status"></span>
+          <button class="btn-small" id="btn-codex-console-clear" onclick="clearCodexConsole()">지우기</button>
         </div>
         <div class="recommend-cards" id="trigger-cards"></div>
+        <!-- P1-6 — live Codex stdout/stderr console -->
+        <div class="codex-console" id="codex-console" aria-live="polite"></div>
       </div>
 
       <!-- Tab Bar + Terminal/Log -->

@@ -477,6 +477,29 @@ function handleEvent(event) {
       break;
     }
 
+    // P1-6 — Codex trigger lifecycle events. `started` clears the console
+    // and switches it visible; `chunk` appends stdout/stderr fragments;
+    // `done` prints a terminal marker and leaves the console visible so
+    // the user can scroll back through whatever Codex said.
+    case "codex_trigger_started": {
+      const d = event.data || {};
+      codexConsoleStart(d.name || d.triggerId || "trigger");
+      break;
+    }
+
+    case "codex_trigger_chunk": {
+      const d = event.data || {};
+      codexConsoleAppend(d.stream || "stdout", d.text || "");
+      break;
+    }
+
+    case "codex_trigger_done": {
+      const d = event.data || {};
+      codexConsoleFinish(d.name || d.triggerId || "trigger",
+        d.ok, d.findingsCount || 0);
+      break;
+    }
+
     case "general_plan_complete": {
       const triggerBtn = document.getElementById("btn-start-general");
       const abortBtn = document.getElementById("btn-abort-general");
@@ -1066,6 +1089,52 @@ function loadCodexTriggers() {
       }
     })
     .catch((err) => addLog("error", `Codex 트리거 로드 실패: ${err.message}`));
+}
+
+// P1-6 — Codex live console. Rolling stdout/stderr stream rendered via
+// DOM API (not innerHTML) so untrusted Codex output can't XSS the page.
+// Always route text through document.createTextNode.
+function codexConsoleStart(label) {
+  const el = document.getElementById("codex-console");
+  if (!el) return;
+  el.replaceChildren();
+  el.classList.add("active");
+  const meta = document.createElement("div");
+  meta.className = "codex-console-line codex-console-line--meta";
+  meta.textContent = `▶ ${label} — Codex 실행 시작`;
+  el.appendChild(meta);
+  el.scrollTop = el.scrollHeight;
+}
+
+function codexConsoleAppend(stream, text) {
+  const el = document.getElementById("codex-console");
+  if (!el || !text) return;
+  el.classList.add("active");
+  const line = document.createElement("div");
+  line.className = `codex-console-line codex-console-line--${stream === "stderr" ? "stderr" : "stdout"}`;
+  line.textContent = text;
+  el.appendChild(line);
+  // Cap total children to avoid runaway memory on long runs.
+  while (el.childElementCount > 400) el.removeChild(el.firstChild);
+  el.scrollTop = el.scrollHeight;
+}
+
+function codexConsoleFinish(label, ok, findingsCount) {
+  const el = document.getElementById("codex-console");
+  if (!el) return;
+  const meta = document.createElement("div");
+  meta.className = "codex-console-line codex-console-line--meta";
+  const state = ok ? "완료" : "중단";
+  meta.textContent = `■ ${label} — ${state} · findings ${Number(findingsCount) || 0}`;
+  el.appendChild(meta);
+  el.scrollTop = el.scrollHeight;
+}
+
+function clearCodexConsole() {
+  const el = document.getElementById("codex-console");
+  if (!el) return;
+  el.replaceChildren();
+  el.classList.remove("active");
 }
 
 function runCodexTrigger(triggerId) {

@@ -43,7 +43,7 @@ class CodexRunner {
     return lastFailure || this._failure("no codex launcher available");
   }
 
-  _tryExec(spec, prompt, { timeoutMs, cwd } = {}) {
+  _tryExec(spec, prompt, { timeoutMs, cwd, onChild, onChunk } = {}) {
     return new Promise((resolve) => {
       // Pass the prompt via stdin, not as a CLI argument. Multi-line prompts
       // with special characters (`#`, `:`, Korean, quotes) get mangled by the
@@ -90,8 +90,22 @@ class CodexRunner {
         try { child.kill(); } catch (_) {}
       }, timeoutMs || this.defaultTimeoutMs);
 
-      child.stdout.on("data", (c) => out.push(c));
-      child.stderr.on("data", (c) => errChunks.push(c));
+      if (typeof onChild === "function") onChild(child);
+
+      child.stdout.on("data", (c) => {
+        out.push(c);
+        if (typeof onChunk === "function") {
+          try { onChunk({ stream: "stdout", text: c.toString("utf-8") }); }
+          catch (_) {}
+        }
+      });
+      child.stderr.on("data", (c) => {
+        errChunks.push(c);
+        if (typeof onChunk === "function") {
+          try { onChunk({ stream: "stderr", text: c.toString("utf-8") }); }
+          catch (_) {}
+        }
+      });
 
       child.on("error", (err) => {
         if (settled) return;

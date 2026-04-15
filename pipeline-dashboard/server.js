@@ -313,8 +313,19 @@ app.post("/api/codex/trigger", tokenGuard, async (req, res) => {
 
   const prompt = trigger.promptTemplate(context);
   const result = await codexRunner.exec(prompt, {
-    timeoutMs: 120000,
+    timeoutMs: trigger.timeoutMs || 300000,
     onChild: (c) => childRegistry.track(c, "codex"),
+    // P1-6 — stream stdout/stderr chunks to the UI so the user can watch
+    // Codex progress instead of staring at a spinning card. We trim each
+    // chunk at the broadcast layer to keep event sizes reasonable.
+    onChunk: ({ stream, text }) => {
+      if (!text) return;
+      const payload = text.length > 4000 ? text.slice(0, 4000) + "…" : text;
+      broadcast({
+        type: "codex_trigger_chunk",
+        data: { triggerId, name: trigger.name, stream, text: payload },
+      });
+    },
   });
 
   let filePath = null;

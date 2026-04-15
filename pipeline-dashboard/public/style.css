@@ -615,6 +615,28 @@ h1 {
 .recommend-card--debug    { border-left-color: #f97373; background: rgba(249, 115, 115, 0.08); }
 .recommend-card--security { border-left-color: #4ade80; background: rgba(74, 222, 128, 0.08); }
 
+/* ── P1-6: live Codex console ── */
+.codex-console {
+  margin-top: 6px;
+  max-height: 140px;
+  overflow-y: auto;
+  padding: 6px 8px;
+  font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-dim);
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  display: none;
+}
+.codex-console.active { display: block; }
+.codex-console-line { opacity: 0.9; }
+.codex-console-line--stderr { color: #e6c07b; }
+.codex-console-line--meta { color: #7dd3fc; font-style: italic; }
+
 /* ── Right Tabs (Terminal / Log) ── */
 .right-tabs {
   flex: 1;

@@ -20,6 +20,7 @@ const TRIGGERS = [
     description: "현재 plan.md를 Codex에게 비평받기",
     color: "plan",
     contextSource: "plan",
+    timeoutMs: 600000,
     promptTemplate(ctx) {
       return [
         "당신은 시니어 엔지니어입니다. 아래 구현 계획을 읽고 위험 요소, 누락된 단계, 애매한 가정, 순서상 문제를 지적하세요.",
@@ -43,6 +44,7 @@ const TRIGGERS = [
     description: "작업 중 변경분(git diff HEAD)을 Codex에게 리뷰 요청",
     color: "review",
     contextSource: "git-diff",
+    timeoutMs: 300000,
     promptTemplate(ctx) {
       return [
         "당신은 꼼꼼한 코드 리뷰어입니다. 아래 git diff를 읽고 버그, 엣지 케이스, 성능 문제, 가독성 이슈를 지적하세요.",
@@ -67,6 +69,7 @@ const TRIGGERS = [
     description: "에러 로그/증상을 Codex에게 전달해 원인 분석 요청",
     color: "debug",
     contextSource: "user-input",
+    timeoutMs: 300000,
     requiresInput: true,
     inputLabel: "에러 메시지 또는 증상을 붙여넣으세요",
     promptTemplate(ctx) {
@@ -92,6 +95,7 @@ const TRIGGERS = [
     description: "작업 중 변경분을 보안 관점에서 감사",
     color: "security",
     contextSource: "git-diff",
+    timeoutMs: 300000,
     promptTemplate(ctx) {
       return [
         "당신은 보안 감사관입니다. 아래 git diff에서 OWASP Top 10 관점의 취약점(SQL 인젝션, XSS, 인증 우회, 시크릿 노출, 경로 조작, 안전하지 않은 역직렬화 등)을 찾으세요.",
@@ -121,6 +125,7 @@ function getTriggers() {
     contextSource: t.contextSource,
     requiresInput: !!t.requiresInput,
     inputLabel: t.inputLabel || null,
+    timeoutMs: t.timeoutMs,
   }));
 }
 
