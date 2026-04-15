@@ -294,6 +294,13 @@ function handleEvent(event) {
       updateTokens(event.data.claude, event.data.codex);
       break;
 
+    case "context_alarm":
+      showContextBanner(event.data);
+      addLog("phase",
+        `컨텍스트 사용량 ${(event.data.usage * 100).toFixed(0)}% — ${event.data.severity === "warn" ? "/compact 권장 (55%+)" : "주의 (40%+)"}`,
+        event.data.severity === "warn", _stageKeys);
+      break;
+
     case "findings":
       processFindingsEvent(event.data, _stageKeys);
       break;
@@ -847,6 +854,31 @@ function resetUI() {
   setBadge("", "대기");
   // Reset stage logs
   stageLogs = {};
+  // Reset context banner (T2)
+  hideContextBanner();
+}
+
+// ── Context usage banner (T2) ──
+function showContextBanner(data) {
+  const el = document.getElementById("context-banner");
+  if (!el) return;
+  const pct = Math.round((data.usage || 0) * 100);
+  const sev = data.severity === "warn" ? "warn" : "notice";
+  el.classList.remove("hidden", "notice", "warn");
+  el.classList.add(sev);
+  const textEl = document.getElementById("context-banner-text");
+  if (textEl) {
+    textEl.textContent = sev === "warn"
+      ? `컨텍스트 ${pct}% 사용 중 — 응답 품질 저하 위험`
+      : `컨텍스트 ${pct}% 사용 중 — 슬슬 정리 시점`;
+  }
+}
+
+function hideContextBanner() {
+  const el = document.getElementById("context-banner");
+  if (!el) return;
+  el.classList.add("hidden");
+  el.classList.remove("notice", "warn");
 }
 
 

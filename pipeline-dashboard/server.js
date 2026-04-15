@@ -26,6 +26,7 @@ const { PipelineState } = require("./executor/pipeline-state");
 const { QualityGate } = require("./executor/quality-gate");
 const { SkillInjector } = require("./executor/skill-injector");
 const { PipelineAdapter } = require("./executor/pipeline-adapter");
+const { ContextAlarm } = require("./executor/context-alarm");
 const skillRegistry = require("./skill-registry");
 const pipelineTemplates = require("./pipeline-templates.json");
 
@@ -728,10 +729,23 @@ const pipelineExecutor = new PipelineExecutor({
 });
 hookRouter.attachExecutor(pipelineExecutor);
 
+// ── T2: context usage banner (rev2 H4/H5) ──
+// Evaluates every hook payload for context pressure and broadcasts
+// `context_alarm` at 40% / 55%. Never returns block — UI shows a banner
+// recommending /compact.
+const contextAlarm = new ContextAlarm({ broadcast });
+
 app.post("/api/hook", async (req, res) => {
   try {
     const { event, payload } = req.body || {};
     if (!event) return res.status(400).json({ error: "missing event" });
+
+    try {
+      contextAlarm.evaluate(payload || {});
+    } catch (e) {
+      console.warn("[T2] contextAlarm error:", e.message);
+    }
+
     const decision = await hookRouter.route(event, payload || {});
     res.json(decision || {});
   } catch (err) {

@@ -34,6 +34,13 @@
     </div>
   </header>
 
+  <!-- T2: Context usage banner (hidden until /api/hook reports usage ≥40%) -->
+  <div id="context-banner" class="context-banner hidden" role="status" aria-live="polite">
+    <span class="context-banner-icon">⚠</span>
+    <span class="context-banner-text" id="context-banner-text">컨텍스트 사용량 안내</span>
+    <span class="context-banner-hint">권장: <code>/compact</code> 실행으로 이전 대화를 요약하세요.</span>
+  </div>
+
   <!-- Main Content: Left Pipeline + Right Panel -->
   <div class="workspace">
     <!-- Left: Pipeline Visualization (scrollable) -->

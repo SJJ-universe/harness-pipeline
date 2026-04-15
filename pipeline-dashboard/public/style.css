@@ -1030,6 +1030,46 @@ h1 {
 .pipeline-selector .btn-ctrl { margin-left: auto; }
 .pipeline-selector .btn-ctrl + .btn-ctrl { margin-left: 0; }
 
+/* ── Context usage banner (T2) ── */
+.context-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 18px;
+  font-size: 13px;
+  border-bottom: 1px solid var(--border);
+  animation: context-banner-fade 0.2s ease-out;
+}
+.context-banner.hidden { display: none; }
+.context-banner.notice {
+  background: rgba(210, 153, 34, 0.18);
+  color: var(--yellow);
+  border-bottom-color: var(--yellow);
+}
+.context-banner.warn {
+  background: rgba(248, 81, 73, 0.22);
+  color: var(--red);
+  border-bottom-color: var(--red);
+}
+.context-banner-icon { font-size: 16px; }
+.context-banner-text { font-weight: 600; }
+.context-banner-hint {
+  margin-left: auto;
+  color: var(--text-dim);
+  font-weight: 400;
+}
+.context-banner-hint code {
+  background: rgba(255, 255, 255, 0.08);
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-family: 'Consolas', monospace;
+  color: var(--text);
+}
+@keyframes context-banner-fade {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 /* ── Responsive ── */
 @media (max-width: 900px) {
   .workspace { flex-direction: column; }
