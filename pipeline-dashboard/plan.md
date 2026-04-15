@@ -5,10 +5,83 @@
 **리포 루트**: `C:/Users/SJ/workspace` (= `SJJ-universe/harness-pipeline` 루트)
 **작업 브랜치**: `tuning/step0-phase3` (rev2부터 `master` 직접 push 중단)
 **HEAD(rev2 시작 시점)**: `d5a08e6`
+**현재 HEAD (2026-04-15)**: `e9eb6be` — rev2 전체 배치 + P0~P2 하드닝 완료, `master`로 FF merge 대기 중
 
 ---
 
-## 목표
+## 진행 상태 요약 (2026-04-15 업데이트)
+
+rev2 범위 T0~T9는 **전부 완료**되었고, 그 위에 세 단계 하드닝 배치(P0/P1/P2)가 추가로 얹혔습니다. 아래는 현재 브랜치(`tuning/step0-phase3`)의 커밋 이력 순서입니다.
+
+### ✅ 완료 — rev2 본 배치 (T-시리즈)
+
+| SHA | 커밋 | 내용 |
+|---|---|---|
+| `fbfd7df` | `feat(T0)` | `/api/version` endpoint — 파일 HEAD와 런타임 프로세스 일치 검증 |
+| `720e5c9` | `chore(T2.0)` | hook payload dumper — context_usage 필드 부재 확정, transcript_path 기반 추정 확정 |
+| `0270a1b` | `feat(T1)` | 8개 에이전트 모델 라우팅 (haiku/sonnet/opus) |
+| `1deebe8` | `feat(T3)` | universal/code-review skill description 재작성, smoke 라우팅 검증 |
+| `214b863` | `feat(T2)` | 컨텍스트 사용량 배너 40%/55% — Stop 훅 block 없음 |
+| `b869b6c` | `feat(T9)` | tool-scoped danger gate (정규식→tool 분기, `.claude` 자해 제거) |
+| `57f183f` | `test` | bec58ce 드리프트로 깨진 phase2 테스트 업데이트 |
+| `7b09284` | `docs` | Step 0 + Phase 3 P0 완료 보고서 (`TUNING-STEP0-PHASE3.md`) |
+
+### ✅ 완료 — P0 보안 baseline (rev2 후속 하드닝)
+
+| SHA | 커밋 | 내용 |
+|---|---|---|
+| `fd29e16` | `feat(P0-1)` | 서버 권한 경계 — loopback bind + HARNESS_TOKEN middleware + WS origin 검증 |
+| `b34587f` | `feat(P0-2)` | 파일 접근 샌드박스 — context/load + skills 경로에 `path-guard` 적용 |
+| `029ba01` | `feat(P0-3)` | CLI runner 하드닝 + 통합 child registry (graceful shutdown 리핑) |
+
+### ✅ 완료 — P1 안정성 (rev2 후속 하드닝)
+
+| SHA | 커밋 | 내용 |
+|---|---|---|
+| `ff3bb8d` | `feat(P1-2)` | `npm test` 진입점 + unit/live 러너 분리 |
+| `c211c9e` | `feat(P1-3)` | `HARNESS_WATCHER_MODE` + SessionWatcher broadcast gate |
+| `6404648` | `feat(P1-4)` | UI XSS 방어 — DOM API + 공용 sanitizer (`public/ui-sanitize.js`) |
+| `e24a83c` | `feat(P1-5)` | Node 24 DEP0190 제거 — `cmd.exe /c` wrapper, `shell:false` |
+| `8c1a91a` | `feat(P1-6)` | Codex 트리거 per-trigger timeout + 실시간 stdout/stderr 콘솔 |
+
+### ✅ 완료 — P2 구조 정리
+
+| SHA | 커밋 | 내용 |
+|---|---|---|
+| `cad7b53` | `feat(P2-1)` | 하네스 온보딩 — `scripts/setup-harness.js` + `npm run setup` |
+| `14e95b5` | `feat(P2-2)` | 문서 분리 — README 엔트리 + HARNESS-*.md 3개에 Audience 헤더 |
+| `e9eb6be` | `feat(P2-3)` | `server.js` 리팩터 — `executor/general-pipeline.js` + `routes/codex-triggers.js` 추출 (906 → 516줄) |
+
+### 🎯 다음 — FF merge 대기
+
+`tuning/step0-phase3`는 `origin/master`의 fast-forward 후손이므로 충돌 없이 병합 가능. **사용자 명시 승인 후에만 실행** (rev2 C2 안전 규칙: master 직접 push 금지 + PR 없어도 승인 필요).
+
+```bash
+git checkout master
+git merge --ff-only tuning/step0-phase3
+git push origin master
+```
+
+---
+
+## P3 백로그 (rev2 스코프 **밖** — 후속 배치 후보)
+
+아래 8개는 rev2 작업 과정에서 드러난 gap, TUNING-STEP0-PHASE3.md에 명시된 deferred 항목, 그리고 하드닝을 한 번 더 태우면 보일 잔여 리스크입니다. 우선순위 라벨은 가변적입니다.
+
+| ID | 항목 | 근거 |
+|---|---|---|
+| **P3-1** | End-to-end Step 0 세션 (S1~S7) | TUNING-STEP0-PHASE3.md 명시적 deferred — 이 세션의 executor가 self-conflict 회피로 꺼져 있어 fresh Claude Code 세션 필요. 유닛/라이브 테스트로는 커버되지 않는 실제 Phase C Codex 경로 포함 |
+| **P3-2** | GitHub Actions CI 워크플로 | `.github/workflows/` 부재. 현재 모든 회귀 검증이 수동 — master에 깨진 코드가 도달할 안전장치 없음. 매트릭스 Node 20/22/24로 P1-5 류 deprecation 조기 감지 |
+| **P3-3** | `_workspace/` retention 정책 | `codex-trigger-*.md`가 무제한 누적 (이미 9개). 유지 개수 상한 또는 TTL cleanup + 실패 덤프(`step0-failure-*.md`) 보존 정책 결정 |
+| **P3-4** | Danger gate shell-lex 파싱 | TUNING 문서의 known tradeoff — 커밋 메시지 본문에 `rm -rf` 같은 패턴을 문자 그대로 쓰면 게이트 트립. 정규식 대신 shell-lex로 argv 토큰만 매칭. T9 커밋 시도 때 실제로 발생한 문제 |
+| **P3-5** | Playwright 브라우저 smoke 테스트 | `public/app.js` 1397줄 중 DOM/WS/console 렌더링 경로가 자동 브라우저 테스트 없음. `npm run test:browser` 추가 — 트리거 카드 렌더, 코덱스 콘솔 started/chunk/done, 콘솔 에러 부재 |
+| **P3-6** | 구조적 서버 로깅 + 회전 | plan.md 실패 덤프 스키마가 `logs/server.log`를 가정했는데 실제로는 `console.log`만 사용. pino 또는 rolling file writer, INFO/WARN/ERROR, 일일 회전, 7일 보존 |
+| **P3-7** | HARNESS_TOKEN 회전 + 시크릿 위생 | 단일 정적 토큰, 누출 시 revocation 경로 없음. `scripts/rotate-token.js` + `HARNESS_TOKEN_PREVIOUS` 유예 슬롯 + HARNESS-GUIDE 플레이북 + 로그/에러에 토큰 에코 여부 감사 |
+| **P3-8** | `public/app.js` 모듈화 | 1397줄 단일 파일 (WS/렌더/라우팅/sanitize 전부 혼재). `public/app/*.mjs`로 분리, `<script type="module">` 로드, bundler 없음. P2-3 서버 리팩터의 프론트엔드 미러 |
+
+---
+
+## 원본 rev2 목표
 
 1. **Step 0**: 최근 7개 커밋(FIX-1~3 ~ Codex 트리거)이 런타임 프로세스에 실제로 로드되어 동작하는지 결정론적으로 검증
 2. **Phase 3 P0**: 통과 시 T1(모델 라우팅) + T3(skill description) + T2(컨텍스트 알람) + T9(danger gate)를 순차 진행
