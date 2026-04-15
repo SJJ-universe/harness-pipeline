@@ -11,10 +11,28 @@
 // On any failure we exit(0) with empty stdout so Claude is never blocked by harness issues.
 
 const http = require("http");
+const fs = require("fs");
+const path = require("path");
 
 const EVENT = process.argv[2] || "unknown";
 const HOST = process.env.HARNESS_HOST || "127.0.0.1";
 const PORT = parseInt(process.env.HARNESS_PORT || "4200", 10);
+const DUMP_PAYLOADS = process.env.HARNESS_DUMP_PAYLOADS === "1";
+
+// T2.0: dump raw hook payload to disk so we can discover the real field
+// name for context_usage before implementing T2. Enabled by env var only.
+function dumpPayload(payload) {
+  if (!DUMP_PAYLOADS) return;
+  try {
+    const dir = path.resolve(__dirname, "..", "..", "_workspace", "hook-payload-samples");
+    fs.mkdirSync(dir, { recursive: true });
+    const ts = new Date().toISOString().replace(/[:.]/g, "-");
+    const file = path.join(dir, `${EVENT}-${ts}.json`);
+    fs.writeFileSync(file, JSON.stringify(payload, null, 2));
+  } catch (_) {
+    // never let dumper break the hook
+  }
+}
 
 // Per-event timeouts. Stop can trigger a Codex phase which itself waits up to
 // 120s; we add margin so the hook doesn't bail before the critique is persisted.
@@ -37,6 +55,8 @@ process.stdin.on("end", () => {
   } catch (_) {
     // malformed stdin — send empty payload
   }
+
+  dumpPayload(payload);
 
   const body = JSON.stringify({ event: EVENT, payload });
   const req = http.request(
