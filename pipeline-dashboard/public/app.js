@@ -79,9 +79,11 @@ function renderPipeline(config) {
 
     const phaseEl = document.createElement("div");
     phaseEl.className = "phase" + (hasReviewerGroup ? " phase-large" : "");
-    phaseEl.id = `phase-${phase.id}`;
+    // P1-4: phase.id lands in DOM id + downstream querySelectors; escape
+    // anything that reaches innerHTML. Use escapeAttr for attribute values.
+    phaseEl.id = `phase-${String(phase.id || "")}`;
 
-    let innerHtml = `<div class="phase-label">${phase.label} <span>${phase.name}</span></div>`;
+    let innerHtml = `<div class="phase-label">${escapeHtml(phase.label)} <span>${escapeHtml(phase.name)}</span></div>`;
 
     if (phase.layout === "row" && ungrouped.length >= 2) {
       // Side-by-side layout with bidirectional connector
@@ -155,13 +157,18 @@ function renderPipeline(config) {
 let _nodePhaseMap = {};
 
 function renderNode(node, isReviewer) {
+  // P1-4: node fields come from pipeline-templates.json but may be
+  // extended dynamically by pipeline mutations. Escape every field that
+  // reaches innerHTML / attribute slots. iconClass is whitelisted via
+  // ICON_CLASSES so it's safe as-is.
   const iconClass = ICON_CLASSES[node.iconType] || "emoji-icon";
   const reviewerClass = isReviewer ? " reviewer" : "";
-  const badgeHtml = isReviewer ? `<div class="findings-badge" id="badge-${node.id}"></div>` : "";
+  const nodeIdAttr = escapeAttr(node.id || "");
+  const badgeHtml = isReviewer ? `<div class="findings-badge" id="badge-${nodeIdAttr}"></div>` : "";
   return `
-    <div class="node${reviewerClass}" id="node-${node.id}" data-node="${node.id}">
-      <div class="node-icon ${iconClass}">${node.icon}</div>
-      <div class="node-label">${node.label}<br/><small>${node.sublabel}</small></div>
+    <div class="node${reviewerClass}" id="node-${nodeIdAttr}" data-node="${nodeIdAttr}">
+      <div class="node-icon ${iconClass}">${escapeHtml(node.icon)}</div>
+      <div class="node-label">${escapeHtml(node.label)}<br/><small>${escapeHtml(node.sublabel)}</small></div>
       ${badgeHtml}
     </div>`;
 }
@@ -815,11 +822,9 @@ function clearLog() {
   document.getElementById("log-content").innerHTML = "";
 }
 
-function escapeHtml(str) {
-  const d = document.createElement("div");
-  d.textContent = str;
-  return d.innerHTML;
-}
+// P1-4: pure sanitization — shared with Node unit tests via public/ui-sanitize.js.
+const escapeHtml = window.uiSanitize.escapeHtml;
+const escapeAttr = window.uiSanitize.escapeAttr;
 
 // ── Reset ──
 function resetUI() {
@@ -1034,12 +1039,31 @@ function loadCodexTriggers() {
       codexTriggers = triggers;
       const container = document.getElementById("trigger-cards");
       if (!container) return;
-      container.innerHTML = triggers.map((t) => `
-        <div class="recommend-card recommend-card--${t.color}" data-trigger="${t.id}" onclick="runCodexTrigger('${t.id}')">
-          <div class="recommend-card-name">${t.name}</div>
-          <div class="recommend-card-reason">${t.description}</div>
-        </div>
-      `).join("");
+      // P1-4: build cards via DOM API so attacker-controllable fields
+      // (id/name/description/color) land as textContent, never as HTML
+      // or as onclick attribute values.
+      container.replaceChildren();
+      // Whitelist must match the .recommend-card--<x> classes in style.css.
+      const COLOR_ALLOW = new Set(["plan", "review", "debug", "security"]);
+      for (const t of triggers) {
+        const card = document.createElement("div");
+        const color = COLOR_ALLOW.has(t.color) ? t.color : "plan";
+        card.className = `recommend-card recommend-card--${color}`;
+        card.dataset.trigger = String(t.id || "");
+        card.addEventListener("click", () => runCodexTrigger(t.id));
+
+        const name = document.createElement("div");
+        name.className = "recommend-card-name";
+        name.textContent = t.name || "";
+        card.appendChild(name);
+
+        const reason = document.createElement("div");
+        reason.className = "recommend-card-reason";
+        reason.textContent = t.description || "";
+        card.appendChild(reason);
+
+        container.appendChild(card);
+      }
     })
     .catch((err) => addLog("error", `Codex 트리거 로드 실패: ${err.message}`));
 }
@@ -1273,12 +1297,15 @@ function showFinalPlan(data) {
   });
 
   title.textContent = "최종 플랜 — 범용 파이프라인";
+  // P1-4: verdictClass is from a local whitelist, but verdict and data.reason
+  // come from the pipeline result and can contain arbitrary strings — escape
+  // both before interpolating into innerHTML.
   meta.innerHTML =
-    `판정: <span class="${verdictClass}">${verdict}</span>` +
-    ` · 반복: ${data.iterations || 0}` +
-    ` · 소요: ${Math.round((data.durationMs || 0) / 100) / 10}s` +
+    `판정: <span class="${escapeAttr(verdictClass)}">${escapeHtml(verdict)}</span>` +
+    ` · 반복: ${Number(data.iterations) || 0}` +
+    ` · 소요: ${Math.round((Number(data.durationMs) || 0) / 100) / 10}s` +
     ` · 최종 findings: C${counts.critical}/H${counts.high}/M${counts.medium}/L${counts.low}/N${counts.note}` +
-    (data.reason ? ` · 이유: ${data.reason}` : "");
+    (data.reason ? ` · 이유: ${escapeHtml(data.reason)}` : "");
   text.textContent = data.finalPlan || "(플랜 없음)";
   overlay.classList.add("visible");
 }
