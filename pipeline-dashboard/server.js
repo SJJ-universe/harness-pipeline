@@ -29,6 +29,18 @@ const { PipelineAdapter } = require("./executor/pipeline-adapter");
 const skillRegistry = require("./skill-registry");
 const pipelineTemplates = require("./pipeline-templates.json");
 
+// ── Runtime identity (T0) ──
+const SERVER_STARTED_AT = new Date().toISOString();
+const SERVER_PID = process.pid;
+let SERVER_COMMIT_SHA = "unknown";
+try {
+  SERVER_COMMIT_SHA = execSync("git rev-parse HEAD", {
+    cwd: path.resolve(__dirname, ".."),
+  }).toString().trim();
+} catch (e) {
+  console.warn("[T0] git rev-parse failed:", e.message);
+}
+
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
@@ -39,6 +51,18 @@ app.use(express.json());
 // ── Health / Event / Reset API ──
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok", uptime: process.uptime(), terminal: !!pty });
+});
+
+// ── /api/version (T0): runtime proof endpoint ──
+// Lets callers verify the live Node process actually loaded the expected commit.
+app.get("/api/version", (req, res) => {
+  res.json({
+    commitSha: SERVER_COMMIT_SHA,
+    startedAt: SERVER_STARTED_AT,
+    pid: SERVER_PID,
+    node: process.version,
+    uptime: process.uptime(),
+  });
 });
 
 // Track connected clients + pty subprocesses so we can reap them on shutdown
