@@ -941,6 +941,9 @@ function initTerminal() {
       }
       return false;
     }
+    if (ctrl && (e.key === "v" || e.key === "V")) {
+      return false;
+    }
     return true;
   });
 
