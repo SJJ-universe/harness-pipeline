@@ -12,10 +12,16 @@
 //
 // Safety: activation is gated by process.env.HARNESS_ENABLED !== "1" by default.
 
+const fs = require("fs");
+const path = require("path");
 const { PipelineState } = require("./pipeline-state");
 const { QualityGate } = require("./quality-gate");
 const { SkillInjector } = require("./skill-injector");
 const { PipelineAdapter } = require("./pipeline-adapter");
+
+// _workspace/ lives in the user's project root (one level above pipeline-dashboard).
+// Codex critiques are persisted here so Claude can Read them between Phase C → D.
+const DEFAULT_WORKSPACE_DIR = path.resolve(__dirname, "..", "..", "_workspace");
 
 const TASK_PATTERNS = {
   "code-review": /리뷰|review|검토/i,
@@ -38,7 +44,7 @@ const TEMPLATE_MAP = {
 const MAX_GATE_RETRIES = 3;
 
 class PipelineExecutor {
-  constructor({ broadcast, templates, codex, state, gate, injector, adapter }) {
+  constructor({ broadcast, templates, codex, state, gate, injector, adapter, workspaceDir }) {
     this.broadcast = broadcast;
     this.templates = templates;
     this.codex = codex;
@@ -46,6 +52,8 @@ class PipelineExecutor {
     this.gate = gate || new QualityGate();
     this.injector = injector || new SkillInjector({});
     this.adapter = adapter || new PipelineAdapter({ templates });
+    this.workspaceDir =
+      workspaceDir || process.env.HARNESS_WORKSPACE_DIR || DEFAULT_WORKSPACE_DIR;
 
     this.active = null;
     this.enabled = process.env.HARNESS_ENABLED === "1";
@@ -193,6 +201,41 @@ class PipelineExecutor {
 
     this.active.gateRetries = 0;
     await this._advance();
+
+    // FIX-2: if Phase C just ran and produced a critique, instruct Claude to
+    // read the critique file before ending the turn. Returning `decision: block`
+    // on Stop re-prompts Claude with the reason as new context.
+    if (this.active && this.active.pendingHint) {
+      const hint = this.active.pendingHint;
+      this.active.pendingHint = null;
+      if (hint.type === "codex_critique_ready") {
+        const sev = (hint.findings || [])
+          .reduce((acc, f) => {
+            const k = (f.severity || "other").toLowerCase();
+            acc[k] = (acc[k] || 0) + 1;
+            return acc;
+          }, {});
+        const sevLine = Object.entries(sev)
+          .map(([k, v]) => `${k}=${v}`)
+          .join(", ");
+        const reason =
+          `[Harness] Phase C 완료 — Codex 비평이 파일로 저장되었습니다.\n` +
+          `  파일: ${hint.critiquePath}\n` +
+          (hint.ok
+            ? `  Codex 실행: OK\n`
+            : `  Codex 실행: FAILED (${hint.error || "unknown"})\n`) +
+          `  Findings: ${(hint.findings || []).length}건` +
+          (sevLine ? ` (${sevLine})` : "") +
+          `\n\n` +
+          `다음 행동:\n` +
+          `1. Read 도구로 위 파일을 먼저 읽으세요.\n` +
+          `2. 비평 내용을 반영하여 plan*.md를 Edit/Write로 보완하세요.\n` +
+          `3. 보완이 끝나면 턴을 종료하여 다음 Phase로 진행하세요.\n` +
+          `(이 메시지는 Phase C→D 전환 시 한 번만 표시됩니다.)`;
+        return { decision: "block", reason };
+      }
+    }
+
     return {};
   }
 
@@ -203,6 +246,69 @@ class PipelineExecutor {
   }
 
   // ── Internal ──────────────────────────────────────────────────
+  _persistCritique(phase, iteration, prompt, result) {
+    try {
+      if (!fs.existsSync(this.workspaceDir)) {
+        fs.mkdirSync(this.workspaceDir, { recursive: true });
+      }
+      const fname = `${phase.id}_codex_critique_iter${iteration}.md`;
+      const fpath = path.join(this.workspaceDir, fname);
+
+      const findings = Array.isArray(result.findings) ? result.findings : [];
+      const findingsBlock =
+        findings.length === 0
+          ? "_(no structured findings parsed)_"
+          : findings
+              .map((f) => `- **[${f.severity || "n/a"}]** ${f.message || ""}`)
+              .join("\n");
+
+      const body = [
+        `# Codex Critique — Phase ${phase.id} (${phase.name || ""}) iter ${iteration}`,
+        "",
+        `- Timestamp: ${new Date().toISOString()}`,
+        `- ok: ${result.ok}`,
+        `- exitCode: ${result.exitCode}`,
+        `- error: ${result.error || "(none)"}`,
+        "",
+        "## Summary",
+        "",
+        (result.summary || "(no summary)").trim(),
+        "",
+        "## Findings",
+        "",
+        findingsBlock,
+        "",
+        "## Raw stdout",
+        "",
+        "```",
+        (result.stdout || "").slice(0, 20000),
+        "```",
+        "",
+        "## Stderr",
+        "",
+        "```",
+        (result.stderr || "").slice(0, 4000),
+        "```",
+        "",
+        "## Prompt sent to Codex",
+        "",
+        "```",
+        (prompt || "").slice(0, 8000),
+        "```",
+        "",
+      ].join("\n");
+
+      fs.writeFileSync(fpath, body, "utf-8");
+      return fpath;
+    } catch (err) {
+      this.broadcast({
+        type: "critique_persist_failed",
+        data: { phase: phase.id, error: err.message },
+      });
+      return null;
+    }
+  }
+
   _detectTaskType(text) {
     for (const [type, pattern] of Object.entries(TASK_PATTERNS)) {
       if (pattern.test(text)) return type;
@@ -283,9 +389,32 @@ class PipelineExecutor {
       data: { phase: phase.id, promptPreview: prompt.slice(0, 200) },
     });
 
+    const iteration = (this.active.iteration || 0) + 1;
     const result = await this.codex.exec(prompt, { timeoutMs: phase.timeoutMs || 120000 });
     this.state.setCritique(phase.id, result);
     this.active.lastCritique = { phase: phase.id, ...result };
+
+    // FIX-1: persist critique to filesystem so Claude can Read it in the next phase
+    const critiquePath = this._persistCritique(phase, iteration, prompt, result);
+    if (critiquePath) {
+      this.state.setArtifact(phase.id, "critiquePath", critiquePath);
+    }
+
+    // FIX-2: only surface a Stop-block hint when there is something actionable —
+    // either findings exist or Codex itself failed. A clean run should not
+    // interrupt Claude's flow.
+    const findingsList = Array.isArray(result.findings) ? result.findings : [];
+    const shouldHint = critiquePath && (!result.ok || findingsList.length > 0);
+    if (shouldHint) {
+      this.active.pendingHint = {
+        type: "codex_critique_ready",
+        critiquePath,
+        summary: result.summary || "(no summary)",
+        findings: findingsList,
+        ok: result.ok,
+        error: result.error || null,
+      };
+    }
 
     this.broadcast({
       type: "critique_received",
@@ -295,6 +424,7 @@ class PipelineExecutor {
         summary: result.summary,
         findings: result.findings,
         error: result.error || null,
+        critiquePath: critiquePath || null,
       },
     });
 

@@ -15,7 +15,17 @@ const http = require("http");
 const EVENT = process.argv[2] || "unknown";
 const HOST = process.env.HARNESS_HOST || "127.0.0.1";
 const PORT = parseInt(process.env.HARNESS_PORT || "4200", 10);
-const TIMEOUT_MS = 1500;
+
+// Per-event timeouts. Stop can trigger a Codex phase which itself waits up to
+// 120s; we add margin so the hook doesn't bail before the critique is persisted.
+const TIMEOUTS = {
+  "user-prompt": 3000,
+  "pre-tool": 1500,
+  "post-tool": 1500,
+  "stop": 180000,
+  "session-end": 5000,
+};
+const TIMEOUT_MS = TIMEOUTS[EVENT] || 1500;
 
 const chunks = [];
 process.stdin.on("data", (c) => chunks.push(c));

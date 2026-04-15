@@ -20,6 +20,17 @@
       <span class="badge" id="status-badge">대기</span>
     </div>
     <div class="header-right">
+      <span class="server-indicator" id="server-indicator" title="서버 상태">
+        <span class="dot" id="server-dot"></span>
+        <span id="server-label">서버: 확인중</span>
+      </span>
+      <span class="codex-indicator" id="codex-indicator" title="Codex CLI 상태">
+        <span class="dot" id="codex-dot"></span>
+        <span id="codex-label">Codex: —</span>
+      </span>
+      <button class="btn-ctrl" id="btn-codex-verify" onclick="verifyCodex()" title="Codex CLI 실제 호출 테스트">Codex 검증</button>
+      <button class="btn-ctrl" id="btn-server-restart" onclick="restartServer()" title="서버 재시작">재시작</button>
+      <button class="btn-ctrl danger" id="btn-server-stop" onclick="stopServer()" title="서버 종료">서버 종료</button>
     </div>
   </header>
 
@@ -34,6 +45,12 @@
           <option value="default">범용 태스크 파이프라인</option>
           <option value="testing">테스트 파이프라인</option>
         </select>
+        <button class="btn-ctrl primary" id="btn-start-general" onclick="openGeneralRun()" title="범용 태스크 파이프라인 실행 (Claude 플랜 ↔ Codex 비평 순환)">
+          ▶ 작업 시작
+        </button>
+        <button class="btn-ctrl danger" id="btn-abort-general" onclick="abortGeneralRun()" style="display:none" title="진행 중인 파이프라인 중단">
+          ■ 중단
+        </button>
       </div>
       <!-- Dynamic pipeline container -->
       <div class="pipeline-container" id="pipeline-container">
@@ -109,6 +126,44 @@
         </div>
       </div>
     </section>
+  </div>
+
+  <!-- General Pipeline Task Input Modal -->
+  <div class="modal-overlay" id="general-run-overlay" onclick="closeGeneralRun(event)">
+    <div class="modal-content">
+      <div class="modal-header">
+        <span class="modal-title">범용 파이프라인 시작 — Claude 플랜 ↔ Codex 비평</span>
+        <button class="modal-close" onclick="closeGeneralRun()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="plan-help">
+          작업을 입력하면 Claude가 계획을 세우고 Codex가 비평하며, critical/high 이슈가 남아 있는 동안 자동으로 계획을 수정하고 다시 비평합니다.
+        </p>
+        <label class="plan-field-label">작업 설명</label>
+        <textarea id="gr-task-input" class="plan-textarea" rows="5"
+          placeholder="예: Express 서버에 JWT 인증 미들웨어를 추가하고 기존 /admin 라우트를 보호하기"></textarea>
+        <label class="plan-field-label">최대 반복 횟수</label>
+        <input type="number" id="gr-max-iter" class="plan-input" value="3" min="1" max="5" />
+        <div class="plan-actions">
+          <button class="btn-ctrl" onclick="closeGeneralRun()">취소</button>
+          <button class="btn-ctrl primary" id="btn-gr-start" onclick="submitGeneralRun()">시작</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Final Plan Result Modal -->
+  <div class="modal-overlay" id="final-plan-overlay" onclick="closeFinalPlan(event)">
+    <div class="modal-content wide">
+      <div class="modal-header">
+        <span class="modal-title" id="final-plan-title">최종 플랜</span>
+        <button class="modal-close" onclick="closeFinalPlan()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="final-plan-meta" id="final-plan-meta"></div>
+        <pre class="final-plan-text" id="final-plan-text"></pre>
+      </div>
+    </div>
   </div>
 
   <!-- Stage Detail Modal -->

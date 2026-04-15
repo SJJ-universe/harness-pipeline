@@ -432,6 +432,52 @@ function handleEvent(event) {
     case "pipeline_mutated":
       handlePipelineMutated(event.data);
       break;
+
+    // ── Server control / Codex verify ──
+    case "server_shutdown":
+      setServerIndicator("down", `서버: 종료됨 (${event.data && event.data.reason || "—"})`);
+      addLog("error", `서버 종료: ${event.data && event.data.reason || "unknown"}`, true);
+      break;
+
+    case "server_restart":
+      setServerIndicator("checking", "서버: 재시작 중…");
+      addLog("phase", "서버 재시작 요청됨 — 곧 재연결합니다");
+      break;
+
+    case "codex_verify_started":
+      setCodexIndicator("checking", "Codex: 확인중…");
+      addLog("phase", "Codex CLI 검증 호출 시작 (실제 subprocess)");
+      break;
+
+    case "codex_verify_result": {
+      const d = event.data || {};
+      if (d.ok && d.detectedMarker) {
+        setCodexIndicator("ok", `Codex: OK (${d.durationMs}ms)`);
+        addLog("phase", `Codex 검증 성공 — exit=${d.exitCode} duration=${d.durationMs}ms marker=OK`);
+      } else {
+        setCodexIndicator("fail", "Codex: 실패");
+        addLog("error",
+          `Codex 검증 실패 — ok=${d.ok} exit=${d.exitCode} ` +
+          `marker=${d.detectedMarker} error=${d.error || "—"}`, true);
+      }
+      break;
+    }
+
+    case "log_message": {
+      const level = (event.data && event.data.level) || "info";
+      const msg = (event.data && event.data.message) || "";
+      addLog(level === "error" ? "error" : "phase", msg, level === "error");
+      break;
+    }
+
+    case "general_plan_complete": {
+      const triggerBtn = document.getElementById("btn-start-general");
+      const abortBtn = document.getElementById("btn-abort-general");
+      if (triggerBtn) triggerBtn.disabled = false;
+      if (abortBtn) abortBtn.style.display = "none";
+      showFinalPlan(event.data || {});
+      break;
+    }
   }
 }
 
@@ -838,6 +884,10 @@ function closeModal(event) {
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
     document.getElementById("modal-overlay").classList.remove("visible");
+    ["general-run-overlay", "final-plan-overlay"].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.classList.remove("visible");
+    });
   }
 });
 
@@ -870,6 +920,37 @@ function initTerminal() {
   term.loadAddon(fitAddon);
   term.open(document.getElementById("terminal-container"));
   fitAddon.fit();
+
+  term.attachCustomKeyEventHandler((e) => {
+    if (e.type !== "keydown") return true;
+    const ctrl = e.ctrlKey || e.metaKey;
+    if (ctrl && !e.shiftKey && !e.altKey && (e.key === "c" || e.key === "C")) {
+      const sel = term.getSelection();
+      if (sel && sel.length > 0) {
+        navigator.clipboard.writeText(sel).catch(() => {});
+        term.clearSelection();
+        return false;
+      }
+      return true;
+    }
+    if (ctrl && e.shiftKey && (e.key === "C" || e.key === "c")) {
+      const sel = term.getSelection();
+      if (sel && sel.length > 0) {
+        navigator.clipboard.writeText(sel).catch(() => {});
+        term.clearSelection();
+      }
+      return false;
+    }
+    if (ctrl && (e.key === "v" || e.key === "V")) {
+      navigator.clipboard.readText().then((text) => {
+        if (text && termWs && termWs.readyState === 1) {
+          termWs.send(JSON.stringify({ type: "input", data: text }));
+        }
+      }).catch(() => {});
+      return false;
+    }
+    return true;
+  });
 
   const protocol = location.protocol === "https:" ? "wss:" : "ws:";
   termWs = new WebSocket(`${protocol}//${location.host}/terminal`);
@@ -961,6 +1042,193 @@ function dismissRecommendations() {
   document.getElementById("harness-recommend").style.display = "none";
 }
 
+// ══════════════════════════════════
+// Server control + Codex verify + General plan critique
+// ══════════════════════════════════
+
+function setServerIndicator(state, text) {
+  const el = document.getElementById("server-indicator");
+  const label = document.getElementById("server-label");
+  if (!el || !label) return;
+  el.classList.remove("ok", "down", "checking");
+  if (state) el.classList.add(state);
+  if (text) label.textContent = text;
+}
+
+function setCodexIndicator(state, text) {
+  const el = document.getElementById("codex-indicator");
+  const label = document.getElementById("codex-label");
+  if (!el || !label) return;
+  el.classList.remove("ok", "fail", "checking");
+  if (state) el.classList.add(state);
+  if (text) label.textContent = text;
+}
+
+async function fetchServerInfo() {
+  try {
+    const r = await fetch("/api/server/info");
+    if (!r.ok) throw new Error(String(r.status));
+    const info = await r.json();
+    setServerIndicator("ok", `서버: 연결 (pid ${info.pid}${info.supervised ? " · 감독" : ""})`);
+    // Disable restart button if not supervised
+    const restartBtn = document.getElementById("btn-server-restart");
+    if (restartBtn && !info.supervised) {
+      restartBtn.disabled = true;
+      restartBtn.title = "start.js를 통해 실행되지 않아 재시작 불가";
+    }
+  } catch (err) {
+    setServerIndicator("down", "서버: 연결 끊김");
+  }
+}
+
+async function stopServer() {
+  if (!confirm("서버를 정말 종료합니까? 진행 중인 파이프라인과 터미널 세션이 모두 종료됩니다.")) return;
+  setServerIndicator("checking", "서버: 종료 요청…");
+  try {
+    await fetch("/api/server/shutdown", { method: "POST" });
+  } catch (_) { /* connection likely dropped — that's OK */ }
+}
+
+async function restartServer() {
+  if (!confirm("서버를 재시작합니까?")) return;
+  setServerIndicator("checking", "서버: 재시작 요청…");
+  try {
+    const r = await fetch("/api/server/restart", { method: "POST" });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      alert("재시작 실패: " + (err.error || r.status));
+      fetchServerInfo();
+    }
+  } catch (_) { /* connection will drop when server exits */ }
+}
+
+async function verifyCodex() {
+  const btn = document.getElementById("btn-codex-verify");
+  if (btn) btn.disabled = true;
+  setCodexIndicator("checking", "Codex: 검증 중…");
+  try {
+    const r = await fetch("/api/codex/verify", { method: "POST" });
+    const d = await r.json();
+    // The broadcast event will also update the indicator; this is a fallback
+    if (d.ok && d.detectedMarker) {
+      setCodexIndicator("ok", `Codex: OK (${d.durationMs}ms)`);
+    } else {
+      setCodexIndicator("fail", "Codex: 실패");
+      const msg = [
+        `exitCode: ${d.exitCode}`,
+        `detectedMarker: ${d.detectedMarker}`,
+        d.error ? `error: ${d.error}` : "",
+        d.stderrSnippet ? `stderr: ${d.stderrSnippet.slice(0, 200)}` : "",
+      ].filter(Boolean).join("\n");
+      alert("Codex 검증 실패\n\n" + msg);
+    }
+  } catch (err) {
+    setCodexIndicator("fail", "Codex: 오류");
+    alert("Codex 검증 요청 실패: " + err.message);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// ── Automated General Pipeline (Claude plan ↔ Codex critique) ──
+
+function openGeneralRun() {
+  // Auto-switch visual template to "default" so the user sees the phases
+  // that will actually run.
+  const sel = document.getElementById("pipeline-select");
+  if (sel && sel.value !== "default") {
+    sel.value = "default";
+    loadPipelineTemplate("default");
+  }
+  document.getElementById("general-run-overlay").classList.add("visible");
+  setTimeout(() => {
+    const ti = document.getElementById("gr-task-input");
+    if (ti) ti.focus();
+  }, 50);
+}
+
+function closeGeneralRun(event) {
+  if (event && event.target !== event.currentTarget) return;
+  document.getElementById("general-run-overlay").classList.remove("visible");
+}
+
+async function submitGeneralRun() {
+  const task = document.getElementById("gr-task-input").value.trim();
+  const maxIter = parseInt(document.getElementById("gr-max-iter").value, 10) || 3;
+  if (task.length < 3) {
+    alert("작업 설명을 3자 이상 입력하세요");
+    return;
+  }
+  const startBtn = document.getElementById("btn-gr-start");
+  const triggerBtn = document.getElementById("btn-start-general");
+  const abortBtn = document.getElementById("btn-abort-general");
+  if (startBtn) startBtn.disabled = true;
+  if (triggerBtn) triggerBtn.disabled = true;
+  try {
+    const r = await fetch("/api/pipeline/general-run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ task, maxIterations: maxIter }),
+    });
+    const d = await r.json();
+    if (!r.ok) {
+      alert("시작 실패: " + (d.error || r.status));
+      if (triggerBtn) triggerBtn.disabled = false;
+      return;
+    }
+    closeGeneralRun();
+    if (abortBtn) abortBtn.style.display = "";
+    addLog("phase", `범용 파이프라인 시작 — ${task.slice(0, 60)} (max ${maxIter} iter)`);
+  } catch (err) {
+    alert("요청 실패: " + err.message);
+    if (triggerBtn) triggerBtn.disabled = false;
+  } finally {
+    if (startBtn) startBtn.disabled = false;
+  }
+}
+
+async function abortGeneralRun() {
+  if (!confirm("진행 중인 파이프라인을 중단합니까?")) return;
+  try {
+    await fetch("/api/pipeline/general-abort", { method: "POST" });
+  } catch (_) {}
+}
+
+function closeFinalPlan(event) {
+  if (event && event.target !== event.currentTarget) return;
+  document.getElementById("final-plan-overlay").classList.remove("visible");
+}
+
+function showFinalPlan(data) {
+  const overlay = document.getElementById("final-plan-overlay");
+  const meta = document.getElementById("final-plan-meta");
+  const text = document.getElementById("final-plan-text");
+  const title = document.getElementById("final-plan-title");
+  if (!overlay || !meta || !text) return;
+
+  const verdict = data.verdict || "—";
+  const verdictClass =
+    verdict === "CLEAN" ? "ok" :
+    verdict === "CONCERNS" ? "warn" :
+    verdict === "ERROR" || verdict === "ABORTED" ? "fail" : "";
+  const findings = (data.lastCritique && data.lastCritique.findings) || [];
+  const counts = { critical: 0, high: 0, medium: 0, low: 0, note: 0 };
+  findings.forEach((f) => {
+    const sev = f.severity || "note";
+    if (counts[sev] !== undefined) counts[sev]++;
+  });
+
+  title.textContent = "최종 플랜 — 범용 파이프라인";
+  meta.innerHTML =
+    `판정: <span class="${verdictClass}">${verdict}</span>` +
+    ` · 반복: ${data.iterations || 0}` +
+    ` · 소요: ${Math.round((data.durationMs || 0) / 100) / 10}s` +
+    ` · 최종 findings: C${counts.critical}/H${counts.high}/M${counts.medium}/L${counts.low}/N${counts.note}` +
+    (data.reason ? ` · 이유: ${data.reason}` : "");
+  text.textContent = data.finalPlan || "(플랜 없음)";
+  overlay.classList.add("visible");
+}
+
 // ── Init ──
 connectWS();
 // Terminal is default tab — init immediately
@@ -972,3 +1240,6 @@ renderCritiqueTimeline();
 loadAllTemplates();
 // Show harness mode indicator (state from server)
 fetchHarnessMode();
+// Server / Codex initial status
+fetchServerInfo();
+setInterval(fetchServerInfo, 15000);
