@@ -3,6 +3,10 @@
 > 작성일: 2026-04-14
 > 대상 성숙도: Observable(2) → Directive(3) → Adaptive(4)
 > 상위 문서: `HARNESS-ENGINEERING-GUIDE.md`
+>
+> **Audience:** 하네스 내부를 실제로 수정·확장하는 엔지니어 — Phase 1–4 구현
+> 설계, 상태 모델, 이벤트 프로토콜, 파일 구조를 다룹니다. 개념 이론은
+> `HARNESS-ENGINEERING-GUIDE.md`, 실행·사용법은 `HARNESS-GUIDE.md` 참고.
 
 ---
 

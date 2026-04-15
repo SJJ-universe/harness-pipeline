@@ -1,6 +1,10 @@
 # Harness Engineering Guide
 
 > AI 에이전트 오케스트레이션의 다음 단계
+>
+> **Audience:** 신규 기여자 · 하네스 엔지니어링을 처음 접하는 독자 — 개념, 이론,
+> 성숙도 레벨 등 "왜 하네스인가"를 다룹니다. 실제 대시보드 실행법은
+> `HARNESS-GUIDE.md`, 내부 구현 설계는 `HARNESS-DESIGN.md`를 참고하세요.
 
 ---
 

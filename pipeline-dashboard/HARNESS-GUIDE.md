@@ -1,6 +1,10 @@
 # Pipeline Dashboard — 하네스 엔지니어링 가이드
 
 > Claude Code + Codex CLI를 위한 **Directive-mode Harness** 프레임워크 및 실시간 시각화 대시보드
+>
+> **Audience:** 대시보드를 실제로 설치·실행·사용자 정의하려는 사용자 — 설치,
+> 실행, Codex 트리거 사용법, 커스터마이징, 파일 레퍼런스를 다룹니다. 개념
+> 이론은 `HARNESS-ENGINEERING-GUIDE.md`, 내부 구현은 `HARNESS-DESIGN.md`.
 
 ---
 
