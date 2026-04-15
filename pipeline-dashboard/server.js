@@ -14,6 +14,10 @@ const {
   verifyWsOrigin,
 } = require("./executor/security");
 
+// ── P0-2: File access sandbox root (workspace repo root) ──
+const pathGuard = require("./executor/path-guard");
+const WORKSPACE_ROOT = path.resolve(__dirname, "..");
+
 // node-pty (optional — graceful fallback if not installed)
 let pty = null;
 try {
@@ -559,17 +563,32 @@ app.get("/api/skills/harness/:type", (req, res) => {
 
 // ── Context Discovery API ──
 app.post("/api/context/discover", tokenGuard, (req, res) => {
-  const projectRoot = req.body.projectRoot || path.join(__dirname, "..");
-  const context = discoverContextFiles(projectRoot);
+  const projectRoot = req.body.projectRoot || WORKSPACE_ROOT;
+  if (!pathGuard.isInside(WORKSPACE_ROOT, projectRoot)) {
+    return res.status(403).json({ error: "projectRoot escapes workspace sandbox" });
+  }
+  const context = discoverContextFiles(projectRoot, { sandboxRoot: WORKSPACE_ROOT });
   res.json(context);
 });
 
 app.post("/api/context/load", tokenGuard, (req, res) => {
   const { filePath } = req.body;
   if (!filePath) return res.status(400).json({ error: "Missing filePath" });
-  const content = loadFileContent(filePath);
+  let resolved;
+  try {
+    resolved = pathGuard.realpathInside(WORKSPACE_ROOT, filePath);
+  } catch (e) {
+    if (e && e.code === "EPATHESCAPE") {
+      return res.status(403).json({ error: "filePath escapes workspace sandbox" });
+    }
+    throw e;
+  }
+  if (resolved === null) {
+    return res.status(404).json({ error: "File not found" });
+  }
+  const content = loadFileContent(resolved);
   if (content !== null) {
-    res.json({ filePath, content });
+    res.json({ filePath: resolved, content });
   } else {
     res.status(404).json({ error: "File not found" });
   }

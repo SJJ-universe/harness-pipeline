@@ -1,12 +1,17 @@
 const fs = require("fs");
 const path = require("path");
+const { isInside, realpathInside } = require("./executor/path-guard");
 
 const SKIP_DIRS = new Set([
   "node_modules", ".git", "dist", "build", ".next",
   "__pycache__", ".venv", "venv", "coverage",
 ]);
 
-function discoverContextFiles(projectRoot) {
+function discoverContextFiles(projectRoot, opts = {}) {
+  const sandboxRoot = opts.sandboxRoot;
+  if (sandboxRoot && !isInside(sandboxRoot, projectRoot)) {
+    return { files: [], techStack: { languages: [], frameworks: [], tools: [] }, projectRoot, error: "path_escape" };
+  }
   const files = [];
 
   // 1. Root-level docs
@@ -128,9 +133,21 @@ function detectTechStack(projectRoot) {
   return stack;
 }
 
-function loadFileContent(filePath) {
+function loadFileContent(filePath, opts = {}) {
+  const sandboxRoot = opts.sandboxRoot;
+  let resolved = filePath;
+  if (sandboxRoot) {
+    try {
+      const real = realpathInside(sandboxRoot, filePath);
+      if (real === null) return null; // ENOENT
+      resolved = real;
+    } catch (e) {
+      if (e && e.code === "EPATHESCAPE") return null;
+      throw e;
+    }
+  }
   try {
-    const content = fs.readFileSync(filePath, "utf-8");
+    const content = fs.readFileSync(resolved, "utf-8");
     // Truncate very large files
     return content.length > 10000 ? content.slice(0, 10000) + "\n...(truncated)" : content;
   } catch (_) {

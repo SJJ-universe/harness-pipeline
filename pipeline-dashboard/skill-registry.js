@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const { resolveInside } = require("./executor/path-guard");
 
 const SKILLS_DIR = path.join(process.env.HOME || process.env.USERPROFILE, ".claude", "skills");
 const CATEGORIES_FILE = path.join(__dirname, "skill-categories.json");
@@ -103,7 +104,13 @@ function getSkillsForHarness(harnessType) {
 }
 
 function getSkillContent(skillId) {
-  const skillPath = path.join(SKILLS_DIR, skillId, "SKILL.md");
+  let skillPath;
+  try {
+    skillPath = resolveInside(SKILLS_DIR, skillId, "SKILL.md");
+  } catch (e) {
+    if (e && e.code === "EPATHESCAPE") return null;
+    throw e;
+  }
   try {
     return fs.readFileSync(skillPath, "utf-8");
   } catch (_) {
