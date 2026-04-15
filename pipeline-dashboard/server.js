@@ -1,7 +1,7 @@
 const express = require("express");
 const { WebSocketServer } = require("ws");
 const http = require("http");
-const { execSync, exec } = require("child_process");
+const { execSync } = require("child_process");
 const path = require("path");
 const fs = require("fs");
 
@@ -17,6 +17,10 @@ const {
 // ── P0-2: File access sandbox root (workspace repo root) ──
 const pathGuard = require("./executor/path-guard");
 const WORKSPACE_ROOT = path.resolve(__dirname, "..");
+
+// ── P0-3: Unified child process registry ──
+const { ChildRegistry } = require("./executor/child-registry");
+const childRegistry = new ChildRegistry();
 
 // node-pty (optional — graceful fallback if not installed)
 let pty = null;
@@ -94,10 +98,8 @@ app.get("/api/version", (req, res) => {
   });
 });
 
-// Track connected clients + pty subprocesses so we can reap them on shutdown
+// Track connected clients. All subprocess tracking goes through childRegistry (P0-3).
 const clients = new Set();
-const ptyProcesses = new Set();
-const activeCodexChildren = new Set();
 
 // ── Auto-shutdown when webpage closes ──
 // When the last WebSocket client disconnects, wait a short grace period for
@@ -123,11 +125,10 @@ function armShutdownTimer() {
 }
 
 function gracefulShutdown(reason = "manual") {
-  console.log(`[shutdown] graceful shutdown (${reason})`);
+  console.log(`[shutdown] graceful shutdown (${reason}) — reaping ${childRegistry.size()} children`);
   try { broadcast({ type: "server_shutdown", data: { reason } }); } catch (_) {}
   try { sessionWatcher && sessionWatcher.stop && sessionWatcher.stop(); } catch (_) {}
-  for (const p of ptyProcesses) { try { p.kill(); } catch (_) {} }
-  for (const c of activeCodexChildren) { try { c.kill(); } catch (_) {} }
+  childRegistry.killAll();
   try {
     for (const ws of clients) { try { ws.close(); } catch (_) {} }
   } catch (_) {}
@@ -160,7 +161,7 @@ wss.on("connection", (ws, req) => {
       cwd: path.join(__dirname, ".."),
       env: process.env,
     });
-    ptyProcesses.add(ptyProcess);
+    childRegistry.track(ptyProcess, "pty");
 
     ptyProcess.onData((data) => {
       if (ws.readyState === 1) ws.send(JSON.stringify({ type: "output", data }));
@@ -176,7 +177,7 @@ wss.on("connection", (ws, req) => {
 
     ws.on("close", () => {
       try { ptyProcess.kill(); } catch (_) {}
-      ptyProcesses.delete(ptyProcess);
+      childRegistry.untrack(ptyProcess);
     });
     return;
   }
@@ -199,326 +200,13 @@ function broadcast(event) {
   }
 }
 
-// Utility: sleep
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-// Token tracking
-let tokenUsage = { claude: 0, codex: 0 };
-let codexUsageAccum = { messages: 0, total: 0 };
-
 // -------------------------------------------------------------------
-// Pipeline execution
+// P0-3: Legacy runPipeline() + /api/run removed.
+// The demo pipeline used execSync with interpolated paths (shell injection)
+// and was no longer called from the frontend. The live general-plan flow
+// at /api/pipeline/general-run replaces it.
 // -------------------------------------------------------------------
 
-async function runPipeline(targetFile, mode = "demo") {
-  const errors = [];
-  tokenUsage = { claude: 0, codex: 0 };
-  codexUsageAccum = { messages: 0, total: 0 };
-
-  broadcast({ type: "pipeline_start", data: { targetFile, mode } });
-  broadcast({ type: "token_update", data: { ...tokenUsage } });
-
-  try {
-    // ── PHASE A: Co-Planning ──
-    broadcast({ type: "phase_update", data: { phase: "A", status: "active" } });
-    broadcast({
-      type: "node_update",
-      data: { node: "claude-plan", status: "active" },
-    });
-
-    if (mode === "live") {
-      // Real: Claude Code reads the file and creates a review plan
-      await sleep(1500);
-    } else {
-      await sleep(2000);
-    }
-
-    tokenUsage.claude += 2840;
-    broadcast({ type: "token_update", data: { ...tokenUsage } });
-    broadcast({
-      type: "node_update",
-      data: { node: "claude-plan", status: "completed" },
-    });
-
-    // Codex reviews the plan
-    broadcast({
-      type: "node_update",
-      data: { node: "codex-plan", status: "active" },
-    });
-
-    if (mode === "live") {
-      try {
-        const codexResult = execSync(
-          `npx @openai/codex exec --full-auto --skip-git-repo-check "Review this plan briefly and suggest one improvement. Plan: review ${targetFile} for security, stability, readability. Respond in under 50 words."`,
-          { cwd: path.dirname(targetFile), timeout: 60000, encoding: "utf8" }
-        );
-        tokenUsage.codex += 1200; codexUsageAccum.messages++; codexUsageAccum.total += 1200;
-      } catch (e) {
-        errors.push({
-          phase: "A",
-          node: "codex-plan",
-          message: "Codex plan review failed: " + (e.message || "").slice(0, 100),
-        });
-        broadcast({
-          type: "error",
-          data: errors[errors.length - 1],
-        });
-      }
-    } else {
-      await sleep(1800);
-      tokenUsage.codex += 1520; codexUsageAccum.messages++; codexUsageAccum.total += 1520;
-    }
-
-    broadcast({ type: "token_update", data: { ...tokenUsage } });
-    broadcast({
-      type: "node_update",
-      data: { node: "codex-plan", status: "completed" },
-    });
-    broadcast({
-      type: "phase_update",
-      data: { phase: "A", status: "completed" },
-    });
-
-    // ── PHASE B: Implementation (skip for review-only) ──
-    broadcast({ type: "phase_update", data: { phase: "B", status: "active" } });
-    broadcast({
-      type: "node_update",
-      data: { node: "claude-code", status: "active" },
-    });
-    await sleep(800);
-    tokenUsage.claude += 500;
-    broadcast({ type: "token_update", data: { ...tokenUsage } });
-    broadcast({
-      type: "node_update",
-      data: { node: "claude-code", status: "completed" },
-    });
-    broadcast({
-      type: "phase_update",
-      data: { phase: "B", status: "completed" },
-    });
-
-    // ── PHASE C: Review Cycle ──
-    broadcast({ type: "phase_update", data: { phase: "C", status: "active" } });
-
-    // C-1: Orchestrator dispatches
-    broadcast({
-      type: "node_update",
-      data: { node: "orchestrator", status: "active" },
-    });
-    await sleep(600);
-    tokenUsage.claude += 800;
-    broadcast({ type: "token_update", data: { ...tokenUsage } });
-    broadcast({
-      type: "node_update",
-      data: { node: "orchestrator", status: "completed" },
-    });
-
-    // C-2: Three reviewers in parallel
-    broadcast({
-      type: "node_update",
-      data: { node: "saboteur", status: "active" },
-    });
-    broadcast({
-      type: "node_update",
-      data: { node: "security", status: "active" },
-    });
-    broadcast({
-      type: "node_update",
-      data: { node: "readability", status: "active" },
-    });
-
-    const reviewerResults = { saboteur: [], security: [], readability: [] };
-
-    if (mode === "live") {
-      // Real review would use Agent tool — simulate with timed delays
-      // In production, these would be actual agent calls
-      await sleep(3000);
-      tokenUsage.claude += 28000;
-    } else {
-      // Staggered completion for visual effect
-      await sleep(2200);
-      tokenUsage.claude += 8500;
-      broadcast({ type: "token_update", data: { ...tokenUsage } });
-
-      reviewerResults.security = [
-        { severity: "CRITICAL", file: "server.js", line: 15, message: "SQL Injection: req.params.id 직접 보간" },
-        { severity: "CRITICAL", file: "server.js", line: 9, message: "하드코딩 비밀번호 admin123 노출" },
-        { severity: "CRITICAL", file: "server.js", line: 23, message: "Path Traversal: req.query.file 미검증" },
-      ];
-      broadcast({
-        type: "node_update",
-        data: { node: "security", status: "completed", findings: reviewerResults.security.length },
-      });
-      broadcast({
-        type: "findings",
-        data: { persona: "security", findings: reviewerResults.security },
-      });
-
-      await sleep(1200);
-      tokenUsage.claude += 9200;
-      broadcast({ type: "token_update", data: { ...tokenUsage } });
-
-      reviewerResults.saboteur = [
-        { severity: "CRITICAL", file: "server.js", line: 16, message: "db.query err 미처리 → TypeError 크래시" },
-        { severity: "CRITICAL", file: "server.js", line: 47, message: "setInterval 내 에러 → 프로세스 종료" },
-        { severity: "CRITICAL", file: "server.js", line: 24, message: "createReadStream error 핸들러 없음" },
-        { severity: "WARNING", file: "server.js", line: 44, message: "캐시 메모리 누수: 삭제 항목 미제거" },
-      ];
-      broadcast({
-        type: "node_update",
-        data: { node: "saboteur", status: "completed", findings: reviewerResults.saboteur.length },
-      });
-      broadcast({
-        type: "findings",
-        data: { persona: "saboteur", findings: reviewerResults.saboteur },
-      });
-
-      await sleep(800);
-      tokenUsage.claude += 8800;
-      broadcast({ type: "token_update", data: { ...tokenUsage } });
-
-      reviewerResults.readability = [
-        { severity: "CRITICAL", file: "server.js", line: 29, message: "함수 p() 한 글자 변수명 — 해독 불가" },
-        { severity: "WARNING", file: "server.js", line: 35, message: "매직넘버 1.08 의미 불명" },
-        { severity: "NOTE", file: "server.js", line: 53, message: "서버 시작 로그 없음" },
-      ];
-      broadcast({
-        type: "node_update",
-        data: { node: "readability", status: "completed", findings: reviewerResults.readability.length },
-      });
-      broadcast({
-        type: "findings",
-        data: { persona: "readability", findings: reviewerResults.readability },
-      });
-    }
-
-    // C-3: Synthesizer
-    broadcast({
-      type: "node_update",
-      data: { node: "synthesizer", status: "active" },
-    });
-    await sleep(1200);
-    tokenUsage.claude += 3200;
-    broadcast({ type: "token_update", data: { ...tokenUsage } });
-
-    const totalFindings = {
-      critical: 6,
-      warning: 2,
-      note: 1,
-    };
-    broadcast({
-      type: "node_update",
-      data: { node: "synthesizer", status: "completed", totalFindings },
-    });
-
-    // C-4: Codex 2nd review
-    broadcast({
-      type: "node_update",
-      data: { node: "codex-review", status: "active" },
-    });
-
-    if (mode === "live") {
-      try {
-        const codexReview = execSync(
-          `npx @openai/codex exec --full-auto --skip-git-repo-check "Read server.js. Find issues not in this list: SQL injection, hardcoded creds, path traversal, missing error handling, memory leak, unreadable function p. Output JSON [{severity,file,line,message}]."`,
-          { cwd: path.dirname(targetFile), timeout: 120000, encoding: "utf8" }
-        );
-        tokenUsage.codex += 15000; codexUsageAccum.messages++; codexUsageAccum.total += 15000;
-      } catch (e) {
-        errors.push({
-          phase: "C",
-          node: "codex-review",
-          message: "Codex review failed: " + (e.message || "").slice(0, 100),
-        });
-        broadcast({ type: "error", data: errors[errors.length - 1] });
-      }
-    } else {
-      await sleep(2500);
-      tokenUsage.codex += 15321; codexUsageAccum.messages++; codexUsageAccum.total += 15321;
-      broadcast({
-        type: "findings",
-        data: {
-          persona: "codex",
-          findings: [
-            { severity: "WARNING", file: "server.js", line: 15, message: "SELECT * 민감 컬럼 노출" },
-            { severity: "WARNING", file: "server.js", line: 46, message: "5초마다 전체 테이블 조회 — DB 부하" },
-            { severity: "NOTE", file: "server.js", line: 32, message: "느슨한 동등 비교(==) 사용" },
-          ],
-        },
-      });
-    }
-
-    broadcast({ type: "token_update", data: { ...tokenUsage } });
-    broadcast({
-      type: "node_update",
-      data: { node: "codex-review", status: "completed" },
-    });
-
-    // Verdict
-    const verdict = "BLOCK";
-    broadcast({
-      type: "verdict",
-      data: {
-        verdict,
-        stats: {
-          critical: 6,
-          warning: 4,
-          note: 2,
-          codexAdditional: 3,
-          total: 15,
-        },
-      },
-    });
-
-    broadcast({
-      type: "phase_update",
-      data: { phase: "C", status: "completed" },
-    });
-
-    // ── PHASE D: Debug (only if issues found) ──
-    if (verdict !== "CLEAN") {
-      broadcast({
-        type: "phase_update",
-        data: { phase: "D", status: "active" },
-      });
-      broadcast({
-        type: "node_update",
-        data: { node: "debug", status: "active" },
-      });
-      await sleep(2000);
-      tokenUsage.claude += 5000;
-      broadcast({ type: "token_update", data: { ...tokenUsage } });
-      broadcast({
-        type: "node_update",
-        data: { node: "debug", status: "completed" },
-      });
-      broadcast({
-        type: "phase_update",
-        data: { phase: "D", status: "completed" },
-      });
-    }
-  } catch (err) {
-    errors.push({
-      phase: "unknown",
-      node: "pipeline",
-      message: err.message,
-    });
-    broadcast({ type: "error", data: errors[errors.length - 1] });
-  }
-
-  broadcast({
-    type: "pipeline_complete",
-    data: { tokenUsage, errors, duration: Date.now() },
-  });
-}
-
-// API endpoint to trigger pipeline
-app.post("/api/run", tokenGuard, (req, res) => {
-  const { targetFile, mode } = req.body;
-  const file = targetFile || path.join(__dirname, "..", "test-sample", "server.js");
-  res.json({ status: "started", targetFile: file, mode: mode || "demo" });
-  runPipeline(file, mode || "demo");
-});
 
 // External event ingestion — skill posts events here via curl
 app.post("/api/event", tokenGuard, (req, res) => {
@@ -532,7 +220,6 @@ app.post("/api/event", tokenGuard, (req, res) => {
 
 // Reset dashboard state
 app.post("/api/reset", tokenGuard, (req, res) => {
-  tokenUsage = { claude: 0, codex: 0 };
   broadcast({ type: "pipeline_reset", data: {} });
   res.json({ status: "reset" });
 });
@@ -625,7 +312,10 @@ app.post("/api/codex/trigger", tokenGuard, async (req, res) => {
   });
 
   const prompt = trigger.promptTemplate(context);
-  const result = await codexRunner.exec(prompt, { timeoutMs: 120000 });
+  const result = await codexRunner.exec(prompt, {
+    timeoutMs: 120000,
+    onChild: (c) => childRegistry.track(c, "codex"),
+  });
 
   let filePath = null;
   try {
@@ -869,7 +559,11 @@ app.post("/api/codex/verify", tokenGuard, async (req, res) => {
   broadcast({ type: "codex_verify_started", data: {} });
   const result = await codexRunner.exec(
     "Respond with exactly the phrase: CODEX_OK. Do not run any tools or shell commands.",
-    { timeoutMs: 60000, cwd: path.join(__dirname, "..") }
+    {
+      timeoutMs: 60000,
+      cwd: path.join(__dirname, ".."),
+      onChild: (c) => childRegistry.track(c, "codex"),
+    }
   );
   const durationMs = Date.now() - start;
   const detectedMarker = /CODEX_OK/.test(result.stdout || "");
@@ -994,7 +688,7 @@ async function runGeneralPipeline(task, maxIter, runId) {
   const planResultB = await claudeRunner.exec(planPromptB, {
     timeoutMs: 180000,
     cwd: path.join(__dirname, ".."),
-    onChild: (c) => activeCodexChildren.add(c),
+    onChild: (c) => childRegistry.track(c, "claude"),
   });
 
   if (!planResultB.ok || !planResultB.text) {
@@ -1033,6 +727,7 @@ async function runGeneralPipeline(task, maxIter, runId) {
     const critiqueResult = await codexRunner.exec(buildCriticPrompt(task, plan), {
       timeoutMs: 150000,
       cwd: path.join(__dirname, ".."),
+      onChild: (c) => childRegistry.track(c, "codex"),
     });
 
     const findings = critiqueResult.findings || [];
@@ -1112,6 +807,7 @@ async function runGeneralPipeline(task, maxIter, runId) {
     const refineResult = await claudeRunner.exec(buildRefinerPrompt(task, plan, critiqueText), {
       timeoutMs: 180000,
       cwd: path.join(__dirname, ".."),
+      onChild: (c) => childRegistry.track(c, "claude"),
     });
 
     if (!refineResult.ok || !refineResult.text) {

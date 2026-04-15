@@ -37,22 +37,26 @@ class ClaudeRunner {
 
   _tryExec(spec, prompt, { timeoutMs, cwd, onChild } = {}) {
     return new Promise((resolve) => {
-      // --bare: skip hooks, memory, auto-discovery
-      // -p: print mode (non-interactive, exits after one response)
-      // --dangerously-skip-permissions: allow tool use without prompting
-      //    (no tools are actually invoked — the prompts we send are
-      //    planning-only and do not ask Claude to touch the filesystem)
+      // P0-3: prompt is written to stdin instead of passed as a CLI arg.
+      // With `shell: true` on Windows, an argv-embedded prompt would be
+      // re-tokenized by cmd.exe — any prompt containing backticks, `$()`,
+      // `&&`, quotes, or newlines becomes a shell injection surface.
+      // CodexRunner already uses this stdin pattern; mirror it exactly.
+      //
+      // Flags kept as argv (fixed strings under our control):
+      //   --bare  skip hooks/memory/auto-discovery (no recursion)
+      //   -p      print mode (non-interactive, reads stdin, exits once)
+      //   --dangerously-skip-permissions  allow tool use without prompt
       const args = [
         ...spec.argsPrefix,
         "-p",
         "--bare",
         "--dangerously-skip-permissions",
-        prompt,
       ];
       let child;
       try {
         child = spawn(spec.cmd, args, {
-          stdio: ["ignore", "pipe", "pipe"],
+          stdio: ["pipe", "pipe", "pipe"],
           windowsHide: true,
           cwd: cwd || process.cwd(),
           shell: process.platform === "win32",
@@ -65,6 +69,17 @@ class ClaudeRunner {
       }
 
       if (typeof onChild === "function") onChild(child);
+
+      // Write prompt via stdin and close. Errors here are non-fatal: if the
+      // child already exited (e.g. ENOENT before stdin is ready) we let the
+      // close handler report the real reason.
+      try {
+        child.stdin.on("error", () => {});
+        child.stdin.write(prompt);
+        child.stdin.end();
+      } catch (_) {
+        // swallow — close/error handlers below resolve the promise
+      }
 
       const out = [];
       const errChunks = [];
