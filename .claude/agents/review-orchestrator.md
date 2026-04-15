@@ -1,6 +1,7 @@
 ---
 name: review-orchestrator
 description: "코드 리뷰 파이프라인 총괄. PR diff 수집, 리뷰어 에이전트 팀 생성, 태스크 분배, 최종 판정."
+model: opus
 ---
 
 # Review Orchestrator — 코드 리뷰 총괄자

@@ -68,26 +68,44 @@ app.get("/api/version", (req, res) => {
 
 ---
 
-## T2.0: Hook Payload Sample Collection (rev2 신설 — 비평 H4 대응)
+## T2.0: Hook Payload Sample Collection ✅ COMPLETED
 
-T2 구현 전 실제 Claude Code hook payload에 `context_usage` 필드가 어느 경로에 오는지 확인.
+**Status**: DONE (commit `720e5c9`). 30+ 샘플 수집 및 분석 완료.
 
-**작업** (`pipeline-dashboard/hooks/harness-hook.js`):
-- PreToolUse/PostToolUse/Stop 각 payload 전체를 `_workspace/hook-payload-samples/{event}-{ts}.json`으로 덤프하는 스위치 추가 (환경변수 `HARNESS_DUMP_PAYLOADS=1`일 때만)
-- 하네스 ON 상태에서 간단한 세션 1회 실행 → 샘플 수집
-- 덤프 파일에서 `context_usage` (또는 유사 필드 `token_count`, `input_tokens`, `context_window_used` 등) 존재 여부 확인
+**확인된 Claude Code hook payload 필드**:
 
-**Fallback 정책**: 필드 없으면 T2는 서버 사이드 자체 추정으로 전환 —
+| Event | 공통 필드 | 고유 필드 |
+|---|---|---|
+| UserPromptSubmit | session_id, transcript_path, cwd, permission_mode, hook_event_name | `prompt` |
+| PreToolUse | 위 + | `tool_name`, `tool_input`, `tool_use_id` |
+| PostToolUse | 위 + | `tool_name`, `tool_input`, `tool_response`, `tool_use_id` |
+| Stop | 위 + | `stop_hook_active`, `last_assistant_message` |
+
+**결론 (Codex H4 확정)**:
+- **`context_usage` 필드는 어떤 payload에도 없다**. 토큰 카운트·context_window 관련 필드도 없음
+- 그러나 **`transcript_path` 필드가 모든 event에 있다** — 이것이 T2 fallback의 실질 경로
+- 세션 jsonl 파일 크기로 현재 컨텍스트 사용량을 추정할 수 있음
+
+**T2 확정 추정 함수**:
 ```js
-function estimateContextUsage(state) {
-  const charsApprox = state.toolFeed.reduce((a, t) => a + (t.preview?.length || 0), 0);
-  const tokensApprox = Math.round(charsApprox / 4);
-  const limit = 200000;
-  return tokensApprox / limit;
+// server.js 또는 전용 모듈
+const fs = require("fs");
+const CONTEXT_LIMIT_TOKENS = 200_000; // Sonnet/Opus 기본
+
+function estimateContextUsage(transcriptPath) {
+  try {
+    const bytes = fs.statSync(transcriptPath).size;
+    // Rough: 4 bytes/token (영문 코드 기준; 한글은 더 빡빡하지만
+    // 알람 임계 40%/55% 용도로는 충분히 보수적)
+    const tokensApprox = Math.round(bytes / 4);
+    return Math.min(tokensApprox / CONTEXT_LIMIT_TOKENS, 1.0);
+  } catch (_) {
+    return 0;
+  }
 }
 ```
 
-**커밋**: `chore(T2.0): hook payload sample dumper for context_usage discovery`
+T2 구현 시 이 함수를 `server.js /api/hook` 핸들러에서 payload.transcript_path로 호출하고 state에 기록.
 
 ---
 
@@ -156,11 +174,11 @@ B0~B4 전부 pass여야 Step 0 세션 진행.
 | context-analyzer.md | `model: haiku` | 결정론적 디스커버리 |
 | task-validator.md | `model: haiku` | 테스트 결과 파싱 |
 | readability-reviewer.md | `model: haiku` | 패턴 체크 |
-| task-planner.md | `model: sonnet` | 중간 추론 |
-| review-synthesizer.md | `model: sonnet` | 병합 |
-| saboteur-reviewer.md | `model: sonnet` | 창의적 공격 |
-| security-auditor.md | `model: sonnet` | OWASP 추론 |
-| review-orchestrator.md | `model: opus` | 최종 조율 |
+| review-synthesizer.md | `model: sonnet` | findings 병합·집계(기계적) |
+| security-auditor.md | `model: sonnet` | OWASP 패턴 스캔 |
+| task-planner.md | `model: opus` | 복잡한 작업 분해·계획 수립 |
+| saboteur-reviewer.md | `model: opus` | 창의적 공격 시나리오 상상 |
+| review-orchestrator.md | `model: opus` | 최종 조율·판정 |
 | plan-critic.md | — | Codex CLI 전용 |
 
 **Verification (rev2 — 비평 M3 Windows 호환)**:
@@ -198,14 +216,16 @@ B0~B4 전부 pass여야 Step 0 세션 진행.
 
 ### T2. 컨텍스트 알람 (비평 H4/H5 대응 — 대폭 수정)
 
-**전제**: T2.0에서 `context_usage` 필드 실체 확인 완료.
+**전제**: T2.0 완료. `context_usage` 필드는 **부재** 확정 — `transcript_path` 기반 파일 크기 추정으로 대체.
 
 **작업**:
-1. `harness-hook.js` PostToolUse payload에서 실제 필드 경로로 `contextUsage` 추출 (없으면 T2.0 fallback 함수 사용)
-2. `server.js` `/api/hook`에서 수신 → state에 저장 → broadcast `context_alarm` (단, 40% 초과 시 1회만, 이후 55% 초과 시 다시 1회)
-3. `public/app.js` 상단 배너 UI — 40% 초과 시 노란 배너, 55% 초과 시 빨간 배너 + 사용자에게 `/compact` 권고 메시지 (버튼 아님, 안내만)
-4. **Stop 훅에서 block 금지 (비평 H5)**. `decision: block`을 던지지 않음. 대신 broadcast만 하고 사용자 판단에 맡김
-5. 세션당 알람 중복 억제 — `state.contextAlarmSent = { at40: false, at55: false }`
+1. `server.js` (또는 별도 모듈)에 T2.0에서 확정한 `estimateContextUsage(transcriptPath)` 함수 구현
+2. `/api/hook` 핸들러에서 payload.transcript_path로 호출 → `state.contextUsage` 저장
+3. 40% 초과 시 broadcast `context_alarm` (상태 플래그로 세션당 1회만)
+4. 55% 초과 시 두 번째 broadcast `context_alarm` with severity "warn"
+5. `public/app.js` 상단 배너 UI — 40% 노란 배너, 55% 빨간 배너 + `/compact` 권고 안내(버튼 아님)
+6. **Stop 훅에서 block 금지 (비평 H5)**. `decision: block`을 던지지 않음. 알람은 broadcast만
+7. 세션당 알람 중복 억제 — `state.contextAlarmSent = { at40: false, at55: false }`
 
 **Verification**:
 - V-T2-1: 가짜 payload POST (`context_usage: 0.42`) → 서버 로그에 `context_alarm` broadcast 1회

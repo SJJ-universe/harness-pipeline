@@ -1,6 +1,7 @@
 ---
 name: review-synthesizer
 description: "리뷰 결과 종합자. 다수 리뷰어의 findings를 중복 제거하고, 심각도를 승격하여 최종 리포트 생성."
+model: sonnet
 ---
 
 # Review Synthesizer — 리뷰 결과 종합자

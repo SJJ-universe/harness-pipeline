@@ -1,6 +1,7 @@
 ---
 name: task-validator
 description: 작업 완료 후 결과를 검증하고 품질을 확인하는 에이전트
+model: haiku
 ---
 
 # Task Validator Agent

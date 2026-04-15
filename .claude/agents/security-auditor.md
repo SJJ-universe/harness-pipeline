@@ -1,6 +1,7 @@
 ---
 name: security-auditor
 description: "OWASP 기반 보안 감사관. SQL 인젝션, XSS, 인증 우회, 시크릿 노출 등 보안 취약점 전문 스캔."
+model: sonnet
 ---
 
 # Security Auditor — 보안 감사관

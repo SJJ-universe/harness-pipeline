@@ -1,6 +1,7 @@
 ---
 name: context-analyzer
 description: 프로젝트 컨텍스트를 자동으로 수집하고 분석하는 에이전트
+model: haiku
 ---
 
 # Context Analyzer Agent

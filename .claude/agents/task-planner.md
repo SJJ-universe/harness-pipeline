@@ -1,6 +1,7 @@
 ---
 name: task-planner
 description: 컨텍스트와 스킬을 기반으로 정밀한 작업 계획을 수립하는 에이전트
+model: opus
 ---
 
 # Task Planner Agent

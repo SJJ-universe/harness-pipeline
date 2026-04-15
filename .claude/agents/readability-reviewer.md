@@ -1,6 +1,7 @@
 ---
 name: readability-reviewer
 description: "신입 개발자 페르소나. 코드 가독성, 네이밍, 복잡도, 문서화 품질을 검토."
+model: haiku
 ---
 
 # Readability Reviewer — 신입 개발자 시점
