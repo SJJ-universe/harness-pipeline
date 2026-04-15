@@ -566,35 +566,33 @@ h1 {
   overflow-x: auto;
 }
 
+.recommend-sub {
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
 .recommend-card {
   display: flex;
-  gap: 8px;
-  align-items: center;
+  flex-direction: column;
+  gap: 2px;
   padding: 8px 12px;
   background: var(--bg-node);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-left-width: 4px;
+  border-radius: 6px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.15s;
   min-width: 160px;
   flex-shrink: 0;
 }
 
 .recommend-card:hover {
-  border-color: var(--claude);
-  box-shadow: 0 0 12px rgba(212, 165, 116, 0.15);
+  filter: brightness(1.15);
 }
 
-.recommend-card-icon {
-  font-size: 20px;
-  flex-shrink: 0;
-}
-
-.recommend-card-body {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
+.recommend-card.is-running {
+  opacity: 0.55;
+  cursor: wait;
 }
 
 .recommend-card-name {
@@ -612,11 +610,10 @@ h1 {
   white-space: nowrap;
 }
 
-.recommend-card-meta {
-  font-size: 9px;
-  color: var(--purple);
-  font-weight: 600;
-}
+.recommend-card--plan     { border-left-color: #5eb8ff; background: rgba(94, 184, 255, 0.08); }
+.recommend-card--review   { border-left-color: #a78bfa; background: rgba(167, 139, 250, 0.08); }
+.recommend-card--debug    { border-left-color: #f97373; background: rgba(249, 115, 115, 0.08); }
+.recommend-card--security { border-left-color: #4ade80; background: rgba(74, 222, 128, 0.08); }
 
 /* ── Right Tabs (Terminal / Log) ── */
 .right-tabs {

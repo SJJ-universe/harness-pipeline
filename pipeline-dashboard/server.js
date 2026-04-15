@@ -16,7 +16,7 @@ try {
 // New modules
 const { scanSkills, getSkillsByCategory, getSkillsForHarness, getSkillContent, searchSkills } = require("./skill-registry");
 const { discoverContextFiles, loadFileContent } = require("./context-loader");
-const { recommendNext, getHarnessTypes, getHarnessById } = require("./harness-recommender");
+const { getTriggers, getTriggerById } = require("./codex-triggers");
 const { SessionWatcher } = require("./session-watcher");
 const { HookRouter } = require("./executor/hook-router");
 const { PipelineExecutor } = require("./executor/pipeline-executor");
@@ -526,25 +526,134 @@ app.post("/api/context/load", (req, res) => {
   }
 });
 
-// ── Harness API ──
-app.get("/api/harness/types", (req, res) => {
-  res.json(getHarnessTypes());
+// ── Codex Triggers API ──
+// On-demand Codex invocation independent of the phase pipeline.
+// The UI shows one card per trigger; clicking runs Codex against a
+// trigger-specific context source (plan file / git diff / user input).
+const CODEX_TRIGGER_DIR = path.resolve(__dirname, "..", "_workspace");
+
+app.get("/api/codex/triggers", (req, res) => {
+  res.json(getTriggers());
 });
 
-app.get("/api/harness/:id", (req, res) => {
-  const harness = getHarnessById(req.params.id);
-  if (harness) {
-    res.json(harness);
-  } else {
-    res.status(404).json({ error: "Harness not found" });
+app.post("/api/codex/trigger", async (req, res) => {
+  const { triggerId, userInput } = req.body || {};
+  const trigger = getTriggerById(triggerId);
+  if (!trigger) return res.status(404).json({ error: "Unknown trigger" });
+
+  let context;
+  try {
+    context = resolveTriggerContext(trigger, userInput);
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
   }
+  if (!context || !context.trim()) {
+    return res.status(400).json({ error: `컨텍스트가 비어있습니다 (${trigger.contextSource})` });
+  }
+
+  broadcast({
+    type: "codex_trigger_started",
+    data: { triggerId, name: trigger.name, contextBytes: context.length },
+  });
+
+  const prompt = trigger.promptTemplate(context);
+  const result = await codexRunner.exec(prompt, { timeoutMs: 120000 });
+
+  let filePath = null;
+  try {
+    if (!fs.existsSync(CODEX_TRIGGER_DIR)) fs.mkdirSync(CODEX_TRIGGER_DIR, { recursive: true });
+    const ts = new Date().toISOString().replace(/[:.]/g, "-");
+    filePath = path.join(CODEX_TRIGGER_DIR, `codex-trigger-${triggerId}-${ts}.md`);
+    const body = [
+      `# Codex Trigger — ${trigger.name}`,
+      `triggered: ${new Date().toISOString()}`,
+      `contextSource: ${trigger.contextSource}`,
+      `exitCode: ${result.exitCode}`,
+      "",
+      "## Summary",
+      result.summary || "(empty)",
+      "",
+      "## Findings",
+      (result.findings || []).length
+        ? result.findings.map((f) => `- [${f.severity}] ${f.message}`).join("\n")
+        : "(none)",
+      "",
+      "## Raw stdout",
+      "```",
+      result.stdout || "",
+      "```",
+      "",
+      "## Raw stderr",
+      "```",
+      result.stderr || "",
+      "```",
+      "",
+      "## Prompt",
+      "```",
+      prompt,
+      "```",
+    ].join("\n");
+    fs.writeFileSync(filePath, body, "utf-8");
+  } catch (err) {
+    console.error("[codex-trigger] persist failed:", err.message);
+  }
+
+  broadcast({
+    type: "codex_trigger_done",
+    data: {
+      triggerId,
+      name: trigger.name,
+      ok: result.ok,
+      summary: result.summary,
+      findingsCount: (result.findings || []).length,
+      filePath,
+    },
+  });
+
+  res.json({
+    ok: result.ok,
+    summary: result.summary,
+    findings: result.findings || [],
+    filePath,
+    exitCode: result.exitCode,
+  });
 });
 
-app.post("/api/harness/recommend", (req, res) => {
-  const { completedHarnessId, projectContext } = req.body;
-  const recommendations = recommendNext(completedHarnessId || "planning", projectContext || {});
-  res.json(recommendations);
-});
+function resolveTriggerContext(trigger, userInput) {
+  switch (trigger.contextSource) {
+    case "plan": {
+      const candidates = [
+        path.join(CODEX_TRIGGER_DIR, "plan.md"),
+        path.resolve(__dirname, "..", "pipeline-dashboard", "plan.md"),
+        path.resolve(__dirname, "plan.md"),
+      ];
+      for (const p of candidates) {
+        if (fs.existsSync(p)) return fs.readFileSync(p, "utf-8");
+      }
+      throw new Error("plan.md를 찾지 못했습니다 (_workspace/ 또는 pipeline-dashboard/)");
+    }
+    case "git-diff": {
+      try {
+        const diff = execSync("git diff HEAD", {
+          cwd: path.resolve(__dirname, ".."),
+          encoding: "utf-8",
+          maxBuffer: 4 * 1024 * 1024,
+        });
+        return diff || "(no staged or unstaged changes)";
+      } catch (err) {
+        throw new Error(`git diff 실행 실패: ${err.message}`);
+      }
+    }
+    case "user-input": {
+      if (!userInput || !String(userInput).trim()) {
+        throw new Error("입력이 비어있습니다 (userInput 필요)");
+      }
+      return String(userInput);
+    }
+    default:
+      throw new Error(`알 수 없는 contextSource: ${trigger.contextSource}`);
+  }
+}
 
 // ── Pipeline Templates API ──
 app.get("/api/pipeline/templates", (req, res) => {

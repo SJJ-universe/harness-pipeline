@@ -313,19 +313,12 @@ function handleEvent(event) {
       if (event.data.errors && event.data.errors.length > 0) {
         addLog("error", `${event.data.errors.length}개 오류 발생`);
       }
-      // Trigger harness recommendations
-      if (event.data.harnessId) {
-        showRecommendations(event.data.harnessId);
-      } else {
-        showRecommendations("code-review");
-      }
       break;
 
     case "harness_complete":
       stopTimer();
       setBadge("done", "완료");
       addLog("phase", `하네스 완료: ${event.data.harnessId || "unknown"}`);
-      showRecommendations(event.data.harnessId);
       break;
 
     case "auto_pipeline_detect":
@@ -999,42 +992,76 @@ function switchTab(tab) {
   if (tab === "terminal" && !term) initTerminal();
 }
 
-// ── Harness Recommendations ──
-function showRecommendations(completedHarnessId) {
-  fetch("/api/harness/recommend", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ completedHarnessId }),
-  })
-    .then((r) => r.json())
-    .then((recs) => {
-      const container = document.getElementById("recommend-cards");
-      const panel = document.getElementById("harness-recommend");
-      if (!recs.length) { panel.style.display = "none"; return; }
+// ── Codex Triggers ──
+let codexTriggers = [];
 
-      container.innerHTML = recs.map((r) => `
-        <div class="recommend-card" onclick="selectHarness('${r.id}')">
-          <div class="recommend-card-icon">${r.icon}</div>
-          <div class="recommend-card-body">
-            <div class="recommend-card-name">${r.name}</div>
-            <div class="recommend-card-reason">${r.reason}</div>
-            <div class="recommend-card-meta">${r.skillCount} skills</div>
-          </div>
+function loadCodexTriggers() {
+  fetch("/api/codex/triggers")
+    .then((r) => r.json())
+    .then((triggers) => {
+      codexTriggers = triggers;
+      const container = document.getElementById("trigger-cards");
+      if (!container) return;
+      container.innerHTML = triggers.map((t) => `
+        <div class="recommend-card recommend-card--${t.color}" data-trigger="${t.id}" onclick="runCodexTrigger('${t.id}')">
+          <div class="recommend-card-name">${t.name}</div>
+          <div class="recommend-card-reason">${t.description}</div>
         </div>
       `).join("");
-      panel.style.display = "block";
     })
-    .catch(() => {});
+    .catch((err) => addLog("error", `Codex 트리거 로드 실패: ${err.message}`));
 }
 
-function selectHarness(harnessId) {
-  document.getElementById("harness-recommend").style.display = "none";
-  addLog("phase", `하네스 선택: ${harnessId}`);
-  // Future: load pipeline template and start harness
-}
+function runCodexTrigger(triggerId) {
+  const trigger = codexTriggers.find((t) => t.id === triggerId);
+  if (!trigger) return;
 
-function dismissRecommendations() {
-  document.getElementById("harness-recommend").style.display = "none";
+  const card = document.querySelector(`.recommend-card[data-trigger="${triggerId}"]`);
+  if (card && card.classList.contains("is-running")) return;
+
+  let userInput = null;
+  if (trigger.requiresInput) {
+    userInput = window.prompt(trigger.inputLabel || "Codex에 전달할 내용을 입력하세요");
+    if (userInput === null) return;
+    if (!userInput.trim()) {
+      addLog("error", `${trigger.name}: 입력이 비어있어 취소됨`);
+      return;
+    }
+  }
+
+  if (card) card.classList.add("is-running");
+  const statusEl = document.getElementById("codex-trigger-status");
+  if (statusEl) statusEl.textContent = `${trigger.name} 실행 중…`;
+  addLog("phase", `Codex 트리거 실행: ${trigger.name}`);
+
+  fetch("/api/codex/trigger", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ triggerId, userInput }),
+  })
+    .then((r) => r.json().then((body) => ({ status: r.status, body })))
+    .then(({ status, body }) => {
+      if (status >= 400) {
+        addLog("error", `${trigger.name} 실패: ${body.error || "unknown"}`);
+        if (statusEl) statusEl.textContent = `${trigger.name} 실패`;
+        return;
+      }
+      const count = (body.findings || []).length;
+      addLog("phase", `${trigger.name} 완료 — findings ${count}건${body.filePath ? ` (${body.filePath})` : ""}`);
+      if (body.summary) addLog("info", `Summary: ${body.summary.split("\n")[0].slice(0, 200)}`);
+      for (const f of (body.findings || []).slice(0, 10)) {
+        addLog(f.severity === "critical" || f.severity === "high" ? "error" : "info",
+          `[${f.severity}] ${f.message}`);
+      }
+      if (statusEl) statusEl.textContent = `${trigger.name} 완료 · findings ${count}`;
+    })
+    .catch((err) => {
+      addLog("error", `${trigger.name} 요청 실패: ${err.message}`);
+      if (statusEl) statusEl.textContent = `${trigger.name} 오류`;
+    })
+    .finally(() => {
+      if (card) card.classList.remove("is-running");
+    });
 }
 
 // ══════════════════════════════════
@@ -1235,6 +1262,8 @@ renderCritiqueTimeline();
 loadAllTemplates();
 // Show harness mode indicator (state from server)
 fetchHarnessMode();
+// Populate Codex trigger cards
+loadCodexTriggers();
 // Server / Codex initial status
 fetchServerInfo();
 setInterval(fetchServerInfo, 15000);
