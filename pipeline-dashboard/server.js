@@ -5,6 +5,15 @@ const { execSync, exec } = require("child_process");
 const path = require("path");
 const fs = require("fs");
 
+// ── P0-1: .env loader must run before any process.env read ──
+const { loadDotenv } = require("./executor/env-loader");
+loadDotenv(__dirname);
+const {
+  resolveBindHost,
+  createTokenMiddleware,
+  verifyWsOrigin,
+} = require("./executor/security");
+
 // node-pty (optional — graceful fallback if not installed)
 let pty = null;
 try {
@@ -45,7 +54,21 @@ try {
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server });
+
+// ── P0-1: token middleware (loopback bypass + X-Harness-Token on non-loopback) ──
+const getHarnessToken = () => process.env.HARNESS_TOKEN || "";
+const tokenGuard = createTokenMiddleware({ getToken: getHarnessToken });
+
+// ── P0-1: WebSocket upgrade verifier ──
+const wss = new WebSocketServer({
+  server,
+  verifyClient: (info, cb) => {
+    const ok = verifyWsOrigin({ req: info.req, getToken: getHarnessToken });
+    if (ok) return cb ? cb(true) : true;
+    if (cb) return cb(false, 401, "unauthorized");
+    return false;
+  },
+});
 
 app.use(express.static(path.join(__dirname, "public")));
 app.use(express.json());
@@ -486,7 +509,7 @@ async function runPipeline(targetFile, mode = "demo") {
 }
 
 // API endpoint to trigger pipeline
-app.post("/api/run", (req, res) => {
+app.post("/api/run", tokenGuard, (req, res) => {
   const { targetFile, mode } = req.body;
   const file = targetFile || path.join(__dirname, "..", "test-sample", "server.js");
   res.json({ status: "started", targetFile: file, mode: mode || "demo" });
@@ -494,7 +517,7 @@ app.post("/api/run", (req, res) => {
 });
 
 // External event ingestion — skill posts events here via curl
-app.post("/api/event", (req, res) => {
+app.post("/api/event", tokenGuard, (req, res) => {
   const event = req.body;
   if (!event || !event.type) {
     return res.status(400).json({ error: "Missing event type" });
@@ -504,7 +527,7 @@ app.post("/api/event", (req, res) => {
 });
 
 // Reset dashboard state
-app.post("/api/reset", (req, res) => {
+app.post("/api/reset", tokenGuard, (req, res) => {
   tokenUsage = { claude: 0, codex: 0 };
   broadcast({ type: "pipeline_reset", data: {} });
   res.json({ status: "reset" });
@@ -535,13 +558,13 @@ app.get("/api/skills/harness/:type", (req, res) => {
 });
 
 // ── Context Discovery API ──
-app.post("/api/context/discover", (req, res) => {
+app.post("/api/context/discover", tokenGuard, (req, res) => {
   const projectRoot = req.body.projectRoot || path.join(__dirname, "..");
   const context = discoverContextFiles(projectRoot);
   res.json(context);
 });
 
-app.post("/api/context/load", (req, res) => {
+app.post("/api/context/load", tokenGuard, (req, res) => {
   const { filePath } = req.body;
   if (!filePath) return res.status(400).json({ error: "Missing filePath" });
   const content = loadFileContent(filePath);
@@ -562,7 +585,7 @@ app.get("/api/codex/triggers", (req, res) => {
   res.json(getTriggers());
 });
 
-app.post("/api/codex/trigger", async (req, res) => {
+app.post("/api/codex/trigger", tokenGuard, async (req, res) => {
   const { triggerId, userInput } = req.body || {};
   const trigger = getTriggerById(triggerId);
   if (!trigger) return res.status(404).json({ error: "Unknown trigger" });
@@ -703,7 +726,7 @@ app.get("/api/watcher/status", (req, res) => {
   res.json(sessionWatcher.getStatus());
 });
 
-app.post("/api/watcher/complete", (req, res) => {
+app.post("/api/watcher/complete", tokenGuard, (req, res) => {
   sessionWatcher.completePipeline();
   res.json({ status: "completed" });
 });
@@ -736,7 +759,7 @@ hookRouter.attachExecutor(pipelineExecutor);
 // recommending /compact.
 const contextAlarm = new ContextAlarm({ broadcast });
 
-app.post("/api/hook", async (req, res) => {
+app.post("/api/hook", tokenGuard, async (req, res) => {
   try {
     const { event, payload } = req.body || {};
     if (!event) return res.status(400).json({ error: "missing event" });
@@ -783,19 +806,19 @@ app.get("/api/executor/mode", (req, res) => {
   res.json(pipelineExecutor.getStatus());
 });
 
-app.post("/api/executor/mode", (req, res) => {
+app.post("/api/executor/mode", tokenGuard, (req, res) => {
   const { enabled } = req.body || {};
   pipelineExecutor.setEnabled(!!enabled);
   res.json(pipelineExecutor.getStatus());
 });
 
 // ── Server Control API (stop / restart) ──
-app.post("/api/server/shutdown", (req, res) => {
+app.post("/api/server/shutdown", tokenGuard, (req, res) => {
   res.json({ status: "shutting-down" });
   setTimeout(() => gracefulShutdown("api-shutdown"), 100);
 });
 
-app.post("/api/server/restart", (req, res) => {
+app.post("/api/server/restart", tokenGuard, (req, res) => {
   if (!process.send) {
     res.status(409).json({ error: "not supervised — run via start.js for restart support" });
     return;
@@ -822,7 +845,7 @@ app.get("/api/server/info", (req, res) => {
 
 // ── Codex CLI verification + general-plan critique ──
 // Uses CodexRunner so we exercise the exact code path the pipeline executor uses.
-app.post("/api/codex/verify", async (req, res) => {
+app.post("/api/codex/verify", tokenGuard, async (req, res) => {
   const start = Date.now();
   broadcast({ type: "codex_verify_started", data: {} });
   const result = await codexRunner.exec(
@@ -890,7 +913,7 @@ function buildCriticPrompt(task, plan) {
   );
 }
 
-app.post("/api/pipeline/general-run", async (req, res) => {
+app.post("/api/pipeline/general-run", tokenGuard, async (req, res) => {
   const { task, maxIterations } = req.body || {};
   if (!task || typeof task !== "string" || task.trim().length < 3) {
     return res.status(400).json({ error: "task (string, 3+ chars) is required" });
@@ -914,7 +937,7 @@ app.post("/api/pipeline/general-run", async (req, res) => {
   });
 });
 
-app.post("/api/pipeline/general-abort", (req, res) => {
+app.post("/api/pipeline/general-abort", tokenGuard, (req, res) => {
   if (!generalRunActive) return res.json({ status: "no-active-run" });
   generalRunActive.aborted = true;
   res.json({ status: "abort-requested", runId: generalRunActive.runId });
@@ -1133,8 +1156,18 @@ process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 
 const PORT = process.env.PORT || 4200;
-server.listen(PORT, () => {
-  console.log(`Pipeline Dashboard: http://localhost:${PORT}`);
+const { host: BIND_HOST, loopbackOnly: BIND_LOOPBACK_ONLY } = resolveBindHost(process.env);
+const HARNESS_TOKEN_SET = !!process.env.HARNESS_TOKEN;
+server.listen(PORT, BIND_HOST, () => {
+  console.log(`Pipeline Dashboard: http://${BIND_HOST}:${PORT}`);
+  console.log(`  Bind host: ${BIND_HOST} (${BIND_LOOPBACK_ONLY ? "loopback-only" : "network-exposed"})`);
+  console.log(`  Harness token: ${HARNESS_TOKEN_SET ? "configured" : "UNSET"}`);
+  if (!BIND_LOOPBACK_ONLY && !HARNESS_TOKEN_SET) {
+    console.warn(
+      "  [WARN] Server is bound to a non-loopback host with no HARNESS_TOKEN. " +
+      "Mutating routes are unprotected — set HARNESS_TOKEN in pipeline-dashboard/.env."
+    );
+  }
   console.log(`  Terminal: ${pty ? "enabled" : "disabled (install node-pty)"}`);
   console.log(`  Session Watcher: active`);
   console.log(`  Supervised: ${process.send ? "yes (restart enabled)" : "no (start via start.js for restart)"}`);

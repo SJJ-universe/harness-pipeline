@@ -14,9 +14,18 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 
+// Load .env from pipeline-dashboard so HARNESS_TOKEN can be shared with server.
+try {
+  const { loadDotenv } = require("../executor/env-loader");
+  loadDotenv(path.resolve(__dirname, ".."));
+} catch (_) {
+  // env-loader optional — hook must never fail because of config loading
+}
+
 const EVENT = process.argv[2] || "unknown";
 const HOST = process.env.HARNESS_HOST || "127.0.0.1";
 const PORT = parseInt(process.env.HARNESS_PORT || "4200", 10);
+const TOKEN = process.env.HARNESS_TOKEN || "";
 const DUMP_PAYLOADS = process.env.HARNESS_DUMP_PAYLOADS === "1";
 
 // T2.0: dump raw hook payload to disk so we can discover the real field
@@ -59,16 +68,18 @@ process.stdin.on("end", () => {
   dumpPayload(payload);
 
   const body = JSON.stringify({ event: EVENT, payload });
+  const headers = {
+    "content-type": "application/json",
+    "content-length": Buffer.byteLength(body),
+  };
+  if (TOKEN) headers["x-harness-token"] = TOKEN;
   const req = http.request(
     {
       host: HOST,
       port: PORT,
       path: "/api/hook",
       method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "content-length": Buffer.byteLength(body),
-      },
+      headers,
       timeout: TIMEOUT_MS,
     },
     (res) => {

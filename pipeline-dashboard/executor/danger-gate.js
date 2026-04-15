@@ -8,6 +8,10 @@
 // - NO `.claude` self-block. Earlier rev1 blocked any write under `.claude/`,
 //   which killed legitimate harness tuning (T1/T3). Removed for good.
 // - `.env` danger is scoped to Write/Edit only — Read/Bash on .env is fine.
+// - Template suffixes (`.env.example`, `.env.sample`, `.env.template`) are
+//   explicitly ALLOWED — they're shipped as documentation and contain no
+//   real secrets. Real secret files (`.env`, `.env.local`, `.env.production`,
+//   etc.) remain blocked.
 // - Returns a short human-readable reason string on match, or null on allow.
 //   Callers use the reason for logging and user-facing block messages.
 
@@ -16,7 +20,10 @@ const GIT_FORCE_PUSH = /\bgit\s+push\s+.*(--force-with-lease|--force|\s-f(\s|$))
 const GIT_RESET_HARD = /\bgit\s+reset\s+--hard\b/;
 const POWERSHELL_RECURSIVE = /\bRemove-Item\b[^\n]*-Recurse\b/i;
 
-const DOTENV_WRITE = /(^|\/|\\)\.env(\.[^/\\]*)?$/i;
+// Match `.env` and `.env.<anything except example|sample|template>`.
+// The negative lookahead excludes template suffixes so `.env.example` and
+// friends pass through.
+const DOTENV_WRITE = /(^|\/|\\)\.env(?:\.(?!example$|sample$|template$)[^/\\]+)?$/i;
 const CREDENTIALS_WRITE = /credentials\.json$/i;
 
 function isDangerous(tool, input) {

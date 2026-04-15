@@ -97,6 +97,18 @@ test("V-T9-2i: git push origin main → allowed (no --force)", () => {
 test("V-T9-2j: Remove-Item single.txt → allowed (no -Recurse)", () => {
   assert.strictEqual(isDangerous("Bash", { command: "Remove-Item single.txt" }), null);
 });
+test("V-T9-2k: Write .env.example → allowed (template, no secrets)", () => {
+  assert.strictEqual(isDangerous("Write", { file_path: "pipeline-dashboard/.env.example" }), null);
+});
+test("V-T9-2l: Write .env.sample → allowed", () => {
+  assert.strictEqual(isDangerous("Write", { file_path: ".env.sample" }), null);
+});
+test("V-T9-2m: Write .env.template → allowed", () => {
+  assert.strictEqual(isDangerous("Edit", { file_path: "apps/.env.template" }), null);
+});
+test("V-T9-2n: Write .env.production → STILL blocked (not a template)", () => {
+  assert.ok(isDangerous("Write", { file_path: ".env.production" }));
+});
 
 // ── Defensive: unknown tool, empty input, etc. ──
 
