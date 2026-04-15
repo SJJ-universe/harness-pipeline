@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node server.js",
+    "setup": "node scripts/setup-harness.js",
     "test": "node scripts/run-unit-tests.js",
     "test:live": "node scripts/run-live-verify.js"
   },
