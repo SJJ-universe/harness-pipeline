@@ -962,7 +962,7 @@ function initTerminal() {
         promptReady = true;
         setTimeout(() => {
           if (termWs.readyState === 1) {
-            termWs.send(JSON.stringify({ type: "input", data: "claude\n" }));
+            termWs.send(JSON.stringify({ type: "input", data: "claude --continue\n" }));
           }
         }, 300);
       }
