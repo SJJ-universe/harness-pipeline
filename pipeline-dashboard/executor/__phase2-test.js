@@ -51,9 +51,14 @@ async function test2_allowed_tools_block() {
   ex.setEnabled(true);
   await ex.startFromPrompt("please implement a new feature");
 
-  const blockBash = await ex.onPreTool("Bash", { command: "ls" });
-  await assert(blockBash && blockBash.decision === "block", "Bash blocked in Phase A");
-  await assert(/Bash/.test(blockBash.reason), "reason mentions Bash");
+  // Post-bec58ce tuning: Bash is allowed in Phase A for read-only exploration
+  // (git log, ls, npm test for baseline verify). Edit/Write are still blocked.
+  const blockEdit = await ex.onPreTool("Edit", { file_path: "/tmp/x" });
+  await assert(blockEdit && blockEdit.decision === "block", "Edit blocked in Phase A");
+  await assert(/Edit/.test(blockEdit.reason), "reason mentions Edit");
+
+  const allowBash = await ex.onPreTool("Bash", { command: "git status" });
+  await assert(!allowBash.decision, "Bash allowed in Phase A (post-tuning)");
 
   const allowRead = await ex.onPreTool("Read", { file_path: "/tmp/x" });
   await assert(!allowRead.decision, "Read allowed in Phase A");
