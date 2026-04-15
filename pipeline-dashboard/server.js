@@ -39,6 +39,8 @@ const { HookRouter } = require("./executor/hook-router");
 const { PipelineExecutor } = require("./executor/pipeline-executor");
 const { CodexRunner } = require("./executor/codex-runner");
 const { ClaudeRunner } = require("./executor/claude-runner");
+const { createGeneralPipeline } = require("./executor/general-pipeline");
+const codexTriggersRoute = require("./routes/codex-triggers");
 const { PipelineState } = require("./executor/pipeline-state");
 const { QualityGate } = require("./executor/quality-gate");
 const { SkillInjector } = require("./executor/skill-injector");
@@ -281,148 +283,8 @@ app.post("/api/context/load", tokenGuard, (req, res) => {
   }
 });
 
-// ── Codex Triggers API ──
-// On-demand Codex invocation independent of the phase pipeline.
-// The UI shows one card per trigger; clicking runs Codex against a
-// trigger-specific context source (plan file / git diff / user input).
-const CODEX_TRIGGER_DIR = path.resolve(__dirname, "..", "_workspace");
-
-app.get("/api/codex/triggers", (req, res) => {
-  res.json(getTriggers());
-});
-
-app.post("/api/codex/trigger", tokenGuard, async (req, res) => {
-  const { triggerId, userInput } = req.body || {};
-  const trigger = getTriggerById(triggerId);
-  if (!trigger) return res.status(404).json({ error: "Unknown trigger" });
-
-  let context;
-  try {
-    context = resolveTriggerContext(trigger, userInput);
-  } catch (err) {
-    return res.status(400).json({ error: err.message });
-  }
-  if (!context || !context.trim()) {
-    return res.status(400).json({ error: `컨텍스트가 비어있습니다 (${trigger.contextSource})` });
-  }
-
-  broadcast({
-    type: "codex_trigger_started",
-    data: { triggerId, name: trigger.name, contextBytes: context.length },
-  });
-
-  const prompt = trigger.promptTemplate(context);
-  const result = await codexRunner.exec(prompt, {
-    timeoutMs: trigger.timeoutMs || 300000,
-    onChild: (c) => childRegistry.track(c, "codex"),
-    // P1-6 — stream stdout/stderr chunks to the UI so the user can watch
-    // Codex progress instead of staring at a spinning card. We trim each
-    // chunk at the broadcast layer to keep event sizes reasonable.
-    onChunk: ({ stream, text }) => {
-      if (!text) return;
-      const payload = text.length > 4000 ? text.slice(0, 4000) + "…" : text;
-      broadcast({
-        type: "codex_trigger_chunk",
-        data: { triggerId, name: trigger.name, stream, text: payload },
-      });
-    },
-  });
-
-  let filePath = null;
-  try {
-    if (!fs.existsSync(CODEX_TRIGGER_DIR)) fs.mkdirSync(CODEX_TRIGGER_DIR, { recursive: true });
-    const ts = new Date().toISOString().replace(/[:.]/g, "-");
-    filePath = path.join(CODEX_TRIGGER_DIR, `codex-trigger-${triggerId}-${ts}.md`);
-    const body = [
-      `# Codex Trigger — ${trigger.name}`,
-      `triggered: ${new Date().toISOString()}`,
-      `contextSource: ${trigger.contextSource}`,
-      `exitCode: ${result.exitCode}`,
-      "",
-      "## Summary",
-      result.summary || "(empty)",
-      "",
-      "## Findings",
-      (result.findings || []).length
-        ? result.findings.map((f) => `- [${f.severity}] ${f.message}`).join("\n")
-        : "(none)",
-      "",
-      "## Raw stdout",
-      "```",
-      result.stdout || "",
-      "```",
-      "",
-      "## Raw stderr",
-      "```",
-      result.stderr || "",
-      "```",
-      "",
-      "## Prompt",
-      "```",
-      prompt,
-      "```",
-    ].join("\n");
-    fs.writeFileSync(filePath, body, "utf-8");
-  } catch (err) {
-    console.error("[codex-trigger] persist failed:", err.message);
-  }
-
-  broadcast({
-    type: "codex_trigger_done",
-    data: {
-      triggerId,
-      name: trigger.name,
-      ok: result.ok,
-      summary: result.summary,
-      findingsCount: (result.findings || []).length,
-      filePath,
-    },
-  });
-
-  res.json({
-    ok: result.ok,
-    summary: result.summary,
-    findings: result.findings || [],
-    filePath,
-    exitCode: result.exitCode,
-  });
-});
-
-function resolveTriggerContext(trigger, userInput) {
-  switch (trigger.contextSource) {
-    case "plan": {
-      const candidates = [
-        path.join(CODEX_TRIGGER_DIR, "plan.md"),
-        path.resolve(__dirname, "..", "pipeline-dashboard", "plan.md"),
-        path.resolve(__dirname, "plan.md"),
-      ];
-      for (const p of candidates) {
-        if (fs.existsSync(p)) return fs.readFileSync(p, "utf-8");
-      }
-      throw new Error("plan.md를 찾지 못했습니다 (_workspace/ 또는 pipeline-dashboard/)");
-    }
-    case "git-diff": {
-      try {
-        const diff = execSync("git diff HEAD", {
-          cwd: path.resolve(__dirname, ".."),
-          encoding: "utf-8",
-          maxBuffer: 4 * 1024 * 1024,
-        });
-        return diff || "(no staged or unstaged changes)";
-      } catch (err) {
-        throw new Error(`git diff 실행 실패: ${err.message}`);
-      }
-    }
-    case "user-input": {
-      if (!userInput || !String(userInput).trim()) {
-        throw new Error("입력이 비어있습니다 (userInput 필요)");
-      }
-      return String(userInput);
-    }
-    default:
-      throw new Error(`알 수 없는 contextSource: ${trigger.contextSource}`);
-  }
-}
+// ── Codex Triggers API ── (extracted to routes/codex-triggers.js in P2-3)
+// Mounted below after codexRunner is constructed.
 
 // ── Pipeline Templates API ──
 app.get("/api/pipeline/templates", (req, res) => {
@@ -461,8 +323,12 @@ const hookRouter = new HookRouter({ broadcast, sessionWatcher });
 const codexRunner = new CodexRunner({});
 const claudeRunner = new ClaudeRunner({});
 
-// Track in-progress general-run orchestrations so shutdown can abort them.
-let generalRunActive = null;
+// Mount Codex triggers route now that codexRunner exists.
+app.use(
+  "/api/codex",
+  codexTriggersRoute.createRouter({ tokenGuard, broadcast, codexRunner, childRegistry })
+);
+
 const pipelineState = new PipelineState();
 const qualityGate = new QualityGate();
 const skillInjector = new SkillInjector({ skillRegistry });
@@ -598,289 +464,33 @@ app.post("/api/codex/verify", tokenGuard, async (req, res) => {
 });
 
 // ── Automated General Pipeline (Claude plan ↔ Codex critique cycle) ──
-//
-// Flow: Phase B (Claude plans) → Phase C (Codex critiques) → if critical/high
-// findings AND iteration < max: Phase D (Claude refines) → Phase C again.
-// Each phase broadcasts phase_update / node_update / critique_received events
-// so the existing dashboard visualizes the cycle on the "default" template.
-//
-// Implementation note: Claude is invoked via `claude -p --bare` to avoid
-// re-entering the harness. Codex uses the same CodexRunner as the verify API.
-function buildPlannerPrompt(task) {
-  return (
-    `You are a software planner. Create a concrete implementation plan for the task below.\n` +
-    `Respond in Korean using this exact markdown structure:\n\n` +
-    `# 목표\n(1-2 sentences)\n\n` +
-    `# 범위\n- (in-scope bullet)\n- (out-of-scope bullet)\n\n` +
-    `# 작업 단계\n1. (actionable step)\n2. ...\n\n` +
-    `# 리스크\n- (risk)\n\n` +
-    `# 검증\n- (how to verify)\n\n` +
-    `Do NOT write code or modify any files. Planning only. Keep it under 700 words.\n\n` +
-    `TASK: ${task}`
-  );
-}
+// Orchestrator lives in executor/general-pipeline.js (extracted in P2-3).
+const generalPipeline = createGeneralPipeline({
+  broadcast,
+  claudeRunner,
+  codexRunner,
+  childRegistry,
+  workspaceRoot: path.join(__dirname, ".."),
+});
 
-function buildRefinerPrompt(task, prevPlan, critique) {
-  return (
-    `You are a software planner. Revise the implementation plan below based on the critic's feedback.\n` +
-    `Address every critical and high severity finding explicitly.\n` +
-    `Respond in Korean using the same markdown structure (# 목표 / # 범위 / # 작업 단계 / # 리스크 / # 검증).\n` +
-    `Do NOT write code or modify any files. Planning only.\n\n` +
-    `TASK: ${task}\n\n` +
-    `PREVIOUS PLAN:\n${prevPlan.slice(0, 4500)}\n\n` +
-    `CRITIC FEEDBACK:\n${critique.slice(0, 3000)}`
-  );
-}
-
-function buildCriticPrompt(task, plan) {
-  return (
-    `You are a plan critic. Review this implementation plan and list concrete risks, missing steps, and improvements.\n` +
-    `Respond in Korean. Use bullet lines in this exact format:\n` +
-    `- [critical|high|medium|low] <message>\n` +
-    `End with a "## Summary" section (1-2 sentences).\n\n` +
-    `TASK: ${task}\n\nPLAN:\n${plan.slice(0, 6000)}`
-  );
-}
-
-app.post("/api/pipeline/general-run", tokenGuard, async (req, res) => {
+app.post("/api/pipeline/general-run", tokenGuard, (req, res) => {
   const { task, maxIterations } = req.body || {};
   if (!task || typeof task !== "string" || task.trim().length < 3) {
     return res.status(400).json({ error: "task (string, 3+ chars) is required" });
   }
-  if (generalRunActive) {
-    return res.status(409).json({ error: "another general-run pipeline is already active" });
-  }
-
   const maxIter = Math.max(1, Math.min(Number(maxIterations) || 3, 5));
-  const runId = `gr-${Date.now()}`;
-  generalRunActive = { runId, startedAt: Date.now(), aborted: false };
-
-  // Respond immediately — the orchestration runs asynchronously and
-  // streams events over the WebSocket so the dashboard updates live.
-  res.json({ status: "started", runId, task, maxIterations: maxIter });
-
-  runGeneralPipeline(task.trim(), maxIter, runId).catch((err) => {
-    broadcast({ type: "error", data: { phase: "general", node: "orchestrator", message: err.message } });
-  }).finally(() => {
-    generalRunActive = null;
-  });
+  const started = generalPipeline.start(task.trim(), maxIter);
+  if (started.error) {
+    return res.status(409).json({ error: started.error });
+  }
+  res.json({ status: "started", runId: started.runId, task, maxIterations: maxIter });
 });
 
 app.post("/api/pipeline/general-abort", tokenGuard, (req, res) => {
-  if (!generalRunActive) return res.json({ status: "no-active-run" });
-  generalRunActive.aborted = true;
-  res.json({ status: "abort-requested", runId: generalRunActive.runId });
+  const runId = generalPipeline.abort();
+  if (!runId) return res.json({ status: "no-active-run" });
+  res.json({ status: "abort-requested", runId });
 });
-
-async function runGeneralPipeline(task, maxIter, runId) {
-  const started = Date.now();
-  const history = [];
-  let plan = "";
-  let lastCritique = null;
-  let iteration = 0;
-
-  // Helper: abort check
-  const isAborted = () => generalRunActive && generalRunActive.aborted;
-
-  broadcast({
-    type: "pipeline_start",
-    data: { targetFile: `task: ${task.slice(0, 80)}`, mode: "live", runId, template: "default" },
-  });
-
-  // ── Phase A (컨텍스트 수집): marked as completed immediately.
-  // The user-provided task IS the context for this automated flow.
-  broadcast({ type: "phase_update", data: { phase: "A", status: "active" } });
-  broadcast({ type: "node_update", data: { node: "context-analyzer", status: "active" } });
-  await new Promise((r) => setTimeout(r, 200));
-  broadcast({ type: "node_update", data: { node: "context-analyzer", status: "completed" } });
-  broadcast({ type: "phase_update", data: { phase: "A", status: "completed" } });
-  if (isAborted()) return finalizeGeneralRun({ aborted: true, runId, started });
-
-  // ── Phase B (Claude 계획 수립) ──
-  broadcast({ type: "phase_update", data: { phase: "B", status: "active" } });
-  broadcast({ type: "node_update", data: { node: "task-planner", status: "active" } });
-
-  const planPromptB = buildPlannerPrompt(task);
-  const planResultB = await claudeRunner.exec(planPromptB, {
-    timeoutMs: 180000,
-    cwd: path.join(__dirname, ".."),
-    onChild: (c) => childRegistry.track(c, "claude"),
-  });
-
-  if (!planResultB.ok || !planResultB.text) {
-    broadcast({
-      type: "error",
-      data: {
-        phase: "B",
-        node: "task-planner",
-        message: `Claude 플래닝 실패: exit=${planResultB.exitCode} ${(planResultB.stderr || planResultB.error || "").slice(0, 300)}`,
-      },
-    });
-    broadcast({ type: "node_update", data: { node: "task-planner", status: "error" } });
-    broadcast({ type: "phase_update", data: { phase: "B", status: "error" } });
-    return finalizeGeneralRun({ failed: true, reason: "claude-plan-failed", runId, started });
-  }
-  plan = planResultB.text;
-  history.push({ phase: "B", iteration: 0, plan });
-  broadcast({
-    type: "log_message",
-    data: { level: "info", message: `[B] Claude 플랜 생성 완료 (${plan.length}자)` },
-  });
-  broadcast({ type: "node_update", data: { node: "task-planner", status: "completed" } });
-  broadcast({ type: "phase_update", data: { phase: "B", status: "completed" } });
-  if (isAborted()) return finalizeGeneralRun({ aborted: true, runId, started });
-
-  // ── Phase C ↔ D cycle ──
-  while (iteration < maxIter) {
-    // Phase C: Codex critique
-    broadcast({ type: "phase_update", data: { phase: "C", status: "active" } });
-    broadcast({ type: "node_update", data: { node: "plan-critic", status: "active" } });
-    broadcast({
-      type: "codex_started",
-      data: { phase: "C", iteration, promptPreview: `Critique iteration ${iteration + 1}/${maxIter}` },
-    });
-
-    const critiqueResult = await codexRunner.exec(buildCriticPrompt(task, plan), {
-      timeoutMs: 150000,
-      cwd: path.join(__dirname, ".."),
-      onChild: (c) => childRegistry.track(c, "codex"),
-    });
-
-    const findings = critiqueResult.findings || [];
-    const summary = critiqueResult.summary || "";
-    lastCritique = { findings, summary, ok: critiqueResult.ok, iteration };
-
-    broadcast({
-      type: "critique_received",
-      data: {
-        phase: "C",
-        iteration,
-        ok: critiqueResult.ok,
-        summary,
-        findings,
-        error: critiqueResult.error || null,
-      },
-    });
-
-    if (!critiqueResult.ok) {
-      broadcast({
-        type: "error",
-        data: {
-          phase: "C",
-          node: "plan-critic",
-          message: `Codex 비평 실패: exit=${critiqueResult.exitCode} ${(critiqueResult.stderr || critiqueResult.error || "").slice(0, 300)}`,
-        },
-      });
-      broadcast({ type: "node_update", data: { node: "plan-critic", status: "error" } });
-      return finalizeGeneralRun({
-        failed: true,
-        reason: "codex-critique-failed",
-        runId,
-        started,
-        plan,
-        lastCritique,
-      });
-    }
-
-    broadcast({ type: "node_update", data: { node: "plan-critic", status: "completed", findings: findings.length } });
-
-    const hasCriticalOrHigh = findings.some((f) => f.severity === "critical" || f.severity === "high");
-    const canIterate = iteration + 1 < maxIter;
-
-    if (!hasCriticalOrHigh) {
-      broadcast({ type: "phase_update", data: { phase: "C", status: "completed" } });
-      broadcast({
-        type: "log_message",
-        data: { level: "info", message: `[C] critical/high 없음 — 사이클 종료` },
-      });
-      break;
-    }
-
-    if (!canIterate) {
-      broadcast({ type: "phase_update", data: { phase: "C", status: "completed" } });
-      broadcast({
-        type: "log_message",
-        data: {
-          level: "warn",
-          message: `[C] 최대 반복(${maxIter}) 도달 — 남은 critical/high: ${findings.filter((f) => f.severity === "critical" || f.severity === "high").length}`,
-        },
-      });
-      break;
-    }
-
-    // Phase D: Claude refines
-    iteration++;
-    broadcast({ type: "cycle_iteration", data: { phase: "C", iteration, linkedTo: "D" } });
-    broadcast({ type: "phase_update", data: { phase: "C", status: "completed" } });
-    broadcast({ type: "phase_update", data: { phase: "D", status: "active" } });
-    broadcast({ type: "node_update", data: { node: "plan-refiner", status: "active" } });
-
-    if (isAborted()) return finalizeGeneralRun({ aborted: true, runId, started, plan, lastCritique });
-
-    const critiqueText =
-      findings.map((f) => `- [${f.severity}] ${f.message}`).join("\n") +
-      (summary ? `\n\n## Summary\n${summary}` : "");
-    const refineResult = await claudeRunner.exec(buildRefinerPrompt(task, plan, critiqueText), {
-      timeoutMs: 180000,
-      cwd: path.join(__dirname, ".."),
-      onChild: (c) => childRegistry.track(c, "claude"),
-    });
-
-    if (!refineResult.ok || !refineResult.text) {
-      broadcast({
-        type: "error",
-        data: {
-          phase: "D",
-          node: "plan-refiner",
-          message: `Claude 수정 실패: exit=${refineResult.exitCode} ${(refineResult.stderr || refineResult.error || "").slice(0, 300)}`,
-        },
-      });
-      broadcast({ type: "node_update", data: { node: "plan-refiner", status: "error" } });
-      return finalizeGeneralRun({ failed: true, reason: "claude-refine-failed", runId, started, plan, lastCritique });
-    }
-    plan = refineResult.text;
-    history.push({ phase: "D", iteration, plan });
-    broadcast({
-      type: "log_message",
-      data: { level: "info", message: `[D] Claude 플랜 수정 완료 (${plan.length}자, 반복 ${iteration})` },
-    });
-    broadcast({ type: "node_update", data: { node: "plan-refiner", status: "completed" } });
-    broadcast({ type: "phase_update", data: { phase: "D", status: "completed" } });
-  }
-
-  return finalizeGeneralRun({ runId, started, plan, lastCritique, iterations: iteration, history });
-}
-
-function finalizeGeneralRun({ runId, started, plan, lastCritique, iterations, history, aborted, failed, reason }) {
-  const duration = Date.now() - (started || Date.now());
-  const verdict = failed ? "ERROR" : aborted ? "ABORTED" : (lastCritique && lastCritique.findings || []).some((f) => f.severity === "critical" || f.severity === "high") ? "CONCERNS" : "CLEAN";
-
-  broadcast({
-    type: "general_plan_complete",
-    data: {
-      runId,
-      verdict,
-      iterations: iterations || 0,
-      durationMs: duration,
-      finalPlan: plan || "",
-      lastCritique: lastCritique || null,
-      reason: reason || null,
-      aborted: !!aborted,
-      failed: !!failed,
-    },
-  });
-
-  broadcast({
-    type: "pipeline_complete",
-    data: {
-      tokenUsage: {},
-      errors: failed ? [{ phase: "general", node: "orchestrator", message: reason || "failed" }] : [],
-      duration,
-      harnessId: "general-plan",
-    },
-  });
-  return { verdict, iterations: iterations || 0, durationMs: duration, plan };
-}
 
 // OS signals → graceful shutdown
 process.on("SIGINT", () => gracefulShutdown("SIGINT"));
