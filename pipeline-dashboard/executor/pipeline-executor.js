@@ -18,6 +18,7 @@ const { PipelineState } = require("./pipeline-state");
 const { QualityGate } = require("./quality-gate");
 const { SkillInjector } = require("./skill-injector");
 const { PipelineAdapter } = require("./pipeline-adapter");
+const dangerGate = require("./danger-gate");
 
 // _workspace/ lives in the user's project root (one level above pipeline-dashboard).
 // Codex critiques are persisted here so Claude can Read them between Phase C → D.
@@ -117,6 +118,21 @@ class PipelineExecutor {
   }
 
   async onPreTool(tool, _input) {
+    // T9 danger gate runs even when executor is idle — destructive ops are
+    // always blocked. pipeline-executor is one of two entry points; the other
+    // is server.js /api/hook, which calls the same isDangerous check.
+    const dangerReason = dangerGate.isDangerous(tool, _input);
+    if (dangerReason) {
+      this.broadcast({
+        type: "dangers_blocked",
+        data: { tool, reason: dangerReason, entry: "executor" },
+      });
+      return {
+        decision: "block",
+        reason: `위험 작업 차단 (${dangerReason}) — 하네스 danger-gate에서 차단됨.`,
+      };
+    }
+
     if (!this.enabled || !this.active) return {};
     const phase = this._currentPhase();
     if (!phase) return {};

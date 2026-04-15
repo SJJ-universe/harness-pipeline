@@ -27,6 +27,7 @@ const { QualityGate } = require("./executor/quality-gate");
 const { SkillInjector } = require("./executor/skill-injector");
 const { PipelineAdapter } = require("./executor/pipeline-adapter");
 const { ContextAlarm } = require("./executor/context-alarm");
+const dangerGate = require("./executor/danger-gate");
 const skillRegistry = require("./skill-registry");
 const pipelineTemplates = require("./pipeline-templates.json");
 
@@ -744,6 +745,24 @@ app.post("/api/hook", async (req, res) => {
       contextAlarm.evaluate(payload || {});
     } catch (e) {
       console.warn("[T2] contextAlarm error:", e.message);
+    }
+
+    // T9 danger gate — second entry point (H6: single gate, dual entry).
+    // Runs independently of the executor so dangerous ops are blocked even
+    // when harness mode is off.
+    if (event === "pre-tool" || event === "PreToolUse") {
+      const p = payload || {};
+      const reason = dangerGate.isDangerous(p.tool_name, p.tool_input || {});
+      if (reason) {
+        broadcast({
+          type: "dangers_blocked",
+          data: { tool: p.tool_name, reason, entry: "hook" },
+        });
+        return res.json({
+          decision: "block",
+          reason: `위험 작업 차단 (${reason}) — 하네스 danger-gate에서 차단됨.`,
+        });
+      }
     }
 
     const decision = await hookRouter.route(event, payload || {});
