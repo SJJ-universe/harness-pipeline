@@ -1,7 +1,7 @@
 ---
 name: code-review-pipeline
-description: "듀얼 AI 코드 리뷰 파이프라인. Claude Code 에이전트 팀(Saboteur/Security/Readability)이 1차 검토, Codex CLI가 2차 검토, 이슈 발견 시 자동 수정 및 재검토 순환. 대시보드 실시간 시각화 포함."
-trigger: "코드 리뷰", "리뷰해줘", "PR 리뷰", "코드 검토", "review this code", "review PR", "파이프라인 리뷰", "pipeline review"
+description: "완성되거나 작업 중인 코드·PR diff를 품질·보안·가독성 관점에서 검토받을 때 반드시 이 파이프라인을 쓸 것. 사용자가 '리뷰해줘', 'PR 리뷰', '코드 검토', '보안 검토', 'review this', '다시 리뷰', '재리뷰', '이전 리뷰 보완' 등으로 검토를 요청할 때 발동한다. Saboteur/Security/Readability 3개 리뷰어 팀 + Codex CLI 이중 순환 검토. 구현·버그 수정 작업은 universal-task-pipeline으로 분리하라."
+trigger: "코드 리뷰", "리뷰해줘", "PR 리뷰", "코드 검토", "review this code", "review PR", "파이프라인 리뷰", "pipeline review", "다시 리뷰", "재리뷰", "이전 리뷰 보완"
 ---
 
 # 듀얼 AI 코드 리뷰 파이프라인

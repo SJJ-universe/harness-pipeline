@@ -1,6 +1,6 @@
 ---
 name: universal-task-pipeline
-description: Use when the user wants to execute any coding task with structured planning, dual-AI review cycles (Claude+Codex), and automated quality validation through the pipeline dashboard.
+description: "신규 기능 구현·버그 수정·리팩토링·테스트 추가·문서 작성 등 모든 유형의 코딩 태스크를 Phase 기반으로 실행할 때 반드시 사용할 것. 사용자가 '작업해줘', '구현해줘', '만들어줘', '고쳐줘', '다시 실행', '재실행', '보완', '이전 결과 개선', '업데이트' 같은 표현으로 일반 코딩 작업이나 중단된 작업 재개를 요청하면 즉시 기동한다. 순수 리뷰 전용이라면 code-review-pipeline을 사용하라."
 ---
 
 # Universal Task Pipeline
