@@ -1,219 +1,354 @@
-# Plan: Step 0 검증 세션 + Phase 3 (P0) 하네스 튜닝
+# Plan rev2: Step 0 검증 + Phase 3 (P0) 하네스 튜닝
 
 작성일: 2026-04-15
-작성자: Claude (하네스 OFF 상태, Codex 트리거 "계획 검증" 비평 메타 교훈 반영)
-대상 리포: `SJJ-universe/harness-pipeline@master` (HEAD=1641f6f)
+작성자: Claude (Codex rev1 비평 13개 항목 전면 반영)
+**리포 루트**: `C:/Users/SJ/workspace` (= `SJJ-universe/harness-pipeline` 루트)
+**작업 브랜치**: `tuning/step0-phase3` (rev2부터 `master` 직접 push 중단)
+**HEAD(rev2 시작 시점)**: `d5a08e6`
 
 ---
 
 ## 목표
 
-1. **Step 0**: 최근 푸시한 7개 커밋(FIX-1~3 ~ Codex 트리거 UI)이 런타임에서 정상 동작하는지 종단 검증
-2. **Phase 3 P0**: 검증이 통과하면 `harness-tuning-todo.md`의 Day 1~2 작업(T1 모델 라우팅 + T3 skill description + T2 컨텍스트 알람 + T9 hook 게이트)을 순차 진행
-
-검증이 실패하면 Phase 3는 보류하고 실패 원인부터 디버깅한다. 실패 지점을 정확히 기록해야 롤백 가능.
+1. **Step 0**: 최근 7개 커밋(FIX-1~3 ~ Codex 트리거)이 런타임 프로세스에 실제로 로드되어 동작하는지 결정론적으로 검증
+2. **Phase 3 P0**: 통과 시 T1(모델 라우팅) + T3(skill description) + T2(컨텍스트 알람) + T9(danger gate)를 순차 진행
 
 ---
 
-## 범위
+## 작업 브랜치 & 세이프티 규칙 (rev2 신설 — 비평 C2 대응)
 
-### Step 0 대상
-- `pipeline-templates.json` Phase A 튜닝 적용 여부 (Bash 허용, count=2)
-- `executor/codex-runner.js` stdin prompt 전달 (FIX-3)
-- `executor/pipeline-executor.js` `_persistCritique` (FIX-1)
-- `hooks/harness-hook.js` Stop 훅 180s + pendingHint (FIX-2)
-- `public/app.js` auto-resume (`claude --continue`) + paste 단일 입력 + Codex 트리거 카드 4종
+```
+git fetch origin
+git checkout -b tuning/step0-phase3 origin/master
+```
 
-### Phase 3 P0 대상 (Step 0 통과 후에만)
-- `.claude/agents/*.md` 9개 frontmatter `model:` 필드 (T1)
-- `.claude/skills/universal-task-pipeline/SKILL.md`, `code-review-pipeline/SKILL.md` description 재작성 (T3)
-- `pipeline-dashboard/hooks/harness-hook.js` + `server.js` context_usage 40% 알람 (T2)
-- `pipeline-dashboard/executor/pipeline-executor.js` `_isDangerousCommand()` (T9)
+각 T 태스크 실행 흐름:
+1. `git status` → clean 확인 (clean 아니면 중단)
+2. 시작 SHA 기록: `ROLLBACK_SHA=$(git rev-parse HEAD)` → 커밋 메시지 footer에 기록
+3. 코드 편집 → 로컬 테스트 → `git diff` self-review
+4. commit → `git push origin tuning/step0-phase3`
+5. 로컬 회귀 확인(restart + /api/version) 완료 후에만 다음 태스크로
+6. 전체 4개 태스크 끝나면 사용자에게 FF merge 여부 확인 → 승인 시 master로 FF merge
+
+**master 직접 push 금지**. PR 없어도 브랜치는 반드시 분리.
 
 ---
 
-## 사전 상태 확인 (Baseline Verify)
+## T0: Runtime Proof Endpoint (rev2 신설 — 비평 H2 대응)
 
-**새로 반영된 코드가 실제 런타임에 실려 있는지 먼저 증명**한다. (Codex 교훈: git rev-parse + 응답 문자열 확인)
+파일 HEAD와 실제 서버 프로세스가 일치하는지 결정론적으로 확인하기 위해 `/api/version` 신설.
 
-| 체크 | 명령/동작 | 기대 결과 (pass 조건) |
+**작업** (`pipeline-dashboard/server.js`):
+```js
+const SERVER_STARTED_AT = new Date().toISOString();
+const SERVER_PID = process.pid;
+let SERVER_COMMIT_SHA = "unknown";
+try {
+  SERVER_COMMIT_SHA = require("child_process")
+    .execSync("git rev-parse HEAD", { cwd: path.resolve(__dirname, "..") })
+    .toString().trim();
+} catch (e) {}
+
+app.get("/api/version", (req, res) => {
+  res.json({
+    commitSha: SERVER_COMMIT_SHA,
+    startedAt: SERVER_STARTED_AT,
+    pid: SERVER_PID,
+    node: process.version,
+  });
+});
+```
+
+**Verification**:
+- V-T0-1: `curl http://127.0.0.1:4200/api/version` → `commitSha`가 `git rev-parse HEAD`와 일치
+- V-T0-2: 대시보드 재시작 후 `startedAt`이 갱신됨
+- V-T0-3: `pid`가 `ps` 출력의 node 프로세스와 일치
+
+**커밋**: `feat(T0): /api/version endpoint for runtime proof`
+
+---
+
+## T2.0: Hook Payload Sample Collection (rev2 신설 — 비평 H4 대응)
+
+T2 구현 전 실제 Claude Code hook payload에 `context_usage` 필드가 어느 경로에 오는지 확인.
+
+**작업** (`pipeline-dashboard/hooks/harness-hook.js`):
+- PreToolUse/PostToolUse/Stop 각 payload 전체를 `_workspace/hook-payload-samples/{event}-{ts}.json`으로 덤프하는 스위치 추가 (환경변수 `HARNESS_DUMP_PAYLOADS=1`일 때만)
+- 하네스 ON 상태에서 간단한 세션 1회 실행 → 샘플 수집
+- 덤프 파일에서 `context_usage` (또는 유사 필드 `token_count`, `input_tokens`, `context_window_used` 등) 존재 여부 확인
+
+**Fallback 정책**: 필드 없으면 T2는 서버 사이드 자체 추정으로 전환 —
+```js
+function estimateContextUsage(state) {
+  const charsApprox = state.toolFeed.reduce((a, t) => a + (t.preview?.length || 0), 0);
+  const tokensApprox = Math.round(charsApprox / 4);
+  const limit = 200000;
+  return tokensApprox / limit;
+}
+```
+
+**커밋**: `chore(T2.0): hook payload sample dumper for context_usage discovery`
+
+---
+
+## 사전 상태 확인 (Baseline Verify, rev2)
+
+| 체크 | 명령/동작 | 기대 결과 |
 |---|---|---|
-| B1 | 브라우저에서 `http://127.0.0.1:4200/api/codex/triggers` 직접 호출 | JSON 배열 4개 (plan-verify, code-review, debug-analysis, security-review) 반환 |
-| B2 | 터미널 탭 하단 "Codex 트리거" 패널 존재 | 색상 다른 카드 4개 보임 (계획 검증/코드 리뷰/디버그 분석/보안 검토) |
-| B3 | `git -C C:/Users/SJ/workspace rev-parse HEAD` | `1641f6f…` (Codex 트리거 커밋) |
-| B4 | Ctrl+V 다행 텍스트 붙여넣기 | 한 번만 입력됨 |
+| B0 | `curl http://127.0.0.1:4200/api/version` | `commitSha`가 `git rev-parse HEAD`와 정확히 일치 |
+| B1 | `curl http://127.0.0.1:4200/api/codex/triggers` | JSON 배열 4개 (plan-verify, code-review, debug-analysis, security-review) |
+| B2 | 브라우저 터미널 탭 하단 "Codex 트리거" 패널 4장 카드 DOM 존재 | `document.querySelectorAll("#trigger-cards .recommend-card").length === 4` (브라우저 콘솔에서 확인) |
+| B3 | `git rev-parse HEAD` (루트=`C:/Users/SJ/workspace`) | T0 커밋 이후 SHA (예: `<T0-SHA>`) |
+| B4 | Ctrl+V로 여러 줄 텍스트 붙여넣기 | 한 번만 입력됨 (비평 L1: "다행" 오타 수정) |
 
-B1~B4가 모두 pass해야 Step 0 검증 세션을 의미 있게 돌릴 수 있음. 하나라도 실패하면 그 지점을 먼저 수정.
-
----
-
-## Step 0 검증 세션 (7가지)
-
-**사용자가 하네스 ON** → 이 대화에서 다음 테스트 프롬프트 실행:
-
-> "파이썬으로 문자열을 역순으로 뒤집는 간단한 유틸리티 함수를 만들어줘"
-
-하네스가 이 프롬프트를 `implementation` 태스크로 감지 → `default` 템플릿 → Phase A 진입.
-
-| # | 확인 항목 | 통과 조건 (구체적 관측 대상) |
-|---|---|---|
-| S1 | Phase A가 Edit/Write 차단 | Edit 호출 시 `tool_blocked` broadcast + 에러 메시지 "Phase A 단계에서는 다음 도구만 허용됩니다" |
-| S2 | Phase A가 Bash 허용 (새 튜닝) | `git log` 또는 `ls` 같은 Bash 실행이 차단 없이 카운트됨 |
-| S3 | Phase A → B 전환 | `phaseToolCount("A") >= 2` 달성 후 Stop → Phase B로 phaseIdx 증가, broadcast `phase_enter` |
-| S4 | Phase B에서 plan.md Write 허용 | `plan*.md` 작성 → artifact 캡처 → broadcast `artifact_captured` |
-| S5 | Phase C Codex 호출 | broadcast `codex_started` → ~29s 후 `codex_critique_ready` |
-| S6 | `_workspace/C_codex_critique_iter1.md` 실제 생성 | 파일 존재 + Summary 섹션 + Findings 섹션 포함 |
-| S7 | Phase D → E → F 정상 전환 + verdict PASS | 최종 verdict `CLEAN` 또는 `CONCERNS`, `_complete` broadcast |
-
-**한 가지라도 실패 시**: 그 Phase ID + 실패한 구체적 신호 기록 → `_workspace/step0-failure-{phase}.md`로 덤프 → Phase 3 작업 전면 보류 → 원인 파악 후 재시도.
+B0~B4 전부 pass여야 Step 0 세션 진행.
 
 ---
 
-## Phase 3 P0 작업 (Step 0 전부 통과 시)
+## Step 0 결정론적 검증 세션 (rev2 — 비평 H3/M5/M6 대응)
 
-### T1. 에이전트 모델 라우팅 (가장 먼저, ROI 최고)
+**원칙**: 모델 변덕에 의존하지 않는다. 각 세션은 사용자 프롬프트로 하네스를 자극하되 **검증은 하네스 내부 broadcast 이벤트와 파일 시스템 상태**로 판정한다.
 
-**작업**: `.claude/agents/*.md` 9개 frontmatter에 `model:` 필드 추가.
+### 세션 프롬프트 (명시적 자극)
 
-| 에이전트 | 추가할 라인 | 근거 |
+> "Read, Glob, Grep 툴을 각각 1번씩 호출하여 pipeline-dashboard/server.js 파일을 찾아 상단 30줄을 보고하라. 그 후 Bash로 `git status`를 한 번 실행하라. 이후 코드 변경 없이 계획만 수립하고 종료하라."
+
+이 프롬프트는 Phase A에서 **Read/Glob/Grep/Bash 각 1회** 호출을 명시하므로 행동 재현성이 있다.
+
+### 체크리스트
+
+| # | 확인 항목 | 판정 방식 | 통과 조건 | 실패 시 timeout |
+|---|---|---|---|---|
+| S1 | Phase A Edit 차단 (인공 이벤트) | `curl -X POST /api/hook -d '{"event":"PreToolUse","tool_name":"Edit",...}'` | 응답 `decision:"block"` + reason에 "Phase A" | 10s |
+| S2 | Phase A Bash 허용 (신규 튜닝) | 위 프롬프트 실행 → broadcast `tool_call` 중 `tool:"Bash"` 존재 + 차단 이벤트 없음 | broadcast 로그에 Bash 1회, tool_blocked 0회 | 60s |
+| S3 | Phase A→B 전환 (count=2) | 세션 중 broadcast `phase_enter` with `phase:"B"` | phaseIdx 증가 + broadcast 수신 | 90s |
+| S4 | Phase B plan.md Write → artifact 캡처 | `_workspace/plan*.md` 존재 + broadcast `artifact_captured` | 파일 존재 AND broadcast 1회 | 120s |
+| S5 | Phase C Codex 호출 | broadcast `codex_started` → `codex_critique_ready` | 두 이벤트 모두 수신 | **120s** (rev2: 29s 고정 제거) |
+| S6 | `_workspace/C_codex_critique_iter1.md` 실파일 | `test -f` + 최소 크기 500바이트 + `## Summary` `## Findings` 모두 포함 | grep으로 두 헤더 확인 | — |
+| S7 | Phase D→E→F + 최종 verdict | `_workspace/F_final_verdict.md` 존재 + verdict 필드 | verdict ∈ {CLEAN, CONCERNS} **AND** critical count=0 (high는 기록만) | — |
+
+**전체 세션 timeout**: 10분. 초과 시 하네스 세션 강제 종료 + S?-timeout 기록.
+
+### 실패 덤프 스키마 (rev2 — 비평 M7)
+
+`_workspace/step0-failure-{phase}.md`는 다음 6개 섹션을 반드시 포함:
+1. **commit SHA**: `git rev-parse HEAD`
+2. **PID / started at**: `/api/version` 응답
+3. **Last hook payload**: 직전 10개 hook 이벤트 원본 JSON
+4. **Server log tail**: `pipeline-dashboard/logs/server.log` 마지막 50줄 (없으면 stdout 캡처)
+5. **Broadcast events**: 마지막 20개 broadcast 이벤트
+6. **Phase state**: `state.phaseIdx`, `state.phaseToolCount`, `state.artifacts`
+
+---
+
+## Phase 3 P0 작업 (Step 0 통과 시)
+
+### T1. 에이전트 모델 라우팅 (비평 M2/M3 대응)
+
+**선행 확인 (rev2 신설)**:
+- T1.0: 기존 `.claude/agents/*.md`에 `model:` 필드를 쓰는 파일이 있는지 grep → 있으면 포맷 참고
+- T1.1: Claude Code 공식 문서에서 agent frontmatter `model:` 허용값 확인 (WebFetch). 확인 불가 시 `model:` 대신 `description:`에 "간단한 조회 전용" 같은 힌트 추가로 fallback
+
+**작업** (허용 시):
+
+| 에이전트 | 추가 라인 | 근거 |
 |---|---|---|
-| context-analyzer.md | `model: haiku` | 파일 디스커버리는 결정론적 |
+| context-analyzer.md | `model: haiku` | 결정론적 디스커버리 |
 | task-validator.md | `model: haiku` | 테스트 결과 파싱 |
-| readability-reviewer.md | `model: haiku` | 패턴 기반 체크 |
-| task-planner.md | `model: sonnet` | 중간 난이도 추론 |
+| readability-reviewer.md | `model: haiku` | 패턴 체크 |
+| task-planner.md | `model: sonnet` | 중간 추론 |
 | review-synthesizer.md | `model: sonnet` | 병합 |
-| saboteur-reviewer.md | `model: sonnet` | 창의적 공격 시나리오 |
-| security-auditor.md | `model: sonnet` | OWASP 패턴 + 추론 |
+| saboteur-reviewer.md | `model: sonnet` | 창의적 공격 |
+| security-auditor.md | `model: sonnet` | OWASP 추론 |
 | review-orchestrator.md | `model: opus` | 최종 조율 |
-| plan-critic.md | (변경 없음 — Codex CLI) | 이미 독립 AI |
+| plan-critic.md | — | Codex CLI 전용 |
 
-**Verification** (Codex 교훈 적용):
-- V-T1-1: `grep -l "^model:" .claude/agents/*.md | wc -l` → `8` (plan-critic 제외)
-- V-T1-2: 각 파일 첫 20줄 출력으로 frontmatter 포맷 확인 (앞·뒤 `---` 유지)
-- V-T1-3: Agent 도구를 `subagent_type: "context-analyzer"`로 호출 시 모델이 실제로 haiku인지 — 이 세션에서 확인 불가능하면 "런타임 확인 TODO" 플래그 남김
+**Verification (rev2 — 비평 M3 Windows 호환)**:
+- V-T1-1: Node 스크립트로 검증 — `node -e "const fs=require('fs'); const files=require('glob').sync('.claude/agents/*.md'); let ok=0; for (const f of files) { const m=fs.readFileSync(f,'utf8').match(/^---\n([\s\S]*?)\n---/); if (m && /^model:\s*(haiku|sonnet|opus)/m.test(m[1])) ok++; } console.log(ok);"` → `8`
+- V-T1-2: 각 파일 frontmatter `---` 앞뒤 유지, YAML 파싱 통과 (`js-yaml`로 파싱)
+- V-T1-3: **런타임 라우팅 검증** — `subagent_type:"context-analyzer"`로 Agent 툴을 실제 호출하고 응답 metadata에 모델이 찍히는지 확인. 찍히지 않으면 "보류" 커밋이 아니라 **T1 전체 revert** (M2 대응: "TODO 남김"으로 통과시키지 않음)
 
-**커밋**: `feat(T1): model routing for 8 agents (haiku/sonnet/opus)`
+**커밋**: `feat(T1): model routing for 8 agents` + footer `Rollback: <ROLLBACK_SHA>`
 
 ---
 
-### T3. Skill description 재작성 (T1 다음, 파일 2개)
+### T3. Skill description 재작성 (비평 M4 대응)
 
-**작업**: 2개 SKILL.md의 frontmatter description을 다음 요소 포함하도록 재작성:
-1. 구체적 트리거 상황 ("사용자가 X, Y, Z를 언급하면")
-2. 후속 작업 키워드 ("다시 실행", "재실행", "부분 재실행", "이전 결과 개선", "보완", "업데이트")
-3. Pushy 톤 ("~하면 반드시 이 스킬을 사용할 것")
-4. 유사 스킬과의 구분 (universal-task-pipeline vs code-review-pipeline)
+**작업**: 2개 SKILL.md description 재작성 — 구체 트리거 + 후속 키워드 + 구분.
 
 **대상**:
 - `.claude/skills/universal-task-pipeline/SKILL.md`
 - `.claude/skills/code-review-pipeline/SKILL.md`
 
-**Verification**:
-- V-T3-1: 각 description 길이가 100자 이상
-- V-T3-2: "반드시", "재실행", "보완" 키워드 3개 모두 포함
-- V-T3-3: 두 description이 서로 구분되는 차별점(범용 vs 리뷰 전용) 명시
+**Verification (rev2 — 표면 조건 + 실제 라우팅)**:
+- V-T3-1: 각 description 길이 100~500자 (과도 방지)
+- V-T3-2: 키워드 3개 모두 포함: "재실행", "보완", 명확한 구분 문구
+- V-T3-3: 두 description이 공유하는 동일 문구 30자 이상 없음 (중복 방지)
+- V-T3-4: **라우팅 smoke test** — 다음 3개 프롬프트 각각 실행 후 어떤 skill이 활성화되는지 관찰
+  - A. "이 코드 리뷰해줘" → code-review-pipeline 활성
+  - B. "이 작업 다시 실행해줘" → universal-task-pipeline 활성
+  - C. "로그인 기능 만들어줘" → universal-task-pipeline 활성
+  - 결과가 기대와 다르면 description 재조정, 커밋 보류
 
-**커밋**: `feat(T3): pushy skill descriptions with follow-up keywords`
+**과도 사용 방지**: "반드시" 문구는 최대 2회/파일 제한.
+
+**커밋**: `feat(T3): skill descriptions with differentiated triggers`
 
 ---
 
-### T2. 컨텍스트 40% 알람 + 자동 압축 트리거
+### T2. 컨텍스트 알람 (비평 H4/H5 대응 — 대폭 수정)
+
+**전제**: T2.0에서 `context_usage` 필드 실체 확인 완료.
 
 **작업**:
-1. `hooks/harness-hook.js` PostToolUse payload에서 `context_usage` 필드 파싱 (Claude Code가 훅에 넘기는 token 정보)
-2. `server.js` `/api/hook`에 `context_usage` 수신 후 state에 저장
-3. 40% 초과 시 broadcast `context_alarm`
-4. `public/app.js`에 경보 UI (기존 어딘가 토큰 게이지가 있다면 색상 변경, 없으면 상단 배너 1개 추가)
-5. Phase `onStop`에서 45% 초과면 `decision: block` + "`/compact` 권고" 메시지
+1. `harness-hook.js` PostToolUse payload에서 실제 필드 경로로 `contextUsage` 추출 (없으면 T2.0 fallback 함수 사용)
+2. `server.js` `/api/hook`에서 수신 → state에 저장 → broadcast `context_alarm` (단, 40% 초과 시 1회만, 이후 55% 초과 시 다시 1회)
+3. `public/app.js` 상단 배너 UI — 40% 초과 시 노란 배너, 55% 초과 시 빨간 배너 + 사용자에게 `/compact` 권고 메시지 (버튼 아님, 안내만)
+4. **Stop 훅에서 block 금지 (비평 H5)**. `decision: block`을 던지지 않음. 대신 broadcast만 하고 사용자 판단에 맡김
+5. 세션당 알람 중복 억제 — `state.contextAlarmSent = { at40: false, at55: false }`
 
 **Verification**:
-- V-T2-1: 인위적 payload(`context_usage: 0.42`)로 /api/hook POST → 서버 로그에 `context_alarm` broadcast 찍힘
-- V-T2-2: 브라우저에서 경보 UI 육안 확인
-- V-T2-3: `context_usage: 0.46` + Stop 이벤트 → 응답 JSON이 `decision: "block"` 포함
+- V-T2-1: 가짜 payload POST (`context_usage: 0.42`) → 서버 로그에 `context_alarm` broadcast 1회
+- V-T2-2: 동일 payload 재전송 → `at40: true`이므로 broadcast 없음 (중복 억제)
+- V-T2-3: `context_usage: 0.58` → 두 번째 broadcast (55% 임계)
+- V-T2-4: Stop 이벤트에 `context_usage: 0.90` 포함 → 응답이 `{continue: true}` 또는 decision 없음 (block 아님)
+- V-T2-5: 브라우저에서 배너 색상 변경 (DOM selector로 자동 assert)
 
-**커밋**: `feat(T2): context usage alarm at 40% + compact nudge at 45%`
+**Failing test first (rev2 — 비평 M8)**: `pipeline-dashboard/executor/__t2-context-test.js` 먼저 작성. 모든 V-T2-* 케이스가 실패 상태에서 시작하도록.
+
+**커밋**: `feat(T2): context usage banner at 40%/55% (no stop block)`
 
 ---
 
-### T9. Hook 결정론 게이트 (deterministic danger filter)
+### T9. Danger Gate (비평 C1/H6/M1 대응 — 대폭 수정)
 
-**작업**: `pipeline-executor.js`의 `onPreTool`에 `_isDangerousCommand(tool, input)` 체크 추가. 위험 패턴은 모듈화:
+**자해 패턴 제거**: `.claude[\\/]/` **삭제**. 이후 T1/T3 같은 정상 튜닝 작업을 막지 않음.
 
+**Tool-scoped 구조적 판정 (정규식 문자열 매칭 탈피)**:
 ```js
-const DANGER_PATTERNS = [
-  /rm\s+-rf/,
-  /del\s+\/s\s+\/q/i,
-  /git\s+push\s+--force/,
-  /git\s+reset\s+--hard/,
-  /\.claude[\\/]/,
-  /\.env\b/,
-  /credentials\.json/,
-  /[^\w]secret[^\w]/i,
-];
+// pipeline-dashboard/executor/danger-gate.js (신규, 공용 모듈)
+function isDangerous(tool, input) {
+  if (tool === "Bash") {
+    const cmd = input.command || "";
+    if (/\brm\s+(-[a-zA-Z]*r[a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*r)\b/.test(cmd)) return "rm -rf";
+    if (/\bgit\s+push\s+.*(--force|--force-with-lease|-f\b)/.test(cmd)) return "force push";
+    if (/\bgit\s+reset\s+--hard\b/.test(cmd)) return "git reset --hard";
+    if (/\bRemove-Item\b.*-Recurse/i.test(cmd)) return "Remove-Item -Recurse";
+    return null;
+  }
+  if (tool === "Write" || tool === "Edit") {
+    const fp = (input.file_path || "").toLowerCase();
+    if (/\.env(\.|$)/.test(fp)) return ".env write";
+    if (/credentials\.json$/.test(fp)) return "credentials write";
+    // .claude 수정은 허용 (하네스 자체 튜닝)
+    return null;
+  }
+  return null;
+}
+module.exports = { isDangerous };
 ```
 
-차단 시 `decision: block` + 이유 반환. 차단 사건을 state에 기록해 `dangers_blocked` broadcast.
+**단일 게이트, 이중 진입점 (비평 H6)**:
+- `pipeline-executor.js onPreTool` → `isDangerous` 호출
+- `server.js /api/hook` PreToolUse 경로 → **같은** `isDangerous` 호출
+- 두 경로 모두 차단 이벤트 `dangers_blocked` broadcast
 
 **Verification**:
-- V-T9-1: 단위 테스트 — `executor/__phase-t9-test.js` 신규. 각 패턴 입력 시 block 반환 확인
-- V-T9-2: 실제 세션에서 `git reset --hard` 시도 → 차단 이벤트 + 에러 메시지 확인
-- V-T9-3: false-positive 확인 — `git reset HEAD~1` (위험 아님) 통과
+- V-T9-0 **Failing test first**: `pipeline-dashboard/executor/__danger-gate-test.js` — 모든 케이스가 구현 전 실패
+- V-T9-1 positive: `rm -rf /`, `rm -fr tmp`, `git push --force-with-lease`, `git reset --hard HEAD`, `Remove-Item -Recurse .`, `Write .env`, `Edit credentials.json` → 모두 block 반환
+- V-T9-2 negative: `git reset HEAD~1`, `git status`, `rm file.tmp` (단일 파일, 재귀 아님), `Edit .claude/agents/foo.md`, `Read .env` → 모두 통과
+- V-T9-3 실제 `/api/hook`으로 `git reset --hard` PreToolUse 주입 → block
+- V-T9-4 실제 executor.onPreTool 시뮬레이션 → block
 
-**커밋**: `feat(T9): deterministic danger pattern gate in onPreTool`
-
----
-
-## 각 T 태스크 공통 규칙 (Codex 교훈 반영)
-
-1. **Atomic commits**: 한 태스크 = 한 커밋 + 한 push. 실패 시 롤백 경계 명확
-2. **Pre-commit verification**: 각 V-Tx-n 체크 실행 후 결과를 커밋 메시지에 "Verified: …" 줄로 기록
-3. **Baseline 참조**: 각 태스크 시작 전 `git rev-parse HEAD` 기록 → 변경 범위 명확히
-4. **Runtime impact**: 변경이 require 캐시 대상이면 커밋 메시지에 "requires dashboard restart" 명시
-5. **리포 커밋 규칙**: `SJJ-universe/harness-pipeline@master`에 직접 push (`workspace/` 루트가 리포 루트)
+**커밋**: `feat(T9): tool-scoped danger gate (no .claude self-block)`
 
 ---
 
-## 변경 파일 (예상)
+## 타임라인 (rev2 — restart 단계 포함)
 
-| 파일 | 태스크 | 변경 성격 |
+```
+[브랜치 생성]   git checkout -b tuning/step0-phase3
+[T0]          /api/version 추가 → restart → V-T0 → commit/push
+[T2.0]         payload dumper → restart → 수동 세션 1회로 샘플 수집 → 분석 → commit/push
+
+[Baseline]     B0 B1 B2 B3 B4 (모두 pass 확인)
+
+[사용자 하네스 ON]
+[Step 0]       S1(인공 이벤트) → S2~S7 (10분 timeout)
+               실패 시 step0-failure-{phase}.md 덤프 → Phase 3 보류
+
+[T1]          skill schema 선행 확인 → 편집 → V-T1-1~3 → commit/push → [restart → /api/version 확인]
+[T3]          편집 → V-T3-1~4 (라우팅 smoke test 포함) → commit/push → [restart → /api/version]
+[T2]          failing test 작성 → 구현 → V-T2-1~5 → commit/push → [restart → /api/version]
+[T9]          failing test 작성 → danger-gate.js + 두 진입점 → V-T9-0~4 → commit/push → [restart → /api/version]
+
+[최종]         Step 0 세션 재실행 → 회귀 없음 확인
+[Merge 승인]   사용자 확인 후 master로 FF merge + push
+```
+
+---
+
+## 변경 파일 (rev2 예상)
+
+| 파일 | 태스크 | 성격 |
 |---|---|---|
-| `pipeline-dashboard/plan.md` | (이 문서) | 교체 작성 |
-| `.claude/agents/context-analyzer.md` ~ `review-orchestrator.md` | T1 | frontmatter 1줄 추가 × 8 |
-| `.claude/skills/universal-task-pipeline/SKILL.md` | T3 | description 재작성 |
-| `.claude/skills/code-review-pipeline/SKILL.md` | T3 | description 재작성 |
-| `pipeline-dashboard/hooks/harness-hook.js` | T2 | context_usage 파싱 |
-| `pipeline-dashboard/server.js` | T2 | /api/hook 확장 + broadcast |
-| `pipeline-dashboard/public/app.js` | T2 | 경보 UI |
-| `pipeline-dashboard/executor/pipeline-executor.js` | T9 | `_isDangerousCommand` |
-| `pipeline-dashboard/executor/__phase-t9-test.js` | T9 | 단위 테스트 신규 |
+| `pipeline-dashboard/plan.md` | rev2 | 전면 재작성 |
+| `pipeline-dashboard/server.js` | T0, T2 | /api/version, /api/hook 확장, danger-gate import |
+| `pipeline-dashboard/hooks/harness-hook.js` | T2.0, T2 | payload dumper, context_usage 파싱 |
+| `_workspace/hook-payload-samples/*.json` | T2.0 | (gitignore) 샘플 |
+| `.claude/agents/*.md` × 8 | T1 | frontmatter 1줄 |
+| `.claude/skills/universal-task-pipeline/SKILL.md` | T3 | description |
+| `.claude/skills/code-review-pipeline/SKILL.md` | T3 | description |
+| `pipeline-dashboard/public/app.js` | T2 | 배너 UI |
+| `pipeline-dashboard/public/style.css` | T2 | 배너 스타일 |
+| `pipeline-dashboard/executor/pipeline-executor.js` | T9 | onPreTool 게이트 |
+| `pipeline-dashboard/executor/danger-gate.js` | T9 | 공용 모듈 (신규) |
+| `pipeline-dashboard/executor/__danger-gate-test.js` | T9 | 단위 테스트 (신규) |
+| `pipeline-dashboard/executor/__t2-context-test.js` | T2 | 단위 테스트 (신규) |
 
 ---
 
-## 리스크 및 롤백
+## 리스크 & 롤백 (rev2)
 
 | 리스크 | 감지 | 롤백 |
 |---|---|---|
-| Step 0에서 Phase C가 이전처럼 터짐 (FIX-3 미반영 의심) | `_workspace/C_codex_critique_iter1.md` 미생성 + `tool_blocked`/에러 broadcast | `git log server.js` → stdin 전달 코드 확인, 필요 시 서버 프로세스 실제 로드 버전 디버깅 |
-| T1 적용 후 Agent 호출이 모델 오류로 실패 | 콘솔 에러 "model not recognized" | `git revert <T1-commit>` |
-| T2 context_usage 파싱 중 Claude Code가 보내는 필드명 불일치 | 알람 이벤트가 안 뜸 | 실제 훅 payload 덤프 → 올바른 필드 확인 |
-| T9 정규식 false-positive로 정상 작업 차단 | 일상 bash 명령(`ls`, `git status`)이 block됨 | 패턴 수정 또는 `git revert` |
+| T0 /api/version이 기존 라우트와 충돌 | `curl` 404 또는 500 | `git reset --hard <ROLLBACK_SHA>` (로컬) |
+| T2.0 hook payload에 context_usage 필드 부재 | 덤프 JSON에서 필드 미발견 | T2 fallback(자체 추정)로 전환, 계획 일부 수정 |
+| T1 `model:` 값이 Claude Code에서 인식 안 됨 | Agent 호출 시 "model not recognized" 에러 | T1 브랜치 커밋 revert, 대신 description 힌트로 전환 |
+| T3 라우팅이 의도와 달라짐 (smoke test 실패) | V-T3-4 실패 | description 재조정 후 재검증, 통과 못하면 revert |
+| T2 Stop 훅이 여전히 block 유발 | 세션 중 Phase 전이 멈춤 | T2 revert + block 금지 원칙 재확인 |
+| T9 negative 케이스 false-positive | V-T9-2 실패 | 패턴 완화 후 재테스트 |
+| 전체 실패 | 세션 불안정 | `git checkout master && git branch -D tuning/step0-phase3` |
 
 ---
 
-## 실행 타임라인
+## Codex rev1 비평 반영 매트릭스
 
-```
-[즉시] Baseline Verify B1~B4
-[사용자 하네스 ON] Step 0 검증 세션 S1~S7
-[S1~S7 pass] → T1 → V-T1 → commit/push
-              → T3 → V-T3 → commit/push
-              → T2 → V-T2 → commit/push
-              → T9 → V-T9 → commit/push
-[최종] Step 0 동일 프롬프트 재실행 → 회귀 없음 확인
-```
+| 비평 ID | 심각도 | 대응 위치 |
+|---|---|---|
+| C1 `.claude` 자해 | critical | T9 패턴에서 `.claude[\\/]/` 제거, .env는 Write/Edit만 차단 |
+| C2 master 직접 push | critical | 세이프티 브랜치 규칙 신설 |
+| H1 리포 루트 모순 | high | 상단 고정 `workspace`, 모든 경로 상대화 |
+| H2 runtime 증명 없음 | high | T0 `/api/version` 신설 |
+| H3 모델 행동 가정 | high | 명시적 자극 프롬프트 + S1 인공 이벤트 |
+| H4 context_usage 필드 가정 | high | T2.0 payload 선조사 |
+| H5 Stop block 충돌 | high | 45% block 제거, 배너 안내만 |
+| H6 T9 단일 경로 | high | danger-gate.js 공용 모듈 + 두 진입점 |
+| M1 정규식 우회/오탐 | medium | tool-scoped 판정, Remove-Item/force-with-lease 추가 |
+| M2 model 스키마 미검증 | medium | T1.0 선행 확인, 실패 시 revert |
+| M3 V-T1-1 Windows 부적합 | medium | Node 스크립트로 교체 |
+| M4 T3 표면 검증 | medium | V-T3-4 라우팅 smoke test 추가 |
+| M5 29s 시간 가정 | medium | S5 timeout 120s |
+| M6 S7 CONCERNS 기준 | medium | critical=0 AND verdict ∈ {CLEAN, CONCERNS} |
+| M7 실패 덤프 미명시 | medium | 6개 필드 스키마 명시 |
+| M8 test first 순서 없음 | medium | T2/T9 failing test 선작성 |
+| M9 restart 절차 누락 | medium | 타임라인에 각 태스크 후 restart + /api/version 확인 |
+| L1 B4 오타 | low | "다행" → "여러 줄" |
+| L2 육안 확인 과다 | low | B2, V-T2-5는 DOM selector assert |
+| L3 push가 검토 경계 축소 | low | 브랜치 분리 + 각 태스크 후 self-review diff 단계 |
 
 ---
 
-## 다음 섹션(참고)
+## Next Section (참고)
 
-Phase 3 P0 완료 후 Phase 4 P1 (T4 `_workspace/` JSON 스키마, T5 baseline verify, T6 tool allowlist) → Phase 5 P2/P3 (T7 중복 감사, T8 수렴 기준, T10 strip complexity) → Phase 6 성과 측정. 이 플랜 범위 밖.
+Phase 3 P0 완료 후 Phase 4 P1 (T4/T5/T6) → Phase 5 P2/P3 (T7/T8/T10) → Phase 6 측정. rev2 범위 밖.
