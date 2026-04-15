@@ -1,12 +1,20 @@
+# Runtime artifacts
+_workspace/
 node_modules/
-*.log
-npm-debug.log*
-.env
-.env.*
-dist/
-build/
-.DS_Store
+
+# Unrelated projects in this workspace
+what-if-universe/
+test-sample/
+
+# Local Claude config (machine-specific)
+.claude/settings.local.json
+
+# Community skills — keep only the two pipeline skills we tune
+.claude/skills/*
+!.claude/skills/universal-task-pipeline/
+!.claude/skills/code-review-pipeline/
+
+# OS / editor noise
 Thumbs.db
-.vscode/
-.idea/
-*.swp
+.DS_Store
+*.log
