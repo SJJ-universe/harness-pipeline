@@ -941,14 +941,6 @@ function initTerminal() {
       }
       return false;
     }
-    if (ctrl && (e.key === "v" || e.key === "V")) {
-      navigator.clipboard.readText().then((text) => {
-        if (text && termWs && termWs.readyState === 1) {
-          termWs.send(JSON.stringify({ type: "input", data: text }));
-        }
-      }).catch(() => {});
-      return false;
-    }
     return true;
   });
 
