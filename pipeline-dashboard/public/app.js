@@ -389,80 +389,110 @@ function nodeToPhase(node) {
   return _nodePhaseMap[node] || null;
 }
 
-// ── Harness Horse Animation (pixel art) ──
-// 3px grid pixel art — galloping pose (legs extended)
-const P = 3; // pixel size
+// ── Harness Horse Animation (pixel art, 3 frames) ──
+const P = 3;
 function _px(x, y, c) { return `<rect x="${x*P}" y="${y*P}" width="${P}" height="${P}" fill="${c}"/>`; }
-function _buildHorseSvg(running) {
-  const B = "#d4a574"; // body (claude warm)
-  const H = "#e8c9a0"; // highlight
-  const D = "#a07850"; // dark shade
-  const R = "#58a6ff"; // rider (codex blue)
-  const K = "#3a3a3a"; // dark details
-  const G = running ? "#3fb950" : "#f85149"; // reins: green=go, red=stop
-  const W = 22 * P, Ht = 14 * P;
+
+// mode: "run1" | "run2" (gallop frames) | "rein" (front legs raised)
+function _buildHorseSvg(mode) {
+  const B = "#d4a574", H = "#e8c9a0", D = "#a07850";
+  const R = "#58a6ff", K = "#3a3a3a";
+  const isRein = mode === "rein";
+  const G = isRein ? "#f85149" : "#3fb950";
+  const W = 20 * P, Ht = 14 * P;
   let px = "";
-  // Rider head
+  // Rider
   [9,10].forEach(x => [1,2].forEach(y => { px += _px(x, y, R); }));
-  // Rider body
   [9,10].forEach(x => [3,4,5].forEach(y => { px += _px(x, y, R); }));
   // Reins
-  if (running) {
-    [11,12,13,14].forEach(x => { px += _px(x, 5, G); });
+  if (isRein) {
+    [11,12].forEach(x => { px += _px(x, 3, G); });
   } else {
-    [11,12].forEach(x => { px += _px(x, 4, G); });
-    px += _px(13, 3, G);
+    [11,12,13].forEach(x => { px += _px(x, 5, G); });
   }
-  // Horse ear
-  px += _px(15, 2, B); px += _px(16, 1, B);
-  // Horse head
-  [14,15,16].forEach(x => [3,4].forEach(y => { px += _px(x, y, B); }));
-  px += _px(16, 3, K); // eye
-  px += _px(17, 4, H); // nose
-  // Horse neck
-  [12,13].forEach(x => [5,6].forEach(y => { px += _px(x, y, B); }));
-  // Horse body
-  [5,6,7,8,9,10,11,12,13,14].forEach(x => [6,7,8].forEach(y => { px += _px(x, y, B); }));
-  // Body highlight
+  // Head + ear
+  if (isRein) {
+    // Head raised
+    px += _px(14, 1, B); px += _px(15, 0, B);
+    [13,14,15].forEach(x => [2,3].forEach(y => { px += _px(x, y, B); }));
+    px += _px(15, 2, K); px += _px(16, 3, H);
+  } else {
+    px += _px(15, 2, B); px += _px(16, 1, B);
+    [14,15,16].forEach(x => [3,4].forEach(y => { px += _px(x, y, B); }));
+    px += _px(16, 3, K); px += _px(17, 4, H);
+  }
+  // Neck
+  [12,13].forEach(x => [4,5].forEach(y => { px += _px(x, y, B); }));
+  // Body
+  [5,6,7,8,9,10,11,12,13].forEach(x => [6,7,8].forEach(y => { px += _px(x, y, B); }));
   [7,8,9,10,11].forEach(x => { px += _px(x, 6, H); });
-  // Body shade
   [6,7,8,9,10,11,12].forEach(x => { px += _px(x, 8, D); });
   // Tail
-  if (running) {
-    px += _px(4, 5, D); px += _px(3, 4, D); px += _px(2, 3, D);
+  if (isRein) {
+    px += _px(4, 7, D); px += _px(3, 8, D);
   } else {
-    px += _px(4, 7, D); px += _px(3, 8, D); px += _px(3, 9, D);
+    px += _px(4, 5, D); px += _px(3, 4, D); px += _px(2, 3, D);
   }
   // Legs
-  if (running) {
-    // Front legs — extended forward
+  if (isRein) {
+    // Front legs raised (rearing)
+    px += _px(12, 8, D); px += _px(13, 7, D);
+    px += _px(11, 8, D); px += _px(12, 7, D);
+    // Back legs planted
+    px += _px(6, 9, D); px += _px(6, 10, D); px += _px(6, 11, K);
+    px += _px(7, 9, D); px += _px(7, 10, D); px += _px(7, 11, K);
+  } else if (mode === "run1") {
+    // Frame 1: front-left forward, back-right forward
     px += _px(13, 9, D); px += _px(14, 10, D); px += _px(15, 11, K);
-    px += _px(12, 9, D); px += _px(11, 10, D); px += _px(10, 11, K);
-    // Back legs — extended backward
+    px += _px(11, 9, D); px += _px(11, 10, D); px += _px(11, 11, K);
     px += _px(6, 9, D); px += _px(5, 10, D); px += _px(4, 11, K);
-    px += _px(7, 9, D); px += _px(8, 10, D); px += _px(9, 11, K);
+    px += _px(8, 9, D); px += _px(8, 10, D); px += _px(8, 11, K);
   } else {
-    // All legs straight down
-    [7,8,12,13].forEach(x => {
-      px += _px(x, 9, D); px += _px(x, 10, D); px += _px(x, 11, K);
-    });
+    // Frame 2: front-right forward, back-left forward
+    px += _px(12, 9, D); px += _px(12, 10, D); px += _px(12, 11, K);
+    px += _px(13, 9, D); px += _px(12, 10, D); px += _px(11, 11, K);
+    px += _px(7, 9, D); px += _px(7, 10, D); px += _px(7, 11, K);
+    px += _px(6, 9, D); px += _px(5, 10, D); px += _px(5, 11, K);
   }
   return `<svg viewBox="0 0 ${W} ${Ht}" xmlns="http://www.w3.org/2000/svg" style="image-rendering:pixelated">${px}</svg>`;
 }
 
-const HORSE_SVG_RUN = _buildHorseSvg(true);
-const HORSE_SVG_STOP = _buildHorseSvg(false);
+const HORSE_FRAMES = [_buildHorseSvg("run1"), _buildHorseSvg("run2")];
+const HORSE_SVG_STOP = _buildHorseSvg("rein");
 
 let horseState = "idle";
 let _horseTimer = null;
+let _gallopInterval = null;
+let _gallopFrame = 0;
 
 function _clearHorseTimer() {
   if (_horseTimer) { clearTimeout(_horseTimer); _horseTimer = null; }
 }
 
-function _renderHorseSvg(running) {
+function _stopGallop() {
+  if (_gallopInterval) { clearInterval(_gallopInterval); _gallopInterval = null; }
+}
+
+function _startGallop() {
+  _stopGallop();
   const rider = document.getElementById("horse-rider");
-  if (rider) rider.innerHTML = running ? HORSE_SVG_RUN : HORSE_SVG_STOP;
+  if (!rider) return;
+  _gallopFrame = 0;
+  rider.innerHTML = HORSE_FRAMES[0];
+  _gallopInterval = setInterval(() => {
+    _gallopFrame = (_gallopFrame + 1) % 2;
+    rider.innerHTML = HORSE_FRAMES[_gallopFrame];
+  }, 250);
+}
+
+function _renderHorseSvg(state) {
+  _stopGallop();
+  if (state === "galloping") {
+    _startGallop();
+  } else {
+    const rider = document.getElementById("horse-rider");
+    if (rider) rider.innerHTML = HORSE_SVG_STOP;
+  }
 }
 
 function setHorseState(state, statusText) {
@@ -470,24 +500,21 @@ function setHorseState(state, statusText) {
   if (state === horseState && state !== "reining") return;
   horseState = state;
   const rider = document.getElementById("horse-rider");
-  const ground = document.querySelector(".track-ground");
   const status = document.getElementById("harness-status");
   if (!rider) return;
 
   rider.classList.remove("galloping", "reining");
-  if (ground) ground.classList.remove("running");
 
   if (state === "galloping") {
-    _renderHorseSvg(true);
+    _renderHorseSvg("galloping");
     rider.classList.add("galloping");
-    if (ground) ground.classList.add("running");
     if (status) { status.textContent = statusText || ""; status.className = "harness-status active"; }
   } else if (state === "reining") {
-    _renderHorseSvg(false);
+    _renderHorseSvg("reining");
     rider.classList.add("reining");
     if (status) { status.textContent = statusText || ""; status.className = "harness-status blocked"; }
   } else {
-    _renderHorseSvg(false);
+    _renderHorseSvg("idle");
     if (status) { status.textContent = ""; status.className = "harness-status"; }
   }
 }
@@ -1621,4 +1648,4 @@ fetchHarnessMode();
 fetchServerInfo();
 setInterval(fetchServerInfo, 15000);
 // Init horse in idle state
-_renderHorseSvg(false);
+_renderHorseSvg("idle");

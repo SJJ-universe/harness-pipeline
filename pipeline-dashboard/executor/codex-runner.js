@@ -81,7 +81,7 @@ class CodexRunner {
           stdio: ["pipe", "pipe", "pipe"],
           windowsHide: true,
           cwd: cwd || process.cwd(),
-          shell: false,
+          shell: process.platform === "win32",
         });
       } catch (err) {
         const f = this._failure(`spawn failed (${spec.cmd}): ${err.message}`);

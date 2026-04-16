@@ -194,9 +194,14 @@ class PipelineExecutor {
       const nextInfo = nextPhase
         ? `다음 Phase ${nextPhase.id} (${nextPhase.name})에서 ${tool}을(를) 사용할 수 있습니다.`
         : "";
+      // Suggest Write when Edit is blocked but Write is allowed (plan file update)
+      const altHint = (tool === "Edit" && allowed.includes("Write"))
+        ? "파일을 수정하려면 Edit 대신 Write로 전체 내용을 다시 작성하세요.\n"
+        : "";
       const reason =
         `[SJ 하네스] Phase ${phase.id} (${phase.name})에서 ${tool}은(는) 사용할 수 없습니다.\n` +
         `현재 허용: ${allowed.join(", ")}\n` +
+        `${altHint}` +
         `${nextInfo}\n` +
         `지금은 허용된 도구로 이 Phase의 목적을 완수하세요. 완료 후 턴을 종료하면 자동으로 다음 Phase로 진행됩니다.`;
       this.broadcast({

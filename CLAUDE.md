@@ -22,7 +22,7 @@
 | Phase | 목적 | 허용 도구 | 완료 조건 |
 |-------|------|----------|----------|
 | **A: 컨텍스트 수집** | 프로젝트 분석 | Read, Glob, Grep, Agent, TodoWrite | 최소 3번 탐색 |
-| **B: 계획 수립** | plan.md 작성 | Read, Glob, Grep, TodoWrite, Write | plan*.md 작성 |
+| **B: 계획 수립** | plan.md 작성 | Read, Glob, Grep, TodoWrite, Write | plan*.md 작성 (Edit 불가 — Write로 작성/덮어쓰기) |
 | **C: 계획 검토** | Codex 비평 (자동) | — | 비평 수신 |
 | **D: 계획 보완** | 비평 반영 | Read, Edit, Write | plan*.md 수정 |
 | **E: 실행** | 작업 실행 | Read, Edit, Write, Bash, Glob, Grep, TodoWrite | 파일 수정 |

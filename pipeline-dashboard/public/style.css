@@ -993,77 +993,48 @@ h1 {
 .compact-label { font-size: 14px; font-weight: 800; }
 .compact-name { font-size: 8px; color: var(--text-dim); letter-spacing: 0.3px; }
 
-/* ── Harness Track (horse racing animation) ── */
+/* ── Harness Track (horse animation) ── */
 .harness-track {
   position: relative;
-  height: 48px;
+  height: 44px;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
   overflow: hidden;
   flex-shrink: 0;
-}
-
-.track-ground {
-  position: absolute;
-  bottom: 0; left: 0;
-  width: 200%; height: 6px;
-  background: repeating-linear-gradient(
-    90deg,
-    var(--border) 0px, var(--border) 30px,
-    transparent 30px, transparent 60px
-  );
-}
-.track-ground.running {
-  animation: scroll-ground 0.8s linear infinite;
-}
-
-@keyframes scroll-ground {
-  from { transform: translateX(0); }
-  to { transform: translateX(-50%); }
+  display: flex;
+  align-items: center;
+  padding-left: 16px;
 }
 
 .horse-rider {
-  position: absolute;
-  left: 40px; bottom: 8px;
-  width: 64px; height: 36px;
+  width: 60px; height: 42px;
   transition: transform 0.3s ease;
-}
-
-.horse-rider.galloping {
-  animation: horse-bounce 0.35s ease-in-out infinite;
+  flex-shrink: 0;
 }
 
 .horse-rider.reining {
   animation: rein-pull 0.4s ease-out forwards;
 }
 
-@keyframes horse-bounce {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-4px); }
-}
-
 @keyframes rein-pull {
   0% { transform: translateX(0) rotate(0deg); }
-  40% { transform: translateX(-6px) rotate(3deg); }
+  40% { transform: translateX(-4px) rotate(-3deg); }
   100% { transform: translateX(0) rotate(0deg); }
 }
 
 .harness-status {
-  position: absolute;
-  right: 16px; top: 50%;
-  transform: translateY(-50%);
+  margin-left: 12px;
   font-size: 11px;
   font-weight: 600;
   color: var(--text-dim);
   transition: color 0.3s;
+  white-space: nowrap;
 }
 .harness-status.active { color: var(--claude); }
 .harness-status.blocked { color: var(--red); }
 
 /* prefers-reduced-motion */
 @media (prefers-reduced-motion: reduce) {
-  .horse-rider.galloping { animation: none; }
-  .track-ground.running { animation: none; }
   .horse-rider.reining { animation: none; }
 }
 
