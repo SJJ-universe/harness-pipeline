@@ -82,8 +82,9 @@ class HookRouter {
 
   async _onPostTool(payload) {
     const tool = payload?.tool_name;
+    const input = payload?.tool_input || {};
     const response = payload?.tool_response || {};
-    if (this.executor) return (await this.executor.onPostTool(tool, response)) || {};
+    if (this.executor) return (await this.executor.onPostTool(tool, response, input)) || {};
     return {};
   }
 

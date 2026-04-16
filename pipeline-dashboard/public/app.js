@@ -12,6 +12,7 @@ let pipelineTemplates = {};
 let compactMode = false;
 
 // ── Korean Mappings ──
+// Verdict mapping retained for log messages
 const VERDICT_KO = { BLOCK: "차단", CONCERNS: "주의", CLEAN: "통과" };
 // Dynamic — built from pipeline config
 let PHASE_NAMES = {};
@@ -184,10 +185,13 @@ function renderNode(node, isReviewer) {
   if (phase) {
     const meta = document.createElement("div");
     meta.className = "node-meta";
-    if (phase.agent) {
+    // Use node's own iconType for agent tag (claude/codex), fall back to phase agent
+    const nodeAgent = (node.iconType === "claude" || node.iconType === "codex")
+      ? node.iconType : phase.agent;
+    if (nodeAgent) {
       const tag = document.createElement("span");
-      tag.className = `node-agent-tag agent-${phase.agent}`;
-      tag.textContent = phase.agent;
+      tag.className = `node-agent-tag agent-${nodeAgent}`;
+      tag.textContent = nodeAgent;
       meta.appendChild(tag);
     }
     if (phase.allowedTools && phase.allowedTools.length > 0) {
@@ -414,9 +418,11 @@ function handleEvent(event) {
       handleError(event.data, _stageKeys);
       break;
 
-    case "verdict":
-      showVerdict(event.data, _stageKeys);
+    case "verdict": {
+      const koVerdict = VERDICT_KO[event.data.verdict] || event.data.verdict;
+      addLog("verdict", `판정: ${koVerdict} (${event.data.verdict})`, false, _stageKeys);
       break;
+    }
 
     case "pipeline_complete":
       stopTimer();
@@ -879,9 +885,17 @@ function summarizeToolInput(tool, input) {
     return shortPath(input.filePath || input.file_path || input.notebook_path || "");
   }
   if (tool === "Grep" || tool === "Glob") return input.pattern || "";
-  if (tool === "Bash") return String(input.command || "").slice(0, 60);
-  if (tool === "Task") return (input.description || input.subagent_type || "").slice(0, 40);
+  if (tool === "Bash") return String(input.command || "").slice(0, 80);
+  if (tool === "Agent") return (input.description || input.subagent_type || "").slice(0, 50);
+  if (tool === "TodoWrite") return `${(input.todos || []).length} items`;
   if (tool === "WebFetch") return input.url || "";
+  if (tool === "WebSearch") return input.query || "";
+  if (tool === "Skill") return input.skill || "";
+  // MCP tools (mcp__xxx__yyy)
+  if (tool.startsWith("mcp__")) {
+    const parts = tool.split("__");
+    return parts.length >= 3 ? parts[2] : tool;
+  }
   return "";
 }
 
@@ -938,13 +952,6 @@ function handleError(data, stageKeys) {
   }
 }
 
-function showVerdict(data, stageKeys) {
-  const el = document.getElementById("verdict-value");
-  const koVerdict = VERDICT_KO[data.verdict] || data.verdict;
-  el.textContent = koVerdict;
-  el.className = "verdict-value " + data.verdict;
-  addLog("verdict", `판정: ${koVerdict} (${data.verdict}) — 심각:${data.stats.critical} 경고:${data.stats.warning} 참고:${data.stats.note} (+Codex:${data.stats.codexAdditional})`, false, stageKeys);
-}
 
 function setBadge(cls, text) {
   const el = document.getElementById("status-badge");
@@ -1036,10 +1043,6 @@ function resetUI() {
   critiqueTimeline.length = 0;
   renderToolFeed();
   renderCritiqueTimeline();
-  // Reset verdict
-  const v = document.getElementById("verdict-value");
-  v.textContent = "—";
-  v.className = "verdict-value";
   // Reset timer
   stopTimer();
   // Reset badge
@@ -1205,6 +1208,7 @@ async function initTerminal() {
   termWs = new WebSocket(`${protocol}//${location.host}/terminal?token=${terminalToken}`);
 
   let promptReady = false;
+  let continueFailed = false;
 
   termWs.onopen = () => {
     termWs.send(JSON.stringify({ type: "resize", cols: term.cols, rows: term.rows }));
@@ -1214,7 +1218,18 @@ async function initTerminal() {
     const msg = JSON.parse(e.data);
     if (msg.type === "output") {
       term.write(msg.data);
-      // Auto-launch claude after first shell prompt appears
+
+      // Detect "No conversation found to continue" → fallback to plain claude
+      if (!continueFailed && msg.data.includes("No conversation found")) {
+        continueFailed = true;
+        setTimeout(() => {
+          if (termWs.readyState === 1) {
+            termWs.send(JSON.stringify({ type: "input", data: "claude\n" }));
+          }
+        }, 300);
+      }
+
+      // Auto-launch claude --continue after first shell prompt appears
       if (!promptReady && msg.data.includes("$")) {
         promptReady = true;
         setTimeout(() => {
@@ -1257,91 +1272,6 @@ function switchTab(tab) {
   document.getElementById(`tab-${tab}`).classList.remove("hidden");
   document.getElementById(`tab-btn-${tab}`).classList.add("active");
   if (tab === "terminal" && !term) initTerminal();
-}
-
-// ── Codex Triggers ──
-let codexTriggers = [];
-
-function loadCodexTriggers() {
-  fetch("/api/codex/triggers")
-    .then((r) => r.json())
-    .then((triggers) => {
-      codexTriggers = triggers;
-      const container = document.getElementById("trigger-cards");
-      if (!container) return;
-      container.textContent = "";
-      for (const t of triggers) {
-        const card = document.createElement("div");
-        card.className = `recommend-card recommend-card--${String(t.color || "default").replace(/[^a-z0-9_-]/gi, "")}`;
-        card.dataset.trigger = t.id;
-        card.addEventListener("click", () => runCodexTrigger(t.id));
-
-        const name = document.createElement("div");
-        name.className = "recommend-card-name";
-        name.textContent = t.name || t.id;
-
-        const reason = document.createElement("div");
-        reason.className = "recommend-card-reason";
-        reason.textContent = t.description || "";
-
-        card.appendChild(name);
-        card.appendChild(reason);
-        container.appendChild(card);
-      }
-    })
-    .catch((err) => addLog("error", `Codex 트리거 로드 실패: ${err.message}`));
-}
-
-function runCodexTrigger(triggerId) {
-  const trigger = codexTriggers.find((t) => t.id === triggerId);
-  if (!trigger) return;
-
-  const card = document.querySelector(`.recommend-card[data-trigger="${triggerId}"]`);
-  if (card && card.classList.contains("is-running")) return;
-
-  let userInput = null;
-  if (trigger.requiresInput) {
-    userInput = window.prompt(trigger.inputLabel || "Codex에 전달할 내용을 입력하세요");
-    if (userInput === null) return;
-    if (!userInput.trim()) {
-      addLog("error", `${trigger.name}: 입력이 비어있어 취소됨`);
-      return;
-    }
-  }
-
-  if (card) card.classList.add("is-running");
-  const statusEl = document.getElementById("codex-trigger-status");
-  if (statusEl) statusEl.textContent = `${trigger.name} 실행 중…`;
-  addLog("phase", `Codex 트리거 실행: ${trigger.name}`);
-
-  fetch("/api/codex/trigger", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ triggerId, userInput }),
-  })
-    .then((r) => r.json().then((body) => ({ status: r.status, body })))
-    .then(({ status, body }) => {
-      if (status >= 400) {
-        addLog("error", `${trigger.name} 실패: ${body.error || "unknown"}`);
-        if (statusEl) statusEl.textContent = `${trigger.name} 실패`;
-        return;
-      }
-      const count = (body.findings || []).length;
-      addLog("phase", `${trigger.name} 완료 — findings ${count}건${body.filePath ? ` (${body.filePath})` : ""}`);
-      if (body.summary) addLog("info", `Summary: ${body.summary.split("\n")[0].slice(0, 200)}`);
-      for (const f of (body.findings || []).slice(0, 10)) {
-        addLog(f.severity === "critical" || f.severity === "high" ? "error" : "info",
-          `[${f.severity}] ${f.message}`);
-      }
-      if (statusEl) statusEl.textContent = `${trigger.name} 완료 · findings ${count}`;
-    })
-    .catch((err) => {
-      addLog("error", `${trigger.name} 요청 실패: ${err.message}`);
-      if (statusEl) statusEl.textContent = `${trigger.name} 오류`;
-    })
-    .finally(() => {
-      if (card) card.classList.remove("is-running");
-    });
 }
 
 // ══════════════════════════════════
@@ -1546,8 +1476,6 @@ renderCritiqueTimeline();
 loadAllTemplates();
 // Show harness mode indicator (state from server)
 fetchHarnessMode();
-// Populate Codex trigger cards
-loadCodexTriggers();
 // Server / Codex initial status
 fetchServerInfo();
 setInterval(fetchServerInfo, 15000);

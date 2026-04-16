@@ -181,7 +181,7 @@ class PipelineExecutor {
     return {};
   }
 
-  async onPostTool(tool, response) {
+  async onPostTool(tool, response, input) {
     if (!this.enabled || !this.active) return {};
     const phase = this._currentPhase();
     if (!phase) return {};
@@ -194,6 +194,7 @@ class PipelineExecutor {
       data: {
         phase: phase.id,
         tool,
+        input: input || {},
         filesEdited: this.state.metrics.filesEdited.size,
       },
     });
