@@ -113,21 +113,6 @@ h1 {
   flex-shrink: 0;
 }
 
-.pipeline-selector select {
-  background: var(--bg);
-  border: 1px solid var(--border);
-  color: var(--text);
-  padding: 4px 8px;
-  border-radius: 5px;
-  font-size: 11px;
-  font-weight: 600;
-  outline: none;
-  cursor: pointer;
-  transition: border 0.2s;
-}
-
-.pipeline-selector select:focus { border-color: var(--claude); }
-.pipeline-selector select option { background: var(--bg-card); }
 
 .pipeline-container {
   display: flex;
@@ -906,9 +891,24 @@ h1 {
   align-items: center;
   gap: 10px;
 }
-.pipeline-selector select { flex: 0 0 auto; }
 .pipeline-selector .btn-ctrl { margin-left: auto; }
 .pipeline-selector .btn-ctrl + .btn-ctrl { margin-left: 0; }
+
+/* Pipeline pill */
+.pipeline-pill {
+  padding: 3px 10px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  background: var(--bg);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.2s;
+}
+.pipeline-pill:hover { border-color: var(--claude); color: var(--text); }
 
 /* ── Context bar + Verification status ── */
 .context-mini { flex: 0 0 100px; }
@@ -992,6 +992,80 @@ h1 {
 }
 .compact-label { font-size: 14px; font-weight: 800; }
 .compact-name { font-size: 8px; color: var(--text-dim); letter-spacing: 0.3px; }
+
+/* ── Harness Track (horse racing animation) ── */
+.harness-track {
+  position: relative;
+  height: 48px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.track-ground {
+  position: absolute;
+  bottom: 0; left: 0;
+  width: 200%; height: 6px;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--border) 0px, var(--border) 30px,
+    transparent 30px, transparent 60px
+  );
+}
+.track-ground.running {
+  animation: scroll-ground 0.8s linear infinite;
+}
+
+@keyframes scroll-ground {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+.horse-rider {
+  position: absolute;
+  left: 40px; bottom: 8px;
+  width: 64px; height: 36px;
+  transition: transform 0.3s ease;
+}
+
+.horse-rider.galloping {
+  animation: horse-bounce 0.35s ease-in-out infinite;
+}
+
+.horse-rider.reining {
+  animation: rein-pull 0.4s ease-out forwards;
+}
+
+@keyframes horse-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+@keyframes rein-pull {
+  0% { transform: translateX(0) rotate(0deg); }
+  40% { transform: translateX(-6px) rotate(3deg); }
+  100% { transform: translateX(0) rotate(0deg); }
+}
+
+.harness-status {
+  position: absolute;
+  right: 16px; top: 50%;
+  transform: translateY(-50%);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-dim);
+  transition: color 0.3s;
+}
+.harness-status.active { color: var(--claude); }
+.harness-status.blocked { color: var(--red); }
+
+/* prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  .horse-rider.galloping { animation: none; }
+  .track-ground.running { animation: none; }
+  .horse-rider.reining { animation: none; }
+}
 
 /* ── Responsive ── */
 @media (max-width: 900px) {

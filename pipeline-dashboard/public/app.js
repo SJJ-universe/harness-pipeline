@@ -10,6 +10,7 @@ const critiqueTimeline = [];
 let currentPipelineConfig = null;
 let pipelineTemplates = {};
 let compactMode = false;
+let currentTemplateId = "code-review";
 
 // ── Korean Mappings ──
 // Verdict mapping retained for log messages
@@ -248,6 +249,8 @@ function bindPipelineClicks() {
 
 async function loadPipelineTemplate(templateId) {
   try {
+    currentTemplateId = templateId;
+    updatePipelinePill();
     if (!pipelineTemplates[templateId]) {
       const resp = await fetch(`/api/pipeline/templates/${templateId}`);
       pipelineTemplates[templateId] = await resp.json();
@@ -265,10 +268,28 @@ async function loadAllTemplates() {
     // Render default (code-review)
     if (pipelineTemplates["code-review"]) {
       renderPipeline(pipelineTemplates["code-review"]);
+      updatePipelinePill();
     }
   } catch (err) {
     console.error("Failed to load templates:", err);
   }
+}
+
+// ── Pipeline Pill (template cycling) ──
+const TEMPLATE_ORDER = ["code-review", "default", "testing"];
+const TEMPLATE_NAMES = { "code-review": "코드 리뷰", "default": "범용 태스크", "testing": "테스트" };
+
+function cyclePipelineTemplate() {
+  const idx = TEMPLATE_ORDER.indexOf(currentTemplateId);
+  const next = TEMPLATE_ORDER[(idx + 1) % TEMPLATE_ORDER.length];
+  currentTemplateId = next;
+  loadPipelineTemplate(next);
+  updatePipelinePill();
+}
+
+function updatePipelinePill() {
+  const pill = document.getElementById("pipeline-pill");
+  if (pill) pill.textContent = TEMPLATE_NAMES[currentTemplateId] || currentTemplateId;
 }
 
 // ── Compact Pipeline Mode ──
@@ -368,6 +389,117 @@ function nodeToPhase(node) {
   return _nodePhaseMap[node] || null;
 }
 
+// ── Harness Horse Animation (pixel art) ──
+// 3px grid pixel art — galloping pose (legs extended)
+const P = 3; // pixel size
+function _px(x, y, c) { return `<rect x="${x*P}" y="${y*P}" width="${P}" height="${P}" fill="${c}"/>`; }
+function _buildHorseSvg(running) {
+  const B = "#d4a574"; // body (claude warm)
+  const H = "#e8c9a0"; // highlight
+  const D = "#a07850"; // dark shade
+  const R = "#58a6ff"; // rider (codex blue)
+  const K = "#3a3a3a"; // dark details
+  const G = running ? "#3fb950" : "#f85149"; // reins: green=go, red=stop
+  const W = 22 * P, Ht = 14 * P;
+  let px = "";
+  // Rider head
+  [9,10].forEach(x => [1,2].forEach(y => { px += _px(x, y, R); }));
+  // Rider body
+  [9,10].forEach(x => [3,4,5].forEach(y => { px += _px(x, y, R); }));
+  // Reins
+  if (running) {
+    [11,12,13,14].forEach(x => { px += _px(x, 5, G); });
+  } else {
+    [11,12].forEach(x => { px += _px(x, 4, G); });
+    px += _px(13, 3, G);
+  }
+  // Horse ear
+  px += _px(15, 2, B); px += _px(16, 1, B);
+  // Horse head
+  [14,15,16].forEach(x => [3,4].forEach(y => { px += _px(x, y, B); }));
+  px += _px(16, 3, K); // eye
+  px += _px(17, 4, H); // nose
+  // Horse neck
+  [12,13].forEach(x => [5,6].forEach(y => { px += _px(x, y, B); }));
+  // Horse body
+  [5,6,7,8,9,10,11,12,13,14].forEach(x => [6,7,8].forEach(y => { px += _px(x, y, B); }));
+  // Body highlight
+  [7,8,9,10,11].forEach(x => { px += _px(x, 6, H); });
+  // Body shade
+  [6,7,8,9,10,11,12].forEach(x => { px += _px(x, 8, D); });
+  // Tail
+  if (running) {
+    px += _px(4, 5, D); px += _px(3, 4, D); px += _px(2, 3, D);
+  } else {
+    px += _px(4, 7, D); px += _px(3, 8, D); px += _px(3, 9, D);
+  }
+  // Legs
+  if (running) {
+    // Front legs — extended forward
+    px += _px(13, 9, D); px += _px(14, 10, D); px += _px(15, 11, K);
+    px += _px(12, 9, D); px += _px(11, 10, D); px += _px(10, 11, K);
+    // Back legs — extended backward
+    px += _px(6, 9, D); px += _px(5, 10, D); px += _px(4, 11, K);
+    px += _px(7, 9, D); px += _px(8, 10, D); px += _px(9, 11, K);
+  } else {
+    // All legs straight down
+    [7,8,12,13].forEach(x => {
+      px += _px(x, 9, D); px += _px(x, 10, D); px += _px(x, 11, K);
+    });
+  }
+  return `<svg viewBox="0 0 ${W} ${Ht}" xmlns="http://www.w3.org/2000/svg" style="image-rendering:pixelated">${px}</svg>`;
+}
+
+const HORSE_SVG_RUN = _buildHorseSvg(true);
+const HORSE_SVG_STOP = _buildHorseSvg(false);
+
+let horseState = "idle";
+let _horseTimer = null;
+
+function _clearHorseTimer() {
+  if (_horseTimer) { clearTimeout(_horseTimer); _horseTimer = null; }
+}
+
+function _renderHorseSvg(running) {
+  const rider = document.getElementById("horse-rider");
+  if (rider) rider.innerHTML = running ? HORSE_SVG_RUN : HORSE_SVG_STOP;
+}
+
+function setHorseState(state, statusText) {
+  _clearHorseTimer();
+  if (state === horseState && state !== "reining") return;
+  horseState = state;
+  const rider = document.getElementById("horse-rider");
+  const ground = document.querySelector(".track-ground");
+  const status = document.getElementById("harness-status");
+  if (!rider) return;
+
+  rider.classList.remove("galloping", "reining");
+  if (ground) ground.classList.remove("running");
+
+  if (state === "galloping") {
+    _renderHorseSvg(true);
+    rider.classList.add("galloping");
+    if (ground) ground.classList.add("running");
+    if (status) { status.textContent = statusText || ""; status.className = "harness-status active"; }
+  } else if (state === "reining") {
+    _renderHorseSvg(false);
+    rider.classList.add("reining");
+    if (status) { status.textContent = statusText || ""; status.className = "harness-status blocked"; }
+  } else {
+    _renderHorseSvg(false);
+    if (status) { status.textContent = ""; status.className = "harness-status"; }
+  }
+}
+
+function reinThenResume(statusText, delayMs) {
+  setHorseState("reining", statusText);
+  _horseTimer = setTimeout(() => {
+    _horseTimer = null;
+    if (horseState === "reining") setHorseState("galloping", "실행 중");
+  }, delayMs);
+}
+
 // ── WebSocket ──
 function connectWS() {
   const protocol = location.protocol === "https:" ? "wss:" : "ws:";
@@ -385,6 +517,7 @@ function handleEvent(event) {
     case "pipeline_reset":
       resetUI();
       addLog("phase", "파이프라인 리셋됨");
+      setHorseState("idle");
       break;
 
     case "pipeline_start":
@@ -392,11 +525,17 @@ function handleEvent(event) {
       startTimer();
       setBadge("running", event.data.mode === "live" ? "라이브" : "실행중");
       addLog("phase", `파이프라인 시작 — ${event.data.mode} 모드 — ${event.data.targetFile}`, false, _stageKeys);
+      setHorseState("galloping", "실행 중");
       break;
 
     case "phase_update":
       updatePhase(event.data.phase, event.data.status);
       addLog("phase", `Phase ${event.data.phase}: ${event.data.status}`, false, _stageKeys);
+      if (event.data.status === "active") {
+        setHorseState("galloping", `Phase ${event.data.phase} 진행`);
+      } else if (event.data.status === "completed") {
+        reinThenResume("Phase 전환", 800);
+      }
       break;
 
     case "node_update":
@@ -435,6 +574,7 @@ function handleEvent(event) {
       if (event.data.verification) {
         updateVerificationStatus(event.data.verification);
       }
+      setHorseState("idle");
       break;
 
     case "harness_complete":
@@ -473,6 +613,7 @@ function handleEvent(event) {
       addLog("error",
         `[${entry.phase}] ${entry.tool} 차단 [${layerLabel}] — ${entry.reason || (entry.allowed || []).join(", ")}`,
         true, _stageKeys);
+      reinThenResume(`정책 차단: ${entry.tool}`, 1500);
       break;
     }
 
@@ -513,6 +654,7 @@ function handleEvent(event) {
       addLog("error",
         `[${event.data.phase}] 품질 게이트 실패 (시도 ${event.data.retries}/3) — ${reasons}`,
         true, _stageKeys);
+      reinThenResume(`게이트 실패`, 2000);
       break;
     }
 
@@ -629,6 +771,7 @@ function handleEvent(event) {
       const missing = (event.data.missing || []).join(", ");
       updateVerificationStatus({ pass: false, missing: event.data.missing || [] });
       addLog("error", `[검증 실패] 증거 부족: ${missing}`, true, _stageKeys);
+      setHorseState("reining", "검증 대기: 증거 부족");
       break;
     }
 
@@ -744,9 +887,9 @@ function handleAutoPipeline(data) {
   startTimer();
   setBadge("running", reason);
 
-  // Update pipeline selector
-  const select = document.getElementById("pipeline-select");
-  if (select) select.value = templateId;
+  // Update pipeline pill
+  currentTemplateId = templateId;
+  updatePipelinePill();
 
   // Load and render the template
   loadPipelineTemplate(templateId);
@@ -1367,9 +1510,7 @@ async function verifyCodex() {
 function openGeneralRun() {
   // Auto-switch visual template to "default" so the user sees the phases
   // that will actually run.
-  const sel = document.getElementById("pipeline-select");
-  if (sel && sel.value !== "default") {
-    sel.value = "default";
+  if (currentTemplateId !== "default") {
     loadPipelineTemplate("default");
   }
   document.getElementById("general-run-overlay").classList.add("visible");
@@ -1479,3 +1620,5 @@ fetchHarnessMode();
 // Server / Codex initial status
 fetchServerInfo();
 setInterval(fetchServerInfo, 15000);
+// Init horse in idle state
+_renderHorseSvg(false);

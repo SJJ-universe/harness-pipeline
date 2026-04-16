@@ -158,3 +158,35 @@ describe("tool_blocked source field", () => {
     }
   });
 });
+
+describe("Harness track animation structure", () => {
+  const htmlSrc = readFile("public/index.html");
+  const appSrc = readFile("public/app.js");
+
+  it("index.html contains harness-track, horse-rider, harness-status elements", () => {
+    assert.ok(htmlSrc.includes('id="harness-track"'), "harness-track missing");
+    assert.ok(htmlSrc.includes('id="horse-rider"'), "horse-rider missing");
+    assert.ok(htmlSrc.includes('id="harness-status"'), "harness-status missing");
+  });
+
+  it("index.html title is SJ Harness Engine", () => {
+    assert.ok(htmlSrc.includes("<title>SJ Harness Engine</title>"), "title not updated");
+  });
+
+  it("index.html has pipeline-pill instead of select dropdown", () => {
+    assert.ok(htmlSrc.includes('id="pipeline-pill"'), "pipeline-pill missing");
+    assert.ok(!htmlSrc.includes('<select id="pipeline-select"'), "old select dropdown still present");
+  });
+
+  it("app.js defines setHorseState and _clearHorseTimer", () => {
+    assert.ok(appSrc.includes("function setHorseState"), "setHorseState missing");
+    assert.ok(appSrc.includes("function _clearHorseTimer"), "_clearHorseTimer missing");
+    assert.ok(appSrc.includes("function reinThenResume"), "reinThenResume missing");
+  });
+
+  it("app.js calls setHorseState in pipeline_start and pipeline_complete handlers", () => {
+    assert.ok(appSrc.includes('setHorseState("galloping"'), "galloping call missing");
+    assert.ok(appSrc.includes('setHorseState("idle"'), "idle call missing");
+    assert.ok(appSrc.includes('setHorseState("reining"'), "reining call missing");
+  });
+});

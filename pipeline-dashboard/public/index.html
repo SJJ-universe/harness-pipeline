@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Dual AI Code Review Pipeline</title>
+  <title>SJ Harness Engine</title>
   <link rel="stylesheet" href="style.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5/css/xterm.min.css" />
 </head>
@@ -16,7 +16,7 @@
           <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
         </svg>
       </div>
-      <h1>Dual AI Review Pipeline</h1>
+      <h1>SJ 하네스 엔진</h1>
       <span class="badge" id="status-badge">대기</span>
     </div>
     <div class="header-right">
@@ -34,17 +34,20 @@
     </div>
   </header>
 
+  <!-- Harness Track: horse racing animation strip -->
+  <div class="harness-track" id="harness-track">
+    <div class="track-ground"></div>
+    <div class="horse-rider" id="horse-rider"></div>
+    <div class="harness-status" id="harness-status"></div>
+  </div>
+
   <!-- Main Content: Left Pipeline + Right Panel -->
   <div class="workspace">
     <!-- Left: Pipeline Visualization (scrollable) -->
     <section class="pipeline-scroll">
       <!-- Pipeline selector bar -->
       <div class="pipeline-selector" id="pipeline-selector">
-        <select id="pipeline-select" onchange="loadPipelineTemplate(this.value)">
-          <option value="code-review" selected>코드 리뷰 파이프라인</option>
-          <option value="default">범용 태스크 파이프라인</option>
-          <option value="testing">테스트 파이프라인</option>
-        </select>
+        <span class="pipeline-pill" id="pipeline-pill" onclick="cyclePipelineTemplate()" title="템플릿 전환 (클릭)">코드 리뷰</span>
         <button class="btn-ctrl primary" id="btn-start-general" onclick="openGeneralRun()" title="범용 태스크 파이프라인 실행 (Claude 플랜 ↔ Codex 비평 순환)">
           ▶ 작업 시작
         </button>
