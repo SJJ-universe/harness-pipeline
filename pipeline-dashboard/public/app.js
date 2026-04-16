@@ -917,7 +917,7 @@ document.addEventListener("keydown", (e) => {
 let term = null;
 let termWs = null;
 
-function initTerminal() {
+async function initTerminal() {
   if (typeof Terminal === "undefined") {
     document.getElementById("terminal-container").innerHTML =
       '<div class="modal-empty">xterm.js를 로드할 수 없습니다. 인터넷 연결을 확인하세요.</div>';
@@ -967,8 +967,10 @@ function initTerminal() {
     return true;
   });
 
+  // Await token before connecting — prevents 1008 unauthorized on first load
+  const token = await (window.HarnessApi ? window.HarnessApi.getToken() : Promise.resolve(window.HARNESS_TOKEN || ""));
   const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-  const terminalToken = encodeURIComponent(window.HARNESS_TOKEN || "");
+  const terminalToken = encodeURIComponent(token || "");
   termWs = new WebSocket(`${protocol}//${location.host}/terminal?token=${terminalToken}`);
 
   let promptReady = false;
@@ -993,7 +995,13 @@ function initTerminal() {
     }
   };
 
-  termWs.onclose = () => {
+  termWs.onclose = (ev) => {
+    if (ev.code === 1008) {
+      // Auth failed — token may not have loaded yet, retry once
+      term.write("\r\n\x1b[33m[인증 재시도 중...]\x1b[0m\r\n");
+      setTimeout(() => initTerminal(), 1500);
+      return;
+    }
     term.write("\r\n\x1b[31m[연결 종료]\x1b[0m\r\n");
   };
 
