@@ -51,7 +51,9 @@
         <button class="btn-ctrl danger" id="btn-abort-general" onclick="abortGeneralRun()" style="display:none" title="진행 중인 파이프라인 중단">
           ■ 중단
         </button>
+        <button class="btn-small" id="btn-toggle-compact" onclick="toggleCompactMode()" title="컴팩트/상세 보기 전환">compact</button>
       </div>
+      <div class="compact-pipeline hidden" id="compact-pipeline"></div>
       <!-- Dynamic pipeline container -->
       <div class="pipeline-container" id="pipeline-container">
         <!-- Rendered dynamically by renderPipeline() -->
@@ -77,6 +79,19 @@
             <div class="finding-chip low"><span class="finding-count-sm" id="count-low">0</span><span class="finding-label-sm">low</span></div>
             <div class="finding-chip note"><span class="finding-count-sm" id="count-note">0</span><span class="finding-label-sm">note</span></div>
           </div>
+        </div>
+        <!-- Context pressure bar -->
+        <div class="stat-mini context-mini" id="context-card">
+          <div class="stat-mini-title">컨텍스트</div>
+          <div class="context-bar" id="context-bar">
+            <div class="context-fill"></div>
+            <span class="context-label">--</span>
+          </div>
+        </div>
+        <!-- Verification status -->
+        <div class="stat-mini verify-mini" id="verify-card">
+          <div class="stat-mini-title">검증</div>
+          <div class="verify-status" id="verify-status">--</div>
         </div>
       </div>
 
@@ -180,7 +195,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5/lib/xterm.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0/lib/addon-fit.min.js"></script>
   <script src="js/dom.js"></script>
-  <script src="js/renderers/safeRender.js"></script>
   <script src="js/api-client.js"></script>
   <script src="app.js"></script>
 </body>

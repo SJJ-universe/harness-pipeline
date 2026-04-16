@@ -6,7 +6,6 @@ function createPipelineRoutes({
   broadcast,
   REPO_ROOT,
   resolveInsideRoot,
-  runPipeline,
   runGeneralPipeline,
   generalRunRef,
   validateGeneralRun,
@@ -15,19 +14,12 @@ function createPipelineRoutes({
 }) {
   const router = Router();
 
-  // Legacy demo pipeline (deprecated — uses execSync, not policy-checked)
-  router.post("/run", (req, res) => {
-    const { targetFile, mode } = req.body;
-    let file;
-    try {
-      file = targetFile
-        ? resolveInsideRoot(targetFile, REPO_ROOT, { purpose: "targetFile" })
-        : path.join(REPO_ROOT, "test-sample", "server.js");
-    } catch (err) {
-      return res.status(err.code === "PATH_OUTSIDE_ROOT" ? 403 : 400).json({ error: err.message });
-    }
-    res.json({ status: "started", targetFile: file, mode: mode || "demo" });
-    runPipeline(file, mode || "demo");
+  // Legacy demo pipeline removed — return 410 Gone with migration info
+  router.post("/run", (_req, res) => {
+    res.status(410).json({
+      error: "이 엔드포인트는 제거되었습니다. Hook-driven 파이프라인 또는 /api/pipeline/general-run을 사용하세요.",
+      migration: "/api/pipeline/general-run",
+    });
   });
 
   // General-run orchestration

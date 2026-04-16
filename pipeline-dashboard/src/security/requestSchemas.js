@@ -24,7 +24,6 @@ const ALLOWED_EVENT_TYPES = new Set([
   "pipeline_start",
   "server_restart",
   "server_shutdown",
-  "token_update",
   "tool_blocked",
   "tool_recorded",
 ]);

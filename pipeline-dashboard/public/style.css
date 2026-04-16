@@ -86,19 +86,6 @@ h1 {
   gap: 8px;
 }
 
-.btn {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 12px;
-  border: none;
-  border-radius: 5px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
 /* ── Workspace: Left + Right Split ── */
 .workspace {
   display: flex;
@@ -962,23 +949,6 @@ h1 {
   justify-content: flex-end;
   margin-top: 10px;
 }
-.plan-result {
-  margin-top: 12px;
-  padding: 10px;
-  background: #0d1117;
-  border: 1px solid #30363d;
-  border-radius: 6px;
-  font-size: 11px;
-  color: #e6edf3;
-  white-space: pre-wrap;
-  max-height: 260px;
-  overflow-y: auto;
-  display: none;
-}
-.plan-result.visible { display: block; }
-.plan-result .result-ok   { color: #3fb950; font-weight: 600; }
-.plan-result .result-fail { color: #f85149; font-weight: 600; }
-
 .plan-help {
   margin: 0 0 12px;
   padding: 10px 12px;
@@ -1030,9 +1000,91 @@ h1 {
 .pipeline-selector .btn-ctrl { margin-left: auto; }
 .pipeline-selector .btn-ctrl + .btn-ctrl { margin-left: 0; }
 
+/* ── Context bar + Verification status ── */
+.context-mini { flex: 0 0 100px; }
+.context-bar {
+  position: relative; height: 22px;
+  background: var(--bg); border-radius: 4px;
+  overflow: hidden; border: 1px solid var(--border);
+}
+.context-fill {
+  position: absolute; top: 0; left: 0; height: 100%;
+  transition: width 0.4s ease, background 0.3s;
+  border-radius: 3px;
+}
+.context-label {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; color: var(--text);
+  z-index: 1;
+}
+.context-fill.context-warning { background: rgba(210, 153, 34, 0.5); }
+.context-fill.context-suggest_compaction { background: rgba(249, 115, 22, 0.5); }
+.context-fill.context-block { background: rgba(248, 81, 73, 0.6); }
+.verify-mini { flex: 0 0 70px; text-align: center; align-items: center; }
+.verify-status {
+  font-size: 16px; font-weight: 800;
+  color: var(--text-dim); transition: all 0.3s;
+}
+.verify-status.verify-pass { color: var(--green); }
+.verify-status.verify-fail { color: var(--red); cursor: help; }
+
+/* ── Node meta tags ── */
+.node-meta {
+  display: flex; gap: 4px; margin-top: 2px;
+  justify-content: center; flex-wrap: wrap;
+}
+.node-agent-tag {
+  font-size: 8px; font-weight: 700; padding: 1px 5px;
+  border-radius: 6px; letter-spacing: 0.3px;
+}
+.node-agent-tag.agent-claude { background: rgba(212, 165, 116, 0.2); color: var(--claude); }
+.node-agent-tag.agent-codex  { background: rgba(88, 166, 255, 0.2); color: var(--codex); }
+.node-tool-count {
+  font-size: 8px; color: var(--text-dim); padding: 1px 4px;
+  border: 1px solid var(--border); border-radius: 4px; cursor: help;
+}
+/* ── Modal phase metadata ── */
+.modal-phase-meta {
+  padding: 8px 10px; margin-bottom: 8px;
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 6px; font-size: 10px; color: var(--text-dim);
+  line-height: 1.5;
+}
+
+/* ── Compact horizontal pipeline ── */
+.compact-pipeline { padding: 8px 16px; }
+.compact-pipeline.hidden { display: none; }
+.compact-bar {
+  display: flex; align-items: center; gap: 6px;
+  flex-wrap: wrap; justify-content: center;
+}
+.compact-arrow { color: var(--text-dim); font-size: 16px; user-select: none; }
+.compact-phase {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 8px 14px; border-radius: 8px; cursor: pointer;
+  background: var(--bg-card); border: 2px solid var(--border);
+  transition: all 0.3s; min-width: 50px; gap: 2px;
+}
+.compact-phase:hover { border-color: var(--purple); }
+.compact-phase.active {
+  border-color: var(--claude);
+  box-shadow: 0 0 12px var(--claude-glow);
+  animation: glow-pulse 1.8s ease-in-out infinite;
+}
+.compact-phase.completed {
+  border-color: var(--green);
+  box-shadow: 0 0 8px rgba(63, 185, 80, 0.15);
+}
+.compact-phase.error {
+  border-color: var(--red);
+  box-shadow: 0 0 12px var(--red-glow);
+}
+.compact-label { font-size: 14px; font-weight: 800; }
+.compact-name { font-size: 8px; color: var(--text-dim); letter-spacing: 0.3px; }
+
 /* ── Responsive ── */
 @media (max-width: 900px) {
   .workspace { flex-direction: column; }
   .pipeline-scroll { width: 100%; height: 300px; border-right: none; border-bottom: 1px solid var(--border); }
-  .target-input input { width: 160px; }
 }

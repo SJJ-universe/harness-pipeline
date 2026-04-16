@@ -138,7 +138,7 @@ class PipelineExecutor {
     if (danger.decision === "block") {
       this.broadcast({
         type: "tool_blocked",
-        data: { phase: phase.id, tool, reason: danger.reason, matchedRule: danger.matchedRule },
+        data: { phase: phase.id, tool, reason: danger.reason, matchedRule: danger.matchedRule, source: "danger" },
       });
       return { decision: "block", reason: danger.reason };
     }
@@ -147,7 +147,7 @@ class PipelineExecutor {
     if (policy.decision === "block") {
       this.broadcast({
         type: "tool_blocked",
-        data: { phase: phase.id, tool, reason: policy.reason },
+        data: { phase: phase.id, tool, reason: policy.reason, source: "policy" },
       });
       return { decision: "block", reason: policy.reason };
     }
@@ -174,7 +174,7 @@ class PipelineExecutor {
         `이 단계의 목적을 완수한 후 Stop 시점에 다음 phase로 넘어갑니다.`;
       this.broadcast({
         type: "tool_blocked",
-        data: { phase: phase.id, tool, allowed },
+        data: { phase: phase.id, tool, allowed, source: "allowedTools" },
       });
       return { decision: "block", reason };
     }

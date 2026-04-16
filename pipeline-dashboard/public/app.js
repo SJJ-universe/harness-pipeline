@@ -9,6 +9,7 @@ const toolFeed = [];
 const critiqueTimeline = [];
 let currentPipelineConfig = null;
 let pipelineTemplates = {};
+let compactMode = false;
 
 // ── Korean Mappings ──
 const VERDICT_KO = { BLOCK: "차단", CONCERNS: "주의", CLEAN: "통과" };
@@ -86,9 +87,9 @@ function renderPipeline(config) {
     if (phase.layout === "row" && ungrouped.length >= 2) {
       // Side-by-side layout with bidirectional connector
       innerHtml += `<div class="phase-content phase-row">`;
-      innerHtml += renderNode(ungrouped[0]);
+      innerHtml += renderNodeHtml(ungrouped[0]);
       innerHtml += `<div class="connector horizontal"><div class="connector-line"></div><div class="connector-arrows">&#x21C4;</div><div class="connector-line"></div></div>`;
-      innerHtml += renderNode(ungrouped[1]);
+      innerHtml += renderNodeHtml(ungrouped[1]);
       innerHtml += `</div>`;
     } else if (hasReviewerGroup) {
       // Complex layout: nodes in order, grouped nodes become fan-out row
@@ -112,14 +113,14 @@ function renderPipeline(config) {
         }
 
         if (node.group) {
-          innerHtml += renderNode(node, true);
+          innerHtml += renderNodeHtml(node, true);
           // Check if next node exits the group
           if (!nextNode || !nextNode.group) {
             innerHtml += `</div></div>`; // close reviewer-row + fan-out
             inGroup = false;
           }
         } else {
-          innerHtml += renderNode(node);
+          innerHtml += renderNodeHtml(node);
         }
 
         // Add connector to next non-group node (or before group starts)
@@ -133,7 +134,7 @@ function renderPipeline(config) {
       // Simple vertical layout
       innerHtml += `<div class="phase-content">`;
       ungrouped.forEach((node, i) => {
-        innerHtml += renderNode(node);
+        innerHtml += renderNodeHtml(node);
         if (i < ungrouped.length - 1) {
           innerHtml += `<div class="connector vertical small"><div class="connector-line-v"></div></div>`;
         }
@@ -150,20 +151,76 @@ function renderPipeline(config) {
 
   // Re-bind click handlers
   bindPipelineClicks();
+
+  // Sync compact view if active
+  if (compactMode) renderCompactPipeline();
 }
 
 let _nodePhaseMap = {};
 
 function renderNode(node, isReviewer) {
   const iconClass = ICON_CLASSES[node.iconType] || "emoji-icon";
-  const reviewerClass = isReviewer ? " reviewer" : "";
-  const badgeHtml = isReviewer ? `<div class="findings-badge" id="badge-${node.id}"></div>` : "";
-  return `
-    <div class="node${reviewerClass}" id="node-${node.id}" data-node="${node.id}">
-      <div class="node-icon ${iconClass}">${node.icon}</div>
-      <div class="node-label">${node.label}<br/><small>${node.sublabel}</small></div>
-      ${badgeHtml}
-    </div>`;
+  const phase = findPhaseForNode(node.id);
+
+  const el = document.createElement("div");
+  el.className = "node" + (isReviewer ? " reviewer" : "");
+  el.id = `node-${node.id}`;
+  el.dataset.node = node.id;
+
+  const icon = document.createElement("div");
+  icon.className = `node-icon ${iconClass}`;
+  icon.textContent = node.icon;
+  el.appendChild(icon);
+
+  const label = document.createElement("div");
+  label.className = "node-label";
+  label.textContent = node.label;
+  label.appendChild(document.createElement("br"));
+  const sub = document.createElement("small");
+  sub.textContent = node.sublabel;
+  label.appendChild(sub);
+  el.appendChild(label);
+
+  if (phase) {
+    const meta = document.createElement("div");
+    meta.className = "node-meta";
+    if (phase.agent) {
+      const tag = document.createElement("span");
+      tag.className = `node-agent-tag agent-${phase.agent}`;
+      tag.textContent = phase.agent;
+      meta.appendChild(tag);
+    }
+    if (phase.allowedTools && phase.allowedTools.length > 0) {
+      const tc = document.createElement("span");
+      tc.className = "node-tool-count";
+      tc.textContent = `${phase.allowedTools.length} tools`;
+      tc.title = phase.allowedTools.join(", ");
+      meta.appendChild(tc);
+    }
+    el.appendChild(meta);
+  }
+
+  if (isReviewer) {
+    const badge = document.createElement("div");
+    badge.className = "findings-badge";
+    badge.id = `badge-${node.id}`;
+    el.appendChild(badge);
+  }
+
+  return el;
+}
+
+function findPhaseForNode(nodeId) {
+  if (!currentPipelineConfig) return null;
+  for (const phase of currentPipelineConfig.phases) {
+    if (phase.nodes.some(n => n.id === nodeId)) return phase;
+  }
+  return null;
+}
+
+function renderNodeHtml(node, isReviewer) {
+  const el = renderNode(node, isReviewer);
+  return el.outerHTML;
 }
 
 function bindPipelineClicks() {
@@ -208,6 +265,65 @@ async function loadAllTemplates() {
   } catch (err) {
     console.error("Failed to load templates:", err);
   }
+}
+
+// ── Compact Pipeline Mode ──
+function toggleCompactMode() {
+  compactMode = !compactMode;
+  const compact = document.getElementById("compact-pipeline");
+  const full = document.getElementById("pipeline-container");
+  const btn = document.getElementById("btn-toggle-compact");
+  if (compactMode) {
+    compact.classList.remove("hidden");
+    full.classList.add("hidden");
+    if (btn) btn.textContent = "detail";
+    renderCompactPipeline();
+  } else {
+    compact.classList.add("hidden");
+    full.classList.remove("hidden");
+    if (btn) btn.textContent = "compact";
+  }
+}
+
+function renderCompactPipeline() {
+  if (!currentPipelineConfig) return;
+  const container = document.getElementById("compact-pipeline");
+  if (!container) return;
+  container.textContent = "";
+  const bar = document.createElement("div");
+  bar.className = "compact-bar";
+
+  currentPipelineConfig.phases.forEach((phase, idx) => {
+    if (idx > 0) {
+      const arrow = document.createElement("span");
+      arrow.className = "compact-arrow";
+      arrow.textContent = phase.linkedCycle ? "\u27F2" : "\u2192";
+      bar.appendChild(arrow);
+    }
+    const dot = document.createElement("div");
+    dot.className = "compact-phase";
+    dot.id = `compact-${phase.id}`;
+    dot.dataset.phase = phase.id;
+    dot.title = `${phase.label}: ${phase.name}`;
+    dot.addEventListener("click", () => {
+      const title = PHASE_NAMES[phase.id] || `Phase ${phase.id}`;
+      openModal(title, stageLogKey("phase", phase.id));
+    });
+
+    const label = document.createElement("span");
+    label.className = "compact-label";
+    label.textContent = phase.id;
+
+    const name = document.createElement("span");
+    name.className = "compact-name";
+    name.textContent = phase.name;
+
+    dot.appendChild(label);
+    dot.appendChild(name);
+    bar.appendChild(dot);
+  });
+
+  container.appendChild(bar);
 }
 
 // ── Per-stage Log Storage ──
@@ -290,10 +406,6 @@ function handleEvent(event) {
       addLog("node", `${event.data.node}: ${event.data.status}${event.data.findings != null ? ` (${event.data.findings} 발견)` : ""}`, false, _stageKeys);
       break;
 
-    case "token_update":
-      updateTokens(event.data.claude, event.data.codex);
-      break;
-
     case "findings":
       processFindingsEvent(event.data, _stageKeys);
       break;
@@ -312,6 +424,10 @@ function handleEvent(event) {
       addLog("phase", "파이프라인 완료");
       if (event.data.errors && event.data.errors.length > 0) {
         addLog("error", `${event.data.errors.length}개 오류 발생`);
+      }
+      // Show verification result
+      if (event.data.verification) {
+        updateVerificationStatus(event.data.verification);
       }
       break;
 
@@ -339,9 +455,18 @@ function handleEvent(event) {
         blocked: true,
         allowed: event.data.allowed || [],
         reason: event.data.reason || "",
+        source: event.data.source || "unknown",
       };
       pushToolFeed(entry);
-      addLog("error", `[${entry.phase}] ${entry.tool} 차단됨 — 허용: ${entry.allowed.join(", ")}`, true, _stageKeys);
+      const layerLabel = {
+        danger: "DangerGate",
+        policy: "PhasePolicy",
+        contract: "AgentContract",
+        allowedTools: "AllowedTools",
+      }[entry.source] || entry.source;
+      addLog("error",
+        `[${entry.phase}] ${entry.tool} 차단 [${layerLabel}] — ${entry.reason || (entry.allowed || []).join(", ")}`,
+        true, _stageKeys);
       break;
     }
 
@@ -368,6 +493,17 @@ function handleEvent(event) {
     case "gate_failed": {
       const reasons = (event.data.missing || []).join("; ");
       flashPhase(event.data.phase, "error");
+      // Show each missing criterion as a separate tool-feed entry
+      for (const m of (event.data.missing || [])) {
+        pushToolFeed({
+          ts: Date.now(),
+          phase: event.data.phase || "?",
+          tool: "QualityGate",
+          input: m,
+          blocked: true,
+          reason: `attempt ${event.data.retries}/3`,
+        });
+      }
       addLog("error",
         `[${event.data.phase}] 품질 게이트 실패 (시도 ${event.data.retries}/3) — ${reasons}`,
         true, _stageKeys);
@@ -471,6 +607,56 @@ function handleEvent(event) {
       showFinalPlan(event.data || {});
       break;
     }
+
+    case "context_alarm": {
+      const d = event.data || {};
+      const level = d.level || "warning";
+      const pct = d.percent || d.pct || "?";
+      updateContextBar(pct, level);
+      addLog(level === "block" ? "error" : "phase",
+        `[Context] ${d.message || ""} (${pct}% 사용)`,
+        level === "block", _stageKeys);
+      break;
+    }
+
+    case "claim_verification_failed": {
+      const missing = (event.data.missing || []).join(", ");
+      updateVerificationStatus({ pass: false, missing: event.data.missing || [] });
+      addLog("error", `[검증 실패] 증거 부족: ${missing}`, true, _stageKeys);
+      break;
+    }
+
+    case "critique_persist_failed": {
+      addLog("error",
+        `[Phase ${event.data.phase || "?"}] 비평 저장 실패: ${event.data.error || "unknown"}`,
+        true, _stageKeys);
+      break;
+    }
+
+    case "hook_event": {
+      pushToolFeed({
+        ts: event.data.at || Date.now(),
+        phase: "H",
+        tool: `hook:${event.data.event || "?"}`,
+        input: event.data.tool || "",
+        blocked: false,
+      });
+      break;
+    }
+
+    case "codex_trigger_started": {
+      const d = event.data || {};
+      addLog("phase", `[Codex] 트리거 시작: ${d.triggerId || "?"} (timeout: ${d.timeoutMs || "?"}ms)`);
+      break;
+    }
+
+    case "codex_trigger_done": {
+      const d = event.data || {};
+      addLog(d.ok ? "phase" : "error",
+        `[Codex] 트리거 완료: ${d.triggerId || "?"} — ${d.ok ? "성공" : "실패"} (${d.durationMs || "?"}ms)`,
+        !d.ok, _stageKeys);
+      break;
+    }
   }
 }
 
@@ -565,10 +751,18 @@ function handleAutoPipeline(data) {
 // ── UI Updates ──
 
 function updatePhase(phase, status) {
+  // Full mode
   const el = document.getElementById(`phase-${phase}`);
-  if (!el) return;
-  el.classList.remove("active", "completed", "error");
-  if (status !== "idle") el.classList.add(status);
+  if (el) {
+    el.classList.remove("active", "completed", "error");
+    if (status !== "idle") el.classList.add(status);
+  }
+  // Compact mode
+  const compact = document.getElementById(`compact-${phase}`);
+  if (compact) {
+    compact.classList.remove("active", "completed", "error");
+    if (status !== "idle") compact.classList.add(status);
+  }
 }
 
 function updateNode(node, status) {
@@ -579,23 +773,12 @@ function updateNode(node, status) {
 }
 
 function showFindingsBadge(node, count) {
-  const badgeMap = {
-    saboteur: "badge-saboteur",
-    security: "badge-security",
-    readability: "badge-readability",
-    "codex-review": "badge-codex",
-  };
-  const id = badgeMap[node];
-  if (!id) return;
-  const el = document.getElementById(id);
+  const el = document.getElementById(`badge-${node}`);
   if (!el) return;
   el.textContent = count;
   el.classList.add("visible");
 }
 
-function updateTokens(claude, codex) {
-  // Legacy support for pipeline events — no longer primary display
-}
 
 // ── Tool Feed + Critique Timeline ──
 function pushToolFeed(entry) {
@@ -866,6 +1049,34 @@ function resetUI() {
 }
 
 
+// ── Context Bar + Verification Status ──
+function updateContextBar(percent, level) {
+  const bar = document.getElementById("context-bar");
+  if (!bar) return;
+  const fill = bar.querySelector(".context-fill");
+  const label = bar.querySelector(".context-label");
+  if (fill) {
+    fill.style.width = `${Math.min(percent, 100)}%`;
+    fill.className = `context-fill context-${level}`;
+  }
+  if (label) label.textContent = `${percent}%`;
+}
+
+function updateVerificationStatus(verification) {
+  const el = document.getElementById("verify-status");
+  if (!el) return;
+  if (verification.pass) {
+    el.textContent = "PASS";
+    el.className = "verify-status verify-pass";
+    el.title = "";
+  } else {
+    const missing = verification.missing || [];
+    el.textContent = `FAIL (${missing.length})`;
+    el.className = "verify-status verify-fail";
+    el.title = missing.join(", ");
+  }
+}
+
 // ── Modal / Stage Popup ──
 function openModal(title, key) {
   const overlay = document.getElementById("modal-overlay");
@@ -876,6 +1087,26 @@ function openModal(title, key) {
   const logs = stageLogs[key] || [];
 
   body.textContent = "";
+
+  // Show phase operational metadata if this is a phase modal
+  if (key.startsWith("phase-") && currentPipelineConfig) {
+    const phaseId = key.replace("phase-", "");
+    const phase = currentPipelineConfig.phases.find(p => p.id === phaseId);
+    if (phase && (phase.agent || phase.allowedTools || phase.exitCriteria)) {
+      const meta = document.createElement("div");
+      meta.className = "modal-phase-meta";
+      const items = [];
+      if (phase.agent) items.push(`Agent: ${phase.agent}`);
+      if (phase.allowedTools) items.push(`Tools: ${phase.allowedTools.join(", ")}`);
+      if (phase.exitCriteria) {
+        items.push(`Exit: ${phase.exitCriteria.map(c => c.message).join("; ")}`);
+      }
+      if (phase.cycle) items.push(`Cycle: max ${phase.maxIterations || 3} iterations → Phase ${phase.linkedCycle || "?"}`);
+      meta.textContent = items.join(" | ");
+      body.appendChild(meta);
+    }
+  }
+
   if (logs.length === 0) {
     body.appendChild(Object.assign(document.createElement("div"), { className: "modal-empty", textContent: "이 단계의 로그가 아직 없습니다." }));
   } else {

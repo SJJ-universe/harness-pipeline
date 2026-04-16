@@ -136,6 +136,11 @@
         "name": "공동 플래닝",
         "label": "Phase A",
         "layout": "row",
+        "agent": "claude",
+        "allowedTools": ["Read", "Glob", "Grep", "Agent", "TodoWrite"],
+        "exitCriteria": [
+          { "type": "min-tools-in-phase", "count": 2, "message": "최소 2번 탐색 필요" }
+        ],
         "nodes": [
           {
             "id": "claude-plan",
@@ -158,6 +163,11 @@
         "id": "B",
         "name": "구현",
         "label": "Phase B",
+        "agent": "claude",
+        "allowedTools": ["Read", "Edit", "Write", "Bash", "Glob", "Grep"],
+        "exitCriteria": [
+          { "type": "files-edited", "min": 1, "message": "코드 수정이 없음" }
+        ],
         "nodes": [
           {
             "id": "claude-code",
@@ -172,6 +182,14 @@
         "id": "C",
         "name": "리뷰 순환",
         "label": "Phase C",
+        "agent": "codex",
+        "cycle": true,
+        "maxIterations": 3,
+        "linkedCycle": "D",
+        "timeoutMs": 120000,
+        "exitCriteria": [
+          { "type": "critique-received", "message": "Codex 비평이 도착하지 않음" }
+        ],
         "nodes": [
           {
             "id": "orchestrator",
@@ -224,6 +242,11 @@
         "id": "D",
         "name": "디버그 & 수정",
         "label": "Phase D",
+        "agent": "claude",
+        "allowedTools": ["Read", "Edit", "Write", "Bash"],
+        "exitCriteria": [
+          { "type": "files-edited", "min": 1, "message": "수정 사항 없음" }
+        ],
         "nodes": [
           {
             "id": "debug",
