@@ -4,10 +4,16 @@
 // them to WebSocket clients so we can verify the hook bridge round-trip.
 // Phase 2 will delegate to PipelineExecutor for real Phase transitions.
 
+const fs = require("fs");
+const path = require("path");
+const { alarmForUsage, extractContextUsage } = require("../src/runtime/contextUsage");
+
 class HookRouter {
-  constructor({ broadcast, sessionWatcher }) {
+  constructor({ broadcast, sessionWatcher, runRegistry, fixturesDir }) {
     this.broadcast = broadcast;
     this.sessionWatcher = sessionWatcher;
+    this.runRegistry = runRegistry || null;
+    this.fixturesDir = fixturesDir || path.resolve(__dirname, "..", "fixtures", "hooks");
     this.executor = null; // Phase 2: PipelineExecutor instance
     this.stats = { total: 0, byEvent: {} };
   }
@@ -21,6 +27,16 @@ class HookRouter {
   async route(event, payload) {
     this.stats.total++;
     this.stats.byEvent[event] = (this.stats.byEvent[event] || 0) + 1;
+    this._samplePayload(event, payload);
+    const usage = extractContextUsage(payload);
+    const alarm = alarmForUsage(usage);
+    if (usage) this.stats.lastContextUsage = usage;
+    if (alarm) {
+      this.broadcast({ type: "context_alarm", data: { ...usage, ...alarm } });
+      if (alarm.level === "block" && event === "user-prompt" && !payload?.override_context_alarm) {
+        return { decision: "block", reason: alarm.message };
+      }
+    }
     if (process.env.HARNESS_DEBUG === "1") {
       console.log(`[HookRouter] ${event} executor=${!!this.executor} enabled=${this.executor?.enabled}`);
     }
@@ -83,6 +99,28 @@ class HookRouter {
 
   getStats() {
     return { ...this.stats };
+  }
+
+  _samplePayload(event, payload) {
+    if (process.env.HARNESS_SAMPLE_HOOKS !== "1") return;
+    // P-4 Performance: async fire-and-forget — never block hook processing
+    // Size cap: truncate large payloads to avoid disk/memory pressure
+    const MAX_SAMPLE_SIZE = 32_000;
+    const safeEvent = String(event || "unknown").replace(/[^a-z0-9_-]/gi, "_");
+    const filePath = path.join(this.fixturesDir, `${Date.now()}-${safeEvent}.json`);
+    let data;
+    try {
+      data = JSON.stringify({ event, payload }, null, 2);
+    } catch (_) {
+      return;
+    }
+    if (data.length > MAX_SAMPLE_SIZE) {
+      data = data.slice(0, MAX_SAMPLE_SIZE) + "\n...(truncated)";
+    }
+    fs.promises.mkdir(this.fixturesDir, { recursive: true })
+      .then(() => fs.promises.writeFile(filePath, data, "utf-8"))
+      .catch(() => {});
+    // Sampling is best-effort; hooks must never be blocked by fixture writes.
   }
 }
 

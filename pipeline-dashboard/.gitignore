@@ -1,4 +1,6 @@
 node_modules/
+.harness/
+runs/
 *.log
 npm-debug.log*
 .env

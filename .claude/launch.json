@@ -5,7 +5,7 @@
       "name": "pipeline-dashboard",
       "runtimeExecutable": "node",
       "runtimeArgs": ["pipeline-dashboard/server.js"],
-      "port": 4200,
+      "port": 4201,
       "autoPort": true
     }
   ]

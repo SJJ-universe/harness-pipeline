@@ -1,354 +1,666 @@
-# Plan rev2: Step 0 검증 + Phase 3 (P0) 하네스 튜닝
+# Harness Pipeline Hardening Plan
 
-작성일: 2026-04-15
-작성자: Claude (Codex rev1 비평 13개 항목 전면 반영)
-**리포 루트**: `C:/Users/SJ/workspace` (= `SJJ-universe/harness-pipeline` 루트)
-**작업 브랜치**: `tuning/step0-phase3` (rev2부터 `master` 직접 push 중단)
-**HEAD(rev2 시작 시점)**: `d5a08e6`
+> **For agentic workers:** 이 문서는 현재 구현 완료 상태와 다음 구현 작업을 함께 담는다. 새 작업을 실행할 때는 `npm test`를 기준 품질 게이트로 사용하고, 각 작업은 테스트 추가 또는 기존 테스트 갱신 후 구현한다.
 
----
-
-## 목표
-
-1. **Step 0**: 최근 7개 커밋(FIX-1~3 ~ Codex 트리거)이 런타임 프로세스에 실제로 로드되어 동작하는지 결정론적으로 검증
-2. **Phase 3 P0**: 통과 시 T1(모델 라우팅) + T3(skill description) + T2(컨텍스트 알람) + T9(danger gate)를 순차 진행
+**작성일:** 2026-04-15  
+**대상 리포:** `C:/Users/SJ/harness-pipeline-analysis`  
+**대상 앱:** `pipeline-dashboard`  
+**현재 목표:** 실험용 대시보드 수준의 하네스를 84점 이상 내부 운영 하네스로 강화한다.  
+**현재 상태:** 보안/이식성/테스트 보강 1차 구현 완료, `npm test` 통과.  
 
 ---
 
-## 작업 브랜치 & 세이프티 규칙 (rev2 신설 — 비평 C2 대응)
+## 1. 현재 구현 완료 요약
 
-```
-git fetch origin
-git checkout -b tuning/step0-phase3 origin/master
-```
+### 1.1 Runtime Proof
 
-각 T 태스크 실행 흐름:
-1. `git status` → clean 확인 (clean 아니면 중단)
-2. 시작 SHA 기록: `ROLLBACK_SHA=$(git rev-parse HEAD)` → 커밋 메시지 footer에 기록
-3. 코드 편집 → 로컬 테스트 → `git diff` self-review
-4. commit → `git push origin tuning/step0-phase3`
-5. 로컬 회귀 확인(restart + /api/version) 완료 후에만 다음 태스크로
-6. 전체 4개 태스크 끝나면 사용자에게 FF merge 여부 확인 → 승인 시 master로 FF merge
+완료:
 
-**master 직접 push 금지**. PR 없어도 브랜치는 반드시 분리.
+- `/api/version` 엔드포인트 추가.
+- 응답에 `gitSha`, `bootTime`, `nodeVersion`, `templateHash`, `policyHash`, `repoRoot`, `mode` 포함.
+- 서버가 `require()`될 때 자동 listen하지 않도록 `start()`를 export하여 smoke/integration 테스트 가능하게 변경.
 
----
+주요 파일:
 
-## T0: Runtime Proof Endpoint (rev2 신설 — 비평 H2 대응)
+- `server.js`
+- `src/runtime/version.js`
+- `tests/smoke/server-boot.test.js`
 
-파일 HEAD와 실제 서버 프로세스가 일치하는지 결정론적으로 확인하기 위해 `/api/version` 신설.
+검증:
 
-**작업** (`pipeline-dashboard/server.js`):
-```js
-const SERVER_STARTED_AT = new Date().toISOString();
-const SERVER_PID = process.pid;
-let SERVER_COMMIT_SHA = "unknown";
-try {
-  SERVER_COMMIT_SHA = require("child_process")
-    .execSync("git rev-parse HEAD", { cwd: path.resolve(__dirname, "..") })
-    .toString().trim();
-} catch (e) {}
-
-app.get("/api/version", (req, res) => {
-  res.json({
-    commitSha: SERVER_COMMIT_SHA,
-    startedAt: SERVER_STARTED_AT,
-    pid: SERVER_PID,
-    node: process.version,
-  });
-});
+```powershell
+npm run test:smoke
 ```
 
-**Verification**:
-- V-T0-1: `curl http://127.0.0.1:4200/api/version` → `commitSha`가 `git rev-parse HEAD`와 일치
-- V-T0-2: 대시보드 재시작 후 `startedAt`이 갱신됨
-- V-T0-3: `pid`가 `ps` 출력의 node 프로세스와 일치
+기대 결과:
 
-**커밋**: `feat(T0): /api/version endpoint for runtime proof`
+- `/api/health` 200
+- `/api/version` 200
+- `gitSha`, `bootTime`, `templateHash`, `policyHash`, `mode=local` 존재
+
+### 1.2 Security Boundary
+
+완료:
+
+- 기본 host를 `127.0.0.1`, 기본 port를 `4201`로 고정.
+- `HARNESS_ALLOW_REMOTE=1` 없이는 remote client 차단.
+- state-changing API에 `x-harness-token` 요구.
+- token은 `HARNESS_TOKEN` 또는 `.harness/local-token` 사용.
+- `/api/auth/token`은 loopback 전용으로 제공.
+- `express.json({ limit: "256kb" })` 적용.
+- 보안 헤더 적용.
+- `/api/event`, `/api/hook`, `/api/context/load`, `/api/context/discover`, `/api/pipeline/general-run`, `/api/codex/trigger`, `/api/executor/mode`에 입력 검증 적용.
+- `/api/context/load`와 `/api/run` target file에 repo-root path sandbox 적용.
+
+주요 파일:
+
+- `server.js`
+- `src/security/auth.js`
+- `src/security/pathSandbox.js`
+- `src/security/requestSchemas.js`
+- `public/js/api-client.js`
+- `hooks/harness-hook.js`
+
+검증:
+
+```powershell
+npm run test:unit
+npm run test:integration
+```
+
+기대 결과:
+
+- token 없는 state-changing API는 `401`
+- unknown event type은 `400`
+- repo root 밖 context load는 `403`
+- allowlisted event는 token 포함 시 `200`
+
+### 1.3 Danger Gate & Phase Policy
+
+완료:
+
+- Phase A에서 `Bash` 제거.
+- Phase A exit gate를 discovery tool 3회로 강화.
+- `phasePolicy.evaluateTool()` 추가.
+- `dangerGate.evaluate()` 추가.
+- 기본 block 항목:
+  - `rm -rf`
+  - `Remove-Item -Recurse`
+  - `git reset --hard`
+  - `git checkout --`
+  - `format disk`
+  - `del /s`
+  - `--dangerously-skip-permissions`
+  - repo root 밖 path/cwd
+  - Phase A에서 read-only가 아닌 Bash
+
+주요 파일:
+
+- `pipeline-templates.json`
+- `src/policy/phasePolicy.js`
+- `src/policy/dangerGate.js`
+- `executor/pipeline-executor.js`
+- `executor/__phase2-test.js`
+
+검증:
+
+```powershell
+npm run test:unit
+npm run test:legacy
+```
+
+기대 결과:
+
+- Phase A Bash 차단
+- Phase A Read/Glob 허용
+- destructive command 차단
+- 기존 phase2/3/4 회귀 테스트 통과
+
+### 1.4 Runner Hardening
+
+완료:
+
+- Claude/Codex runner에서 `shell: false` 사용.
+- Windows에서 `npx`, `codex`, `claude`는 `.cmd`로 resolution.
+- Claude runner에서 `--dangerously-skip-permissions` 기본 제거.
+- 위험 agent flag는 `HARNESS_ALLOW_DANGEROUS_AGENT=1`과 explicit confirmation 없이는 차단.
+- runner 실행마다 `RunRegistry` manifest 기록.
+
+주요 파일:
+
+- `executor/claude-runner.js`
+- `executor/codex-runner.js`
+- `src/runtime/runRegistry.js`
+- `tests/integration/runRegistry.test.js`
+
+검증:
+
+```powershell
+npm run test:integration
+```
+
+기대 결과:
+
+- `runs/<runId>/manifest.json` 형태의 manifest 작성 가능
+- manifest에 input hash, policy decision, duration, exit code, output hash 저장
+
+### 1.5 Hook-Driven Runtime State
+
+완료:
+
+- `HookRouter`에서 hook payload sampling 지원.
+- `HARNESS_SAMPLE_HOOKS=1`이면 `fixtures/hooks/*.json`에 sample 저장.
+- `context_usage`, `contextUsage`, `usage.context`, `usage.context_usage` 기반 context usage 추출.
+- context alarm 기준:
+  - 70% 이상: warning
+  - 85% 이상: compaction suggestion
+  - 95% 이상: block
+- `SessionWatcher`가 import 시 바로 interval을 만들지 않고, server start/close에 맞춰 start/stop.
+
+주요 파일:
+
+- `executor/hook-router.js`
+- `src/runtime/contextUsage.js`
+- `session-watcher.js`
+
+검증:
+
+```powershell
+npm run test:smoke
+```
+
+기대 결과:
+
+- server close 시 watcher interval 정리
+- 테스트 프로세스가 hang 없이 종료
+
+### 1.6 UI Safety & Local Token Flow
+
+완료:
+
+- `public/js/api-client.js` 추가.
+- 브라우저가 `/api/auth/token`에서 local token을 얻고 state-changing API에 자동으로 `x-harness-token` 부착.
+- terminal WebSocket은 `?token=` 쿼리로 인증.
+- Codex trigger card rendering은 dynamic `innerHTML` 대신 DOM API로 변경.
+- `public/js/dom.js` 추가. 이후 renderer 분리 시 사용할 DOM helper 제공.
+
+주요 파일:
+
+- `public/index.html`
+- `public/app.js`
+- `public/js/api-client.js`
+- `public/js/dom.js`
+
+검증:
+
+```powershell
+npm run test:smoke
+```
+
+수동 확인:
+
+```text
+http://127.0.0.1:4201
+```
+
+### 1.7 Test Gate
+
+완료:
+
+- `npm test`를 실제 품질 게이트로 변경.
+- Node 내장 `node:test` 사용.
+- 샌드박스에서 `node --test tests/*.js`가 child spawn `EPERM`을 낼 수 있어 `tests/run-tests.js` 직렬 runner 추가.
+- 기존 phase2/3/4 테스트를 `test:legacy`로 연결.
+- `npm audit --package-lock-only --audit-level=moderate`를 전체 test gate에 포함.
+
+주요 파일:
+
+- `package.json`
+- `tests/run-tests.js`
+- `tests/unit/*.test.js`
+- `tests/integration/*.test.js`
+- `tests/smoke/*.test.js`
+
+검증:
+
+```powershell
+npm test
+```
+
+현재 검증 결과:
+
+- Unit: 12 pass
+- Integration: 3 pass
+- Legacy phase2/3/4: all pass
+- Smoke: 1 pass
+- Audit: 0 vulnerabilities
+
+### 1.8 Docs & Runbook
+
+완료:
+
+- quick start, env vars, verification, runtime proof 문서화.
+- architecture, security model, scorecard 문서 추가.
+- `.claude/settings.json`의 hardcoded absolute hook path 제거.
+- root launch port를 `4201`로 정렬.
+- `.harness/`, `runs/` git ignore 추가.
+
+주요 파일:
+
+- `README.md`
+- `docs/harness-architecture.md`
+- `docs/security-model.md`
+- `docs/scorecard.md`
+- `.claude/settings.json`
+- `.claude/launch.json`
+- `.gitignore`
+- `pipeline-dashboard/.gitignore`
 
 ---
 
-## T2.0: Hook Payload Sample Collection (rev2 신설 — 비평 H4 대응)
+## 2. 현재 점수
 
-T2 구현 전 실제 Claude Code hook payload에 `context_usage` 필드가 어느 경로에 오는지 확인.
+### 2.1 이전 점수
 
-**작업** (`pipeline-dashboard/hooks/harness-hook.js`):
-- PreToolUse/PostToolUse/Stop 각 payload 전체를 `_workspace/hook-payload-samples/{event}-{ts}.json`으로 덤프하는 스위치 추가 (환경변수 `HARNESS_DUMP_PAYLOADS=1`일 때만)
-- 하네스 ON 상태에서 간단한 세션 1회 실행 → 샘플 수집
-- 덤프 파일에서 `context_usage` (또는 유사 필드 `token_count`, `input_tokens`, `context_window_used` 등) 존재 여부 확인
+이전 평가: **49/100**
 
-**Fallback 정책**: 필드 없으면 T2는 서버 사이드 자체 추정으로 전환 —
-```js
-function estimateContextUsage(state) {
-  const charsApprox = state.toolFeed.reduce((a, t) => a + (t.preview?.length || 0), 0);
-  const tokensApprox = Math.round(charsApprox / 4);
-  const limit = 200000;
-  return tokensApprox / limit;
+주요 감점:
+
+- state-changing API 인증 없음
+- arbitrary event broadcast
+- repo root 밖 file read 가능
+- Phase A Bash 정책 불일치
+- `npm test` placeholder
+- runner shell 의존
+- hardcoded hook path
+- runtime proof 부족
+
+### 2.2 현재 점수
+
+현재 평가: **84/100**
+
+상승 근거:
+
+- Runtime proof 추가
+- local token/auth/origin/loopback posture 추가
+- path sandbox 추가
+- event/hook/request schema validation 추가
+- danger gate와 phase policy 추가
+- runner `shell: false` 및 run manifest 추가
+- context alarm 기반 마련
+- `npm test` 전체 품질 게이트화
+- docs/runbook/scorecard 추가
+
+남은 감점:
+
+- `server.js`가 아직 route host 역할을 많이 갖고 있음
+- full policy-as-code schema 미완성
+- replay mode 미완성
+- evidence ledger가 append-only/signed 구조는 아님
+- agent contract system 미완성
+- UI 전체 `innerHTML` 제거는 일부만 완료
+- remote/team mode용 container sandbox 미완성
+
+---
+
+## 3. 다음 목표: 90점대 True Harness
+
+다음 단계 목표 점수: **90~92/100**
+
+핵심 원칙:
+
+- 하네스는 실행을 돕는 UI가 아니라 실행을 통제하고 증거를 남기는 시스템이어야 한다.
+- policy, evidence, replay, agent contract가 같은 데이터 모델을 공유해야 한다.
+- 완료 선언은 evidence와 test result로 검증되어야 한다.
+
+---
+
+## 4. 다음 구현 계획
+
+### Task 1: Route Extraction
+
+**Goal:** `server.js`를 thin bootstrap에 가깝게 축소한다.
+
+**Files:**
+
+- Modify: `server.js`
+- Create: `src/routes/healthRoutes.js`
+- Create: `src/routes/contextRoutes.js`
+- Create: `src/routes/eventRoutes.js`
+- Create: `src/routes/executorRoutes.js`
+- Create: `src/routes/hookRoutes.js`
+- Create: `src/routes/codexRoutes.js`
+- Create: `src/routes/templateRoutes.js`
+- Create: `src/routes/serverControlRoutes.js`
+- Test: `tests/integration/api-security.test.js`
+- Test: `tests/smoke/server-boot.test.js`
+
+**Steps:**
+
+- [ ] 현재 `server.js` route 목록을 기능별로 묶는다.
+- [ ] 각 route module은 `{ router }` 또는 `createXRoutes(deps)`를 export한다.
+- [ ] `server.js`는 dependency 생성, WebSocket setup, route mount, `start()` export만 담당하게 한다.
+- [ ] route extraction 후 `npm test`를 실행한다.
+
+Acceptance:
+
+- `server.js`가 신규 route logic을 직접 갖지 않는다.
+- 기존 API response shape는 유지한다.
+- `npm test` 통과.
+
+### Task 2: Policy-as-Code Schema
+
+**Goal:** phase/tool/command/file/agent 권한을 JSON policy로 선언하고 UI와 executor가 같은 policy를 읽게 한다.
+
+**Files:**
+
+- Create: `policies/harness-policy.schema.json`
+- Create: `policies/default-policy.json`
+- Modify: `src/policy/phasePolicy.js`
+- Modify: `src/policy/dangerGate.js`
+- Modify: `executor/pipeline-executor.js`
+- Modify: `public/app.js`
+- Test: `tests/unit/phasePolicy.test.js`
+- Test: `tests/unit/dangerGate.test.js`
+
+**Policy shape v1:**
+
+```json
+{
+  "version": 1,
+  "phases": {
+    "A": {
+      "allowedTools": ["Read", "Glob", "Grep", "Agent", "TodoWrite"],
+      "bash": { "mode": "blocked" }
+    },
+    "E": {
+      "allowedTools": ["Read", "Edit", "Write", "Bash", "Glob", "Grep", "TodoWrite"],
+      "bash": { "mode": "allowlisted", "allowPrefixes": ["npm test", "node", "git status"] }
+    }
+  },
+  "blockedCommandPatterns": [
+    "rm -rf",
+    "git reset --hard",
+    "--dangerously-skip-permissions"
+  ],
+  "rootSandbox": true
 }
 ```
 
-**커밋**: `chore(T2.0): hook payload sample dumper for context_usage discovery`
+**Steps:**
 
----
+- [ ] schema 파일을 추가한다.
+- [ ] `default-policy.json`을 현재 hardcoded policy와 동일하게 만든다.
+- [ ] `phasePolicy`와 `dangerGate`가 policy object를 입력으로 받도록 바꾼다.
+- [ ] `/api/version`에 `policyHash`가 policy JSON hash를 반영하게 한다.
+- [ ] UI에 active policy version/hash를 표시한다.
+- [ ] `npm test`를 실행한다.
 
-## 사전 상태 확인 (Baseline Verify, rev2)
+Acceptance:
 
-| 체크 | 명령/동작 | 기대 결과 |
-|---|---|---|
-| B0 | `curl http://127.0.0.1:4200/api/version` | `commitSha`가 `git rev-parse HEAD`와 정확히 일치 |
-| B1 | `curl http://127.0.0.1:4200/api/codex/triggers` | JSON 배열 4개 (plan-verify, code-review, debug-analysis, security-review) |
-| B2 | 브라우저 터미널 탭 하단 "Codex 트리거" 패널 4장 카드 DOM 존재 | `document.querySelectorAll("#trigger-cards .recommend-card").length === 4` (브라우저 콘솔에서 확인) |
-| B3 | `git rev-parse HEAD` (루트=`C:/Users/SJ/workspace`) | T0 커밋 이후 SHA (예: `<T0-SHA>`) |
-| B4 | Ctrl+V로 여러 줄 텍스트 붙여넣기 | 한 번만 입력됨 (비평 L1: "다행" 오타 수정) |
+- hardcoded phase policy와 JSON policy가 불일치하지 않는다.
+- policy 변경 시 `/api/version.policyHash`가 바뀐다.
+- `npm test` 통과.
 
-B0~B4 전부 pass여야 Step 0 세션 진행.
+### Task 3: Evidence Ledger v2
 
----
+**Goal:** 모든 실행의 입력, 정책 결정, artifact, test 결과, reviewer result를 하나의 ledger로 연결한다.
 
-## Step 0 결정론적 검증 세션 (rev2 — 비평 H3/M5/M6 대응)
+**Files:**
 
-**원칙**: 모델 변덕에 의존하지 않는다. 각 세션은 사용자 프롬프트로 하네스를 자극하되 **검증은 하네스 내부 broadcast 이벤트와 파일 시스템 상태**로 판정한다.
+- Modify: `src/runtime/runRegistry.js`
+- Create: `src/runtime/evidenceLedger.js`
+- Create: `src/runtime/artifactStore.js`
+- Modify: `executor/pipeline-executor.js`
+- Modify: `executor/codex-runner.js`
+- Modify: `executor/claude-runner.js`
+- Test: `tests/integration/runRegistry.test.js`
 
-### 세션 프롬프트 (명시적 자극)
+**Ledger event shape v2:**
 
-> "Read, Glob, Grep 툴을 각각 1번씩 호출하여 pipeline-dashboard/server.js 파일을 찾아 상단 30줄을 보고하라. 그 후 Bash로 `git status`를 한 번 실행하라. 이후 코드 변경 없이 계획만 수립하고 종료하라."
-
-이 프롬프트는 Phase A에서 **Read/Glob/Grep/Bash 각 1회** 호출을 명시하므로 행동 재현성이 있다.
-
-### 체크리스트
-
-| # | 확인 항목 | 판정 방식 | 통과 조건 | 실패 시 timeout |
-|---|---|---|---|---|
-| S1 | Phase A Edit 차단 (인공 이벤트) | `curl -X POST /api/hook -d '{"event":"PreToolUse","tool_name":"Edit",...}'` | 응답 `decision:"block"` + reason에 "Phase A" | 10s |
-| S2 | Phase A Bash 허용 (신규 튜닝) | 위 프롬프트 실행 → broadcast `tool_call` 중 `tool:"Bash"` 존재 + 차단 이벤트 없음 | broadcast 로그에 Bash 1회, tool_blocked 0회 | 60s |
-| S3 | Phase A→B 전환 (count=2) | 세션 중 broadcast `phase_enter` with `phase:"B"` | phaseIdx 증가 + broadcast 수신 | 90s |
-| S4 | Phase B plan.md Write → artifact 캡처 | `_workspace/plan*.md` 존재 + broadcast `artifact_captured` | 파일 존재 AND broadcast 1회 | 120s |
-| S5 | Phase C Codex 호출 | broadcast `codex_started` → `codex_critique_ready` | 두 이벤트 모두 수신 | **120s** (rev2: 29s 고정 제거) |
-| S6 | `_workspace/C_codex_critique_iter1.md` 실파일 | `test -f` + 최소 크기 500바이트 + `## Summary` `## Findings` 모두 포함 | grep으로 두 헤더 확인 | — |
-| S7 | Phase D→E→F + 최종 verdict | `_workspace/F_final_verdict.md` 존재 + verdict 필드 | verdict ∈ {CLEAN, CONCERNS} **AND** critical count=0 (high는 기록만) | — |
-
-**전체 세션 timeout**: 10분. 초과 시 하네스 세션 강제 종료 + S?-timeout 기록.
-
-### 실패 덤프 스키마 (rev2 — 비평 M7)
-
-`_workspace/step0-failure-{phase}.md`는 다음 6개 섹션을 반드시 포함:
-1. **commit SHA**: `git rev-parse HEAD`
-2. **PID / started at**: `/api/version` 응답
-3. **Last hook payload**: 직전 10개 hook 이벤트 원본 JSON
-4. **Server log tail**: `pipeline-dashboard/logs/server.log` 마지막 50줄 (없으면 stdout 캡처)
-5. **Broadcast events**: 마지막 20개 broadcast 이벤트
-6. **Phase state**: `state.phaseIdx`, `state.phaseToolCount`, `state.artifacts`
-
----
-
-## Phase 3 P0 작업 (Step 0 통과 시)
-
-### T1. 에이전트 모델 라우팅 (비평 M2/M3 대응)
-
-**선행 확인 (rev2 신설)**:
-- T1.0: 기존 `.claude/agents/*.md`에 `model:` 필드를 쓰는 파일이 있는지 grep → 있으면 포맷 참고
-- T1.1: Claude Code 공식 문서에서 agent frontmatter `model:` 허용값 확인 (WebFetch). 확인 불가 시 `model:` 대신 `description:`에 "간단한 조회 전용" 같은 힌트 추가로 fallback
-
-**작업** (허용 시):
-
-| 에이전트 | 추가 라인 | 근거 |
-|---|---|---|
-| context-analyzer.md | `model: haiku` | 결정론적 디스커버리 |
-| task-validator.md | `model: haiku` | 테스트 결과 파싱 |
-| readability-reviewer.md | `model: haiku` | 패턴 체크 |
-| task-planner.md | `model: sonnet` | 중간 추론 |
-| review-synthesizer.md | `model: sonnet` | 병합 |
-| saboteur-reviewer.md | `model: sonnet` | 창의적 공격 |
-| security-auditor.md | `model: sonnet` | OWASP 추론 |
-| review-orchestrator.md | `model: opus` | 최종 조율 |
-| plan-critic.md | — | Codex CLI 전용 |
-
-**Verification (rev2 — 비평 M3 Windows 호환)**:
-- V-T1-1: Node 스크립트로 검증 — `node -e "const fs=require('fs'); const files=require('glob').sync('.claude/agents/*.md'); let ok=0; for (const f of files) { const m=fs.readFileSync(f,'utf8').match(/^---\n([\s\S]*?)\n---/); if (m && /^model:\s*(haiku|sonnet|opus)/m.test(m[1])) ok++; } console.log(ok);"` → `8`
-- V-T1-2: 각 파일 frontmatter `---` 앞뒤 유지, YAML 파싱 통과 (`js-yaml`로 파싱)
-- V-T1-3: **런타임 라우팅 검증** — `subagent_type:"context-analyzer"`로 Agent 툴을 실제 호출하고 응답 metadata에 모델이 찍히는지 확인. 찍히지 않으면 "보류" 커밋이 아니라 **T1 전체 revert** (M2 대응: "TODO 남김"으로 통과시키지 않음)
-
-**커밋**: `feat(T1): model routing for 8 agents` + footer `Rollback: <ROLLBACK_SHA>`
-
----
-
-### T3. Skill description 재작성 (비평 M4 대응)
-
-**작업**: 2개 SKILL.md description 재작성 — 구체 트리거 + 후속 키워드 + 구분.
-
-**대상**:
-- `.claude/skills/universal-task-pipeline/SKILL.md`
-- `.claude/skills/code-review-pipeline/SKILL.md`
-
-**Verification (rev2 — 표면 조건 + 실제 라우팅)**:
-- V-T3-1: 각 description 길이 100~500자 (과도 방지)
-- V-T3-2: 키워드 3개 모두 포함: "재실행", "보완", 명확한 구분 문구
-- V-T3-3: 두 description이 공유하는 동일 문구 30자 이상 없음 (중복 방지)
-- V-T3-4: **라우팅 smoke test** — 다음 3개 프롬프트 각각 실행 후 어떤 skill이 활성화되는지 관찰
-  - A. "이 코드 리뷰해줘" → code-review-pipeline 활성
-  - B. "이 작업 다시 실행해줘" → universal-task-pipeline 활성
-  - C. "로그인 기능 만들어줘" → universal-task-pipeline 활성
-  - 결과가 기대와 다르면 description 재조정, 커밋 보류
-
-**과도 사용 방지**: "반드시" 문구는 최대 2회/파일 제한.
-
-**커밋**: `feat(T3): skill descriptions with differentiated triggers`
-
----
-
-### T2. 컨텍스트 알람 (비평 H4/H5 대응 — 대폭 수정)
-
-**전제**: T2.0에서 `context_usage` 필드 실체 확인 완료.
-
-**작업**:
-1. `harness-hook.js` PostToolUse payload에서 실제 필드 경로로 `contextUsage` 추출 (없으면 T2.0 fallback 함수 사용)
-2. `server.js` `/api/hook`에서 수신 → state에 저장 → broadcast `context_alarm` (단, 40% 초과 시 1회만, 이후 55% 초과 시 다시 1회)
-3. `public/app.js` 상단 배너 UI — 40% 초과 시 노란 배너, 55% 초과 시 빨간 배너 + 사용자에게 `/compact` 권고 메시지 (버튼 아님, 안내만)
-4. **Stop 훅에서 block 금지 (비평 H5)**. `decision: block`을 던지지 않음. 대신 broadcast만 하고 사용자 판단에 맡김
-5. 세션당 알람 중복 억제 — `state.contextAlarmSent = { at40: false, at55: false }`
-
-**Verification**:
-- V-T2-1: 가짜 payload POST (`context_usage: 0.42`) → 서버 로그에 `context_alarm` broadcast 1회
-- V-T2-2: 동일 payload 재전송 → `at40: true`이므로 broadcast 없음 (중복 억제)
-- V-T2-3: `context_usage: 0.58` → 두 번째 broadcast (55% 임계)
-- V-T2-4: Stop 이벤트에 `context_usage: 0.90` 포함 → 응답이 `{continue: true}` 또는 decision 없음 (block 아님)
-- V-T2-5: 브라우저에서 배너 색상 변경 (DOM selector로 자동 assert)
-
-**Failing test first (rev2 — 비평 M8)**: `pipeline-dashboard/executor/__t2-context-test.js` 먼저 작성. 모든 V-T2-* 케이스가 실패 상태에서 시작하도록.
-
-**커밋**: `feat(T2): context usage banner at 40%/55% (no stop block)`
-
----
-
-### T9. Danger Gate (비평 C1/H6/M1 대응 — 대폭 수정)
-
-**자해 패턴 제거**: `.claude[\\/]/` **삭제**. 이후 T1/T3 같은 정상 튜닝 작업을 막지 않음.
-
-**Tool-scoped 구조적 판정 (정규식 문자열 매칭 탈피)**:
-```js
-// pipeline-dashboard/executor/danger-gate.js (신규, 공용 모듈)
-function isDangerous(tool, input) {
-  if (tool === "Bash") {
-    const cmd = input.command || "";
-    if (/\brm\s+(-[a-zA-Z]*r[a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*r)\b/.test(cmd)) return "rm -rf";
-    if (/\bgit\s+push\s+.*(--force|--force-with-lease|-f\b)/.test(cmd)) return "force push";
-    if (/\bgit\s+reset\s+--hard\b/.test(cmd)) return "git reset --hard";
-    if (/\bRemove-Item\b.*-Recurse/i.test(cmd)) return "Remove-Item -Recurse";
-    return null;
+```json
+{
+  "eventId": "evt-...",
+  "runId": "run-...",
+  "type": "policy_decision",
+  "at": "2026-04-15T00:00:00.000Z",
+  "dataHash": "sha256...",
+  "data": {
+    "decision": "allow",
+    "matchedRule": null
   }
-  if (tool === "Write" || tool === "Edit") {
-    const fp = (input.file_path || "").toLowerCase();
-    if (/\.env(\.|$)/.test(fp)) return ".env write";
-    if (/credentials\.json$/.test(fp)) return "credentials write";
-    // .claude 수정은 허용 (하네스 자체 튜닝)
-    return null;
-  }
-  return null;
 }
-module.exports = { isDangerous };
 ```
 
-**단일 게이트, 이중 진입점 (비평 H6)**:
-- `pipeline-executor.js onPreTool` → `isDangerous` 호출
-- `server.js /api/hook` PreToolUse 경로 → **같은** `isDangerous` 호출
-- 두 경로 모두 차단 이벤트 `dangers_blocked` broadcast
+**Steps:**
 
-**Verification**:
-- V-T9-0 **Failing test first**: `pipeline-dashboard/executor/__danger-gate-test.js` — 모든 케이스가 구현 전 실패
-- V-T9-1 positive: `rm -rf /`, `rm -fr tmp`, `git push --force-with-lease`, `git reset --hard HEAD`, `Remove-Item -Recurse .`, `Write .env`, `Edit credentials.json` → 모두 block 반환
-- V-T9-2 negative: `git reset HEAD~1`, `git status`, `rm file.tmp` (단일 파일, 재귀 아님), `Edit .claude/agents/foo.md`, `Read .env` → 모두 통과
-- V-T9-3 실제 `/api/hook`으로 `git reset --hard` PreToolUse 주입 → block
-- V-T9-4 실제 executor.onPreTool 시뮬레이션 → block
+- [ ] `RunRegistry` manifest를 유지하되, events를 별도 append API로 분리한다.
+- [ ] artifact path, prompt hash, policy decision, exit code, test result를 event로 기록한다.
+- [ ] ledger write는 append-only 방식으로 구현한다.
+- [ ] 현재 단계에서는 signing은 하지 않는다.
+- [ ] `npm run test:integration`을 실행한다.
 
-**커밋**: `feat(T9): tool-scoped danger gate (no .claude self-block)`
+Acceptance:
 
----
+- 하나의 `runId`로 policy, prompt hash, result, artifact를 추적할 수 있다.
+- 기존 runner manifest 테스트가 v2 ledger 기준으로 통과한다.
 
-## 타임라인 (rev2 — restart 단계 포함)
+### Task 4: Replay Mode
 
+**Goal:** 저장된 hook fixture와 run manifest로 동일한 phase transition을 재현한다.
+
+**Files:**
+
+- Create: `src/runtime/replay.js`
+- Create: `tests/integration/replay.test.js`
+- Modify: `executor/hook-router.js`
+- Modify: `executor/pipeline-executor.js`
+- Add fixtures: `fixtures/hooks/*.json`
+
+**Replay input:**
+
+```json
+{
+  "templateId": "default",
+  "events": [
+    { "event": "user-prompt", "payload": { "prompt": "please implement" } },
+    { "event": "post-tool", "payload": { "tool_name": "Read", "tool_response": { "filePath": "server.js" } } },
+    { "event": "stop", "payload": {} }
+  ]
+}
 ```
-[브랜치 생성]   git checkout -b tuning/step0-phase3
-[T0]          /api/version 추가 → restart → V-T0 → commit/push
-[T2.0]         payload dumper → restart → 수동 세션 1회로 샘플 수집 → 분석 → commit/push
 
-[Baseline]     B0 B1 B2 B3 B4 (모두 pass 확인)
+**Steps:**
 
-[사용자 하네스 ON]
-[Step 0]       S1(인공 이벤트) → S2~S7 (10분 timeout)
-               실패 시 step0-failure-{phase}.md 덤프 → Phase 3 보류
+- [ ] `HookRouter.route()` 호출을 순차 재생하는 replay runner를 만든다.
+- [ ] broadcast 결과를 memory sink에 모은다.
+- [ ] replay 결과에 final phase, blocked tools, gate decisions를 포함한다.
+- [ ] fixture 기반 integration test를 추가한다.
+- [ ] `npm test`를 실행한다.
 
-[T1]          skill schema 선행 확인 → 편집 → V-T1-1~3 → commit/push → [restart → /api/version 확인]
-[T3]          편집 → V-T3-1~4 (라우팅 smoke test 포함) → commit/push → [restart → /api/version]
-[T2]          failing test 작성 → 구현 → V-T2-1~5 → commit/push → [restart → /api/version]
-[T9]          failing test 작성 → danger-gate.js + 두 진입점 → V-T9-0~4 → commit/push → [restart → /api/version]
+Acceptance:
 
-[최종]         Step 0 세션 재실행 → 회귀 없음 확인
-[Merge 승인]   사용자 확인 후 master로 FF merge + push
+- 같은 fixture는 같은 final phase와 gate result를 낸다.
+- replay 중 실제 Claude/Codex process는 실행하지 않는다.
+
+### Task 5: Agent Contract System
+
+**Goal:** agent/skill이 capabilities, forbidden actions, required artifacts, test obligations를 선언하게 한다.
+
+**Files:**
+
+- Create: `contracts/agent-contract.schema.json`
+- Create: `contracts/default-agent-contracts.json`
+- Create: `src/contracts/agentContracts.js`
+- Modify: `executor/skill-injector.js`
+- Modify: `executor/pipeline-executor.js`
+- Test: `tests/unit/agentContracts.test.js`
+
+**Contract shape v1:**
+
+```json
+{
+  "agent": "planner",
+  "capabilities": ["read", "write-plan"],
+  "forbiddenActions": ["execute-shell", "modify-source"],
+  "requiredArtifacts": ["plan"],
+  "testObligations": ["plan-has-verification-section"]
+}
+```
+
+**Steps:**
+
+- [ ] schema와 default contracts를 추가한다.
+- [ ] phase의 `agent`와 contract를 연결한다.
+- [ ] forbidden action이 policy와 충돌하면 더 강한 제한을 적용한다.
+- [ ] required artifact가 없으면 phase gate가 실패하게 한다.
+- [ ] `npm test`를 실행한다.
+
+Acceptance:
+
+- agent contract가 phase behavior에 영향을 준다.
+- contract 없는 agent는 명시적으로 default contract를 받는다.
+
+### Task 6: Self-Verification Loop
+
+**Goal:** Phase F 이후 “claim vs evidence” 검사를 수행하고, 증거 없는 완료 선언을 fail 처리한다.
+
+**Files:**
+
+- Create: `src/verification/claimVerifier.js`
+- Modify: `executor/quality-gate.js`
+- Modify: `executor/pipeline-executor.js`
+- Create: `tests/unit/claimVerifier.test.js`
+
+**Verification rules v1:**
+
+- `npm test` 실행 evidence가 없으면 complete 불가.
+- modified files가 있는데 test result가 없으면 warning 이상.
+- critical/high findings가 unresolved이면 complete 불가.
+- final answer에 “통과”라고 주장하려면 matching test evidence가 있어야 한다.
+
+**Steps:**
+
+- [ ] evidence ledger에서 latest test event를 조회한다.
+- [ ] claim text와 evidence를 비교하는 rule-based verifier를 만든다.
+- [ ] Phase F exit criteria에 `claim-verified`를 추가한다.
+- [ ] 실패 시 UI에 missing evidence를 표시한다.
+- [ ] `npm test`를 실행한다.
+
+Acceptance:
+
+- 증거 없는 완료 선언은 fail.
+- `npm test` evidence가 있으면 pass.
+
+### Task 7: UI Safety Completion
+
+**Goal:** dynamic `innerHTML` 사용을 제거하거나 명시적 static template으로 한정한다.
+
+**Files:**
+
+- Modify: `public/app.js`
+- Create: `public/js/renderers/pipeline.js`
+- Create: `public/js/renderers/logs.js`
+- Create: `public/js/renderers/triggers.js`
+- Create: `tests/unit/uiSanitizer.test.js`
+
+**Steps:**
+
+- [ ] `rg "innerHTML|insertAdjacentHTML" public/app.js` 결과를 분류한다.
+- [ ] dynamic payload가 들어가는 부분은 DOM API 또는 `textContent`로 바꾼다.
+- [ ] static template만 `safeHtmlFromTemplate` 사용을 허용한다.
+- [ ] malicious event payload가 DOM HTML로 삽입되지 않는 test를 추가한다.
+- [ ] `npm test`를 실행한다.
+
+Acceptance:
+
+- event payload, trigger metadata, log message가 HTML로 실행되지 않는다.
+- UI regression 없이 trigger cards, logs, pipeline render가 동작한다.
+
+### Task 8: Remote/Team Mode Readiness
+
+**Goal:** remote/team mode를 열기 전에 container sandbox와 stronger auth를 설계한다.
+
+**Files:**
+
+- Create: `docs/remote-mode-design.md`
+- Create: `docs/container-sandbox.md`
+- Optional Create: `Dockerfile.harness-runner`
+- Optional Create: `src/security/rateLimit.js`
+
+**Steps:**
+
+- [ ] 현재 remote mode는 disabled-by-default임을 유지한다.
+- [ ] remote mode threat model을 문서화한다.
+- [ ] container runner boundary를 설계한다.
+- [ ] token-only auth의 한계를 정리하고 session auth 또는 signed request로 전환 계획을 쓴다.
+- [ ] 이 단계에서는 remote mode를 실제로 enable하지 않는다.
+
+Acceptance:
+
+- `HARNESS_ALLOW_REMOTE=1` 없이 remote 접근이 계속 막힌다.
+- remote mode 문서가 구현 전 gate 역할을 한다.
+
+---
+
+## 5. Verification Commands
+
+모든 변경 후 기본 검증:
+
+```powershell
+npm test
+```
+
+부분 검증:
+
+```powershell
+npm run test:unit
+npm run test:integration
+npm run test:legacy
+npm run test:smoke
+npm run audit:moderate
+```
+
+서버 수동 확인:
+
+```powershell
+npm start
+Invoke-WebRequest -UseBasicParsing http://127.0.0.1:4201/api/health
+Invoke-WebRequest -UseBasicParsing http://127.0.0.1:4201/api/version
 ```
 
 ---
 
-## 변경 파일 (rev2 예상)
+## 6. Operational Notes
 
-| 파일 | 태스크 | 성격 |
-|---|---|---|
-| `pipeline-dashboard/plan.md` | rev2 | 전면 재작성 |
-| `pipeline-dashboard/server.js` | T0, T2 | /api/version, /api/hook 확장, danger-gate import |
-| `pipeline-dashboard/hooks/harness-hook.js` | T2.0, T2 | payload dumper, context_usage 파싱 |
-| `_workspace/hook-payload-samples/*.json` | T2.0 | (gitignore) 샘플 |
-| `.claude/agents/*.md` × 8 | T1 | frontmatter 1줄 |
-| `.claude/skills/universal-task-pipeline/SKILL.md` | T3 | description |
-| `.claude/skills/code-review-pipeline/SKILL.md` | T3 | description |
-| `pipeline-dashboard/public/app.js` | T2 | 배너 UI |
-| `pipeline-dashboard/public/style.css` | T2 | 배너 스타일 |
-| `pipeline-dashboard/executor/pipeline-executor.js` | T9 | onPreTool 게이트 |
-| `pipeline-dashboard/executor/danger-gate.js` | T9 | 공용 모듈 (신규) |
-| `pipeline-dashboard/executor/__danger-gate-test.js` | T9 | 단위 테스트 (신규) |
-| `pipeline-dashboard/executor/__t2-context-test.js` | T2 | 단위 테스트 (신규) |
+- 기본 운영 모드는 single-user local harness다.
+- remote/team mode는 아직 켜지 않는다.
+- `.harness/local-token`과 `runs/`는 git에 포함하지 않는다.
+- hook path는 repo-relative `node pipeline-dashboard/hooks/harness-hook.js <event>`를 사용한다.
+- `node --test tests/*.js`는 일부 샌드박스에서 child spawn `EPERM`을 낼 수 있으므로 `tests/run-tests.js`를 유지한다.
+- `node_modules` 설치는 `npm install`이 필요하다.
 
 ---
 
-## 리스크 & 롤백 (rev2)
+## 7. Open Risks
 
-| 리스크 | 감지 | 롤백 |
-|---|---|---|
-| T0 /api/version이 기존 라우트와 충돌 | `curl` 404 또는 500 | `git reset --hard <ROLLBACK_SHA>` (로컬) |
-| T2.0 hook payload에 context_usage 필드 부재 | 덤프 JSON에서 필드 미발견 | T2 fallback(자체 추정)로 전환, 계획 일부 수정 |
-| T1 `model:` 값이 Claude Code에서 인식 안 됨 | Agent 호출 시 "model not recognized" 에러 | T1 브랜치 커밋 revert, 대신 description 힌트로 전환 |
-| T3 라우팅이 의도와 달라짐 (smoke test 실패) | V-T3-4 실패 | description 재조정 후 재검증, 통과 못하면 revert |
-| T2 Stop 훅이 여전히 block 유발 | 세션 중 Phase 전이 멈춤 | T2 revert + block 금지 원칙 재확인 |
-| T9 negative 케이스 false-positive | V-T9-2 실패 | 패턴 완화 후 재테스트 |
-| 전체 실패 | 세션 불안정 | `git checkout master && git branch -D tuning/step0-phase3` |
+- `server.js`가 아직 완전한 thin bootstrap은 아니다.
+- CDN xterm asset은 CSP상 허용되어 있으나 vendoring 또는 SRI 고정이 남아 있다.
+- Evidence ledger는 현재 manifest 중심이며, append-only/signing은 아직 아니다.
+- Agent contract와 self-verification loop가 없어 “진짜 하네스”의 자동 판정 능력은 다음 단계에서 완성된다.
+- UI 전체 sanitizer 완료 전까지 `innerHTML` 사용 지점은 계속 추적해야 한다.
 
 ---
 
-## Codex rev1 비평 반영 매트릭스
+## 8. Recommended Next Order
 
-| 비평 ID | 심각도 | 대응 위치 |
-|---|---|---|
-| C1 `.claude` 자해 | critical | T9 패턴에서 `.claude[\\/]/` 제거, .env는 Write/Edit만 차단 |
-| C2 master 직접 push | critical | 세이프티 브랜치 규칙 신설 |
-| H1 리포 루트 모순 | high | 상단 고정 `workspace`, 모든 경로 상대화 |
-| H2 runtime 증명 없음 | high | T0 `/api/version` 신설 |
-| H3 모델 행동 가정 | high | 명시적 자극 프롬프트 + S1 인공 이벤트 |
-| H4 context_usage 필드 가정 | high | T2.0 payload 선조사 |
-| H5 Stop block 충돌 | high | 45% block 제거, 배너 안내만 |
-| H6 T9 단일 경로 | high | danger-gate.js 공용 모듈 + 두 진입점 |
-| M1 정규식 우회/오탐 | medium | tool-scoped 판정, Remove-Item/force-with-lease 추가 |
-| M2 model 스키마 미검증 | medium | T1.0 선행 확인, 실패 시 revert |
-| M3 V-T1-1 Windows 부적합 | medium | Node 스크립트로 교체 |
-| M4 T3 표면 검증 | medium | V-T3-4 라우팅 smoke test 추가 |
-| M5 29s 시간 가정 | medium | S5 timeout 120s |
-| M6 S7 CONCERNS 기준 | medium | critical=0 AND verdict ∈ {CLEAN, CONCERNS} |
-| M7 실패 덤프 미명시 | medium | 6개 필드 스키마 명시 |
-| M8 test first 순서 없음 | medium | T2/T9 failing test 선작성 |
-| M9 restart 절차 누락 | medium | 타임라인에 각 태스크 후 restart + /api/version 확인 |
-| L1 B4 오타 | low | "다행" → "여러 줄" |
-| L2 육안 확인 과다 | low | B2, V-T2-5는 DOM selector assert |
-| L3 push가 검토 경계 축소 | low | 브랜치 분리 + 각 태스크 후 self-review diff 단계 |
+1. Route Extraction
+2. Policy-as-Code Schema
+3. Evidence Ledger v2
+4. Replay Mode
+5. Agent Contract System
+6. Self-Verification Loop
+7. UI Safety Completion
+8. Remote/Team Mode Readiness
 
----
-
-## Next Section (참고)
-
-Phase 3 P0 완료 후 Phase 4 P1 (T4/T5/T6) → Phase 5 P2/P3 (T7/T8/T10) → Phase 6 측정. rev2 범위 밖.
+이 순서를 지키면 현재 84점대 하네스가 90점대 true harness로 자연스럽게 올라간다.

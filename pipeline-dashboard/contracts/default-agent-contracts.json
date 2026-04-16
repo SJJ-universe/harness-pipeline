@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "agents": {
+    "planner": {
+      "capabilities": ["read", "search", "write-plan"],
+      "forbiddenActions": ["execute-shell", "modify-source"],
+      "requiredArtifacts": ["plan"],
+      "testObligations": ["plan-has-verification-section"]
+    },
+    "critic": {
+      "capabilities": ["read", "search"],
+      "forbiddenActions": ["execute-shell", "modify-source", "write-plan"],
+      "requiredArtifacts": [],
+      "testObligations": []
+    },
+    "executor": {
+      "capabilities": ["read", "search", "modify-source", "execute-shell"],
+      "forbiddenActions": [],
+      "requiredArtifacts": [],
+      "testObligations": ["tests-pass"]
+    },
+    "validator": {
+      "capabilities": ["read", "search", "execute-shell"],
+      "forbiddenActions": ["modify-source"],
+      "requiredArtifacts": [],
+      "testObligations": ["verification-evidence"]
+    },
+    "default": {
+      "capabilities": ["read", "search"],
+      "forbiddenActions": [],
+      "requiredArtifacts": [],
+      "testObligations": []
+    }
+  }
+}

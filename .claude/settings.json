@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node C:/Users/SJ/workspace/pipeline-dashboard/hooks/harness-hook.js user-prompt"
+            "command": "node pipeline-dashboard/hooks/harness-hook.js user-prompt"
           }
         ]
       }
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node C:/Users/SJ/workspace/pipeline-dashboard/hooks/harness-hook.js pre-tool"
+            "command": "node pipeline-dashboard/hooks/harness-hook.js pre-tool"
           }
         ]
       }
@@ -28,7 +28,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node C:/Users/SJ/workspace/pipeline-dashboard/hooks/harness-hook.js post-tool"
+            "command": "node pipeline-dashboard/hooks/harness-hook.js post-tool"
           }
         ]
       }
@@ -39,7 +39,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node C:/Users/SJ/workspace/pipeline-dashboard/hooks/harness-hook.js stop"
+            "command": "node pipeline-dashboard/hooks/harness-hook.js stop"
           }
         ]
       }
@@ -50,7 +50,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node C:/Users/SJ/workspace/pipeline-dashboard/hooks/harness-hook.js session-end"
+            "command": "node pipeline-dashboard/hooks/harness-hook.js session-end"
           }
         ]
       }

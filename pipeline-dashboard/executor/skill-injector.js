@@ -7,6 +7,9 @@
 //       (1) frames the task, (2) injects skill context, (3) exposes prior
 //       artifacts, (4) enforces an output format the runner can parse.
 
+// P-3 Performance: total prompt budget to keep Codex calls fast & cheap
+const TOTAL_PROMPT_CAP = 12_000;
+
 class SkillInjector {
   constructor({ skillRegistry } = {}) {
     this.skillRegistry = skillRegistry; // optional; null → skill context skipped
@@ -75,7 +78,47 @@ class SkillInjector {
     lines.push(`- [low] <minor note>`);
     lines.push("");
     lines.push(`End with a "## Summary" section (1-2 sentences, verdict).`);
-    return lines.join("\n");
+
+    // P-3: enforce total prompt budget — drop oldest artifacts if over cap
+    // Split into body (truncatable) and suffix (non-truncatable output format)
+    const OUTPUT_FORMAT_HEADER = "## Required Output Format";
+    const formatIdx = lines.findIndex((l) => l === OUTPUT_FORMAT_HEADER);
+    const suffix = formatIdx >= 0 ? "\n" + lines.slice(formatIdx).join("\n") : "";
+    const bodyLines = formatIdx >= 0 ? lines.slice(0, formatIdx) : [...lines];
+    const BODY_BUDGET = TOTAL_PROMPT_CAP - suffix.length;
+
+    let result = bodyLines.join("\n");
+    if (result.length > BODY_BUDGET && priorArtifacts.length > 0) {
+      let dropCount = 0;
+      while (result.length > BODY_BUDGET && dropCount < priorArtifacts.length) {
+        dropCount++;
+        const kept = priorArtifacts.slice(dropCount);
+        const rebuilt = [];
+        const artifactHeader = "## Previous Phase Outputs";
+        const headerIdx = bodyLines.findIndex((l) => l === artifactHeader);
+        if (headerIdx >= 0) {
+          rebuilt.push(...bodyLines.slice(0, headerIdx));
+          if (kept.length > 0) {
+            rebuilt.push(artifactHeader);
+            for (const { phaseId, key, value } of kept) {
+              rebuilt.push(`### ${phaseId}.${key}`);
+              rebuilt.push(this._stringifyArtifact(value));
+              rebuilt.push("");
+            }
+          }
+          const findingsIdx = bodyLines.findIndex((l) => l === "## Known Findings So Far");
+          if (findingsIdx >= 0) rebuilt.push(...bodyLines.slice(findingsIdx));
+        } else {
+          rebuilt.push(...bodyLines);
+        }
+        result = rebuilt.join("\n");
+      }
+    }
+    // Hard truncate body only — suffix always preserved
+    if (result.length > BODY_BUDGET) {
+      result = result.slice(0, BODY_BUDGET) + "\n...(truncated)";
+    }
+    return result + suffix;
   }
 
   _collectPriorArtifacts(currentPhase, state) {

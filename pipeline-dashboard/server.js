@@ -1,4 +1,3 @@
-const express = require("express");
 const { WebSocketServer } = require("ws");
 const http = require("http");
 const { execSync, exec } = require("child_process");
@@ -28,18 +27,63 @@ const { SkillInjector } = require("./executor/skill-injector");
 const { PipelineAdapter } = require("./executor/pipeline-adapter");
 const skillRegistry = require("./skill-registry");
 const pipelineTemplates = require("./pipeline-templates.json");
+const { createAuthMiddleware, isLoopbackAddress } = require("./src/security/auth");
+const { resolveInsideRoot } = require("./src/security/pathSandbox");
+const {
+  validateCodexTrigger,
+  validateContextDiscover,
+  validateContextLoad,
+  validateEvent,
+  validateExecutorMode,
+  validateGeneralRun,
+  validateHook,
+} = require("./src/security/requestSchemas");
+const { createVersionInfo } = require("./src/runtime/version");
+const { RunRegistry } = require("./src/runtime/runRegistry");
+const { EvidenceLedger } = require("./src/runtime/evidenceLedger");
+const { createApp } = require("./src/server/createApp");
 
-const app = express();
+const APP_ROOT = __dirname;
+const REPO_ROOT = path.resolve(__dirname, "..");
+const BOOT_TIME = new Date().toISOString();
+const ALLOW_REMOTE = process.env.HARNESS_ALLOW_REMOTE === "1";
+const HOST = process.env.HOST || process.env.HARNESS_HOST || (ALLOW_REMOTE ? "0.0.0.0" : "127.0.0.1");
+const PORT = Number(process.env.PORT || process.env.HARNESS_PORT || 4201);
+const MODE = ALLOW_REMOTE ? "remote" : "local";
+const auth = createAuthMiddleware({ repoRoot: REPO_ROOT, host: HOST, allowRemote: ALLOW_REMOTE });
+const runsDir = path.join(REPO_ROOT, "runs");
+const runRegistry = new RunRegistry({ rootDir: runsDir });
+const evidenceLedger = new EvidenceLedger({ rootDir: runsDir });
+const app = createApp({ staticDir: path.join(__dirname, "public"), jsonLimit: "256kb" });
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 
-app.use(express.static(path.join(__dirname, "public")));
-app.use(express.json());
-
-// ── Health / Event / Reset API ──
-app.get("/api/health", (req, res) => {
-  res.json({ status: "ok", uptime: process.uptime(), terminal: !!pty });
+app.get("/api/auth/token", (req, res) => {
+  if (!ALLOW_REMOTE && !isLoopbackAddress(req.socket.remoteAddress)) {
+    return res.status(403).json({ error: "remote clients are disabled" });
+  }
+  res.json({ token: auth.token, header: "x-harness-token" });
 });
+
+app.get("/api/version", (req, res) => {
+  res.json(createVersionInfo({ repoRoot: REPO_ROOT, appRoot: APP_ROOT, bootTime: BOOT_TIME, mode: MODE }));
+});
+
+app.use("/api", auth.requireTrustedOrigin);
+app.use("/api", auth.requireStateChangingToken);
+
+// ── Route modules (extracted from monolithic server.js) ──
+const { createHealthRoutes } = require("./src/routes/healthRoutes");
+const { createEventRoutes } = require("./src/routes/eventRoutes");
+const { createContextRoutes } = require("./src/routes/contextRoutes");
+const { createHookRoutes } = require("./src/routes/hookRoutes");
+const { createExecutorRoutes } = require("./src/routes/executorRoutes");
+const { createTemplateRoutes } = require("./src/routes/templateRoutes");
+const { createServerControlRoutes } = require("./src/routes/serverControlRoutes");
+const { createCodexRoutes } = require("./src/routes/codexRoutes");
+const { createPipelineRoutes } = require("./src/routes/pipelineRoutes");
+
+app.use("/api", createHealthRoutes({ pty }));
 
 // Track connected clients + pty subprocesses so we can reap them on shutdown
 const clients = new Set();
@@ -87,7 +131,13 @@ function gracefulShutdown(reason = "manual") {
 
 wss.on("connection", (ws, req) => {
   // ── Terminal WebSocket ──
-  if (req.url === "/terminal") {
+  if (req.url.startsWith("/terminal")) {
+    const terminalUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+    const suppliedToken = terminalUrl.searchParams.get("token");
+    if ((!ALLOW_REMOTE && !isLoopbackAddress(req.socket.remoteAddress)) || !auth.validateToken(suppliedToken)) {
+      ws.close(1008, "unauthorized terminal");
+      return;
+    }
     if (!pty) {
       ws.send(JSON.stringify({ type: "output", data: "\r\n[node-pty 미설치] 터미널 기능을 사용하려면: npm install node-pty\r\n" }));
       ws.close();
@@ -100,12 +150,19 @@ wss.on("connection", (ws, req) => {
           : "powershell.exe")
       : "bash";
 
+    // Terminal boundary hardening: filter sensitive env vars
+    const safeEnv = { ...process.env };
+    for (const key of Object.keys(safeEnv)) {
+      if (/TOKEN|SECRET|KEY|PASSWORD|CREDENTIAL/i.test(key) && key !== "HARNESS_TOKEN") {
+        delete safeEnv[key];
+      }
+    }
     const ptyProcess = pty.spawn(shell, [], {
       name: "xterm-color",
       cols: 120,
       rows: 30,
       cwd: path.join(__dirname, ".."),
-      env: process.env,
+      env: safeEnv,
     });
     ptyProcesses.add(ptyProcess);
 
@@ -113,9 +170,12 @@ wss.on("connection", (ws, req) => {
       if (ws.readyState === 1) ws.send(JSON.stringify({ type: "output", data }));
     });
 
+    const MAX_TERMINAL_MSG = 16 * 1024; // 16KB message size limit
     ws.on("message", (msg) => {
       try {
-        const parsed = JSON.parse(msg.toString());
+        const raw = msg.toString();
+        if (raw.length > MAX_TERMINAL_MSG) return; // drop oversized messages
+        const parsed = JSON.parse(raw);
         if (parsed.type === "input") ptyProcess.write(parsed.data);
         if (parsed.type === "resize") ptyProcess.resize(parsed.cols, parsed.rows);
       } catch (e) { /* ignore malformed messages */ }
@@ -139,10 +199,47 @@ wss.on("connection", (ws, req) => {
   });
 });
 
-function broadcast(event) {
+// P-5 Performance: throttle high-frequency events, deliver critical events immediately
+const IMMEDIATE_TYPES = new Set([
+  "pipeline_start", "pipeline_complete", "pipeline_reset",
+  "phase_update", "gate_failed", "gate_evaluated", "gate_bypassed",
+  "tool_blocked", "error", "server_shutdown", "server_restart",
+  "general_plan_complete", "critique_received", "codex_trigger_done",
+  "codex_started", "context_alarm", "pipeline_mutated",
+  // Audit/append-only events — must not be coalesced (Codex T0 fix)
+  "tool_recorded", "hook_event", "log_message", "cycle_iteration",
+  "node_update", "artifact_captured",
+]);
+const _broadcastTimers = new Map();
+const THROTTLE_MS = 100;
+
+function _broadcastRaw(event) {
   const data = JSON.stringify(event);
   for (const ws of clients) {
     if (ws.readyState === 1) ws.send(data);
+  }
+}
+
+function broadcast(event) {
+  const type = event && event.type;
+  if (!type || IMMEDIATE_TYPES.has(type)) {
+    _broadcastRaw(event);
+    return;
+  }
+  // Throttle: first event of a type sends immediately, subsequent debounce 100ms
+  if (!_broadcastTimers.has(type)) {
+    _broadcastRaw(event);
+    _broadcastTimers.set(type, setTimeout(() => {
+      _broadcastTimers.delete(type);
+    }, THROTTLE_MS));
+  } else {
+    // Replace pending — when timer fires the latest event is already sent above
+    // on next fresh cycle. Store for edge case where timer just expired.
+    clearTimeout(_broadcastTimers.get(type));
+    _broadcastTimers.set(type, setTimeout(() => {
+      _broadcastTimers.delete(type);
+      _broadcastRaw(event);
+    }, THROTTLE_MS));
   }
 }
 
@@ -459,165 +556,19 @@ async function runPipeline(targetFile, mode = "demo") {
   });
 }
 
-// API endpoint to trigger pipeline
-app.post("/api/run", (req, res) => {
-  const { targetFile, mode } = req.body;
-  const file = targetFile || path.join(__dirname, "..", "test-sample", "server.js");
-  res.json({ status: "started", targetFile: file, mode: mode || "demo" });
-  runPipeline(file, mode || "demo");
-});
+// Route modules mounted after auth middleware
+app.use("/api", createEventRoutes({ broadcast, validateEvent, tokenUsageRef: tokenUsage }));
 
-// External event ingestion — skill posts events here via curl
-app.post("/api/event", (req, res) => {
-  const event = req.body;
-  if (!event || !event.type) {
-    return res.status(400).json({ error: "Missing event type" });
-  }
-  broadcast(event);
-  res.json({ status: "received", type: event.type });
-});
+app.use("/api", createContextRoutes({
+  REPO_ROOT,
+  validateContextDiscover,
+  validateContextLoad,
+  resolveInsideRoot,
+  discoverContextFiles,
+  loadFileContent,
+}));
 
-// Reset dashboard state
-app.post("/api/reset", (req, res) => {
-  tokenUsage = { claude: 0, codex: 0 };
-  broadcast({ type: "pipeline_reset", data: {} });
-  res.json({ status: "reset" });
-});
-
-// ── Skill Registry API ──
-app.get("/api/skills", (req, res) => {
-  if (req.query.category === "grouped") {
-    res.json(getSkillsByCategory());
-  } else if (req.query.q) {
-    res.json(searchSkills(req.query.q));
-  } else {
-    res.json(scanSkills());
-  }
-});
-
-app.get("/api/skills/:id", (req, res) => {
-  const content = getSkillContent(req.params.id);
-  if (content) {
-    res.json({ id: req.params.id, content });
-  } else {
-    res.status(404).json({ error: "Skill not found" });
-  }
-});
-
-app.get("/api/skills/harness/:type", (req, res) => {
-  res.json(getSkillsForHarness(req.params.type));
-});
-
-// ── Context Discovery API ──
-app.post("/api/context/discover", (req, res) => {
-  const projectRoot = req.body.projectRoot || path.join(__dirname, "..");
-  const context = discoverContextFiles(projectRoot);
-  res.json(context);
-});
-
-app.post("/api/context/load", (req, res) => {
-  const { filePath } = req.body;
-  if (!filePath) return res.status(400).json({ error: "Missing filePath" });
-  const content = loadFileContent(filePath);
-  if (content !== null) {
-    res.json({ filePath, content });
-  } else {
-    res.status(404).json({ error: "File not found" });
-  }
-});
-
-// ── Codex Triggers API ──
-// On-demand Codex invocation independent of the phase pipeline.
-// The UI shows one card per trigger; clicking runs Codex against a
-// trigger-specific context source (plan file / git diff / user input).
 const CODEX_TRIGGER_DIR = path.resolve(__dirname, "..", "_workspace");
-
-app.get("/api/codex/triggers", (req, res) => {
-  res.json(getTriggers());
-});
-
-app.post("/api/codex/trigger", async (req, res) => {
-  const { triggerId, userInput } = req.body || {};
-  const trigger = getTriggerById(triggerId);
-  if (!trigger) return res.status(404).json({ error: "Unknown trigger" });
-
-  let context;
-  try {
-    context = resolveTriggerContext(trigger, userInput);
-  } catch (err) {
-    return res.status(400).json({ error: err.message });
-  }
-  if (!context || !context.trim()) {
-    return res.status(400).json({ error: `컨텍스트가 비어있습니다 (${trigger.contextSource})` });
-  }
-
-  broadcast({
-    type: "codex_trigger_started",
-    data: { triggerId, name: trigger.name, contextBytes: context.length },
-  });
-
-  const prompt = trigger.promptTemplate(context);
-  const result = await codexRunner.exec(prompt, { timeoutMs: 120000 });
-
-  let filePath = null;
-  try {
-    if (!fs.existsSync(CODEX_TRIGGER_DIR)) fs.mkdirSync(CODEX_TRIGGER_DIR, { recursive: true });
-    const ts = new Date().toISOString().replace(/[:.]/g, "-");
-    filePath = path.join(CODEX_TRIGGER_DIR, `codex-trigger-${triggerId}-${ts}.md`);
-    const body = [
-      `# Codex Trigger — ${trigger.name}`,
-      `triggered: ${new Date().toISOString()}`,
-      `contextSource: ${trigger.contextSource}`,
-      `exitCode: ${result.exitCode}`,
-      "",
-      "## Summary",
-      result.summary || "(empty)",
-      "",
-      "## Findings",
-      (result.findings || []).length
-        ? result.findings.map((f) => `- [${f.severity}] ${f.message}`).join("\n")
-        : "(none)",
-      "",
-      "## Raw stdout",
-      "```",
-      result.stdout || "",
-      "```",
-      "",
-      "## Raw stderr",
-      "```",
-      result.stderr || "",
-      "```",
-      "",
-      "## Prompt",
-      "```",
-      prompt,
-      "```",
-    ].join("\n");
-    fs.writeFileSync(filePath, body, "utf-8");
-  } catch (err) {
-    console.error("[codex-trigger] persist failed:", err.message);
-  }
-
-  broadcast({
-    type: "codex_trigger_done",
-    data: {
-      triggerId,
-      name: trigger.name,
-      ok: result.ok,
-      summary: result.summary,
-      findingsCount: (result.findings || []).length,
-      filePath,
-    },
-  });
-
-  res.json({
-    ok: result.ok,
-    summary: result.summary,
-    findings: result.findings || [],
-    filePath,
-    exitCode: result.exitCode,
-  });
-});
 
 function resolveTriggerContext(trigger, userInput) {
   switch (trigger.contextSource) {
@@ -655,40 +606,19 @@ function resolveTriggerContext(trigger, userInput) {
   }
 }
 
-// ── Pipeline Templates API ──
-app.get("/api/pipeline/templates", (req, res) => {
-  res.json(pipelineTemplates);
-});
-
-app.get("/api/pipeline/templates/:id", (req, res) => {
-  const template = pipelineTemplates[req.params.id];
-  if (template) {
-    res.json(template);
-  } else {
-    res.status(404).json({ error: "Template not found" });
-  }
-});
+app.use("/api", createTemplateRoutes({ pipelineTemplates }));
 
 // ── Session Watcher (auto-pipeline detection) ──
 const sessionWatcher = new SessionWatcher(broadcast, path.resolve(__dirname, ".."));
-sessionWatcher.start();
 
-app.get("/api/watcher/status", (req, res) => {
-  res.json(sessionWatcher.getStatus());
-});
-
-app.post("/api/watcher/complete", (req, res) => {
-  sessionWatcher.completePipeline();
-  res.json({ status: "completed" });
-});
+// Remaining routes mounted below after dependency construction
 
 // ── Hook Router + Pipeline Executor (Phase 1 + 2 + 3 + 4) ──
-const hookRouter = new HookRouter({ broadcast, sessionWatcher });
-const codexRunner = new CodexRunner({});
-const claudeRunner = new ClaudeRunner({});
+const hookRouter = new HookRouter({ broadcast, sessionWatcher, runRegistry });
+const codexRunner = new CodexRunner({ runRegistry, repoRoot: REPO_ROOT });
+const claudeRunner = new ClaudeRunner({ runRegistry, repoRoot: REPO_ROOT });
 
-// Track in-progress general-run orchestrations so shutdown can abort them.
-let generalRunActive = null;
+// generalRunRef.active is set by pipelineRoutes — see above
 const pipelineState = new PipelineState();
 const qualityGate = new QualityGate();
 const skillInjector = new SkillInjector({ skillRegistry });
@@ -701,92 +631,32 @@ const pipelineExecutor = new PipelineExecutor({
   gate: qualityGate,
   injector: skillInjector,
   adapter: pipelineAdapter,
+  repoRoot: REPO_ROOT,
 });
 hookRouter.attachExecutor(pipelineExecutor);
 
-app.post("/api/hook", async (req, res) => {
-  try {
-    const { event, payload } = req.body || {};
-    if (!event) return res.status(400).json({ error: "missing event" });
-    const decision = await hookRouter.route(event, payload || {});
-    res.json(decision || {});
-  } catch (err) {
-    // Never block Claude on harness errors
-    console.error("[HookRouter] error:", err.message);
-    res.json({});
-  }
-});
+app.use("/api", createHookRoutes({ hookRouter, validateHook }));
+app.use("/api", createExecutorRoutes({ pipelineExecutor, validateExecutorMode }));
+app.use("/api", createServerControlRoutes({
+  broadcast,
+  clients,
+  gracefulShutdown,
+  server,
+  CLIENT_GRACE_MS,
+  shutdownTimerRef: { get timer() { return shutdownTimer; } },
+}));
+app.use("/api", createCodexRoutes({
+  codexRunner,
+  broadcast,
+  CODEX_TRIGGER_DIR,
+  getTriggers,
+  getTriggerById,
+  validateCodexTrigger,
+  resolveTriggerContext,
+}));
 
-app.get("/api/hook/stats", (req, res) => {
-  res.json(hookRouter.getStats());
-});
-
-// ── Executor Mode Control ──
-app.get("/api/executor/mode", (req, res) => {
-  res.json(pipelineExecutor.getStatus());
-});
-
-app.post("/api/executor/mode", (req, res) => {
-  const { enabled } = req.body || {};
-  pipelineExecutor.setEnabled(!!enabled);
-  res.json(pipelineExecutor.getStatus());
-});
-
-// ── Server Control API (stop / restart) ──
-app.post("/api/server/shutdown", (req, res) => {
-  res.json({ status: "shutting-down" });
-  setTimeout(() => gracefulShutdown("api-shutdown"), 100);
-});
-
-app.post("/api/server/restart", (req, res) => {
-  if (!process.send) {
-    res.status(409).json({ error: "not supervised — run via start.js for restart support" });
-    return;
-  }
-  res.json({ status: "restarting" });
-  setTimeout(() => {
-    try { broadcast({ type: "server_restart", data: {} }); } catch (_) {}
-    try { process.send({ type: "restart" }); } catch (_) {}
-    try { server.close(); } catch (_) {}
-    setTimeout(() => process.exit(0), 300);
-  }, 100);
-});
-
-app.get("/api/server/info", (req, res) => {
-  res.json({
-    pid: process.pid,
-    supervised: !!process.send,
-    clients: clients.size,
-    uptime: process.uptime(),
-    graceMs: CLIENT_GRACE_MS,
-    shutdownArmed: !!shutdownTimer,
-  });
-});
-
-// ── Codex CLI verification + general-plan critique ──
-// Uses CodexRunner so we exercise the exact code path the pipeline executor uses.
-app.post("/api/codex/verify", async (req, res) => {
-  const start = Date.now();
-  broadcast({ type: "codex_verify_started", data: {} });
-  const result = await codexRunner.exec(
-    "Respond with exactly the phrase: CODEX_OK. Do not run any tools or shell commands.",
-    { timeoutMs: 60000, cwd: path.join(__dirname, "..") }
-  );
-  const durationMs = Date.now() - start;
-  const detectedMarker = /CODEX_OK/.test(result.stdout || "");
-  const payload = {
-    ok: !!result.ok,
-    detectedMarker,
-    exitCode: result.exitCode,
-    durationMs,
-    stdoutSnippet: (result.stdout || "").slice(0, 1200),
-    stderrSnippet: (result.stderr || "").slice(0, 600),
-    error: result.error || null,
-    command: "codex exec --full-auto --skip-git-repo-check",
-  };
-  broadcast({ type: "codex_verify_result", data: payload });
-  res.json(payload);
-});
+// generalRunRef is shared with pipelineRoutes
+const generalRunRef = { active: null };
 
 // ── Automated General Pipeline (Claude plan ↔ Codex critique cycle) ──
 //
@@ -833,35 +703,17 @@ function buildCriticPrompt(task, plan) {
   );
 }
 
-app.post("/api/pipeline/general-run", async (req, res) => {
-  const { task, maxIterations } = req.body || {};
-  if (!task || typeof task !== "string" || task.trim().length < 3) {
-    return res.status(400).json({ error: "task (string, 3+ chars) is required" });
-  }
-  if (generalRunActive) {
-    return res.status(409).json({ error: "another general-run pipeline is already active" });
-  }
-
-  const maxIter = Math.max(1, Math.min(Number(maxIterations) || 3, 5));
-  const runId = `gr-${Date.now()}`;
-  generalRunActive = { runId, startedAt: Date.now(), aborted: false };
-
-  // Respond immediately — the orchestration runs asynchronously and
-  // streams events over the WebSocket so the dashboard updates live.
-  res.json({ status: "started", runId, task, maxIterations: maxIter });
-
-  runGeneralPipeline(task.trim(), maxIter, runId).catch((err) => {
-    broadcast({ type: "error", data: { phase: "general", node: "orchestrator", message: err.message } });
-  }).finally(() => {
-    generalRunActive = null;
-  });
-});
-
-app.post("/api/pipeline/general-abort", (req, res) => {
-  if (!generalRunActive) return res.json({ status: "no-active-run" });
-  generalRunActive.aborted = true;
-  res.json({ status: "abort-requested", runId: generalRunActive.runId });
-});
+app.use("/api", createPipelineRoutes({
+  broadcast,
+  REPO_ROOT,
+  resolveInsideRoot,
+  runPipeline,
+  runGeneralPipeline,
+  generalRunRef,
+  validateGeneralRun,
+  sessionWatcher,
+  skillRegistry,
+}));
 
 async function runGeneralPipeline(task, maxIter, runId) {
   const started = Date.now();
@@ -870,8 +722,12 @@ async function runGeneralPipeline(task, maxIter, runId) {
   let lastCritique = null;
   let iteration = 0;
 
-  // Helper: abort check
-  const isAborted = () => generalRunActive && generalRunActive.aborted;
+  // P-2 Performance: cumulative wall-clock timeout (default 10 min)
+  const PIPELINE_TIMEOUT_MS = Number(process.env.PIPELINE_TIMEOUT_MS) || 600_000;
+  const isTimedOut = () => (Date.now() - started) > PIPELINE_TIMEOUT_MS;
+
+  // Helper: abort or timeout check
+  const isAborted = () => generalRunRef.active && generalRunRef.active.aborted;
 
   broadcast({
     type: "pipeline_start",
@@ -885,7 +741,7 @@ async function runGeneralPipeline(task, maxIter, runId) {
   await new Promise((r) => setTimeout(r, 200));
   broadcast({ type: "node_update", data: { node: "context-analyzer", status: "completed" } });
   broadcast({ type: "phase_update", data: { phase: "A", status: "completed" } });
-  if (isAborted()) return finalizeGeneralRun({ aborted: true, runId, started });
+  if (isAborted() || isTimedOut()) return finalizeGeneralRun({ aborted: true, runId, started, reason: isTimedOut() ? "pipeline-timeout" : undefined });
 
   // ── Phase B (Claude 계획 수립) ──
   broadcast({ type: "phase_update", data: { phase: "B", status: "active" } });
@@ -919,10 +775,14 @@ async function runGeneralPipeline(task, maxIter, runId) {
   });
   broadcast({ type: "node_update", data: { node: "task-planner", status: "completed" } });
   broadcast({ type: "phase_update", data: { phase: "B", status: "completed" } });
-  if (isAborted()) return finalizeGeneralRun({ aborted: true, runId, started });
+  if (isAborted() || isTimedOut()) return finalizeGeneralRun({ aborted: true, runId, started, plan, reason: isTimedOut() ? "pipeline-timeout" : undefined });
 
   // ── Phase C ↔ D cycle ──
   while (iteration < maxIter) {
+    if (isTimedOut()) {
+      broadcast({ type: "log_message", data: { level: "warn", message: `[pipeline] wall-clock timeout (${PIPELINE_TIMEOUT_MS}ms) — stopping cycle` } });
+      return finalizeGeneralRun({ runId, started, plan, lastCritique, iterations: iteration, history, failed: true, reason: "pipeline-timeout" });
+    }
     // Phase C: Codex critique
     broadcast({ type: "phase_update", data: { phase: "C", status: "active" } });
     broadcast({ type: "node_update", data: { node: "plan-critic", status: "active" } });
@@ -1005,7 +865,7 @@ async function runGeneralPipeline(task, maxIter, runId) {
     broadcast({ type: "phase_update", data: { phase: "D", status: "active" } });
     broadcast({ type: "node_update", data: { node: "plan-refiner", status: "active" } });
 
-    if (isAborted()) return finalizeGeneralRun({ aborted: true, runId, started, plan, lastCritique });
+    if (isAborted() || isTimedOut()) return finalizeGeneralRun({ aborted: true, runId, started, plan, lastCritique, reason: isTimedOut() ? "pipeline-timeout" : undefined });
 
     const critiqueText =
       findings.map((f) => `- [${f.severity}] ${f.message}`).join("\n") +
@@ -1071,15 +931,62 @@ function finalizeGeneralRun({ runId, started, plan, lastCritique, iterations, hi
   return { verdict, iterations: iterations || 0, durationMs: duration, plan };
 }
 
-// OS signals → graceful shutdown
-process.on("SIGINT", () => gracefulShutdown("SIGINT"));
-process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+// P-1 Performance: write fast-policy.json at boot so hooks can do local checks
+function writeFastPolicy() {
+  try {
+    const policy = {};
+    for (const [id, tmpl] of Object.entries(pipelineTemplates)) {
+      if (!tmpl.phases) continue;
+      policy[id] = {};
+      for (const phase of tmpl.phases) {
+        policy[id][phase.id] = {
+          allowedTools: phase.allowedTools || [],
+          agent: phase.agent || null,
+        };
+      }
+    }
+    const dir = path.join(REPO_ROOT, ".harness");
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, "fast-policy.json"), JSON.stringify(policy, null, 2), "utf-8");
+  } catch (_) {
+    // Best-effort — hooks fall back to full HTTP if file missing
+  }
+}
 
-const PORT = process.env.PORT || 4200;
-server.listen(PORT, () => {
-  console.log(`Pipeline Dashboard: http://localhost:${PORT}`);
-  console.log(`  Terminal: ${pty ? "enabled" : "disabled (install node-pty)"}`);
-  console.log(`  Session Watcher: active`);
-  console.log(`  Supervised: ${process.send ? "yes (restart enabled)" : "no (start via start.js for restart)"}`);
-  console.log(`  Client grace period: ${CLIENT_GRACE_MS}ms`);
-});
+// OS signals → graceful shutdown
+let _ledgerCleanupInterval = null;
+
+function start(port = PORT, host = HOST) {
+  sessionWatcher.start();
+  writeFastPolicy();
+  // Evidence ledger cleanup — TTL-based, every 6 hours
+  try { evidenceLedger.cleanup(); } catch (_) {}
+  _ledgerCleanupInterval = setInterval(() => {
+    try { evidenceLedger.cleanup(); } catch (_) {}
+  }, 6 * 3600 * 1000);
+  server.once("close", () => {
+    try { sessionWatcher.stop(); } catch (_) {}
+    if (_ledgerCleanupInterval) clearInterval(_ledgerCleanupInterval);
+  });
+  return server.listen(port, host, () => {
+    console.log(`Pipeline Dashboard: http://${host}:${port}`);
+    console.log(`  Terminal: ${pty ? "enabled" : "disabled (install node-pty)"}`);
+    console.log(`  Session Watcher: active`);
+    console.log(`  Supervised: ${process.send ? "yes (restart enabled)" : "no (start via start.js for restart)"}`);
+    console.log(`  Client grace period: ${CLIENT_GRACE_MS}ms`);
+  });
+}
+
+if (require.main === module) {
+  process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+  process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+  start();
+}
+
+module.exports = {
+  app,
+  auth,
+  REPO_ROOT,
+  server,
+  start,
+};

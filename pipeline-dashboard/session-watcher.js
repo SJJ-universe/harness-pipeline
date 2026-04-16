@@ -69,6 +69,7 @@ class SessionWatcher {
   }
 
   start() {
+    if (this.checkInterval) return;
     this.projectDir = this._findProjectDir();
     if (!this.projectDir) {
       console.log("[SessionWatcher] Project dir not found, will retry...");
@@ -100,6 +101,9 @@ class SessionWatcher {
     if (this.checkInterval) clearInterval(this.checkInterval);
     if (this.dirWatcher) this.dirWatcher.close();
     if (this.idleTimer) clearTimeout(this.idleTimer);
+    this.checkInterval = null;
+    this.dirWatcher = null;
+    this.idleTimer = null;
     console.log("[SessionWatcher] Stopped");
   }
 

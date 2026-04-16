@@ -9,15 +9,25 @@
 // ENOENT fallback: tries `claude`, then `npx @anthropic-ai/claude-code`.
 
 const { spawn } = require("child_process");
+const dangerGate = require("../src/policy/dangerGate");
+
+function resolveCommand(cmd) {
+  if (process.platform !== "win32") return cmd;
+  if (/\.(cmd|bat|exe)$/i.test(cmd)) return cmd;
+  if (cmd === "npx" || cmd === "npm" || cmd === "claude") return `${cmd}.cmd`;
+  return cmd;
+}
 
 class ClaudeRunner {
-  constructor({ claudeCommand = "claude", fallbackCommands, defaultTimeoutMs = 180000 } = {}) {
+  constructor({ claudeCommand = "claude", fallbackCommands, defaultTimeoutMs = 180000, runRegistry, repoRoot } = {}) {
     this.claudeCommand = claudeCommand;
     this.fallbackCommands = fallbackCommands || [
       { cmd: "claude", argsPrefix: [] },
       { cmd: "npx", argsPrefix: ["@anthropic-ai/claude-code"] },
     ];
     this.defaultTimeoutMs = defaultTimeoutMs;
+    this.runRegistry = runRegistry || null;
+    this.repoRoot = repoRoot || process.cwd();
     this._resolvedSpec = null;
   }
 
@@ -35,7 +45,7 @@ class ClaudeRunner {
     return lastFailure || this._failure("no claude launcher available");
   }
 
-  _tryExec(spec, prompt, { timeoutMs, cwd, onChild } = {}) {
+  _tryExec(spec, prompt, { timeoutMs, cwd, onChild, explicitConfirmation = false } = {}) {
     return new Promise((resolve) => {
       // --bare: skip hooks, memory, auto-discovery
       // -p: print mode (non-interactive, exits after one response)
@@ -46,21 +56,40 @@ class ClaudeRunner {
         ...spec.argsPrefix,
         "-p",
         "--bare",
-        "--dangerously-skip-permissions",
         prompt,
       ];
+      if (process.env.HARNESS_ALLOW_DANGEROUS_AGENT === "1" && explicitConfirmation) {
+        args.splice(args.length - 1, 0, "--dangerously-skip-permissions");
+      }
+      const policyDecision = dangerGate.evaluate({
+        type: "agent-run",
+        cmd: spec.cmd,
+        args,
+        cwd,
+        repoRoot: this.repoRoot,
+        explicitConfirmation,
+      });
+      if (policyDecision.decision === "block") {
+        return resolve(this._failure(policyDecision.reason));
+      }
+      const runId = this.runRegistry?.start({
+        kind: "claude",
+        input: { prompt },
+        policyDecision,
+      });
       let child;
       try {
-        child = spawn(spec.cmd, args, {
+        child = spawn(resolveCommand(spec.cmd), args, {
           stdio: ["ignore", "pipe", "pipe"],
           windowsHide: true,
           cwd: cwd || process.cwd(),
-          shell: process.platform === "win32",
+          shell: false,
           env: process.env,
         });
       } catch (err) {
         const f = this._failure(`spawn failed (${spec.cmd}): ${err.message}`);
         f._enoent = /ENOENT/i.test(err.message);
+        if (runId) this.runRegistry?.complete(runId, f);
         return resolve(f);
       }
 
@@ -84,6 +113,7 @@ class ClaudeRunner {
         clearTimeout(timer);
         const f = this._failure(`spawn error (${spec.cmd}): ${err.message}`);
         f._enoent = /ENOENT/i.test(err.message);
+        if (runId) this.runRegistry?.complete(runId, f);
         resolve(f);
       });
 
@@ -99,14 +129,16 @@ class ClaudeRunner {
             stderr + stdout
           ) &&
           stdout.length < 2000;
-        resolve({
+        const result = {
           ok: code === 0,
           exitCode: code,
           stdout,
           stderr,
           text: stdout.trim(),
           _enoent: enoentLike,
-        });
+        };
+        if (runId) this.runRegistry?.complete(runId, result);
+        resolve(result);
       });
     });
   }

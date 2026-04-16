@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Harness Policy",
+  "description": "Declarative policy for phase tools, command blocklist, and structural lint rules",
+  "type": "object",
+  "required": ["version", "phases", "blockedCommandPatterns", "rootSandbox"],
+  "properties": {
+    "version": { "type": "integer", "minimum": 1 },
+    "phases": {
+      "type": "object",
+      "patternProperties": {
+        "^[A-Z][A-Z0-9]*$": {
+          "type": "object",
+          "properties": {
+            "allowedTools": {
+              "oneOf": [
+                { "type": "array", "items": { "type": "string" } },
+                { "type": "null" }
+              ]
+            },
+            "bash": {
+              "type": "object",
+              "required": ["mode"],
+              "properties": {
+                "mode": { "enum": ["blocked", "allowlisted", "open"] },
+                "readOnlyPrefixes": { "type": "array", "items": { "type": "string" } },
+                "allowPrefixes": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          }
+        }
+      }
+    },
+    "blockedCommandPatterns": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "rootSandbox": { "type": "boolean" },
+    "structuralLint": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "rule", "level"],
+        "properties": {
+          "id": { "type": "string" },
+          "rule": { "type": "string" },
+          "level": { "enum": ["error", "warning"] }
+        }
+      }
+    }
+  }
+}

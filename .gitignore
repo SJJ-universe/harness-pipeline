@@ -1,6 +1,8 @@
 # Runtime artifacts
 _workspace/
 node_modules/
+.harness/
+runs/
 
 # Unrelated projects in this workspace
 what-if-universe/

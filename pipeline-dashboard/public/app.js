@@ -610,17 +610,29 @@ function renderToolFeed() {
   if (!el) return;
   if (counter) counter.textContent = toolFeed.length;
   if (toolFeed.length === 0) {
-    el.innerHTML = '<div class="tool-empty">아직 기록된 툴 호출이 없습니다.</div>';
+    el.textContent = "";
+    el.appendChild(Object.assign(document.createElement("div"), { className: "tool-empty", textContent: "아직 기록된 툴 호출이 없습니다." }));
     return;
   }
-  el.innerHTML = toolFeed.map((e) => {
-    const time = formatHMS(e.ts);
-    const cls = e.blocked ? "tool-entry blocked" : "tool-entry";
-    const body = e.blocked
-      ? `<span class="tool-tool">${escapeHtml(e.tool)}</span><span class="tool-blocked">BLOCK</span><span class="tool-reason">${escapeHtml(e.reason || (e.allowed || []).join(","))}</span>`
-      : `<span class="tool-tool">${escapeHtml(e.tool)}</span><span></span><span class="tool-input">${escapeHtml(e.input || "")}</span>`;
-    return `<div class="${cls}"><span class="tool-time">${time}</span><span class="tool-phase">[${escapeHtml(e.phase)}]</span>${body}</div>`;
-  }).join("");
+  el.textContent = "";
+  for (const e of toolFeed) {
+    const div = document.createElement("div");
+    div.className = e.blocked ? "tool-entry blocked" : "tool-entry";
+    const time = Object.assign(document.createElement("span"), { className: "tool-time", textContent: formatHMS(e.ts) });
+    const phase = Object.assign(document.createElement("span"), { className: "tool-phase", textContent: `[${e.phase}]` });
+    const tool = Object.assign(document.createElement("span"), { className: "tool-tool", textContent: e.tool });
+    div.appendChild(time);
+    div.appendChild(phase);
+    div.appendChild(tool);
+    if (e.blocked) {
+      div.appendChild(Object.assign(document.createElement("span"), { className: "tool-blocked", textContent: "BLOCK" }));
+      div.appendChild(Object.assign(document.createElement("span"), { className: "tool-reason", textContent: e.reason || (e.allowed || []).join(",") }));
+    } else {
+      div.appendChild(document.createElement("span"));
+      div.appendChild(Object.assign(document.createElement("span"), { className: "tool-input", textContent: e.input || "" }));
+    }
+    el.appendChild(div);
+  }
 }
 
 function pushCritique(entry) {
@@ -635,30 +647,40 @@ function renderCritiqueTimeline() {
   if (!el) return;
   if (counter) counter.textContent = critiqueTimeline.length;
   if (critiqueTimeline.length === 0) {
-    el.innerHTML = '<div class="tool-empty">아직 수신된 비평이 없습니다.</div>';
+    el.textContent = "";
+    el.appendChild(Object.assign(document.createElement("div"), { className: "tool-empty", textContent: "아직 수신된 비평이 없습니다." }));
     return;
   }
-  el.innerHTML = critiqueTimeline.map((e) => {
-    const time = formatHMS(e.ts);
+  el.textContent = "";
+  for (const e of critiqueTimeline) {
+    const entry = document.createElement("div");
+    entry.className = "critique-entry";
+    const head = document.createElement("div");
+    head.className = "critique-head";
     const iter = e.iteration != null ? ` iter ${e.iteration}` : "";
-    const chips = ["critical", "high", "medium", "low", "note"]
-      .filter((k) => e.counts[k] > 0)
-      .map((k) => `<span class="sev-chip sev-${k}">${k.charAt(0).toUpperCase()}:${e.counts[k]}</span>`)
-      .join("");
-    const top = (e.topFindings || []).map((f) =>
-      `<div class="critique-finding"><span class="sev-dot sev-${f.severity}"></span>${escapeHtml(f.note)}</div>`
-    ).join("");
-    return `
-      <div class="critique-entry">
-        <div class="critique-head">
-          <span class="critique-time">${time}</span>
-          <span class="critique-phase">[${escapeHtml(e.phase)}${iter}]</span>
-          <span class="critique-chips">${chips}</span>
-        </div>
-        ${e.summary ? `<div class="critique-summary">${escapeHtml(e.summary)}</div>` : ""}
-        ${top}
-      </div>`;
-  }).join("");
+    head.appendChild(Object.assign(document.createElement("span"), { className: "critique-time", textContent: formatHMS(e.ts) }));
+    head.appendChild(Object.assign(document.createElement("span"), { className: "critique-phase", textContent: `[${e.phase}${iter}]` }));
+    const chipsSpan = document.createElement("span");
+    chipsSpan.className = "critique-chips";
+    for (const k of ["critical", "high", "medium", "low", "note"]) {
+      if (e.counts[k] > 0) {
+        chipsSpan.appendChild(Object.assign(document.createElement("span"), { className: `sev-chip sev-${k}`, textContent: `${k.charAt(0).toUpperCase()}:${e.counts[k]}` }));
+      }
+    }
+    head.appendChild(chipsSpan);
+    entry.appendChild(head);
+    if (e.summary) {
+      entry.appendChild(Object.assign(document.createElement("div"), { className: "critique-summary", textContent: e.summary }));
+    }
+    for (const f of (e.topFindings || [])) {
+      const finding = document.createElement("div");
+      finding.className = "critique-finding";
+      finding.appendChild(Object.assign(document.createElement("span"), { className: `sev-dot sev-${f.severity}` }));
+      finding.appendChild(document.createTextNode(f.note));
+      entry.appendChild(finding);
+    }
+    el.appendChild(entry);
+  }
 }
 
 function renderFindingCounts() {
@@ -777,35 +799,29 @@ function addLog(tag, message, isError = false, stageKeys = []) {
     : tag === "verdict" ? " verdict-bubble"
     : "";
 
-  const html = `
-    <div class="log-avatar ${tag}">${avatar.icon}</div>
-    <div class="log-bubble${bubbleClass}">
-      <div class="log-bubble-header">
-        <span class="log-sender">${avatar.label}</span>
-        <span class="log-time">${time}</span>
-      </div>
-      <div class="log-msg${isError ? " error-msg" : ""}">${escapeHtml(message)}</div>
-    </div>
-  `;
-
   const entry = document.createElement("div");
   entry.className = "log-entry";
-  entry.innerHTML = html;
+  const avatarEl = Object.assign(document.createElement("div"), { className: `log-avatar ${tag}`, textContent: avatar.icon });
+  const bubble = Object.assign(document.createElement("div"), { className: `log-bubble${bubbleClass}` });
+  const header = document.createElement("div");
+  header.className = "log-bubble-header";
+  header.appendChild(Object.assign(document.createElement("span"), { className: "log-sender", textContent: avatar.label }));
+  header.appendChild(Object.assign(document.createElement("span"), { className: "log-time", textContent: time }));
+  bubble.appendChild(header);
+  bubble.appendChild(Object.assign(document.createElement("div"), { className: `log-msg${isError ? " error-msg" : ""}`, textContent: message }));
+  entry.appendChild(avatarEl);
+  entry.appendChild(bubble);
   container.appendChild(entry);
   container.scrollTop = container.scrollHeight;
 
-  // Store for per-stage popup (flat html for modal)
-  const flatHtml = `
-    <span class="log-time">${time}</span>
-    <span class="log-msg${isError ? " error-msg" : ""}">${escapeHtml(message)}</span>
-  `;
+  // Store text for per-stage popup modal
   for (const key of stageKeys) {
-    addStageLog(key, flatHtml);
+    addStageLog(key, { time, message, isError });
   }
 }
 
 function clearLog() {
-  document.getElementById("log-content").innerHTML = "";
+  document.getElementById("log-content").textContent = "";
 }
 
 function escapeHtml(str) {
@@ -859,10 +875,21 @@ function openModal(title, key) {
   titleEl.textContent = title;
   const logs = stageLogs[key] || [];
 
+  body.textContent = "";
   if (logs.length === 0) {
-    body.innerHTML = '<div class="modal-empty">이 단계의 로그가 아직 없습니다.</div>';
+    body.appendChild(Object.assign(document.createElement("div"), { className: "modal-empty", textContent: "이 단계의 로그가 아직 없습니다." }));
   } else {
-    body.innerHTML = logs.map((html) => `<div class="log-entry">${html}</div>`).join("");
+    for (const log of logs) {
+      const entry = document.createElement("div");
+      entry.className = "log-entry";
+      if (typeof log === "object" && log.time) {
+        entry.appendChild(Object.assign(document.createElement("span"), { className: "log-time", textContent: log.time }));
+        entry.appendChild(Object.assign(document.createElement("span"), { className: `log-msg${log.isError ? " error-msg" : ""}`, textContent: log.message }));
+      } else {
+        entry.textContent = String(log);
+      }
+      body.appendChild(entry);
+    }
   }
 
   overlay.classList.add("visible");
@@ -941,7 +968,8 @@ function initTerminal() {
   });
 
   const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-  termWs = new WebSocket(`${protocol}//${location.host}/terminal`);
+  const terminalToken = encodeURIComponent(window.HARNESS_TOKEN || "");
+  termWs = new WebSocket(`${protocol}//${location.host}/terminal?token=${terminalToken}`);
 
   let promptReady = false;
 
@@ -1002,12 +1030,25 @@ function loadCodexTriggers() {
       codexTriggers = triggers;
       const container = document.getElementById("trigger-cards");
       if (!container) return;
-      container.innerHTML = triggers.map((t) => `
-        <div class="recommend-card recommend-card--${t.color}" data-trigger="${t.id}" onclick="runCodexTrigger('${t.id}')">
-          <div class="recommend-card-name">${t.name}</div>
-          <div class="recommend-card-reason">${t.description}</div>
-        </div>
-      `).join("");
+      container.textContent = "";
+      for (const t of triggers) {
+        const card = document.createElement("div");
+        card.className = `recommend-card recommend-card--${String(t.color || "default").replace(/[^a-z0-9_-]/gi, "")}`;
+        card.dataset.trigger = t.id;
+        card.addEventListener("click", () => runCodexTrigger(t.id));
+
+        const name = document.createElement("div");
+        name.className = "recommend-card-name";
+        name.textContent = t.name || t.id;
+
+        const reason = document.createElement("div");
+        reason.className = "recommend-card-reason";
+        reason.textContent = t.description || "";
+
+        card.appendChild(name);
+        card.appendChild(reason);
+        container.appendChild(card);
+      }
     })
     .catch((err) => addLog("error", `Codex 트리거 로드 실패: ${err.message}`));
 }
@@ -1241,12 +1282,16 @@ function showFinalPlan(data) {
   });
 
   title.textContent = "최종 플랜 — 범용 파이프라인";
-  meta.innerHTML =
-    `판정: <span class="${verdictClass}">${verdict}</span>` +
+  meta.textContent = "";
+  const verdictSpan = Object.assign(document.createElement("span"), { className: verdictClass, textContent: verdict });
+  meta.appendChild(document.createTextNode("판정: "));
+  meta.appendChild(verdictSpan);
+  meta.appendChild(document.createTextNode(
     ` · 반복: ${data.iterations || 0}` +
     ` · 소요: ${Math.round((data.durationMs || 0) / 100) / 10}s` +
     ` · 최종 findings: C${counts.critical}/H${counts.high}/M${counts.medium}/L${counts.low}/N${counts.note}` +
-    (data.reason ? ` · 이유: ${data.reason}` : "");
+    (data.reason ? ` · 이유: ${data.reason}` : "")
+  ));
   text.textContent = data.finalPlan || "(플랜 없음)";
   overlay.classList.add("visible");
 }

@@ -8,9 +8,17 @@
 // Parse failures are non-fatal — raw stdout is always preserved.
 
 const { spawn } = require("child_process");
+const dangerGate = require("../src/policy/dangerGate");
+
+function resolveCommand(cmd) {
+  if (process.platform !== "win32") return cmd;
+  if (/\.(cmd|bat|exe)$/i.test(cmd)) return cmd;
+  if (cmd === "npx" || cmd === "npm" || cmd === "codex") return `${cmd}.cmd`;
+  return cmd;
+}
 
 class CodexRunner {
-  constructor({ codexCommand = "codex", fallbackCommands, defaultTimeoutMs = 120000 } = {}) {
+  constructor({ codexCommand = "codex", fallbackCommands, defaultTimeoutMs = 120000, runRegistry, repoRoot } = {}) {
     this.codexCommand = codexCommand;
     // On ENOENT, try these alternative launch specs in order.
     // Each entry is { cmd, argsPrefix }. The runtime appends
@@ -21,6 +29,8 @@ class CodexRunner {
       { cmd: "npx", argsPrefix: ["-y", "@openai/codex"] },
     ];
     this.defaultTimeoutMs = defaultTimeoutMs;
+    this.runRegistry = runRegistry || null;
+    this.repoRoot = repoRoot || process.cwd();
     // Resolved launch spec (after first successful spawn)
     this._resolvedSpec = null;
   }
@@ -50,17 +60,33 @@ class CodexRunner {
       // Windows shell when `shell: true` concatenates args. Stdin avoids the
       // whole shell-quoting problem.
       const args = [...spec.argsPrefix, "exec", "--full-auto", "--skip-git-repo-check"];
+      const policyDecision = dangerGate.evaluate({
+        type: "agent-run",
+        cmd: spec.cmd,
+        args,
+        cwd,
+        repoRoot: this.repoRoot,
+      });
+      if (policyDecision.decision === "block") {
+        return resolve(this._failure(policyDecision.reason));
+      }
+      const runId = this.runRegistry?.start({
+        kind: "codex",
+        input: { prompt },
+        policyDecision,
+      });
       let child;
       try {
-        child = spawn(spec.cmd, args, {
+        child = spawn(resolveCommand(spec.cmd), args, {
           stdio: ["pipe", "pipe", "pipe"],
           windowsHide: true,
           cwd: cwd || process.cwd(),
-          shell: process.platform === "win32",
+          shell: false,
         });
       } catch (err) {
         const f = this._failure(`spawn failed (${spec.cmd}): ${err.message}`);
         f._enoent = /ENOENT/i.test(err.message);
+        if (runId) this.runRegistry?.complete(runId, f);
         return resolve(f);
       }
 
@@ -93,6 +119,7 @@ class CodexRunner {
         clearTimeout(timer);
         const f = this._failure(`spawn error (${spec.cmd}): ${err.message}`);
         f._enoent = /ENOENT/i.test(err.message);
+        if (runId) this.runRegistry?.complete(runId, f);
         resolve(f);
       });
 
@@ -110,7 +137,7 @@ class CodexRunner {
             stderr + stdout
           ) &&
           (stdout.length < 2000);
-        resolve({
+        const result = {
           ok: code === 0,
           exitCode: code,
           stdout,
@@ -118,7 +145,9 @@ class CodexRunner {
           summary: this._extractSummary(stdout),
           findings: this._extractFindings(stdout),
           _enoent: enoentLike,
-        });
+        };
+        if (runId) this.runRegistry?.complete(runId, result);
+        resolve(result);
       });
     });
   }

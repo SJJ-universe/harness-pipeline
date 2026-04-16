@@ -18,6 +18,10 @@ const { PipelineState } = require("./pipeline-state");
 const { QualityGate } = require("./quality-gate");
 const { SkillInjector } = require("./skill-injector");
 const { PipelineAdapter } = require("./pipeline-adapter");
+const { enforceTemplateDefaults, evaluateTool } = require("../src/policy/phasePolicy");
+const dangerGate = require("../src/policy/dangerGate");
+const { checkToolAgainstContract } = require("../src/contracts/agentContracts");
+const { ClaimVerifier } = require("../src/verification/claimVerifier");
 
 // _workspace/ lives in the user's project root (one level above pipeline-dashboard).
 // Codex critiques are persisted here so Claude can Read them between Phase C → D.
@@ -44,7 +48,7 @@ const TEMPLATE_MAP = {
 const MAX_GATE_RETRIES = 3;
 
 class PipelineExecutor {
-  constructor({ broadcast, templates, codex, state, gate, injector, adapter, workspaceDir }) {
+  constructor({ broadcast, templates, codex, state, gate, injector, adapter, workspaceDir, repoRoot }) {
     this.broadcast = broadcast;
     this.templates = templates;
     this.codex = codex;
@@ -54,6 +58,7 @@ class PipelineExecutor {
     this.adapter = adapter || new PipelineAdapter({ templates });
     this.workspaceDir =
       workspaceDir || process.env.HARNESS_WORKSPACE_DIR || DEFAULT_WORKSPACE_DIR;
+    this.repoRoot = repoRoot || path.resolve(__dirname, "..", "..");
 
     this.active = null;
     this.enabled = process.env.HARNESS_ENABLED === "1";
@@ -99,7 +104,7 @@ class PipelineExecutor {
     // Deep clone so Phase 4 mutations don't corrupt the source template
     this.active = {
       templateId,
-      template: structuredClone(template),
+      template: enforceTemplateDefaults(template),
       phaseIdx: -1,
       iteration: 0,
       gateRetries: 0,
@@ -120,6 +125,43 @@ class PipelineExecutor {
     if (!this.enabled || !this.active) return {};
     const phase = this._currentPhase();
     if (!phase) return {};
+
+    const danger = dangerGate.evaluate({
+      type: tool === "Bash" ? "command" : "tool",
+      tool,
+      input: _input || {},
+      command: _input?.command,
+      phaseId: phase.id,
+      repoRoot: this.repoRoot,
+      path: _input?.file_path || _input?.filePath || _input?.path,
+    });
+    if (danger.decision === "block") {
+      this.broadcast({
+        type: "tool_blocked",
+        data: { phase: phase.id, tool, reason: danger.reason, matchedRule: danger.matchedRule },
+      });
+      return { decision: "block", reason: danger.reason };
+    }
+
+    const policy = evaluateTool({ phase, tool, input: _input || {} });
+    if (policy.decision === "block") {
+      this.broadcast({
+        type: "tool_blocked",
+        data: { phase: phase.id, tool, reason: policy.reason },
+      });
+      return { decision: "block", reason: policy.reason };
+    }
+
+    // Agent contract enforcement
+    const agentName = this._resolveAgentName(phase);
+    const contractResult = checkToolAgainstContract(agentName, tool, _input || {});
+    if (!contractResult.allowed) {
+      this.broadcast({
+        type: "tool_blocked",
+        data: { phase: phase.id, tool, reason: contractResult.reason, source: "contract" },
+      });
+      return { decision: "block", reason: contractResult.reason };
+    }
 
     const allowed = phase.allowedTools;
     if (!allowed || allowed.length === 0) return {};
@@ -324,6 +366,17 @@ class PipelineExecutor {
     return this.active.template.phases[this.active.phaseIdx] || null;
   }
 
+  _resolveAgentName(phase) {
+    if (!phase) return "default";
+    if (phase.agent === "codex") return "critic";
+    const id = (phase.id || "").toUpperCase();
+    if (id === "A" || id === "B") return "planner";
+    if (id === "C") return "critic";
+    if (id === "D" || id === "E") return "executor";
+    if (id === "F") return "validator";
+    return "default";
+  }
+
   _captureArtifacts(phase, tool, response) {
     const rules = phase.artifactRules;
     if (!Array.isArray(rules) || rules.length === 0) return;
@@ -518,12 +571,24 @@ class PipelineExecutor {
 
   _complete(reason) {
     if (!this.active) return;
+
+    // Self-verification: check claim-vs-evidence before declaring complete
+    const verifier = new ClaimVerifier();
+    const verification = verifier.verify(this.state.snapshot());
+    if (!verification.pass && reason !== "disabled" && reason !== "session-end") {
+      this.broadcast({
+        type: "claim_verification_failed",
+        data: { missing: verification.missing, results: verification.results },
+      });
+    }
+
     const snapshot = {
       templateId: this.active.templateId,
       durationMs: Date.now() - this.active.startedAt,
       iteration: this.active.iteration,
       state: this.state.snapshot(),
       reason,
+      verification,
     };
     this.broadcast({ type: "pipeline_complete", data: snapshot });
     this.active = null;

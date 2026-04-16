@@ -11,10 +11,22 @@
 // On any failure we exit(0) with empty stdout so Claude is never blocked by harness issues.
 
 const http = require("http");
+const fs = require("fs");
+const path = require("path");
 
 const EVENT = process.argv[2] || "unknown";
 const HOST = process.env.HARNESS_HOST || "127.0.0.1";
-const PORT = parseInt(process.env.HARNESS_PORT || "4200", 10);
+const PORT = parseInt(process.env.HARNESS_PORT || "4201", 10);
+const HARNESS_ROOT = process.env.HARNESS_ROOT || path.resolve(__dirname, "..", "..");
+
+function readHarnessToken() {
+  if (process.env.HARNESS_TOKEN) return process.env.HARNESS_TOKEN;
+  try {
+    return fs.readFileSync(path.join(HARNESS_ROOT, ".harness", "local-token"), "utf-8").trim();
+  } catch (_) {
+    return "";
+  }
+}
 
 // Per-event timeouts. Stop can trigger a Codex phase which itself waits up to
 // 120s; we add margin so the hook doesn't bail before the critique is persisted.
@@ -26,6 +38,11 @@ const TIMEOUTS = {
   "session-end": 5000,
 };
 const TIMEOUT_MS = TIMEOUTS[EVENT] || 1500;
+
+// P-1 Performance: safe read-only tools fire HTTP but don't wait for response
+const FIRE_AND_FORGET_TOOLS = new Set([
+  "Read", "Glob", "Grep", "Agent", "TodoWrite", "WebSearch", "WebFetch",
+]);
 
 const chunks = [];
 process.stdin.on("data", (c) => chunks.push(c));
@@ -39,6 +56,40 @@ process.stdin.on("end", () => {
   }
 
   const body = JSON.stringify({ event: EVENT, payload });
+
+  // Fast path: post-tool events for safe tools → fire HTTP and exit immediately
+  if (EVENT === "post-tool" && FIRE_AND_FORGET_TOOLS.has(payload?.tool_name)) {
+    const fastReq = http.request(
+      {
+        host: HOST,
+        port: PORT,
+        path: "/api/hook",
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "content-length": Buffer.byteLength(body),
+          "x-harness-token": readHarnessToken(),
+        },
+        timeout: 2000,
+      },
+      () => {} // ignore response
+    );
+    fastReq.on("error", () => {});
+    fastReq.on("timeout", () => { try { fastReq.destroy(); } catch (_) {} });
+    fastReq.write(body);
+    fastReq.end(() => {
+      // Wait for TCP flush before exiting — prevents dropped telemetry
+      process.stdout.write("{}");
+      process.exit(0);
+    });
+    // Hard timeout: exit even if flush stalls (200ms max)
+    setTimeout(() => {
+      process.stdout.write("{}");
+      process.exit(0);
+    }, 200);
+    return; // prevent fall-through to normal HTTP path
+  }
+
   const req = http.request(
     {
       host: HOST,
@@ -48,6 +99,7 @@ process.stdin.on("end", () => {
       headers: {
         "content-type": "application/json",
         "content-length": Buffer.byteLength(body),
+        "x-harness-token": readHarnessToken(),
       },
       timeout: TIMEOUT_MS,
     },

@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "phases": {
+    "A": {
+      "allowedTools": ["Read", "Glob", "Grep", "Agent", "TodoWrite"],
+      "bash": { "mode": "blocked", "readOnlyPrefixes": ["git status", "git diff", "git log", "rg", "Get-Content", "Get-ChildItem"] }
+    },
+    "B": {
+      "allowedTools": ["Read", "Glob", "Grep", "Agent", "TodoWrite", "Write"],
+      "bash": { "mode": "blocked" }
+    },
+    "C": {
+      "allowedTools": null,
+      "bash": { "mode": "open" }
+    },
+    "D": {
+      "allowedTools": ["Read", "Glob", "Grep", "Agent", "TodoWrite", "Write", "Edit"],
+      "bash": { "mode": "blocked" }
+    },
+    "E": {
+      "allowedTools": ["Read", "Edit", "Write", "Bash", "Glob", "Grep", "TodoWrite", "Agent"],
+      "bash": { "mode": "allowlisted", "allowPrefixes": ["npm test", "npm run", "node", "git status", "git diff", "git log"] }
+    },
+    "F": {
+      "allowedTools": ["Read", "Bash", "Glob", "Grep", "TodoWrite", "Agent"],
+      "bash": { "mode": "allowlisted", "allowPrefixes": ["npm test", "npm run", "node", "git status", "git diff"] }
+    }
+  },
+  "blockedCommandPatterns": [
+    "\\brm\\s+-rf\\b",
+    "\\bRemove-Item\\b[\\s\\S]*\\b-Recurse\\b",
+    "\\bgit\\s+reset\\s+--hard\\b",
+    "\\bgit\\s+checkout\\s+--\\b",
+    "\\bformat\\s+[a-z]:",
+    "\\bdel\\s+\\/s\\b",
+    "--dangerously-skip-permissions",
+    "\\bgit\\s+push\\s+--force\\b",
+    "\\bnpm\\s+uninstall\\b",
+    "\\bpip\\s+uninstall\\b"
+  ],
+  "rootSandbox": true,
+  "structuralLint": [
+    {
+      "id": "security-no-executor-import",
+      "rule": "src/security/** must not require from executor/**",
+      "level": "error"
+    },
+    {
+      "id": "hooks-no-runtime-import",
+      "rule": "hooks/** must not require from src/runtime/**",
+      "level": "warning"
+    }
+  ]
+}

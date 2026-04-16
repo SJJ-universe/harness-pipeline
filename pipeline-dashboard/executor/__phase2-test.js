@@ -6,6 +6,7 @@
 
 const { PipelineExecutor } = require("./pipeline-executor");
 const templates = require("../pipeline-templates.json");
+const path = require("path");
 
 function makeFakeCodex(result = { ok: true, summary: "no issues", findings: [] }) {
   return {
@@ -55,7 +56,7 @@ async function test2_allowed_tools_block() {
   await assert(blockBash && blockBash.decision === "block", "Bash blocked in Phase A");
   await assert(/Bash/.test(blockBash.reason), "reason mentions Bash");
 
-  const allowRead = await ex.onPreTool("Read", { file_path: "/tmp/x" });
+  const allowRead = await ex.onPreTool("Read", { file_path: path.resolve(__dirname, "pipeline-executor.js") });
   await assert(!allowRead.decision, "Read allowed in Phase A");
 
   const allowGlob = await ex.onPreTool("Glob", { pattern: "**/*.js" });

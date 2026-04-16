@@ -103,7 +103,15 @@ function getSkillsForHarness(harnessType) {
 }
 
 function getSkillContent(skillId) {
+  if (!/^[a-zA-Z0-9._-]+$/.test(String(skillId || ""))) {
+    return null;
+  }
   const skillPath = path.join(SKILLS_DIR, skillId, "SKILL.md");
+  const resolved = path.resolve(skillPath);
+  const root = path.resolve(SKILLS_DIR);
+  if (!resolved.startsWith(root + path.sep)) {
+    return null;
+  }
   try {
     return fs.readFileSync(skillPath, "utf-8");
   } catch (_) {
