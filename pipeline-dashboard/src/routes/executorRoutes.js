@@ -20,6 +20,13 @@ function createExecutorRoutes({ pipelineExecutor, validateExecutorMode }) {
     res.json(pipelineExecutor.getStatus());
   });
 
+  router.post("/executor/reset", (_req, res) => {
+    if (typeof pipelineExecutor.resetActive !== "function") {
+      return res.status(501).json({ error: "executor reset is unavailable" });
+    }
+    res.json(pipelineExecutor.resetActive("manual-reset"));
+  });
+
   return router;
 }
 

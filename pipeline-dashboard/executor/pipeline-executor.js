@@ -22,6 +22,7 @@ const { enforceTemplateDefaults, evaluateTool } = require("../src/policy/phasePo
 const dangerGate = require("../src/policy/dangerGate");
 const { checkToolAgainstContract } = require("../src/contracts/agentContracts");
 const { ClaimVerifier } = require("../src/verification/claimVerifier");
+const { createCheckpointStore } = require("./checkpoint");
 
 // _workspace/ lives in the user's project root (one level above pipeline-dashboard).
 // Codex critiques are persisted here so Claude can Read them between Phase C → D.
@@ -48,7 +49,7 @@ const TEMPLATE_MAP = {
 const MAX_GATE_RETRIES = 3;
 
 class PipelineExecutor {
-  constructor({ broadcast, templates, codex, state, gate, injector, adapter, workspaceDir, repoRoot }) {
+  constructor({ broadcast, templates, codex, state, gate, injector, adapter, workspaceDir, repoRoot, checkpointStore }) {
     this.broadcast = broadcast;
     this.templates = templates;
     this.codex = codex;
@@ -59,6 +60,9 @@ class PipelineExecutor {
     this.workspaceDir =
       workspaceDir || process.env.HARNESS_WORKSPACE_DIR || DEFAULT_WORKSPACE_DIR;
     this.repoRoot = repoRoot || path.resolve(__dirname, "..", "..");
+    // Checkpoint store: must be explicitly injected (via server.js) for disk persistence.
+    // Default is a no-op store — safe for tests that don't need persistence.
+    this.checkpointStore = checkpointStore || { path: null, save() {}, load() { return null; }, clear() {} };
 
     this.active = null;
     this.enabled = process.env.HARNESS_ENABLED === "1";
@@ -91,6 +95,17 @@ class PipelineExecutor {
   async startFromPrompt(prompt) {
     if (!this.enabled) return {};
     if (!prompt || typeof prompt !== "string") return {};
+
+    // Guard A: resume active pipeline instead of restarting Phase A
+    if (this.active) {
+      return this._resumeActivePipeline();
+    }
+
+    // Guard B: restore from disk checkpoint (survives server restart)
+    const restored = this._restoreFromCheckpoint();
+    if (restored) {
+      return restored;
+    }
 
     const taskType = this._detectTaskType(prompt);
     if (!taskType) return {};
@@ -411,6 +426,74 @@ class PipelineExecutor {
     return "default";
   }
 
+  _resumeActivePipeline() {
+    const phase = this._currentPhase();
+    if (!phase) return {};
+    this.broadcast({
+      type: "pipeline_resume",
+      data: {
+        templateId: this.active.templateId,
+        phase: phase.id,
+        phaseIdx: this.active.phaseIdx,
+      },
+    });
+    return this._buildPhaseGuidance(phase);
+  }
+
+  _restoreFromCheckpoint() {
+    const checkpoint = this.checkpointStore.load();
+    if (!checkpoint) return null;
+
+    const template = checkpoint.templateSnapshot || this.templates[checkpoint.templateId];
+    if (!template || !Array.isArray(template.phases)) {
+      this.checkpointStore.clear();
+      return null;
+    }
+
+    this.active = {
+      templateId: checkpoint.templateId,
+      template: enforceTemplateDefaults(structuredClone(template)),
+      phaseIdx: checkpoint.phaseIdx,
+      iteration: checkpoint.iteration || 0,
+      gateRetries: checkpoint.gateRetries || 0,
+      userPrompt: checkpoint.userPrompt || "",
+      startedAt: checkpoint.startedAt || Date.now(),
+    };
+
+    this.state.reset({
+      userPrompt: checkpoint.userPrompt || "",
+      templateId: checkpoint.templateId,
+    });
+
+    const phase = this._currentPhase();
+    this.broadcast({
+      type: "pipeline_restored",
+      data: {
+        templateId: checkpoint.templateId,
+        phase: phase && phase.id,
+        phaseIdx: checkpoint.phaseIdx,
+        savedAt: checkpoint.savedAt,
+      },
+    });
+
+    // Replay phase states for UI rendering
+    for (let i = 0; i < checkpoint.phaseIdx; i++) {
+      const p = this.active.template.phases[i];
+      if (p) this.broadcast({ type: "phase_update", data: { phase: p.id, status: "completed" } });
+    }
+    if (phase) this.broadcast({ type: "phase_update", data: { phase: phase.id, status: "active" } });
+
+    return phase ? this._buildPhaseGuidance(phase) : {};
+  }
+
+  resetActive(reason = "manual-reset") {
+    this.active = null;
+    this.state.reset({ userPrompt: "", templateId: null });
+    this.checkpointStore.clear();
+    this.broadcast({ type: "pipeline_reset", data: { reason } });
+    return this.getStatus();
+  }
+
   _captureArtifacts(phase, tool, response) {
     const rules = phase.artifactRules;
     if (!Array.isArray(rules) || rules.length === 0) return;
@@ -463,6 +546,9 @@ class PipelineExecutor {
     for (const node of phase.nodes || []) {
       this.broadcast({ type: "node_update", data: { node: node.id, status: "active" } });
     }
+
+    // Persist checkpoint so phase position survives server restarts
+    this.checkpointStore.save(this.active, this.state);
 
     if (phase.agent === "codex") {
       await this._runCodexPhase(phase);
@@ -605,6 +691,9 @@ class PipelineExecutor {
 
   _complete(reason) {
     if (!this.active) return;
+
+    // Clear checkpoint — pipeline is done, next session should start fresh
+    this.checkpointStore.clear();
 
     // Self-verification: check claim-vs-evidence before declaring complete
     const verifier = new ClaimVerifier();

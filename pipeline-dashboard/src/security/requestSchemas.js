@@ -21,6 +21,8 @@ const ALLOWED_EVENT_TYPES = new Set([
   "pipeline_complete",
   "pipeline_mutated",
   "pipeline_reset",
+  "pipeline_restored",
+  "pipeline_resume",
   "pipeline_start",
   "server_restart",
   "server_shutdown",

@@ -1013,13 +1013,15 @@ h1 {
 }
 
 .horse-rider.reining {
-  animation: rein-pull 0.4s ease-out forwards;
+  transform-origin: 18px 36px;
+  animation: rein-pull 0.45s cubic-bezier(.2,.9,.25,1) forwards;
 }
 
 @keyframes rein-pull {
-  0% { transform: translateX(0) rotate(0deg); }
-  40% { transform: translateX(-4px) rotate(-3deg); }
-  100% { transform: translateX(0) rotate(0deg); }
+  0%   { transform: translateX(0) translateY(0) rotate(0deg); }
+  35%  { transform: translateX(-5px) translateY(-2px) rotate(-5deg); }
+  70%  { transform: translateX(-3px) translateY(-1px) rotate(-2deg); }
+  100% { transform: translateX(0) translateY(0) rotate(0deg); }
 }
 
 .harness-status {

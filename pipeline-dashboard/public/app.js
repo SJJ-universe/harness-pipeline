@@ -393,68 +393,85 @@ function nodeToPhase(node) {
 const P = 3;
 function _px(x, y, c) { return `<rect x="${x*P}" y="${y*P}" width="${P}" height="${P}" fill="${c}"/>`; }
 
-// mode: "run1" | "run2" (gallop frames) | "rein" (front legs raised)
+// mode: "run1" | "run2" (gallop frames) | "rein" (front legs raised, body lifts)
 function _buildHorseSvg(mode) {
   const B = "#d4a574", H = "#e8c9a0", D = "#a07850";
   const R = "#58a6ff", K = "#3a3a3a";
   const isRein = mode === "rein";
   const G = isRein ? "#f85149" : "#3fb950";
   const W = 20 * P, Ht = 14 * P;
+
+  // Rein offsets: front body lifts, rear stays planted
+  const liftY = isRein ? -1 : 0;       // slight body lift
+  const chestY = isRein ? -2 : 0;      // front body/head lift
+  const viewMinY = isRein ? -2 * P : 0;
+  const viewHeight = Ht + (isRein ? 2 * P : 0);
+
   let px = "";
-  // Rider
-  [9,10].forEach(x => [1,2].forEach(y => { px += _px(x, y, R); }));
-  [9,10].forEach(x => [3,4,5].forEach(y => { px += _px(x, y, R); }));
+  // Rider (lifts with front body)
+  [9,10].forEach(x => [1,2].forEach(y => { px += _px(x, y + liftY, R); }));
+  [9,10].forEach(x => [3,4,5].forEach(y => { px += _px(x, y + liftY, R); }));
   // Reins
   if (isRein) {
-    [11,12].forEach(x => { px += _px(x, 3, G); });
+    [11,12].forEach(x => { px += _px(x, 3 + chestY, G); });
   } else {
     [11,12,13].forEach(x => { px += _px(x, 5, G); });
   }
-  // Head + ear
+  // Head + ear (lifts with chest)
   if (isRein) {
-    // Head raised
-    px += _px(14, 1, B); px += _px(15, 0, B);
-    [13,14,15].forEach(x => [2,3].forEach(y => { px += _px(x, y, B); }));
-    px += _px(15, 2, K); px += _px(16, 3, H);
+    px += _px(14, 1 + chestY, B); px += _px(15, 0 + chestY, B);
+    [13,14,15].forEach(x => [2,3].forEach(y => { px += _px(x, y + chestY, B); }));
+    px += _px(15, 2 + chestY, K); px += _px(16, 3 + chestY, H);
   } else {
     px += _px(15, 2, B); px += _px(16, 1, B);
     [14,15,16].forEach(x => [3,4].forEach(y => { px += _px(x, y, B); }));
     px += _px(16, 3, K); px += _px(17, 4, H);
   }
-  // Neck
-  [12,13].forEach(x => [4,5].forEach(y => { px += _px(x, y, B); }));
-  // Body
-  [5,6,7,8,9,10,11,12,13].forEach(x => [6,7,8].forEach(y => { px += _px(x, y, B); }));
-  [7,8,9,10,11].forEach(x => { px += _px(x, 6, H); });
-  [6,7,8,9,10,11,12].forEach(x => { px += _px(x, 8, D); });
-  // Tail
+  // Neck (lifts with chest)
+  [12,13].forEach(x => [4,5].forEach(y => { px += _px(x, y + chestY, B); }));
+  // Body: rear stable, front lifts
   if (isRein) {
-    px += _px(4, 7, D); px += _px(3, 8, D);
+    // Rear body (slight lift)
+    [5,6,7,8,9].forEach(x => [6,7,8].forEach(y => { px += _px(x, y + liftY, B); }));
+    // Front body (chest lift)
+    [10,11,12,13].forEach(x => [6,7,8].forEach(y => { px += _px(x, y + chestY, B); }));
+    // Highlights
+    [7,8,9].forEach(x => { px += _px(x, 6 + liftY, H); });
+    [10,11].forEach(x => { px += _px(x, 6 + chestY, H); });
+    // Belly
+    [6,7,8,9].forEach(x => { px += _px(x, 8 + liftY, D); });
+    [10,11,12].forEach(x => { px += _px(x, 8 + chestY, D); });
+  } else {
+    [5,6,7,8,9,10,11,12,13].forEach(x => [6,7,8].forEach(y => { px += _px(x, y, B); }));
+    [7,8,9,10,11].forEach(x => { px += _px(x, 6, H); });
+    [6,7,8,9,10,11,12].forEach(x => { px += _px(x, 8, D); });
+  }
+  // Tail (follows rear body)
+  if (isRein) {
+    px += _px(4, 7 + liftY, D); px += _px(3, 8 + liftY, D);
   } else {
     px += _px(4, 5, D); px += _px(3, 4, D); px += _px(2, 3, D);
   }
   // Legs
   if (isRein) {
-    // Front legs raised (rearing)
-    px += _px(12, 8, D); px += _px(13, 7, D);
-    px += _px(11, 8, D); px += _px(12, 7, D);
-    // Back legs planted
+    // Front legs folded higher (chest lift)
+    px += _px(12, 8 + chestY, D); px += _px(13, 7 + chestY, D);
+    px += _px(11, 8 + chestY, D); px += _px(12, 7 + chestY, D);
+    // Back legs planted (no offset — grounded)
     px += _px(6, 9, D); px += _px(6, 10, D); px += _px(6, 11, K);
     px += _px(7, 9, D); px += _px(7, 10, D); px += _px(7, 11, K);
   } else if (mode === "run1") {
-    // Frame 1: front-left forward, back-right forward
     px += _px(13, 9, D); px += _px(14, 10, D); px += _px(15, 11, K);
     px += _px(11, 9, D); px += _px(11, 10, D); px += _px(11, 11, K);
     px += _px(6, 9, D); px += _px(5, 10, D); px += _px(4, 11, K);
     px += _px(8, 9, D); px += _px(8, 10, D); px += _px(8, 11, K);
   } else {
-    // Frame 2: front-right forward, back-left forward
     px += _px(12, 9, D); px += _px(12, 10, D); px += _px(12, 11, K);
     px += _px(13, 9, D); px += _px(12, 10, D); px += _px(11, 11, K);
     px += _px(7, 9, D); px += _px(7, 10, D); px += _px(7, 11, K);
     px += _px(6, 9, D); px += _px(5, 10, D); px += _px(5, 11, K);
   }
-  return `<svg viewBox="0 0 ${W} ${Ht}" xmlns="http://www.w3.org/2000/svg" style="image-rendering:pixelated">${px}</svg>`;
+  return `<svg viewBox="0 ${viewMinY} ${W} ${viewHeight}" xmlns="http://www.w3.org/2000/svg" style="image-rendering:pixelated">${px}</svg>`;
 }
 
 const HORSE_FRAMES = [_buildHorseSvg("run1"), _buildHorseSvg("run2")];
@@ -555,6 +572,21 @@ function handleEvent(event) {
       setHorseState("galloping", "실행 중");
       break;
 
+    case "pipeline_resume": {
+      const d = event.data || {};
+      addLog("phase", `기존 파이프라인 계속 — Phase ${d.phase || "?"} (${d.templateId || "unknown"})`);
+      setHorseState("galloping", `Phase ${d.phase || "?"} 계속`);
+      break;
+    }
+
+    case "pipeline_restored": {
+      const d = event.data || {};
+      const time = d.savedAt ? new Date(d.savedAt).toLocaleTimeString() : "?";
+      addLog("phase", `체크포인트 복원 — Phase ${d.phase || "?"} (저장 시각: ${time})`);
+      setHorseState("galloping", `Phase ${d.phase || "?"} 복원`);
+      break;
+    }
+
     case "phase_update":
       updatePhase(event.data.phase, event.data.status);
       addLog("phase", `Phase ${event.data.phase}: ${event.data.status}`, false, _stageKeys);
@@ -640,7 +672,7 @@ function handleEvent(event) {
       addLog("error",
         `[${entry.phase}] ${entry.tool} 차단 [${layerLabel}] — ${entry.reason || (entry.allowed || []).join(", ")}`,
         true, _stageKeys);
-      reinThenResume(`정책 차단: ${entry.tool}`, 1500);
+      setHorseState("reining", `정책 차단: ${entry.tool}`);
       break;
     }
 
@@ -681,7 +713,7 @@ function handleEvent(event) {
       addLog("error",
         `[${event.data.phase}] 품질 게이트 실패 (시도 ${event.data.retries}/3) — ${reasons}`,
         true, _stageKeys);
-      reinThenResume(`게이트 실패`, 2000);
+      setHorseState("reining", "게이트 실패");
       break;
     }
 
@@ -1299,8 +1331,7 @@ function openModal(title, key) {
   overlay.classList.add("visible");
 }
 
-function closeModal(event) {
-  if (event && event.target !== event.currentTarget) return;
+function closeModal() {
   document.getElementById("modal-overlay").classList.remove("visible");
 }
 
@@ -1547,8 +1578,7 @@ function openGeneralRun() {
   }, 50);
 }
 
-function closeGeneralRun(event) {
-  if (event && event.target !== event.currentTarget) return;
+function closeGeneralRun() {
   document.getElementById("general-run-overlay").classList.remove("visible");
 }
 
@@ -1594,8 +1624,7 @@ async function abortGeneralRun() {
   } catch (_) {}
 }
 
-function closeFinalPlan(event) {
-  if (event && event.target !== event.currentTarget) return;
+function closeFinalPlan() {
   document.getElementById("final-plan-overlay").classList.remove("visible");
 }
 

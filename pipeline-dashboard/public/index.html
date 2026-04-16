@@ -132,8 +132,8 @@
   </div>
 
   <!-- General Pipeline Task Input Modal -->
-  <div class="modal-overlay" id="general-run-overlay" onclick="closeGeneralRun(event)">
-    <div class="modal-content">
+  <div class="modal-overlay" id="general-run-overlay" onclick="closeGeneralRun()">
+    <div class="modal-content" onclick="event.stopPropagation()">
       <div class="modal-header">
         <span class="modal-title">범용 파이프라인 시작 — Claude 플랜 ↔ Codex 비평</span>
         <button class="modal-close" onclick="closeGeneralRun()">&times;</button>
@@ -156,8 +156,8 @@
   </div>
 
   <!-- Final Plan Result Modal -->
-  <div class="modal-overlay" id="final-plan-overlay" onclick="closeFinalPlan(event)">
-    <div class="modal-content wide">
+  <div class="modal-overlay" id="final-plan-overlay" onclick="closeFinalPlan()">
+    <div class="modal-content wide" onclick="event.stopPropagation()">
       <div class="modal-header">
         <span class="modal-title" id="final-plan-title">최종 플랜</span>
         <button class="modal-close" onclick="closeFinalPlan()">&times;</button>
@@ -170,8 +170,8 @@
   </div>
 
   <!-- Stage Detail Modal -->
-  <div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
-    <div class="modal-content">
+  <div class="modal-overlay" id="modal-overlay" onclick="closeModal()">
+    <div class="modal-content" onclick="event.stopPropagation()">
       <div class="modal-header">
         <span class="modal-title" id="modal-title">단계 상세</span>
         <button class="modal-close" onclick="closeModal()">&times;</button>

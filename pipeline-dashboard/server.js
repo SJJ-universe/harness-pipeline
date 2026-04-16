@@ -25,6 +25,7 @@ const { PipelineState } = require("./executor/pipeline-state");
 const { QualityGate } = require("./executor/quality-gate");
 const { SkillInjector } = require("./executor/skill-injector");
 const { PipelineAdapter } = require("./executor/pipeline-adapter");
+const { createCheckpointStore } = require("./executor/checkpoint");
 const skillRegistry = require("./skill-registry");
 const pipelineTemplates = require("./pipeline-templates.json");
 const { createAuthMiddleware, isLoopbackAddress } = require("./src/security/auth");
@@ -313,6 +314,7 @@ const pipelineState = new PipelineState();
 const qualityGate = new QualityGate();
 const skillInjector = new SkillInjector({ skillRegistry });
 const pipelineAdapter = new PipelineAdapter({ templates: pipelineTemplates });
+const checkpointStore = createCheckpointStore({ repoRoot: REPO_ROOT });
 const pipelineExecutor = new PipelineExecutor({
   broadcast,
   templates: pipelineTemplates,
@@ -322,6 +324,7 @@ const pipelineExecutor = new PipelineExecutor({
   injector: skillInjector,
   adapter: pipelineAdapter,
   repoRoot: REPO_ROOT,
+  checkpointStore,
 });
 hookRouter.attachExecutor(pipelineExecutor);
 
