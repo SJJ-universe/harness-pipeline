@@ -118,7 +118,30 @@ class PipelineExecutor {
     });
 
     await this._enterPhase(0);
+
+    // Return phase guidance so Claude knows what tools to use
+    const firstPhase = this.active.template.phases[0];
+    if (firstPhase) {
+      return this._buildPhaseGuidance(firstPhase);
+    }
     return {};
+  }
+
+  /**
+   * Build a guidance response that Claude Code receives after UserPromptSubmit.
+   * This is NOT a block — it's supplementary context that Claude sees.
+   */
+  _buildPhaseGuidance(phase) {
+    const tools = (phase.allowedTools || []).join(", ");
+    const criteria = (phase.exitCriteria || []).map((c) => c.message).join("; ");
+    return {
+      suppressOutput: false,
+      message:
+        `[SJ 하네스 엔진] Phase ${phase.id} (${phase.name}) 시작\n` +
+        `허용 도구: ${tools || "제한 없음"}\n` +
+        `완료 조건: ${criteria || "없음"}\n` +
+        `조건을 충족한 후 턴을 종료하면 다음 Phase로 진행됩니다.`,
+    };
   }
 
   async onPreTool(tool, _input) {
@@ -167,11 +190,15 @@ class PipelineExecutor {
     if (!allowed || allowed.length === 0) return {};
 
     if (!allowed.includes(tool)) {
+      const nextPhase = this.active.template.phases[this.active.phaseIdx + 1];
+      const nextInfo = nextPhase
+        ? `다음 Phase ${nextPhase.id} (${nextPhase.name})에서 ${tool}을(를) 사용할 수 있습니다.`
+        : "";
       const reason =
-        `Harness ${phase.label || phase.id} (${phase.name}) 단계에서는 ` +
-        `다음 도구만 허용됩니다: ${allowed.join(", ")}. ` +
-        `요청한 도구: ${tool}. ` +
-        `이 단계의 목적을 완수한 후 Stop 시점에 다음 phase로 넘어갑니다.`;
+        `[SJ 하네스] Phase ${phase.id} (${phase.name})에서 ${tool}은(는) 사용할 수 없습니다.\n` +
+        `현재 허용: ${allowed.join(", ")}\n` +
+        `${nextInfo}\n` +
+        `지금은 허용된 도구로 이 Phase의 목적을 완수하세요. 완료 후 턴을 종료하면 자동으로 다음 Phase로 진행됩니다.`;
       this.broadcast({
         type: "tool_blocked",
         data: { phase: phase.id, tool, allowed, source: "allowedTools" },
@@ -230,11 +257,12 @@ class PipelineExecutor {
         return {};
       }
 
+      const tools = (phase.allowedTools || []).join(", ");
       const reason =
-        `Harness ${phase.label || phase.id} (${phase.name}) 미완료.\n` +
-        `필요 조건: ${gateResult.missing.join("; ")}.\n` +
-        `이 phase의 작업을 먼저 마친 뒤 턴을 종료하세요. ` +
-        `(시도 ${this.active.gateRetries}/${MAX_GATE_RETRIES})`;
+        `[SJ 하네스] Phase ${phase.id} (${phase.name}) 완료 조건 미충족\n` +
+        `미충족 조건: ${gateResult.missing.join("; ")}\n` +
+        `허용 도구: ${tools || "제한 없음"}\n` +
+        `위 조건을 충족한 후 다시 턴을 종료하세요. (시도 ${this.active.gateRetries}/${MAX_GATE_RETRIES})`;
       this.broadcast({
         type: "gate_failed",
         data: { phase: phase.id, missing: gateResult.missing, retries: this.active.gateRetries },
