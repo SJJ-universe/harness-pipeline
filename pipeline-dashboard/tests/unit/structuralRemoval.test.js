@@ -132,6 +132,19 @@ describe("Structural Removal — template contracts", () => {
       "Phase F should have no-critical-findings criterion"
     );
   });
+
+  it("default template Phase G exists with codex agent and cycle to F", () => {
+    const def = templates["default"];
+    const phaseG = def.phases.find((p) => p.id === "G");
+    assert.ok(phaseG, "default Phase G not found");
+    assert.equal(phaseG.agent, "codex");
+    assert.equal(phaseG.cycle, true);
+    assert.equal(phaseG.linkedCycle, "F");
+    assert.ok(
+      phaseG.exitCriteria.some((c) => c.type === "critique-received"),
+      "Phase G should have critique-received criterion"
+    );
+  });
 });
 
 describe("tool_blocked source field", () => {

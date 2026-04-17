@@ -8,14 +8,14 @@ const index = fs.readFileSync(path.join(root, "public", "index.html"), "utf-8");
 const app = fs.readFileSync(path.join(root, "public", "app.js"), "utf-8");
 const css = fs.readFileSync(path.join(root, "public", "style.css"), "utf-8");
 
-test("modal content stops propagation and close functions are direct", () => {
-  assert.match(index, /id="modal-overlay" onclick="closeModal\(\)"/);
-  assert.match(index, /id="general-run-overlay" onclick="closeGeneralRun\(\)"/);
-  assert.match(index, /id="final-plan-overlay" onclick="closeFinalPlan\(\)"/);
-  assert.equal((index.match(/onclick="event\.stopPropagation\(\)"/g) || []).length, 3);
-  assert.match(app, /function closeModal\(\)\s*\{/);
-  assert.match(app, /function closeGeneralRun\(\)\s*\{/);
-  assert.match(app, /function closeFinalPlan\(\)\s*\{/);
+test("index.html has zero inline event handlers (CSP-safe)", () => {
+  const matches = index.match(/\son[a-z]+="/gi) || [];
+  assert.equal(matches.length, 0, `Found inline handlers: ${matches.join(", ")}`);
+});
+
+test("app.js defines initEventBindings and calls it in init", () => {
+  assert.match(app, /function initEventBindings/);
+  assert.match(app, /initEventBindings\(\)/);
 });
 
 test("horse reining has non-auto-resume intervention handling", () => {

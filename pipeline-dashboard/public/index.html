@@ -28,9 +28,9 @@
         <span class="dot" id="codex-dot"></span>
         <span id="codex-label">Codex: —</span>
       </span>
-      <button class="btn-ctrl" id="btn-codex-verify" onclick="verifyCodex()" title="Codex CLI 실제 호출 테스트">Codex 검증</button>
-      <button class="btn-ctrl" id="btn-server-restart" onclick="restartServer()" title="서버 재시작">재시작</button>
-      <button class="btn-ctrl danger" id="btn-server-stop" onclick="stopServer()" title="서버 종료">서버 종료</button>
+      <button class="btn-ctrl" id="btn-codex-verify" title="Codex CLI 실제 호출 테스트">Codex 검증</button>
+      <button class="btn-ctrl" id="btn-server-restart" title="서버 재시작">재시작</button>
+      <button class="btn-ctrl danger" id="btn-server-stop" title="서버 종료">서버 종료</button>
     </div>
   </header>
 
@@ -46,14 +46,14 @@
     <section class="pipeline-scroll">
       <!-- Pipeline selector bar -->
       <div class="pipeline-selector" id="pipeline-selector">
-        <span class="pipeline-pill" id="pipeline-pill" onclick="cyclePipelineTemplate()" title="템플릿 전환 (클릭)">코드 리뷰</span>
-        <button class="btn-ctrl primary" id="btn-start-general" onclick="openGeneralRun()" title="범용 태스크 파이프라인 실행 (Claude 플랜 ↔ Codex 비평 순환)">
+        <span class="pipeline-pill" id="pipeline-pill" title="템플릿 전환 (클릭)">코드 리뷰</span>
+        <button class="btn-ctrl primary" id="btn-start-general" title="범용 태스크 파이프라인 실행 (Claude 플랜 ↔ Codex 비평 순환)">
           ▶ 작업 시작
         </button>
-        <button class="btn-ctrl danger" id="btn-abort-general" onclick="abortGeneralRun()" style="display:none" title="진행 중인 파이프라인 중단">
+        <button class="btn-ctrl danger" id="btn-abort-general" style="display:none" title="진행 중인 파이프라인 중단">
           ■ 중단
         </button>
-        <button class="btn-small" id="btn-toggle-compact" onclick="toggleCompactMode()" title="컴팩트/상세 보기 전환">compact</button>
+        <button class="btn-small" id="btn-toggle-compact" title="컴팩트/상세 보기 전환">compact</button>
       </div>
       <div class="compact-pipeline hidden" id="compact-pipeline"></div>
       <!-- Dynamic pipeline container -->
@@ -98,7 +98,7 @@
           <div class="stat-mini-title">
             <span>🔧 툴 호출</span>
             <span class="feed-counter" id="tool-feed-counter">0</span>
-            <button class="btn-small" onclick="clearToolFeed()">지우기</button>
+            <button class="btn-small" id="btn-clear-tool-feed">지우기</button>
           </div>
           <div class="tool-feed" id="tool-feed"></div>
         </div>
@@ -107,7 +107,7 @@
           <div class="stat-mini-title">
             <span>💬 Critique 타임라인</span>
             <span class="feed-counter" id="critique-counter">0</span>
-            <button class="btn-small" onclick="clearCritiqueTimeline()">지우기</button>
+            <button class="btn-small" id="btn-clear-critique">지우기</button>
           </div>
           <div class="critique-timeline" id="critique-timeline"></div>
         </div>
@@ -116,10 +116,10 @@
       <!-- Tab Bar + Terminal/Log -->
       <div class="right-tabs">
         <div class="tab-bar">
-          <button class="tab" id="tab-btn-log" onclick="switchTab('log')">이벤트 로그</button>
-          <button class="tab active" id="tab-btn-terminal" onclick="switchTab('terminal')">터미널</button>
+          <button class="tab" id="tab-btn-log">이벤트 로그</button>
+          <button class="tab active" id="tab-btn-terminal">터미널</button>
           <div class="tab-spacer"></div>
-          <button class="btn-small" onclick="clearLog()">지우기</button>
+          <button class="btn-small" id="btn-clear-log">지우기</button>
         </div>
         <div class="tab-content hidden" id="tab-log">
           <div class="log-content" id="log-content"></div>
@@ -132,11 +132,11 @@
   </div>
 
   <!-- General Pipeline Task Input Modal -->
-  <div class="modal-overlay" id="general-run-overlay" onclick="closeGeneralRun()">
-    <div class="modal-content" onclick="event.stopPropagation()">
+  <div class="modal-overlay" id="general-run-overlay">
+    <div class="modal-content">
       <div class="modal-header">
         <span class="modal-title">범용 파이프라인 시작 — Claude 플랜 ↔ Codex 비평</span>
-        <button class="modal-close" onclick="closeGeneralRun()">&times;</button>
+        <button class="modal-close">&times;</button>
       </div>
       <div class="modal-body">
         <p class="plan-help">
@@ -148,19 +148,19 @@
         <label class="plan-field-label">최대 반복 횟수</label>
         <input type="number" id="gr-max-iter" class="plan-input" value="3" min="1" max="5" />
         <div class="plan-actions">
-          <button class="btn-ctrl" onclick="closeGeneralRun()">취소</button>
-          <button class="btn-ctrl primary" id="btn-gr-start" onclick="submitGeneralRun()">시작</button>
+          <button class="btn-ctrl" id="btn-gr-cancel">취소</button>
+          <button class="btn-ctrl primary" id="btn-gr-start">시작</button>
         </div>
       </div>
     </div>
   </div>
 
   <!-- Final Plan Result Modal -->
-  <div class="modal-overlay" id="final-plan-overlay" onclick="closeFinalPlan()">
-    <div class="modal-content wide" onclick="event.stopPropagation()">
+  <div class="modal-overlay" id="final-plan-overlay">
+    <div class="modal-content wide">
       <div class="modal-header">
         <span class="modal-title" id="final-plan-title">최종 플랜</span>
-        <button class="modal-close" onclick="closeFinalPlan()">&times;</button>
+        <button class="modal-close">&times;</button>
       </div>
       <div class="modal-body">
         <div class="final-plan-meta" id="final-plan-meta"></div>
@@ -170,11 +170,11 @@
   </div>
 
   <!-- Stage Detail Modal -->
-  <div class="modal-overlay" id="modal-overlay" onclick="closeModal()">
-    <div class="modal-content" onclick="event.stopPropagation()">
+  <div class="modal-overlay" id="modal-overlay">
+    <div class="modal-content">
       <div class="modal-header">
         <span class="modal-title" id="modal-title">단계 상세</span>
-        <button class="modal-close" onclick="closeModal()">&times;</button>
+        <button class="modal-close">&times;</button>
       </div>
       <div class="modal-body" id="modal-body"></div>
     </div>

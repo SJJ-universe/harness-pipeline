@@ -47,6 +47,14 @@ class QualityGate {
       }
       case "no-critical-findings": {
         const sevs = c.severities || ["critical", "high"];
+        if (c.scope === "latest") {
+          // Only check findings from the latest critique in this phase
+          const critique = state.phases[phase.id]?.critique;
+          if (!critique || !Array.isArray(critique.findings)) return true;
+          return !critique.findings.some((f) => sevs.includes(f.severity));
+        }
+        // TODO: findings accumulate via setCritique() push — no removal mechanism yet.
+        // A scope: "phase" option would filter by fromPhase, but is not yet needed.
         return !state.findings.some((f) => sevs.includes(f.severity));
       }
       case "critique-received":

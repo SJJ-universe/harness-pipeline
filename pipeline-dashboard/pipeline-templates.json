@@ -124,6 +124,28 @@
             "sublabel": "결과 검증"
           }
         ]
+      },
+      {
+        "id": "G",
+        "name": "최종 비평",
+        "label": "Phase G",
+        "agent": "codex",
+        "allowedTools": [],
+        "cycle": true,
+        "maxIterations": 2,
+        "linkedCycle": "F",
+        "exitCriteria": [
+          { "type": "critique-received", "message": "Codex 최종 비평이 도착하지 않음" }
+        ],
+        "nodes": [
+          {
+            "id": "final-critic",
+            "icon": "X",
+            "iconType": "codex",
+            "label": "Codex CLI",
+            "sublabel": "최종 비평"
+          }
+        ]
       }
     ]
   },

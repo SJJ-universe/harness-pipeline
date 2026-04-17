@@ -27,6 +27,7 @@
 | **D: 계획 보완** | 비평 반영 | Read, Edit, Write | plan*.md 수정 |
 | **E: 실행** | 작업 실행 | Read, Edit, Write, Bash, Glob, Grep, TodoWrite | 파일 수정 |
 | **F: 검증** | 테스트/확인 | Read, Bash, Grep | Bash 실행 + 이슈 해결 |
+| **G: 최종 비평** | Codex 최종 비평 (자동) | — | 비평 수신 |
 
 ## 중요 규칙
 

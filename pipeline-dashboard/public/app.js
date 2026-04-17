@@ -454,9 +454,11 @@ function _buildHorseSvg(mode) {
   }
   // Legs
   if (isRein) {
-    // Front legs folded higher (chest lift)
-    px += _px(12, 8 + chestY, D); px += _px(13, 7 + chestY, D);
-    px += _px(11, 8 + chestY, D); px += _px(12, 7 + chestY, D);
+    // Front legs raised forward-up (visible above body, crossed)
+    // Left front leg
+    px += _px(13, 3 + chestY, D); px += _px(14, 2 + chestY, D); px += _px(14, 3 + chestY, K);
+    // Right front leg (slightly lower)
+    px += _px(12, 4 + chestY, D); px += _px(13, 4 + chestY, K);
     // Back legs planted (no offset — grounded)
     px += _px(6, 9, D); px += _px(6, 10, D); px += _px(6, 11, K);
     px += _px(7, 9, D); px += _px(7, 10, D); px += _px(7, 11, K);
@@ -1662,7 +1664,51 @@ function showFinalPlan(data) {
   overlay.classList.add("visible");
 }
 
+// ── Event Bindings (CSP-safe: no inline onclick) ──
+function initEventBindings() {
+  const _b = (sel, fn) => { const el = document.querySelector(sel); if (el) el.addEventListener("click", fn); };
+
+  // Header
+  _b("#btn-codex-verify", verifyCodex);
+  _b("#btn-server-restart", restartServer);
+  _b("#btn-server-stop", stopServer);
+
+  // Pipeline controls
+  _b("#pipeline-pill", cyclePipelineTemplate);
+  _b("#btn-start-general", openGeneralRun);
+  _b("#btn-abort-general", abortGeneralRun);
+  _b("#btn-toggle-compact", toggleCompactMode);
+
+  // Stats
+  _b("#btn-clear-tool-feed", clearToolFeed);
+  _b("#btn-clear-critique", clearCritiqueTimeline);
+  _b("#btn-clear-log", clearLog);
+
+  // Tabs
+  _b("#tab-btn-log", () => switchTab("log"));
+  _b("#tab-btn-terminal", () => switchTab("terminal"));
+
+  // General run modal
+  _b("#btn-gr-cancel", closeGeneralRun);
+  _b("#btn-gr-start", submitGeneralRun);
+
+  // Modal overlays: backdrop click → close, content → stopPropagation, X → close
+  ["general-run-overlay", "final-plan-overlay", "modal-overlay"].forEach(id => {
+    const overlay = document.getElementById(id);
+    if (!overlay) return;
+    const closeFn = id === "general-run-overlay" ? closeGeneralRun
+                  : id === "final-plan-overlay" ? closeFinalPlan
+                  : closeModal;
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) closeFn(); });
+    const content = overlay.querySelector(".modal-content");
+    if (content) content.addEventListener("click", (e) => e.stopPropagation());
+    const closeBtn = overlay.querySelector(".modal-close");
+    if (closeBtn) closeBtn.addEventListener("click", closeFn);
+  });
+}
+
 // ── Init ──
+initEventBindings();
 connectWS();
 // Terminal is default tab — init immediately
 initTerminal();
