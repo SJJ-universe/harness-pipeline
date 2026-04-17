@@ -408,66 +408,97 @@ function _buildHorseSvg(mode) {
   const viewHeight = Ht + (isRein ? 2 * P : 0);
 
   let px = "";
-  // Rider (lifts with front body)
-  [9,10].forEach(x => [1,2].forEach(y => { px += _px(x, y + liftY, R); }));
-  [9,10].forEach(x => [3,4,5].forEach(y => { px += _px(x, y + liftY, R); }));
-  // Reins
+
   if (isRein) {
-    [11,12].forEach(x => { px += _px(x, 3 + chestY, G); });
-  } else {
-    [11,12,13].forEach(x => { px += _px(x, 5, G); });
-  }
-  // Head + ear (lifts with chest)
-  if (isRein) {
+    // ── REARING POSE: rider leans back, reins taut, front legs raised ──
+    // Render order: back→front so legs/reins visible on top.
+
+    // Rear body (slightly lifted, planted on rear legs)
+    [5,6,7,8,9].forEach(x => [6,7,8].forEach(y => { px += _px(x, y + liftY, B); }));
+    [7,8,9].forEach(x => { px += _px(x, 6 + liftY, H); });
+    [6,7,8,9].forEach(x => { px += _px(x, 8 + liftY, D); });
+
+    // Front body (chest raised high)
+    [10,11,12,13].forEach(x => [6,7,8].forEach(y => { px += _px(x, y + chestY, B); }));
+    [10,11].forEach(x => { px += _px(x, 6 + chestY, H); });
+    [10,11,12].forEach(x => { px += _px(x, 8 + chestY, D); });
+
+    // Neck (lifts with chest)
+    [12,13].forEach(x => [4,5].forEach(y => { px += _px(x, y + chestY, B); }));
+
+    // Head raised high
     px += _px(14, 1 + chestY, B); px += _px(15, 0 + chestY, B);
     [13,14,15].forEach(x => [2,3].forEach(y => { px += _px(x, y + chestY, B); }));
-    px += _px(15, 2 + chestY, K); px += _px(16, 3 + chestY, H);
+    px += _px(15, 2 + chestY, K);  // eye
+    px += _px(16, 3 + chestY, H);  // muzzle highlight
+
+    // Tail (follows rear body)
+    px += _px(4, 7 + liftY, D); px += _px(3, 8 + liftY, D);
+
+    // Back legs planted on ground (no offset)
+    px += _px(6, 9, D); px += _px(6, 10, D); px += _px(6, 11, K);
+    px += _px(7, 9, D); px += _px(7, 10, D); px += _px(7, 11, K);
+
+    // ── Front legs: bent at knee, hooves dangling forward (rendered ON TOP) ──
+    // Left front leg (rear of pair): upper close to body, knee bent forward
+    px += _px(11, 7, D);   // thigh below belly
+    px += _px(12, 8, D);   // knee
+    px += _px(13, 9, K);   // hoof (forward & down)
+    // Right front leg (forward pair): more extended forward
+    px += _px(12, 7, D);   // thigh
+    px += _px(13, 7, D);   // knee bent forward
+    px += _px(14, 8, D);   // shin
+    px += _px(15, 9, K);   // hoof (extended forward)
+
+    // ── Rider leaning BACK (shifted from x=9-10 to x=8-9), arm extended forward ──
+    // Upper body (head, torso) — leaned back at x=8
+    px += _px(8, 0, R);    // head top
+    px += _px(8, 1, R);    // head/face
+    px += _px(8, 2, R);    // neck/upper torso
+    px += _px(8, 3, R);    // mid torso
+    px += _px(9, 2, R);    // shoulder
+    px += _px(9, 3, R);    // chest
+    px += _px(9, 4, R);    // waist (sitting)
+    px += _px(10, 4, R);   // hip on horse
+    px += _px(10, 5, R);   // leg on horse
+    px += _px(9, 5, R);    // thigh
+    // Arm extended forward holding the reins
+    px += _px(10, 3, R);   // shoulder-to-arm
+    px += _px(11, 3, R);   // forearm
+    px += _px(12, 3, R);   // hand grip
+
+    // ── Long taut reins: from rider's hand (12,3) diagonally to horse's mouth (16,1) ──
+    px += _px(13, 2, G);
+    px += _px(14, 2, G);
+    px += _px(15, 1, G);
   } else {
+    // ── RUNNING POSE (existing) ──
+    // Rider
+    [9,10].forEach(x => [1,2].forEach(y => { px += _px(x, y, R); }));
+    [9,10].forEach(x => [3,4,5].forEach(y => { px += _px(x, y, R); }));
+    // Reins (short, attached to mouth area)
+    [11,12,13].forEach(x => { px += _px(x, 5, G); });
+    // Head + ear
     px += _px(15, 2, B); px += _px(16, 1, B);
     [14,15,16].forEach(x => [3,4].forEach(y => { px += _px(x, y, B); }));
     px += _px(16, 3, K); px += _px(17, 4, H);
-  }
-  // Neck (lifts with chest)
-  [12,13].forEach(x => [4,5].forEach(y => { px += _px(x, y + chestY, B); }));
-  // Body: rear stable, front lifts
-  if (isRein) {
-    // Rear body (slight lift)
-    [5,6,7,8,9].forEach(x => [6,7,8].forEach(y => { px += _px(x, y + liftY, B); }));
-    // Front body (chest lift)
-    [10,11,12,13].forEach(x => [6,7,8].forEach(y => { px += _px(x, y + chestY, B); }));
-    // Highlights
-    [7,8,9].forEach(x => { px += _px(x, 6 + liftY, H); });
-    [10,11].forEach(x => { px += _px(x, 6 + chestY, H); });
-    // Belly
-    [6,7,8,9].forEach(x => { px += _px(x, 8 + liftY, D); });
-    [10,11,12].forEach(x => { px += _px(x, 8 + chestY, D); });
-  } else {
+    // Neck
+    [12,13].forEach(x => [4,5].forEach(y => { px += _px(x, y, B); }));
+    // Body
     [5,6,7,8,9,10,11,12,13].forEach(x => [6,7,8].forEach(y => { px += _px(x, y, B); }));
     [7,8,9,10,11].forEach(x => { px += _px(x, 6, H); });
     [6,7,8,9,10,11,12].forEach(x => { px += _px(x, 8, D); });
-  }
-  // Tail (follows rear body)
-  if (isRein) {
-    px += _px(4, 7 + liftY, D); px += _px(3, 8 + liftY, D);
-  } else {
+    // Tail
     px += _px(4, 5, D); px += _px(3, 4, D); px += _px(2, 3, D);
   }
-  // Legs
-  if (isRein) {
-    // Front legs raised forward-up (visible above body, crossed)
-    // Left front leg
-    px += _px(13, 3 + chestY, D); px += _px(14, 2 + chestY, D); px += _px(14, 3 + chestY, K);
-    // Right front leg (slightly lower)
-    px += _px(12, 4 + chestY, D); px += _px(13, 4 + chestY, K);
-    // Back legs planted (no offset — grounded)
-    px += _px(6, 9, D); px += _px(6, 10, D); px += _px(6, 11, K);
-    px += _px(7, 9, D); px += _px(7, 10, D); px += _px(7, 11, K);
-  } else if (mode === "run1") {
+
+  // Running gait legs (only for run1/run2 — rein mode handled above)
+  if (mode === "run1") {
     px += _px(13, 9, D); px += _px(14, 10, D); px += _px(15, 11, K);
     px += _px(11, 9, D); px += _px(11, 10, D); px += _px(11, 11, K);
     px += _px(6, 9, D); px += _px(5, 10, D); px += _px(4, 11, K);
     px += _px(8, 9, D); px += _px(8, 10, D); px += _px(8, 11, K);
-  } else {
+  } else if (mode === "run2") {
     px += _px(12, 9, D); px += _px(12, 10, D); px += _px(12, 11, K);
     px += _px(13, 9, D); px += _px(12, 10, D); px += _px(11, 11, K);
     px += _px(7, 9, D); px += _px(7, 10, D); px += _px(7, 11, K);
