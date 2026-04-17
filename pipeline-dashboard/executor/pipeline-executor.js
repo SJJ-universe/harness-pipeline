@@ -145,17 +145,57 @@ class PipelineExecutor {
   /**
    * Build a guidance response that Claude Code receives after UserPromptSubmit.
    * This is NOT a block — it's supplementary context that Claude sees.
+   *
+   * opts.resumeKind: null (fresh start) | "active" (same-session resume) | "restored" (checkpoint restore)
    */
-  _buildPhaseGuidance(phase) {
+  _buildPhaseGuidance(phase, opts = {}) {
     const tools = (phase.allowedTools || []).join(", ");
     const criteria = (phase.exitCriteria || []).map((c) => c.message).join("; ");
+    const resumeKind = opts.resumeKind || null;
+
+    if (!resumeKind) {
+      return {
+        suppressOutput: false,
+        message:
+          `[SJ 하네스 엔진] Phase ${phase.id} (${phase.name}) 시작\n` +
+          `허용 도구: ${tools || "제한 없음"}\n` +
+          `완료 조건: ${criteria || "없음"}\n` +
+          `조건을 충족한 후 턴을 종료하면 다음 Phase로 진행됩니다.`,
+      };
+    }
+
+    // Resume mode: emphasize continuation + previous progress
+    const phases = this.active?.template?.phases || [];
+    const phaseIdx = this.active?.phaseIdx ?? 0;
+    const completedList = phases.slice(0, phaseIdx)
+      .map((p) => `  - Phase ${p.id} (${p.name}) ✓ 완료`)
+      .join("\n") || "  (이전 Phase 없음)";
+    const metrics = this.state?.metrics || {};
+    const toolCount = metrics.toolCount || 0;
+    const filesEdited = metrics.filesEdited?.size || 0;
+    const findingsCount = (this.state?.findings || []).length;
+    const originalPrompt = (this.active?.userPrompt || "").slice(0, 200);
+    const kindLabel = resumeKind === "active"
+      ? "활성 파이프라인 계속 진행 (같은 세션)"
+      : "체크포인트에서 복원 (새 세션)";
+
     return {
       suppressOutput: false,
       message:
-        `[SJ 하네스 엔진] Phase ${phase.id} (${phase.name}) 시작\n` +
-        `허용 도구: ${tools || "제한 없음"}\n` +
-        `완료 조건: ${criteria || "없음"}\n` +
-        `조건을 충족한 후 턴을 종료하면 다음 Phase로 진행됩니다.`,
+        `[SJ 하네스 엔진] ${kindLabel}\n\n` +
+        `원래 작업: "${originalPrompt || "(unknown)"}"\n` +
+        `현재 Phase: ${phase.id} (${phase.name})\n\n` +
+        `진행 단계:\n${completedList}\n` +
+        `  - Phase ${phase.id} (${phase.name}) ← 현재 진행 중\n\n` +
+        `진행 상황:\n` +
+        `  - 도구 사용: ${toolCount}회\n` +
+        `  - 파일 수정: ${filesEdited}건\n` +
+        `  - 발견 사항: ${findingsCount}건\n\n` +
+        `현재 Phase 지침:\n` +
+        `  - 허용 도구: ${tools || "제한 없음"}\n` +
+        `  - 완료 조건: ${criteria || "없음"}\n\n` +
+        `※ 이것은 새 작업 시작이 아니라 기존 파이프라인의 연속입니다.\n` +
+        `※ 완전히 새 작업을 시작하려면 POST /api/executor/reset 후 다시 프롬프트를 보내세요.`,
     };
   }
 
@@ -496,7 +536,7 @@ class PipelineExecutor {
         phaseIdx: this.active.phaseIdx,
       },
     });
-    return this._buildPhaseGuidance(phase);
+    return this._buildPhaseGuidance(phase, { resumeKind: "active" });
   }
 
   _restoreFromCheckpoint() {
@@ -542,7 +582,7 @@ class PipelineExecutor {
     }
     if (phase) this.broadcast({ type: "phase_update", data: { phase: phase.id, status: "active" } });
 
-    return phase ? this._buildPhaseGuidance(phase) : {};
+    return phase ? this._buildPhaseGuidance(phase, { resumeKind: "restored" }) : {};
   }
 
   resetActive(reason = "manual-reset") {

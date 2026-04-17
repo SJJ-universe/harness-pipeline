@@ -43,8 +43,21 @@ test("startFromPrompt resumes active pipeline instead of restarting Phase A", as
 
   assert.equal(before.phase, "B");
   assert.equal(after.phase, "B");
-  assert.match(guidance.reason || guidance.message || JSON.stringify(guidance), /Phase B|Build|Edit/i);
+  // Resume message must clearly indicate it is NOT a fresh start
+  assert.match(guidance.message, /활성 파이프라인 계속 진행/);
+  assert.match(guidance.message, /원래 작업: "please implement a feature"/);
+  assert.match(guidance.message, /Phase A.*완료/);
+  assert.match(guidance.message, /현재 진행 중/);
+  assert.match(guidance.message, /새 작업 시작이 아니라/);
   assert.ok(events.some((e) => e.type === "pipeline_resume" && e.data.phase === "B"));
+});
+
+test("fresh start (no active, no checkpoint) uses '시작' wording", async () => {
+  const { ex } = makeEnv();
+  const guidance = await ex.startFromPrompt("please implement a feature");
+  // Fresh pipeline must use 시작 (start), not 계속 (continue)
+  assert.match(guidance.message, /Phase A.*시작/);
+  assert.ok(!/활성 파이프라인 계속 진행/.test(guidance.message), "should not show resume wording");
 });
 
 test("startFromPrompt restores checkpoint when there is no active pipeline", async () => {
@@ -75,12 +88,15 @@ test("startFromPrompt restores checkpoint when there is no active pipeline", asy
   });
   ex.setEnabled(true);
 
-  await ex.startFromPrompt("please implement a feature");
+  const guidance = await ex.startFromPrompt("please implement a feature");
 
   assert.equal(ex.getStatus().phase, "B");
   assert.ok(events.some((e) => e.type === "pipeline_restored" && e.data.phase === "B"));
   assert.ok(events.some((e) => e.type === "phase_update" && e.data.phase === "A" && e.data.status === "completed"));
   assert.ok(events.some((e) => e.type === "phase_update" && e.data.phase === "B" && e.data.status === "active"));
+  // Restored message must use 복원 wording
+  assert.match(guidance.message, /체크포인트에서 복원/);
+  assert.match(guidance.message, /원래 작업: "please implement"/);
 });
 
 test("onSessionEnd preserves checkpoint (not clears)", async () => {
