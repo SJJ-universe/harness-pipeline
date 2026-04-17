@@ -1,5 +1,6 @@
 const ALLOWED_EVENT_TYPES = new Set([
   "auto_pipeline_detect",
+  "codex_progress",
   "codex_started",
   "codex_trigger_done",
   "codex_trigger_started",

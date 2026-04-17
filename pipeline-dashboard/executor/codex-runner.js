@@ -1,14 +1,34 @@
 // CodexRunner — invokes `codex exec --full-auto` as a subprocess
 // and parses its output into a critique structure.
 //
+// Features:
+//   - Real-time output streaming via codex_progress broadcasts (live + bounded)
+//   - Bounded final buffers (1MB stdout / 256KB stderr) with truncated flag
+//   - Secret redaction on all broadcasts (HARNESS_TOKEN, sk-*, ghp_*, etc.)
+//   - DI-friendly: spawnImpl + broadcast + redact overrideable for tests
+//
 // Output contract (enforced via prompt, parsed heuristically):
 //   - Findings as bullet lines: "- [critical|high|medium|low] <message>"
 //   - Final section "## Summary" containing a short verdict
-//
-// Parse failures are non-fatal — raw stdout is always preserved.
 
 const { spawn } = require("child_process");
 const dangerGate = require("../src/policy/dangerGate");
+
+const SECRET_PATTERNS = [
+  /sk-[A-Za-z0-9_-]{20,}/g,
+  /ghp_[A-Za-z0-9]{20,}/g,
+  /gho_[A-Za-z0-9]{20,}/g,
+  /xoxb-[A-Za-z0-9-]{20,}/g,
+  /xoxp-[A-Za-z0-9-]{20,}/g,
+  /HARNESS_TOKEN[=:]\s*["']?[A-Za-z0-9_-]+["']?/gi,
+  /Authorization:\s*Bearer\s+[A-Za-z0-9._-]+/gi,
+];
+
+function defaultRedact(text) {
+  let out = String(text);
+  for (const re of SECRET_PATTERNS) out = out.replace(re, "[REDACTED]");
+  return out;
+}
 
 function resolveCommand(cmd) {
   if (process.platform !== "win32") return cmd;
@@ -18,11 +38,22 @@ function resolveCommand(cmd) {
 }
 
 class CodexRunner {
-  constructor({ codexCommand = "codex", fallbackCommands, defaultTimeoutMs = 120000, runRegistry, repoRoot } = {}) {
+  constructor({
+    codexCommand = "codex",
+    fallbackCommands,
+    defaultTimeoutMs = 120000,
+    runRegistry,
+    repoRoot,
+    broadcast = () => {},
+    spawnImpl = spawn,
+    maxLiveBytes = 2000,
+    maxFinalStdoutBytes = 1024 * 1024, // 1MB
+    maxFinalStderrBytes = 256 * 1024,  // 256KB
+    redact = defaultRedact,
+    flushIntervalMs = 500,
+    flushBytes = 4096,
+  } = {}) {
     this.codexCommand = codexCommand;
-    // On ENOENT, try these alternative launch specs in order.
-    // Each entry is { cmd, argsPrefix }. The runtime appends
-    // ["exec", "--full-auto", "--skip-git-repo-check", prompt].
     this.fallbackCommands = fallbackCommands || [
       { cmd: "codex", argsPrefix: [] },
       { cmd: "npx", argsPrefix: ["@openai/codex"] },
@@ -31,16 +62,19 @@ class CodexRunner {
     this.defaultTimeoutMs = defaultTimeoutMs;
     this.runRegistry = runRegistry || null;
     this.repoRoot = repoRoot || process.cwd();
-    // Resolved launch spec (after first successful spawn)
+    this.broadcast = broadcast;
+    this.spawn = spawnImpl;
+    this.maxLiveBytes = maxLiveBytes;
+    this.maxFinalStdoutBytes = maxFinalStdoutBytes;
+    this.maxFinalStderrBytes = maxFinalStderrBytes;
+    this.redact = redact;
+    this.flushIntervalMs = flushIntervalMs;
+    this.flushBytes = flushBytes;
     this._resolvedSpec = null;
   }
 
   async exec(prompt, opts = {}) {
-    // Try resolved spec first; on ENOENT walk the fallback list.
-    const specs = this._resolvedSpec
-      ? [this._resolvedSpec]
-      : this.fallbackCommands;
-
+    const specs = this._resolvedSpec ? [this._resolvedSpec] : this.fallbackCommands;
     let lastFailure = null;
     for (const spec of specs) {
       const result = await this._tryExec(spec, prompt, opts);
@@ -53,12 +87,9 @@ class CodexRunner {
     return lastFailure || this._failure("no codex launcher available");
   }
 
-  _tryExec(spec, prompt, { timeoutMs, cwd } = {}) {
+  _tryExec(spec, prompt, opts = {}) {
+    const { timeoutMs, cwd, phaseId = null, iteration = 0, source = "phase" } = opts;
     return new Promise((resolve) => {
-      // Pass the prompt via stdin, not as a CLI argument. Multi-line prompts
-      // with special characters (`#`, `:`, Korean, quotes) get mangled by the
-      // Windows shell when `shell: true` concatenates args. Stdin avoids the
-      // whole shell-quoting problem.
       const args = [...spec.argsPrefix, "exec", "--full-auto", "--skip-git-repo-check"];
       const policyDecision = dangerGate.evaluate({
         type: "agent-run",
@@ -75,9 +106,11 @@ class CodexRunner {
         input: { prompt },
         policyDecision,
       });
+      const startedAt = Date.now();
+
       let child;
       try {
-        child = spawn(resolveCommand(spec.cmd), args, {
+        child = this.spawn(resolveCommand(spec.cmd), args, {
           stdio: ["pipe", "pipe", "pipe"],
           windowsHide: true,
           cwd: cwd || process.cwd(),
@@ -90,33 +123,94 @@ class CodexRunner {
         return resolve(f);
       }
 
-      // Write prompt via stdin and close. Errors here are non-fatal: if the
-      // child already exited (e.g. ENOENT before stdin is ready) we let the
-      // close handler report the real reason.
+      // Write prompt via stdin and close
       try {
         child.stdin.on("error", () => {});
         child.stdin.write(prompt);
         child.stdin.end();
-      } catch (_) {
-        // swallow — close/error handlers below will resolve the promise
-      }
+      } catch (_) { /* close handler reports real reason */ }
 
+      // Final (bounded) buffers
       const out = [];
       const errChunks = [];
+      let finalOutBytes = 0;
+      let finalErrBytes = 0;
+      let stdoutTruncated = false;
+      let stderrTruncated = false;
+      // Live streaming buffers (cleared on each flush)
+      let liveOut = "";
+      let liveErr = "";
+      let flushTimer = null;
       let settled = false;
+
+      const flush = () => {
+        if (!liveOut && !liveErr) return;
+        const stdoutPayload = liveOut ? this.redact(liveOut).slice(-this.maxLiveBytes) : "";
+        const stderrPayload = liveErr ? this.redact(liveErr).slice(-this.maxLiveBytes) : "";
+        const stream = liveOut && liveErr ? "mixed" : liveErr ? "stderr" : "stdout";
+        try {
+          this.broadcast({
+            type: "codex_progress",
+            data: {
+              runId,
+              phase: phaseId,
+              iteration,
+              source,
+              stdout: stdoutPayload,
+              stderr: stderrPayload,
+              stream,
+              truncated: stdoutTruncated || stderrTruncated,
+              elapsedMs: Date.now() - startedAt,
+            },
+          });
+        } catch (_) { /* broadcast errors must not break codex execution */ }
+        liveOut = "";
+        liveErr = "";
+      };
+
+      const scheduleFlush = () => {
+        if (flushTimer) return;
+        flushTimer = setTimeout(() => { flushTimer = null; flush(); }, this.flushIntervalMs);
+      };
 
       const timer = setTimeout(() => {
         if (settled) return;
         try { child.kill(); } catch (_) {}
       }, timeoutMs || this.defaultTimeoutMs);
 
-      child.stdout.on("data", (c) => out.push(c));
-      child.stderr.on("data", (c) => errChunks.push(c));
+      child.stdout.on("data", (chunk) => {
+        const text = chunk.toString();
+        if (finalOutBytes < this.maxFinalStdoutBytes) {
+          out.push(chunk);
+          finalOutBytes += chunk.length;
+          if (finalOutBytes >= this.maxFinalStdoutBytes) stdoutTruncated = true;
+        } else {
+          stdoutTruncated = true;
+        }
+        liveOut += text;
+        if (liveOut.length + liveErr.length >= this.flushBytes) flush();
+        else scheduleFlush();
+      });
+
+      child.stderr.on("data", (chunk) => {
+        const text = chunk.toString();
+        if (finalErrBytes < this.maxFinalStderrBytes) {
+          errChunks.push(chunk);
+          finalErrBytes += chunk.length;
+          if (finalErrBytes >= this.maxFinalStderrBytes) stderrTruncated = true;
+        } else {
+          stderrTruncated = true;
+        }
+        liveErr += text;
+        if (liveOut.length + liveErr.length >= this.flushBytes) flush();
+        else scheduleFlush();
+      });
 
       child.on("error", (err) => {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
+        if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
         const f = this._failure(`spawn error (${spec.cmd}): ${err.message}`);
         f._enoent = /ENOENT/i.test(err.message);
         if (runId) this.runRegistry?.complete(runId, f);
@@ -127,21 +221,24 @@ class CodexRunner {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
-        const stdout = Buffer.concat(out).toString("utf-8");
-        const stderr = Buffer.concat(errChunks).toString("utf-8");
-        // If the command itself wasn't found (e.g. Windows cmd emits an error
-        // message with code 1 or 9009), treat as ENOENT so fallback kicks in.
+        if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
+        flush(); // final live flush
+        const rawStdout = Buffer.concat(out).toString("utf-8");
+        const rawStderr = Buffer.concat(errChunks).toString("utf-8");
+        const stdout = this.redact(rawStdout);
+        const stderr = this.redact(rawStderr);
         const enoentLike =
           code !== 0 &&
           /(is not recognized|command not found|ENOENT|not found|'codex'|no such file)/i.test(
             stderr + stdout
-          ) &&
-          (stdout.length < 2000);
+          ) && (stdout.length < 2000);
         const result = {
           ok: code === 0,
           exitCode: code,
           stdout,
           stderr,
+          stdoutTruncated,
+          stderrTruncated,
           summary: this._extractSummary(stdout),
           findings: this._extractFindings(stdout),
           _enoent: enoentLike,
@@ -158,6 +255,8 @@ class CodexRunner {
       exitCode: null,
       stdout: "",
       stderr: reason,
+      stdoutTruncated: false,
+      stderrTruncated: false,
       summary: "",
       findings: [],
       error: reason,
@@ -184,4 +283,4 @@ class CodexRunner {
   }
 }
 
-module.exports = { CodexRunner };
+module.exports = { CodexRunner, defaultRedact, SECRET_PATTERNS };

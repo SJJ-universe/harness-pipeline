@@ -242,7 +242,7 @@ const IMMEDIATE_TYPES = new Set([
   "phase_update", "gate_failed", "gate_evaluated", "gate_bypassed",
   "tool_blocked", "error", "server_shutdown", "server_restart",
   "general_plan_complete", "critique_received", "codex_trigger_done",
-  "codex_started", "context_alarm", "pipeline_mutated",
+  "codex_started", "codex_progress", "context_alarm", "pipeline_mutated",
   // Audit/append-only events — must not be coalesced (Codex T0 fix)
   "tool_recorded", "hook_event", "log_message", "cycle_iteration",
   "node_update", "artifact_captured",
@@ -359,7 +359,11 @@ const sessionWatcher = new SessionWatcher(broadcast, path.resolve(__dirname, "..
 
 // ── Hook Router + Pipeline Executor (Phase 1 + 2 + 3 + 4) ──
 const hookRouter = new HookRouter({ broadcast, sessionWatcher, runRegistry });
-const codexRunner = new CodexRunner({ runRegistry, repoRoot: REPO_ROOT });
+const codexRunner = new CodexRunner({
+  runRegistry,
+  repoRoot: REPO_ROOT,
+  broadcast,
+});
 const claudeRunner = new ClaudeRunner({ runRegistry, repoRoot: REPO_ROOT });
 
 // generalRunRef.active is set by pipelineRoutes — see above
@@ -546,6 +550,9 @@ async function runGeneralPipeline(task, maxIter, runId) {
     const critiqueResult = await codexRunner.exec(buildCriticPrompt(task, plan), {
       timeoutMs: 150000,
       cwd: path.join(__dirname, ".."),
+      phaseId: "C",
+      iteration,
+      source: "general-pipeline",
     });
 
     const findings = critiqueResult.findings || [];

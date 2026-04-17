@@ -510,6 +510,28 @@ function _buildHorseSvg(mode) {
 const HORSE_FRAMES = [_buildHorseSvg("run1"), _buildHorseSvg("run2")];
 const HORSE_SVG_STOP = _buildHorseSvg("rein");
 
+// ── Codex live output panel state ──
+let _codexLiveRunId = null;
+let _codexLiveHideTimer = null;
+const MAX_CODEX_LIVE_LINES = 400;
+
+function _clearCodexLiveHideTimer() {
+  if (_codexLiveHideTimer) {
+    clearTimeout(_codexLiveHideTimer);
+    _codexLiveHideTimer = null;
+  }
+}
+
+function _trimCodexLive() {
+  const out = document.getElementById("codex-live-output");
+  if (!out) return;
+  const text = out.textContent || "";
+  const lines = text.split("\n");
+  if (lines.length > MAX_CODEX_LIVE_LINES) {
+    out.textContent = lines.slice(-MAX_CODEX_LIVE_LINES).join("\n");
+  }
+}
+
 let horseState = "idle";
 let _horseTimer = null;
 let _gallopInterval = null;
@@ -608,6 +630,93 @@ function connectWS() {
 }
 
 // ── Event Handler ──
+// Pure reducer for pipeline_replay — restores UI state WITHOUT side effects.
+// Skips: horse animations, live card toggling, timers, sound, auto-scroll of non-feeds.
+function applyReplayEvent(event) {
+  if (!event || !event.type) return;
+  const d = event.data || {};
+  const _stageKeys = getStageKeysForEvent(event);
+  switch (event.type) {
+    case "phase_update":
+      updatePhase(d.phase, d.status);
+      addLog("phase", `Phase ${d.phase}: ${d.status}`, false, _stageKeys);
+      break;
+    case "node_update":
+      updateNode(d.node, d.status);
+      if (d.findings != null) showFindingsBadge(d.node, d.findings);
+      if (d.totalFindings) updateFindingCounts(d.totalFindings);
+      break;
+    case "tool_recorded":
+      pushToolFeed({
+        ts: d.timestamp || Date.now(),
+        phase: d.phase || "?",
+        tool: d.tool || "?",
+        input: summarizeToolInput(d.tool, d.input),
+        blocked: false,
+      });
+      break;
+    case "tool_blocked":
+      pushToolFeed({
+        ts: Date.now(),
+        phase: d.phase || "?",
+        tool: d.tool || "?",
+        blocked: true,
+        reason: d.reason || "",
+        source: d.source || "unknown",
+      });
+      break;
+    case "gate_failed":
+      for (const m of (d.missing || [])) {
+        pushToolFeed({
+          ts: Date.now(),
+          phase: d.phase || "?",
+          tool: "QualityGate",
+          input: m,
+          blocked: true,
+          reason: `attempt ${d.retries || 0}/3`,
+        });
+      }
+      break;
+    case "critique_received": {
+      const f = d.findings || [];
+      const counts = { critical: 0, high: 0, medium: 0, low: 0, note: 0 };
+      for (const item of f) {
+        const sev = item.severity || "note";
+        if (counts[sev] !== undefined) counts[sev]++;
+      }
+      findings.critical += counts.critical;
+      findings.high += counts.high;
+      findings.medium += counts.medium;
+      findings.low += counts.low;
+      findings.note += counts.note;
+      pushCritique({
+        ts: Date.now(),
+        phase: d.phase || "?",
+        iteration: d.iteration != null ? d.iteration : null,
+        summary: d.summary || "",
+        counts,
+        topFindings: f.slice(0, 3).map((x) => ({
+          severity: x.severity || "note",
+          note: x.note || x.message || x.description || "",
+        })),
+      });
+      break;
+    }
+    case "cycle_iteration":
+      updateCycleCounter(d.iteration);
+      addLog("phase", `사이클 반복 ${d.iteration} — ${d.phase} → ${d.linkedTo}`, false, _stageKeys);
+      break;
+    case "artifact_captured":
+      // Flash would be visually distracting during replay; skip animation, just log
+      addLog("phase", `[${d.phase}] 산출물 수집 — ${d.key}`, false, _stageKeys);
+      break;
+    // Intentionally skipped (side-effectful): codex_started, codex_progress, heartbeat,
+    //   pipeline_start, pipeline_complete, pipeline_reset, pipeline_resume, pipeline_restored,
+    //   pipeline_paused, claim_verification_failed, hook_event, auto_pipeline_detect,
+    //   pipeline_mutated
+  }
+}
+
 function handleEvent(event) {
   // Track which stage keys this event belongs to (for modal popup)
   const _stageKeys = getStageKeysForEvent(event);
@@ -652,6 +761,8 @@ function handleEvent(event) {
       setHorseState("idle", `일시중단 — Phase ${d.phase || "?"}`);
       setBadge("warn", "일시중단");
       _pipelineActive = false;
+      // Mark the current phase as paused (amber dim) so UI shows where it stopped
+      if (d.phase) updatePhase(d.phase, "paused");
       break;
     }
 
@@ -661,30 +772,34 @@ function handleEvent(event) {
         _pipelineActive = false;
         return;
       }
-      // Restore pipeline structure
+      // 1. Render pipeline structure (destroys old DOM, builds new)
       if (d.template) {
         currentPipelineConfig = d.template;
         renderPipeline(d.template);
       }
-      // Mark earlier phases completed, current active or paused
-      if (d.template && Array.isArray(d.template.phases) && d.phaseIdx >= 0) {
-        for (let i = 0; i < d.phaseIdx; i++) {
-          updatePhase(d.template.phases[i].id, "completed");
-        }
-        const cur = d.template.phases[d.phaseIdx];
-        if (cur) updatePhase(cur.id, d.status === "active" ? "active" : "completed");
-      }
-      // Replay UI-restoration events (tool feed, critique timeline, stage logs)
+      // 2. Reset UI state buffers (events will rebuild them)
       toolFeed.length = 0;
       critiqueTimeline.length = 0;
       stageLogs = {};
       findings = { critical: 0, high: 0, medium: 0, low: 0, note: 0 };
+      // 3. Apply each event via PURE reducer (no horse/timer/live card side effects)
       for (const ev of (d.events || [])) {
-        try { handleEvent(ev); } catch (_) {}
+        try { applyReplayEvent(ev); } catch (_) {}
       }
+      // 4. Render accumulated buffers
       renderToolFeed();
       renderCritiqueTimeline();
       renderFindingCounts();
+      // 5. Final phase state (overrides any stale phase_update from replayed events)
+      if (d.template && Array.isArray(d.template.phases) && d.phaseIdx >= 0) {
+        for (let i = 0; i < d.template.phases.length; i++) {
+          const p = d.template.phases[i];
+          if (i < d.phaseIdx) updatePhase(p.id, "completed");
+          else if (i === d.phaseIdx) updatePhase(p.id, d.status === "paused" ? "paused" : "active");
+          else updatePhase(p.id, "");
+        }
+      }
+      // 6. Final horse/badge state
       if (d.status === "active") {
         setHorseState("galloping", `복원됨 — Phase ${d.phase || "?"}`);
         _pipelineActive = true;
@@ -845,9 +960,45 @@ function handleEvent(event) {
         true, _stageKeys);
       break;
 
-    case "codex_started":
-      addLog("phase", `[${event.data.phase}] Codex 시작 — ${event.data.promptPreview || ""}`, false, _stageKeys);
+    case "codex_started": {
+      const d = event.data || {};
+      _clearCodexLiveHideTimer();
+      _codexLiveRunId = d.runId || null;
+      const card = document.getElementById("codex-live-card");
+      const out = document.getElementById("codex-live-output");
+      const meta = document.getElementById("codex-live-meta");
+      if (card) card.style.display = "";
+      if (out) out.textContent = "";
+      if (meta) meta.textContent = `phase ${d.phase || "?"} · iter ${d.iteration || 0}`;
+      addLog("phase", `[${d.phase}] Codex 시작 — ${d.promptPreview || ""}`, false, _stageKeys);
       break;
+    }
+
+    case "codex_progress": {
+      const d = event.data || {};
+      // Ignore chunks from a different run (prevents cross-iteration bleed)
+      if (_codexLiveRunId != null && d.runId != null && _codexLiveRunId !== d.runId) break;
+      const out = document.getElementById("codex-live-output");
+      if (out) {
+        if (d.stderr) {
+          const span = document.createElement("span");
+          span.className = "stderr-line";
+          span.textContent = d.stderr;
+          out.appendChild(span);
+        }
+        if (d.stdout) {
+          out.appendChild(document.createTextNode(d.stdout));
+        }
+        _trimCodexLive();
+        out.scrollTop = out.scrollHeight;
+      }
+      const meta = document.getElementById("codex-live-meta");
+      if (meta) {
+        const sec = Math.round((d.elapsedMs || 0) / 1000);
+        meta.textContent = `phase ${d.phase || "?"} · iter ${d.iteration || 0} · ${sec}s${d.truncated ? " · truncated" : ""}`;
+      }
+      break;
+    }
 
     case "critique_received": {
       const f = event.data.findings || [];
@@ -879,6 +1030,18 @@ function handleEvent(event) {
         `[${event.data.phase}] Codex 비평 — ${event.data.summary || ""} ` +
         `(C:${counts.critical} H:${counts.high} M:${counts.medium} L:${counts.low} N:${counts.note})`,
         false, _stageKeys);
+
+      // Schedule live card hide — but only if no new run takes over within 5s
+      _clearCodexLiveHideTimer();
+      const hidingRunId = _codexLiveRunId;
+      _codexLiveHideTimer = setTimeout(() => {
+        _codexLiveHideTimer = null;
+        // If a new codex_started changed the runId, the next cycle is using the card — don't hide
+        if (_codexLiveRunId !== hidingRunId) return;
+        const card = document.getElementById("codex-live-card");
+        if (card) card.style.display = "none";
+        _codexLiveRunId = null;
+      }, 5000);
       break;
     }
 
@@ -1081,17 +1244,17 @@ function handleAutoPipeline(data) {
 // ── UI Updates ──
 
 function updatePhase(phase, status) {
-  // Full mode
+  // Full mode — remove all state classes, then add the current one if truthy
   const el = document.getElementById(`phase-${phase}`);
   if (el) {
-    el.classList.remove("active", "completed", "error");
-    if (status !== "idle") el.classList.add(status);
+    el.classList.remove("active", "completed", "error", "paused");
+    if (status && status !== "idle") el.classList.add(status);
   }
   // Compact mode
   const compact = document.getElementById(`compact-${phase}`);
   if (compact) {
-    compact.classList.remove("active", "completed", "error");
-    if (status !== "idle") compact.classList.add(status);
+    compact.classList.remove("active", "completed", "error", "paused");
+    if (status && status !== "idle") compact.classList.add(status);
   }
 }
 

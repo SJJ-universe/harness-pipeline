@@ -348,6 +348,59 @@ h1 {
   color: var(--text-dim);
 }
 
+/* Codex live output panel — shown during Codex execution */
+.codex-live-mini {
+  background: var(--bg-card);
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.codex-live-mini .stat-mini-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.codex-live-meta {
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--text-dim);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.codex-live-output {
+  max-height: 160px;
+  min-height: 60px;
+  overflow-y: auto;
+  overflow-x: auto;
+  font-family: 'Cascadia Code', 'Fira Code', monospace;
+  font-size: 10px;
+  line-height: 1.35;
+  padding: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-dim);
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin: 0;
+}
+.codex-live-output .stderr-line {
+  color: var(--red);
+}
+
+/* Paused phase styling — amber dim */
+.phase.paused {
+  border-color: #d29922;
+  box-shadow: 0 0 12px rgba(210, 153, 34, 0.25);
+  opacity: 0.75;
+}
+.compact-phase.paused {
+  border-color: #d29922;
+  opacity: 0.75;
+}
+
 /* Findings mini (5-tier) */
 .findings-mini { flex: 4; }
 .findings-row { display: flex; gap: 6px; }

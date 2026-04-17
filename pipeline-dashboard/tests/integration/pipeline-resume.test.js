@@ -38,6 +38,9 @@ test("startFromPrompt resumes active pipeline instead of restarting Phase A", as
   await ex._enterPhase(1);
   const before = ex.getStatus();
 
+  // Clear events to focus on events from THIS resume call
+  events.length = 0;
+
   const guidance = await ex.startFromPrompt("please implement another feature");
   const after = ex.getStatus();
 
@@ -50,6 +53,15 @@ test("startFromPrompt resumes active pipeline instead of restarting Phase A", as
   assert.match(guidance.message, /현재 진행 중/);
   assert.match(guidance.message, /새 작업 시작이 아니라/);
   assert.ok(events.some((e) => e.type === "pipeline_resume" && e.data.phase === "B"));
+  // BUG FIX: Resume must also re-emit phase_update events so UI re-applies .active class
+  assert.ok(
+    events.some((e) => e.type === "phase_update" && e.data.phase === "A" && e.data.status === "completed"),
+    "resume re-emits phase A completed"
+  );
+  assert.ok(
+    events.some((e) => e.type === "phase_update" && e.data.phase === "B" && e.data.status === "active"),
+    "resume re-emits phase B active"
+  );
 });
 
 test("fresh start (no active, no checkpoint) uses '시작' wording", async () => {

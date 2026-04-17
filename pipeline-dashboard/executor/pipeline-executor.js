@@ -536,6 +536,14 @@ class PipelineExecutor {
         phaseIdx: this.active.phaseIdx,
       },
     });
+    // Re-emit phase_update events so UI re-applies `.phase.active` highlighting.
+    // Without this, same-session resume leaves the DOM without the active class
+    // (see pipeline_paused which may have set `.paused`).
+    for (let i = 0; i < this.active.phaseIdx; i++) {
+      const p = this.active.template.phases[i];
+      if (p) this.broadcast({ type: "phase_update", data: { phase: p.id, status: "completed" } });
+    }
+    this.broadcast({ type: "phase_update", data: { phase: phase.id, status: "active" } });
     return this._buildPhaseGuidance(phase, { resumeKind: "active" });
   }
 
@@ -666,7 +674,12 @@ class PipelineExecutor {
     this.active._codexStartedAt = Date.now();
     let result;
     try {
-      result = await this.codex.exec(prompt, { timeoutMs: phase.timeoutMs || 120000 });
+      result = await this.codex.exec(prompt, {
+        timeoutMs: phase.timeoutMs || 120000,
+        phaseId: phase.id,
+        iteration,
+        source: "phase",
+      });
     } finally {
       if (this.active) this.active._codexStartedAt = null;
     }
