@@ -26,6 +26,8 @@ const { QualityGate } = require("./executor/quality-gate");
 const { SkillInjector } = require("./executor/skill-injector");
 const { PipelineAdapter } = require("./executor/pipeline-adapter");
 const { createCheckpointStore } = require("./executor/checkpoint");
+const { createEventReplayBuffer } = require("./src/runtime/eventReplayBuffer");
+const { createHeartbeat } = require("./executor/heartbeat");
 const skillRegistry = require("./skill-registry");
 const pipelineTemplates = require("./pipeline-templates.json");
 const { createAuthMiddleware, isLoopbackAddress } = require("./src/security/auth");
@@ -193,12 +195,46 @@ wss.on("connection", (ws, req) => {
   clients.add(ws);
   cancelShutdownTimer();
   console.log(`[ws] client connected — total=${clients.size}`);
+
+  // Half-open connection detection: ping/pong
+  ws.isAlive = true;
+  ws.on("pong", () => { ws.isAlive = true; });
+
   ws.on("close", () => {
     clients.delete(ws);
     console.log(`[ws] client disconnected — total=${clients.size}`);
     if (clients.size === 0) armShutdownTimer();
   });
+
+  // Send replay snapshot so reconnecting clients restore UI state
+  try {
+    if (pipelineExecutor && typeof pipelineExecutor.getReplaySnapshot === "function") {
+      const snapshot = pipelineExecutor.getReplaySnapshot();
+      const events = eventReplayBuffer.snapshot().map((e) => e.event);
+      ws.send(JSON.stringify({
+        type: "pipeline_replay",
+        data: { ...snapshot, events },
+      }));
+    }
+  } catch (err) {
+    console.error("[ws] failed to send replay:", err.message);
+  }
 });
+
+// Ping all clients every 30s; terminate stale ones
+const _pingInterval = setInterval(() => {
+  for (const ws of clients) {
+    if (ws.isAlive === false) {
+      clients.delete(ws);
+      try { ws.terminate(); } catch (_) {}
+      continue;
+    }
+    ws.isAlive = false;
+    try { ws.ping(); } catch (_) {}
+  }
+}, 30_000);
+// Unref so the interval doesn't keep Node alive during shutdown
+if (_pingInterval.unref) _pingInterval.unref();
 
 // P-5 Performance: throttle high-frequency events, deliver critical events immediately
 const IMMEDIATE_TYPES = new Set([
@@ -221,8 +257,25 @@ function _broadcastRaw(event) {
   }
 }
 
+// Replay buffer captures UI-relevant events for reconnect replay
+const eventReplayBuffer = createEventReplayBuffer({ maxSize: 500 });
+
 function broadcast(event) {
   const type = event && event.type;
+  // Capture before send so reconnecting clients see consistent history
+  eventReplayBuffer.append(event);
+  // Auto-manage heartbeat and replay buffer on pipeline lifecycle events
+  if (type === "pipeline_start" || type === "pipeline_reset") {
+    eventReplayBuffer.clear();
+    if (heartbeat) heartbeat.start();
+  } else if (type === "pipeline_complete") {
+    if (heartbeat) heartbeat.stop();
+  } else if (type === "auto_pipeline_detect") {
+    // Hook-driven pipeline start
+    if (heartbeat) heartbeat.start();
+  } else if (type === "pipeline_paused") {
+    if (heartbeat) heartbeat.stop();
+  }
   if (!type || IMMEDIATE_TYPES.has(type)) {
     _broadcastRaw(event);
     return;
@@ -325,6 +378,13 @@ const pipelineExecutor = new PipelineExecutor({
   adapter: pipelineAdapter,
   repoRoot: REPO_ROOT,
   checkpointStore,
+});
+// Heartbeat: broadcasts elapsed time every 5s while a pipeline is active
+const heartbeat = createHeartbeat({
+  broadcast,
+  getActive: () => pipelineExecutor.active,
+  getCurrentPhase: () => pipelineExecutor._currentPhase(),
+  intervalMs: 5000,
 });
 hookRouter.attachExecutor(pipelineExecutor);
 

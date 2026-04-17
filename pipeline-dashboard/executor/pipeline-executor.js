@@ -178,6 +178,7 @@ class PipelineExecutor {
         type: "tool_blocked",
         data: { phase: phase.id, tool, reason: danger.reason, matchedRule: danger.matchedRule, source: "danger" },
       });
+      this._scheduleCheckpoint();
       return { decision: "block", reason: danger.reason };
     }
 
@@ -187,6 +188,7 @@ class PipelineExecutor {
         type: "tool_blocked",
         data: { phase: phase.id, tool, reason: policy.reason, source: "policy" },
       });
+      this._scheduleCheckpoint();
       return { decision: "block", reason: policy.reason };
     }
 
@@ -198,6 +200,7 @@ class PipelineExecutor {
         type: "tool_blocked",
         data: { phase: phase.id, tool, reason: contractResult.reason, source: "contract" },
       });
+      this._scheduleCheckpoint();
       return { decision: "block", reason: contractResult.reason };
     }
 
@@ -223,6 +226,7 @@ class PipelineExecutor {
         type: "tool_blocked",
         data: { phase: phase.id, tool, allowed, source: "allowedTools" },
       });
+      this._scheduleCheckpoint();
       return { decision: "block", reason };
     }
     return {};
@@ -235,6 +239,7 @@ class PipelineExecutor {
 
     this.state.recordTool(phase.id, tool, response);
     this._captureArtifacts(phase, tool, response);
+    this._scheduleCheckpoint();
 
     this.broadcast({
       type: "tool_recorded",
@@ -287,6 +292,7 @@ class PipelineExecutor {
         type: "gate_failed",
         data: { phase: phase.id, missing: gateResult.missing, retries: this.active.gateRetries },
       });
+      this._scheduleCheckpoint();
       return { decision: "block", reason };
     }
 
@@ -332,8 +338,53 @@ class PipelineExecutor {
 
   async onSessionEnd(_payload) {
     if (!this.active) return {};
-    this._complete("session-end");
+    // Session end is a temporary pause — keep checkpoint so next session can resume.
+    // Force-save current state, cancel any pending debounce, then drop in-memory only.
+    const phase = this._currentPhase();
+    this.broadcast({
+      type: "pipeline_paused",
+      data: { reason: "session-end", phase: phase ? phase.id : null },
+    });
+    if (this._checkpointTimer) {
+      clearTimeout(this._checkpointTimer);
+      this._checkpointTimer = null;
+    }
+    this.checkpointStore.save(this.active, this.state);
+    this.active = null;
     return {};
+  }
+
+  getReplaySnapshot() {
+    if (this.active) {
+      const phase = this._currentPhase();
+      return {
+        status: "active",
+        templateId: this.active.templateId,
+        template: this.active.template,
+        phaseIdx: this.active.phaseIdx,
+        phase: phase ? phase.id : null,
+        startedAt: this.active.startedAt,
+        stateSnapshot: this.state.snapshot(),
+      };
+    }
+    const checkpoint = this.checkpointStore.load();
+    if (checkpoint) {
+      const template = checkpoint.templateSnapshot || null;
+      const phase = template && Array.isArray(template.phases)
+        ? template.phases[checkpoint.phaseIdx]
+        : null;
+      return {
+        status: "paused",
+        templateId: checkpoint.templateId,
+        template,
+        phaseIdx: checkpoint.phaseIdx,
+        phase: phase ? phase.id : null,
+        startedAt: checkpoint.startedAt,
+        savedAt: checkpoint.savedAt,
+        stateSnapshot: checkpoint.stateSnapshot,
+      };
+    }
+    return { status: "idle" };
   }
 
   // ── Internal ──────────────────────────────────────────────────
@@ -424,6 +475,14 @@ class PipelineExecutor {
     if (id === "D" || id === "E") return "executor";
     if (id === "F") return "validator";
     return "default";
+  }
+
+  _scheduleCheckpoint() {
+    if (this._checkpointTimer) return; // already scheduled
+    this._checkpointTimer = setTimeout(() => {
+      this._checkpointTimer = null;
+      if (this.active) this.checkpointStore.save(this.active, this.state);
+    }, 500);
   }
 
   _resumeActivePipeline() {
@@ -563,8 +622,16 @@ class PipelineExecutor {
     });
 
     const iteration = (this.active.iteration || 0) + 1;
-    const result = await this.codex.exec(prompt, { timeoutMs: phase.timeoutMs || 120000 });
+    // Mark codex-running for heartbeat visibility; try/finally ensures clear on error
+    this.active._codexStartedAt = Date.now();
+    let result;
+    try {
+      result = await this.codex.exec(prompt, { timeoutMs: phase.timeoutMs || 120000 });
+    } finally {
+      if (this.active) this.active._codexStartedAt = null;
+    }
     this.state.setCritique(phase.id, result);
+    this._scheduleCheckpoint();
     this.active.lastCritique = { phase: phase.id, ...result };
 
     // FIX-1: persist critique to filesystem so Claude can Read it in the next phase
@@ -692,6 +759,11 @@ class PipelineExecutor {
   _complete(reason) {
     if (!this.active) return;
 
+    // Cancel any pending debounced checkpoint save
+    if (this._checkpointTimer) {
+      clearTimeout(this._checkpointTimer);
+      this._checkpointTimer = null;
+    }
     // Clear checkpoint — pipeline is done, next session should start fresh
     this.checkpointStore.clear();
 

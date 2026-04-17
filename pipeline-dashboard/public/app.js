@@ -577,11 +577,33 @@ function reinThenResume(statusText, delayMs) {
   }, delayMs);
 }
 
+// Update only the status text without toggling horse state (for heartbeat ticks)
+function setHorseStatusText(text) {
+  const status = document.getElementById("harness-status");
+  if (status) status.textContent = text || "";
+}
+
 // ── WebSocket ──
+let _wsMonitorTimer = null;
+let _lastEventAt = Date.now();
+let _pipelineActive = false;
+
+function startWsMonitor() {
+  if (_wsMonitorTimer) return; // single global monitor — no duplicates on reconnect
+  _wsMonitorTimer = setInterval(() => {
+    const silentMs = Date.now() - _lastEventAt;
+    if (silentMs > 10_000 && _pipelineActive) {
+      const sec = Math.round(silentMs / 1000);
+      setBadge("warn", `서버 응답 없음 ${sec}s`);
+    }
+  }, 2000);
+}
+
 function connectWS() {
   const protocol = location.protocol === "https:" ? "wss:" : "ws:";
   ws = new WebSocket(`${protocol}//${location.host}`);
-  ws.onmessage = (e) => handleEvent(JSON.parse(e.data));
+  ws.onopen = () => { _lastEventAt = Date.now(); startWsMonitor(); };
+  ws.onmessage = (e) => { _lastEventAt = Date.now(); handleEvent(JSON.parse(e.data)); };
   ws.onclose = () => setTimeout(connectWS, 2000);
 }
 
@@ -595,6 +617,7 @@ function handleEvent(event) {
       resetUI();
       addLog("phase", "파이프라인 리셋됨");
       setHorseState("idle");
+      _pipelineActive = false;
       break;
 
     case "pipeline_start":
@@ -603,12 +626,14 @@ function handleEvent(event) {
       setBadge("running", event.data.mode === "live" ? "라이브" : "실행중");
       addLog("phase", `파이프라인 시작 — ${event.data.mode} 모드 — ${event.data.targetFile}`, false, _stageKeys);
       setHorseState("galloping", "실행 중");
+      _pipelineActive = true;
       break;
 
     case "pipeline_resume": {
       const d = event.data || {};
       addLog("phase", `기존 파이프라인 계속 — Phase ${d.phase || "?"} (${d.templateId || "unknown"})`);
       setHorseState("galloping", `Phase ${d.phase || "?"} 계속`);
+      _pipelineActive = true;
       break;
     }
 
@@ -617,6 +642,69 @@ function handleEvent(event) {
       const time = d.savedAt ? new Date(d.savedAt).toLocaleTimeString() : "?";
       addLog("phase", `체크포인트 복원 — Phase ${d.phase || "?"} (저장 시각: ${time})`);
       setHorseState("galloping", `Phase ${d.phase || "?"} 복원`);
+      _pipelineActive = true;
+      break;
+    }
+
+    case "pipeline_paused": {
+      const d = event.data || {};
+      addLog("phase", `일시중단 (${d.reason || "?"}) — Phase ${d.phase || "?"}`);
+      setHorseState("idle", `일시중단 — Phase ${d.phase || "?"}`);
+      setBadge("warn", "일시중단");
+      _pipelineActive = false;
+      break;
+    }
+
+    case "pipeline_replay": {
+      const d = event.data || {};
+      if (d.status === "idle") {
+        _pipelineActive = false;
+        return;
+      }
+      // Restore pipeline structure
+      if (d.template) {
+        currentPipelineConfig = d.template;
+        renderPipeline(d.template);
+      }
+      // Mark earlier phases completed, current active or paused
+      if (d.template && Array.isArray(d.template.phases) && d.phaseIdx >= 0) {
+        for (let i = 0; i < d.phaseIdx; i++) {
+          updatePhase(d.template.phases[i].id, "completed");
+        }
+        const cur = d.template.phases[d.phaseIdx];
+        if (cur) updatePhase(cur.id, d.status === "active" ? "active" : "completed");
+      }
+      // Replay UI-restoration events (tool feed, critique timeline, stage logs)
+      toolFeed.length = 0;
+      critiqueTimeline.length = 0;
+      stageLogs = {};
+      findings = { critical: 0, high: 0, medium: 0, low: 0, note: 0 };
+      for (const ev of (d.events || [])) {
+        try { handleEvent(ev); } catch (_) {}
+      }
+      renderToolFeed();
+      renderCritiqueTimeline();
+      renderFindingCounts();
+      if (d.status === "active") {
+        setHorseState("galloping", `복원됨 — Phase ${d.phase || "?"}`);
+        _pipelineActive = true;
+      } else if (d.status === "paused") {
+        setHorseState("idle", `일시중단 — Phase ${d.phase || "?"}`);
+        setBadge("warn", "일시중단");
+        _pipelineActive = false;
+      }
+      break;
+    }
+
+    case "heartbeat": {
+      const d = event.data || {};
+      const sec = Math.round((d.elapsedMs || 0) / 1000);
+      if (d.codexRunning) {
+        const codexSec = Math.round((Date.now() - d.codexRunning) / 1000);
+        setHorseStatusText(`Codex 작업 중… ${codexSec}s (총 ${sec}s)`);
+      } else {
+        setHorseStatusText(`Phase ${d.phase || "?"} 진행 중… ${sec}s`);
+      }
       break;
     }
 
@@ -667,6 +755,7 @@ function handleEvent(event) {
         updateVerificationStatus(event.data.verification);
       }
       setHorseState("idle");
+      _pipelineActive = false;
       break;
 
     case "harness_complete":
