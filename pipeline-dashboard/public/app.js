@@ -750,10 +750,24 @@ function applyReplayEvent(event) {
       // Flash would be visually distracting during replay; skip animation, just log
       addLog("phase", `[${d.phase}] 산출물 수집 — ${d.key}`, false, _stageKeys);
       break;
+    // Slice D (v4): subagent lifecycle replay. We route through the tray's
+    // `restore()` entry point so it can skip the post-complete fade timer —
+    // a refreshed page should see historical subagents in their final state,
+    // not watch them fade immediately after replay.
+    case "subagent_started":
+      if (window.HarnessSubagentTray && typeof window.HarnessSubagentTray.restore === "function") {
+        window.HarnessSubagentTray.restore("subagent_started", d);
+      }
+      break;
+    case "subagent_completed":
+      if (window.HarnessSubagentTray && typeof window.HarnessSubagentTray.restore === "function") {
+        window.HarnessSubagentTray.restore("subagent_completed", d);
+      }
+      break;
     // Intentionally skipped (side-effectful): codex_started, codex_progress, heartbeat,
     //   pipeline_start, pipeline_complete, pipeline_reset, pipeline_resume, pipeline_restored,
     //   pipeline_paused, claim_verification_failed, hook_event, auto_pipeline_detect,
-    //   pipeline_mutated
+    //   pipeline_mutated, harness_notification, pipeline_compacted
   }
 }
 
@@ -1158,6 +1172,36 @@ function handleEvent(event) {
       break;
     }
 
+    // Slice D (v4): Claude Code subagent (Agent tool) lifecycle surfaces into
+    // a dedicated tray. The live handlers just delegate to HarnessSubagentTray
+    // which owns animation + fade-out; we only log the summary here.
+    case "subagent_started": {
+      const d = event.data || {};
+      if (window.HarnessSubagentTray) {
+        window.HarnessSubagentTray.start({
+          session_id: d.session_id || d.agent_id,
+          agent_type: d.agent_type,
+          parent_session_id: d.parent_session_id || null,
+        });
+      }
+      addLog("phase",
+        `서브에이전트 시작 — ${d.agent_type || "unknown"} (id=${String(d.session_id || d.agent_id || "").slice(0, 8)})`);
+      break;
+    }
+    case "subagent_completed": {
+      const d = event.data || {};
+      if (window.HarnessSubagentTray) {
+        window.HarnessSubagentTray.complete({
+          session_id: d.session_id || d.agent_id,
+          agent_type: d.agent_type,
+          elapsedMs: d.elapsedMs,
+        });
+      }
+      const sec = Number.isFinite(d.elapsedMs) ? (d.elapsedMs / 1000).toFixed(1) + "s" : "?s";
+      addLog("phase",
+        `서브에이전트 완료 — ${d.agent_type || "unknown"} (${sec})`);
+      break;
+    }
 
     case "general_plan_complete": {
       const triggerBtn = document.getElementById("btn-start-general");
@@ -1604,6 +1648,11 @@ function resetUI() {
   setBadge("", "대기");
   // Reset stage logs
   stageLogs = {};
+  // Slice D (v4): drop the subagent tray state along with everything else so
+  // a new pipeline doesn't inherit ghost agents from the previous run.
+  if (window.HarnessSubagentTray && typeof window.HarnessSubagentTray.reset === "function") {
+    window.HarnessSubagentTray.reset();
+  }
 }
 
 

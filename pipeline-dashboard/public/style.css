@@ -1093,6 +1093,66 @@ h1 {
   .horse-rider.reining { animation: none; }
 }
 
+/* ── Slice D (v4): Subagent tray ──
+ * Sits below the codex live card. Each row is a compact "agent_type · Ns"
+ * line with color-coded state: active = neutral border, completed = green
+ * check mark, fading out after the 5s post-complete hold.
+ */
+.subagent-tray.empty { display: none; }
+.subagent-items {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 4px;
+  max-height: 184px;   /* ~8 rows × 23px */
+  overflow-y: auto;
+}
+.subagent-item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 1.6;
+  background: rgba(110, 118, 129, 0.08);
+  animation: subagent-slide-in 160ms ease-out;
+}
+@keyframes subagent-slide-in {
+  from { opacity: 0; transform: translateX(-6px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.subagent-item.active {
+  border-left: 3px solid #58a6ff;
+}
+.subagent-item.done {
+  border-left: 3px solid var(--green);
+  opacity: 0.7;
+  transition: opacity 400ms ease-out;
+}
+.subagent-item.subagent-more {
+  justify-content: center;
+  font-style: italic;
+  color: var(--text-dim);
+  border-left: 3px solid var(--text-dim);
+}
+.subagent-type {
+  font-family: 'Cascadia Code', 'Fira Code', monospace;
+  color: #e6edf3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 140px;
+}
+.subagent-elapsed {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.subagent-item.done .subagent-elapsed { color: var(--green); }
+
 /* ── Slice C (v4): Toast system ──
  * Stacks in the bottom-right, up to 3 visible. Error toasts use the same
  * palette as .finding-chip.critical so users map severity consistently.

@@ -101,6 +101,17 @@
         <pre class="codex-live-output" id="codex-live-output"></pre>
       </div>
 
+      <!-- Slice D (v4): Subagent tray — lights up when Claude Code's Agent tool
+           dispatches work to a subagent (SubagentStart) and clears after the
+           matching SubagentStop. Empty state is visually suppressed via .empty. -->
+      <div class="stat-mini subagent-tray empty" id="subagent-tray">
+        <div class="stat-mini-title">
+          <span>🤝 서브에이전트</span>
+          <span class="feed-counter" id="subagent-count">0</span>
+        </div>
+        <div class="subagent-items" id="subagent-items"></div>
+      </div>
+
       <!-- Row 2: Tool Feed + Critique Timeline -->
       <div class="stats-row-2">
         <div class="stat-mini tool-feed-mini">
@@ -200,6 +211,9 @@
   <!-- toast.js must load before api-client + app.js so the HarnessToast
        singleton is ready when those modules call showToast(). -->
   <script src="js/toast.js"></script>
+  <!-- Slice D: subagent tray wiring also needs to be live before app.js
+       dispatches its first subagent_* event. -->
+  <script src="js/subagent-tray.js"></script>
   <script src="js/api-client.js"></script>
   <script src="app.js"></script>
 </body>

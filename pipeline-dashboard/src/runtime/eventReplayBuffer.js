@@ -23,6 +23,12 @@ const REPLAY_TYPES = new Set([
   "hook_event",
   "auto_pipeline_detect",
   "pipeline_mutated",
+  // Slice D (v4): subagent lifecycle. Both start+completed are replayed so a
+  // browser refreshing mid-run sees the correct tray state. Volume is low
+  // (Agent tool dispatches are bursty, not sustained), so including both
+  // stays within the 500-entry ring budget comfortably.
+  "subagent_started",
+  "subagent_completed",
 ]);
 
 function createEventReplayBuffer({ maxSize = 500 } = {}) {
