@@ -14,7 +14,8 @@ const root = path.resolve(__dirname, "..", "..");
 const index = fs.readFileSync(path.join(root, "public", "index.html"), "utf-8");
 
 test("skip-link to #main-content exists near <body>", () => {
-  assert.match(index, /<a class="skip-link" href="#main-content">/);
+  // Slice I (v5) allows data-i18n attribute on the skip-link; match both shapes.
+  assert.match(index, /<a class="skip-link" href="#main-content"[^>]*>/);
   assert.match(index, /본문 바로가기/);
 });
 

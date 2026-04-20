@@ -74,6 +74,33 @@ main#main-content:focus {
  * !important so it wins over element-specific display rules. */
 .is-hidden { display: none !important; }
 
+/* Slice I (v5): language toggle — two pill buttons in the header. Active
+ * language gets .is-active so the user knows which locale is live. */
+.lang-toggle {
+  display: inline-flex;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-right: 4px;
+}
+.lang-btn {
+  background: transparent;
+  color: var(--text-dim);
+  border: 0;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  font-family: inherit;
+}
+.lang-btn:hover { color: var(--text); background: rgba(88, 166, 255, 0.08); }
+.lang-btn.is-active {
+  background: var(--codex);
+  color: #0b1a2d;
+}
+
 /* ── Header ── */
 header {
   display: flex;

@@ -14,7 +14,7 @@
 <body>
   <!-- Slice H (v5): Skip link for keyboard users — hidden until focused,
        jumps past the header into the main content region. -->
-  <a class="skip-link" href="#main-content">본문 바로가기</a>
+  <a class="skip-link" href="#main-content" data-i18n="a11y.skipLink">본문 바로가기</a>
 
   <!-- Header -->
   <header role="banner">
@@ -24,23 +24,38 @@
           <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
         </svg>
       </div>
-      <h1>SJ 하네스 엔진</h1>
-      <span class="badge" id="status-badge">대기</span>
+      <h1 data-i18n="header.title">SJ 하네스 엔진</h1>
+      <span class="badge" id="status-badge" data-i18n="status.idle">대기</span>
     </div>
     <div class="header-right">
-      <span class="server-indicator" id="server-indicator" title="서버 상태">
+      <span class="server-indicator" id="server-indicator" data-i18n-title="server.status.title" title="서버 상태">
         <span class="dot" id="server-dot"></span>
-        <span id="server-label">서버: 확인중</span>
+        <span id="server-label" data-i18n="server.label.checking">서버: 확인중</span>
       </span>
-      <span class="codex-indicator" id="codex-indicator" title="Codex CLI 상태">
+      <span class="codex-indicator" id="codex-indicator" data-i18n-title="codex.status.title" title="Codex CLI 상태">
         <span class="dot" id="codex-dot"></span>
         <span id="codex-label">Codex: —</span>
       </span>
-      <button class="btn-ctrl" id="btn-codex-verify" title="Codex CLI 실제 호출 테스트" aria-label="Codex CLI 실제 호출 테스트">Codex 검증</button>
-      <button class="btn-ctrl" id="btn-open-analytics" title="Phase별 duration / gate 메트릭 열기" aria-label="Phase 메트릭 드로어 열기 (g m)">📈 메트릭</button>
-      <button class="btn-ctrl" id="btn-open-run-history" title="과거 실행 기록 드로어 열기" aria-label="과거 실행 기록 드로어 열기 (g h)">📜 히스토리</button>
-      <button class="btn-ctrl" id="btn-server-restart" title="서버 재시작" aria-label="서버 재시작">재시작</button>
-      <button class="btn-ctrl danger" id="btn-server-stop" title="서버 종료" aria-label="서버 종료">서버 종료</button>
+      <!-- Slice I (v5): language toggle — ko/en radio-style buttons. -->
+      <div class="lang-toggle" role="group" data-i18n-aria-label="lang.toggle.title" aria-label="언어 전환">
+        <button class="lang-btn" data-lang="ko" type="button">KO</button>
+        <button class="lang-btn" data-lang="en" type="button">EN</button>
+      </div>
+      <button class="btn-ctrl" id="btn-codex-verify"
+              data-i18n="btn.codexVerify" data-i18n-title="btn.codexVerify.title" data-i18n-aria-label="btn.codexVerify.title"
+              title="Codex CLI 실제 호출 테스트" aria-label="Codex CLI 실제 호출 테스트">Codex 검증</button>
+      <button class="btn-ctrl" id="btn-open-analytics"
+              data-i18n="btn.openAnalytics" data-i18n-title="btn.openAnalytics.title" data-i18n-aria-label="btn.openAnalytics.aria"
+              title="Phase별 duration / gate 메트릭 열기" aria-label="Phase 메트릭 드로어 열기 (g m)">📈 메트릭</button>
+      <button class="btn-ctrl" id="btn-open-run-history"
+              data-i18n="btn.openRunHistory" data-i18n-title="btn.openRunHistory.title" data-i18n-aria-label="btn.openRunHistory.aria"
+              title="과거 실행 기록 드로어 열기" aria-label="과거 실행 기록 드로어 열기 (g h)">📜 히스토리</button>
+      <button class="btn-ctrl" id="btn-server-restart"
+              data-i18n="btn.serverRestart" data-i18n-title="btn.serverRestart.title" data-i18n-aria-label="btn.serverRestart.title"
+              title="서버 재시작" aria-label="서버 재시작">재시작</button>
+      <button class="btn-ctrl danger" id="btn-server-stop"
+              data-i18n="btn.serverStop" data-i18n-title="btn.serverStop.title" data-i18n-aria-label="btn.serverStop.title"
+              title="서버 종료" aria-label="서버 종료">서버 종료</button>
     </div>
   </header>
 
@@ -61,15 +76,23 @@
     <section class="pipeline-scroll">
       <!-- Pipeline selector bar -->
       <div class="pipeline-selector" id="pipeline-selector">
-        <span class="pipeline-pill" id="pipeline-pill" title="템플릿 전환 (클릭)">코드 리뷰</span>
-        <button class="btn-ctrl primary" id="btn-start-general" title="범용 태스크 파이프라인 실행 (Claude 플랜 ↔ Codex 비평 순환)">
+        <!-- pipeline-pill text is dynamic (template name from JS) — not
+             data-i18n; JS will call t() when picking a template. -->
+        <span class="pipeline-pill" id="pipeline-pill" data-i18n-title="pipeline.selector.title" title="템플릿 전환 (클릭)">코드 리뷰</span>
+        <button class="btn-ctrl primary" id="btn-start-general"
+                data-i18n="btn.startGeneral" data-i18n-title="btn.startGeneral.title"
+                title="범용 태스크 파이프라인 실행 (Claude 플랜 ↔ Codex 비평 순환)">
           ▶ 작업 시작
         </button>
-        <button class="btn-ctrl danger is-hidden" id="btn-abort-general" title="진행 중인 파이프라인 중단">
+        <button class="btn-ctrl danger is-hidden" id="btn-abort-general"
+                data-i18n="btn.abortGeneral" data-i18n-title="btn.abortGeneral.title"
+                title="진행 중인 파이프라인 중단">
           ■ 중단
         </button>
-        <button class="btn-small" id="btn-toggle-compact" title="컴팩트/상세 보기 전환">compact</button>
-        <button class="btn-small" id="btn-open-template-editor" title="커스텀 템플릿 추가/편집/삭제">템플릿</button>
+        <button class="btn-small" id="btn-toggle-compact" data-i18n-title="btn.toggleCompact.title" title="컴팩트/상세 보기 전환">compact</button>
+        <button class="btn-small" id="btn-open-template-editor"
+                data-i18n="btn.openTemplateEditor" data-i18n-title="btn.openTemplateEditor.title"
+                title="커스텀 템플릿 추가/편집/삭제">템플릿</button>
       </div>
       <div class="compact-pipeline hidden" id="compact-pipeline"></div>
       <!-- Dynamic pipeline container -->
@@ -84,7 +107,7 @@
       <div class="stats-compact">
         <!-- Findings (5tier) -->
         <div class="stat-mini findings-mini">
-          <div class="stat-mini-title">발견 사항</div>
+          <div class="stat-mini-title" data-i18n="stat.findings">발견 사항</div>
           <div class="findings-row findings-5tier">
             <div class="finding-chip critical"><span class="finding-count-sm" id="count-critical">0</span><span class="finding-label-sm">critical</span></div>
             <div class="finding-chip high"><span class="finding-count-sm" id="count-high">0</span><span class="finding-label-sm">high</span></div>
@@ -95,7 +118,7 @@
         </div>
         <!-- Context pressure bar -->
         <div class="stat-mini context-mini" id="context-card">
-          <div class="stat-mini-title">컨텍스트</div>
+          <div class="stat-mini-title" data-i18n="stat.context">컨텍스트</div>
           <div class="context-bar" id="context-bar">
             <div class="context-fill"></div>
             <span class="context-label">--</span>
@@ -103,7 +126,7 @@
         </div>
         <!-- Verification status -->
         <div class="stat-mini verify-mini" id="verify-card">
-          <div class="stat-mini-title">검증</div>
+          <div class="stat-mini-title" data-i18n="stat.verify">검증</div>
           <div class="verify-status" id="verify-status">--</div>
         </div>
       </div>
@@ -111,7 +134,7 @@
       <!-- Codex Live Output — visible only during Codex execution -->
       <div class="stat-mini codex-live-mini is-hidden" id="codex-live-card">
         <div class="stat-mini-title">
-          <span>🤖 Codex 라이브 출력</span>
+          <span data-i18n="stat.codexLive">🤖 Codex 라이브 출력</span>
           <span class="codex-live-meta" id="codex-live-meta">—</span>
         </div>
         <pre class="codex-live-output" id="codex-live-output"></pre>
@@ -122,7 +145,7 @@
            matching SubagentStop. Empty state is visually suppressed via .empty. -->
       <div class="stat-mini subagent-tray empty" id="subagent-tray">
         <div class="stat-mini-title">
-          <span>🤝 서브에이전트</span>
+          <span data-i18n="stat.subagents">🤝 서브에이전트</span>
           <span class="feed-counter" id="subagent-count">0</span>
         </div>
         <div class="subagent-items" id="subagent-items"></div>
@@ -132,18 +155,18 @@
       <div class="stats-row-2">
         <div class="stat-mini tool-feed-mini">
           <div class="stat-mini-title">
-            <span>🔧 툴 호출</span>
+            <span data-i18n="stat.toolCalls">🔧 툴 호출</span>
             <span class="feed-counter" id="tool-feed-counter">0</span>
-            <button class="btn-small" id="btn-clear-tool-feed">지우기</button>
+            <button class="btn-small" id="btn-clear-tool-feed" data-i18n="btn.clear">지우기</button>
           </div>
           <div class="tool-feed" id="tool-feed"></div>
         </div>
 
         <div class="stat-mini critique-mini">
           <div class="stat-mini-title">
-            <span>💬 Critique 타임라인</span>
+            <span data-i18n="stat.critiqueTimeline">💬 Critique 타임라인</span>
             <span class="feed-counter" id="critique-counter">0</span>
-            <button class="btn-small" id="btn-clear-critique">지우기</button>
+            <button class="btn-small" id="btn-clear-critique" data-i18n="btn.clear">지우기</button>
           </div>
           <div class="critique-timeline" id="critique-timeline"></div>
         </div>
@@ -152,10 +175,10 @@
       <!-- Tab Bar + Terminal/Log -->
       <div class="right-tabs">
         <div class="tab-bar">
-          <button class="tab" id="tab-btn-log">이벤트 로그</button>
-          <button class="tab active" id="tab-btn-terminal">터미널</button>
+          <button class="tab" id="tab-btn-log" data-i18n="tab.eventLog">이벤트 로그</button>
+          <button class="tab active" id="tab-btn-terminal" data-i18n="tab.terminal">터미널</button>
           <div class="tab-spacer"></div>
-          <button class="btn-small" id="btn-clear-log">지우기</button>
+          <button class="btn-small" id="btn-clear-log" data-i18n="btn.clear">지우기</button>
         </div>
         <div class="tab-content hidden" id="tab-log">
           <div class="log-content" id="log-content"></div>
@@ -175,21 +198,22 @@
        role="dialog" aria-modal="true" aria-labelledby="general-run-title">
     <div class="modal-content">
       <div class="modal-header">
-        <span class="modal-title" id="general-run-title">범용 파이프라인 시작 — Claude 플랜 ↔ Codex 비평</span>
+        <span class="modal-title" id="general-run-title" data-i18n="modal.general.title">범용 파이프라인 시작 — Claude 플랜 ↔ Codex 비평</span>
         <button class="modal-close">&times;</button>
       </div>
       <div class="modal-body">
-        <p class="plan-help">
+        <p class="plan-help" data-i18n="modal.general.description">
           작업을 입력하면 Claude가 계획을 세우고 Codex가 비평하며, critical/high 이슈가 남아 있는 동안 자동으로 계획을 수정하고 다시 비평합니다.
         </p>
-        <label class="plan-field-label">작업 설명</label>
+        <label class="plan-field-label" data-i18n="field.taskDescription">작업 설명</label>
         <textarea id="gr-task-input" class="plan-textarea" rows="5"
+          data-i18n-placeholder="field.taskPlaceholder"
           placeholder="예: Express 서버에 JWT 인증 미들웨어를 추가하고 기존 /admin 라우트를 보호하기"></textarea>
-        <label class="plan-field-label">최대 반복 횟수</label>
+        <label class="plan-field-label" data-i18n="field.maxIterations">최대 반복 횟수</label>
         <input type="number" id="gr-max-iter" class="plan-input" value="3" min="1" max="5" />
         <div class="plan-actions">
-          <button class="btn-ctrl" id="btn-gr-cancel">취소</button>
-          <button class="btn-ctrl primary" id="btn-gr-start">시작</button>
+          <button class="btn-ctrl" id="btn-gr-cancel" data-i18n="btn.cancel">취소</button>
+          <button class="btn-ctrl primary" id="btn-gr-start" data-i18n="btn.start">시작</button>
         </div>
       </div>
     </div>
@@ -200,7 +224,7 @@
        role="dialog" aria-modal="true" aria-labelledby="final-plan-title">
     <div class="modal-content wide">
       <div class="modal-header">
-        <span class="modal-title" id="final-plan-title">최종 플랜</span>
+        <span class="modal-title" id="final-plan-title" data-i18n="modal.finalPlan">최종 플랜</span>
         <button class="modal-close">&times;</button>
       </div>
       <div class="modal-body">
@@ -215,7 +239,7 @@
        role="dialog" aria-modal="true" aria-labelledby="modal-title">
     <div class="modal-content">
       <div class="modal-header">
-        <span class="modal-title" id="modal-title">단계 상세</span>
+        <span class="modal-title" id="modal-title" data-i18n="modal.stepDetail">단계 상세</span>
         <button class="modal-close">&times;</button>
       </div>
       <div class="modal-body" id="modal-body"></div>
@@ -227,8 +251,8 @@
        role="dialog" aria-modal="true" aria-labelledby="analytics-drawer-title">
     <div class="modal-content wide">
       <div class="modal-header">
-        <span class="modal-title" id="analytics-drawer-title">📈 Phase 메트릭</span>
-        <button class="modal-close" id="btn-analytics-close" aria-label="메트릭 드로어 닫기">&times;</button>
+        <span class="modal-title" id="analytics-drawer-title" data-i18n="modal.analytics.title">📈 Phase 메트릭</span>
+        <button class="modal-close" id="btn-analytics-close" data-i18n-aria-label="a11y.close.analytics" aria-label="메트릭 드로어 닫기">&times;</button>
       </div>
       <div class="modal-body">
         <div class="analytics-timeline-wrap" id="analytics-timeline"></div>
@@ -242,15 +266,15 @@
        role="dialog" aria-modal="true" aria-labelledby="run-history-title">
     <div class="modal-content wide">
       <div class="modal-header">
-        <span class="modal-title" id="run-history-title">📜 실행 기록</span>
-        <button class="modal-close" aria-label="기록 드로어 닫기">&times;</button>
+        <span class="modal-title" id="run-history-title" data-i18n="modal.runHistory.title">📜 실행 기록</span>
+        <button class="modal-close" data-i18n-aria-label="a11y.close.history" aria-label="기록 드로어 닫기">&times;</button>
       </div>
       <div class="modal-body">
         <div class="run-history-toolbar">
-          <button class="btn-ctrl primary" id="btn-run-history-save" type="button">현재 실행 저장</button>
-          <button class="btn-ctrl danger" id="btn-run-history-clear" type="button">전체 삭제</button>
+          <button class="btn-ctrl primary" id="btn-run-history-save" type="button" data-i18n="btn.saveCurrentRun">현재 실행 저장</button>
+          <button class="btn-ctrl danger" id="btn-run-history-clear" type="button" data-i18n="btn.clearAll">전체 삭제</button>
         </div>
-        <div class="run-history-empty" id="run-history-empty">
+        <div class="run-history-empty" id="run-history-empty" data-i18n="run.historyEmpty">
           (저장된 기록 없음 — '현재 실행 저장'을 눌러 기록을 남기세요)
         </div>
         <div class="run-history-list" id="run-history-list"></div>
@@ -263,23 +287,23 @@
        role="dialog" aria-modal="true" aria-labelledby="template-editor-title">
     <div class="modal-content wide">
       <div class="modal-header">
-        <span class="modal-title" id="template-editor-title">파이프라인 템플릿 에디터</span>
-        <button class="modal-close" aria-label="템플릿 에디터 닫기">&times;</button>
+        <span class="modal-title" id="template-editor-title" data-i18n="modal.templateEditor.title">파이프라인 템플릿 에디터</span>
+        <button class="modal-close" data-i18n-aria-label="a11y.close.templateEditor" aria-label="템플릿 에디터 닫기">&times;</button>
       </div>
       <div class="modal-body tpl-ed-body">
         <div class="tpl-ed-left">
           <div class="tpl-ed-toolbar">
-            <button class="btn-ctrl primary" id="btn-tpl-ed-new" type="button">+ 새 템플릿</button>
+            <button class="btn-ctrl primary" id="btn-tpl-ed-new" type="button" data-i18n="btn.newTemplate">+ 새 템플릿</button>
           </div>
           <div class="tpl-ed-list" id="tpl-ed-list"></div>
         </div>
         <div class="tpl-ed-right">
-          <label class="plan-field-label" for="tpl-ed-json">JSON (schema: src/templates/pipelineTemplate.schema.json)</label>
+          <label class="plan-field-label" for="tpl-ed-json" data-i18n="field.templateJsonLabel">JSON (schema: src/templates/pipelineTemplate.schema.json)</label>
           <textarea id="tpl-ed-json" class="tpl-ed-textarea" spellcheck="false" rows="24"></textarea>
           <div class="tpl-ed-msg" id="tpl-ed-msg"></div>
           <div class="plan-actions">
-            <button class="btn-ctrl danger" id="btn-tpl-ed-delete" type="button" disabled>삭제</button>
-            <button class="btn-ctrl primary" id="btn-tpl-ed-save" type="button" disabled>저장</button>
+            <button class="btn-ctrl danger" id="btn-tpl-ed-delete" type="button" disabled data-i18n="btn.delete">삭제</button>
+            <button class="btn-ctrl primary" id="btn-tpl-ed-save" type="button" disabled data-i18n="btn.save">저장</button>
           </div>
         </div>
       </div>
@@ -294,6 +318,12 @@
   <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5/lib/xterm.min.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0/lib/addon-fit.min.js" crossorigin="anonymous"></script>
   <script src="js/dom.js"></script>
+  <!-- Slice I (v5): i18n tables + module. ko/en populate window.HARNESS_I18N
+       before i18n.js reads it. Load order: ko → en → i18n → (panels that
+       call HarnessI18n.t()). app.js calls applyDom() after DOM ready. -->
+  <script src="js/i18n/ko.js"></script>
+  <script src="js/i18n/en.js"></script>
+  <script src="js/i18n.js"></script>
   <!-- toast.js must load before api-client + app.js so the HarnessToast
        singleton is ready when those modules call showToast(). -->
   <script src="js/toast.js"></script>

@@ -2163,14 +2163,38 @@ function initEventBindings() {
       "g m": () => { if (window.HarnessAnalyticsPanel) window.HarnessAnalyticsPanel.open(); },
       "?": () => {
         if (window.HarnessToast) {
-          window.HarnessToast.show({
-            type: "info",
-            message: "단축키: g t=템플릿, g h=히스토리, g m=메트릭, Esc=닫기",
-            duration: 6000,
-          });
+          const msg = window.HarnessI18n
+            ? window.HarnessI18n.t("toast.keybindings")
+            : "단축키: g t=템플릿, g h=히스토리, g m=메트릭, Esc=닫기";
+          window.HarnessToast.show({ type: "info", message: msg, duration: 6000 });
         }
       },
     });
+  }
+
+  // Slice I (v5): translate static DOM content + wire language toggle.
+  // ko/en tables are loaded from /js/i18n/{ko,en}.js before this script,
+  // and HarnessI18n picks up the stored lang from localStorage.
+  if (window.HarnessI18n) {
+    const currentLang = window.HarnessI18n.getLang();
+    document.documentElement.lang = currentLang;
+    window.HarnessI18n.applyDom();
+    // Reflect active language in the toolbar toggle.
+    const langBtns = Array.from(document.querySelectorAll(".lang-btn"));
+    function _refreshLangToggle() {
+      const lang = window.HarnessI18n.getLang();
+      for (const btn of langBtns) {
+        btn.classList.toggle("is-active", btn.dataset.lang === lang);
+        btn.setAttribute("aria-pressed", btn.dataset.lang === lang ? "true" : "false");
+      }
+    }
+    for (const btn of langBtns) {
+      btn.addEventListener("click", () => {
+        window.HarnessI18n.setLang(btn.dataset.lang);
+        _refreshLangToggle();
+      });
+    }
+    _refreshLangToggle();
   }
 
   // Stats
