@@ -312,6 +312,9 @@ class PipelineExecutor {
     // Slice B (v4): gate evaluation + retry/bypass bookkeeping extracted into
     // _handleGateResult so Codex phases can reuse the exact same ladder.
     const gateResult = await this.gate.evaluate(phase, this.state);
+    // Slice F (v5): QualityGate stays a pure evaluator — the executor is
+    // responsible for booking the attempt against PipelineState.
+    this.state.markGateAttempt(phase.id, gateResult.pass);
     const decision = this._handleGateResult(phase, gateResult, { source: "stop" });
     if (decision.kind === "block") {
       return { decision: "block", reason: decision.reason };
@@ -361,6 +364,13 @@ class PipelineExecutor {
     // Session end is a temporary pause — keep checkpoint so next session can resume.
     // Force-save current state, cancel any pending debounce, then drop in-memory only.
     const phase = this._currentPhase();
+    // Slice F (v5): close the current attempt so the time spent so far is
+    // recorded. On resume, _enterPhase opens a fresh attempt — the paused
+    // interval is NOT counted, which is what we want.
+    if (phase) {
+      this.state.markPhaseExit(phase.id, { gatePass: null, reason: "session-end" });
+      this._broadcastPhaseMetrics(phase.id);
+    }
     this.broadcast({
       type: "pipeline_paused",
       data: { reason: "session-end", phase: phase ? phase.id : null },
@@ -874,6 +884,31 @@ class PipelineExecutor {
     }
   }
 
+  _broadcastPhaseMetrics(phaseId) {
+    // Slice F (v5): fired whenever an attempt closes. Consumers: UI
+    // analytics panel + run-history replay. Carries both this-attempt
+    // durationMs and the running totalDurationMs so the client can render
+    // either a per-attempt row or a phase-aggregate bar chart without
+    // re-computing.
+    const p = this.state.phases[phaseId];
+    if (!p) return;
+    const latest = p.attempts[p.attempts.length - 1];
+    this.broadcast({
+      type: "phase_metrics",
+      data: {
+        phaseId,
+        attemptIndex: p.attempts.length - 1,
+        attempts: p.attempts.length,
+        durationMs: latest?.durationMs || 0,
+        totalDurationMs: this.state.phaseTotalDurationMs(phaseId),
+        gateAttempts: p.gateAttempts,
+        gateFailures: p.gateFailures,
+        gatePass: latest?.gatePass ?? null,
+        reason: latest?.reason || null,
+      },
+    });
+  }
+
   async _enterPhase(idx) {
     if (!this.active) return;
     const template = this.active.template;
@@ -882,9 +917,14 @@ class PipelineExecutor {
       return;
     }
 
-    // Mark previous phase completed
+    // Slice F (v5): close the previous phase's attempt BEFORE broadcasting
+    // status transitions. markPhaseExit is idempotent, so explicit closes
+    // from cycle-reenter paths (which carry different gatePass/reason)
+    // already win and this default call becomes a no-op there.
     if (this.active.phaseIdx >= 0) {
       const prev = template.phases[this.active.phaseIdx];
+      this.state.markPhaseExit(prev.id, { gatePass: true, reason: "advance" });
+      this._broadcastPhaseMetrics(prev.id);
       this.broadcast({ type: "phase_update", data: { phase: prev.id, status: "completed" } });
       for (const node of prev.nodes || []) {
         this.broadcast({ type: "node_update", data: { node: node.id, status: "completed" } });
@@ -894,6 +934,11 @@ class PipelineExecutor {
     this.active.phaseIdx = idx;
     this.active.gateRetries = 0;
     const phase = template.phases[idx];
+
+    // Slice F (v5): open a fresh attempt. On cycle re-entry this pushes a
+    // second/third/... entry onto attempts[] instead of overwriting the
+    // first, so per-iteration timing is preserved.
+    this.state.openPhaseAttempt(phase.id);
 
     // Inject skill context for this phase
     const skillContent = await this.injector.gather(phase);
@@ -990,6 +1035,10 @@ class PipelineExecutor {
               linkedTo: phase.linkedCycle,
             },
           });
+          // Slice F (v5): explicit close with "findings" reason so analytics
+          // distinguishes a findings-triggered cycle from a gate-triggered
+          // one. _enterPhase's default close becomes idempotent here.
+          this.state.markPhaseExit(phase.id, { gatePass: false, reason: "cycle-reenter-findings" });
           await this._enterPhase(linkedIdx);
           return;
         }
@@ -1005,6 +1054,10 @@ class PipelineExecutor {
     // more can be done, we advance anyway — the gate_failed / gate_bypassed
     // broadcasts are the user-visible signal.
     const gateResult = await this.gate.evaluate(phase, this.state);
+    // Slice F (v5): pair the gate.evaluate call with a markGateAttempt so
+    // the state counters stay in sync with both the onStop and codex-phase
+    // gate entry points.
+    this.state.markGateAttempt(phase.id, gateResult.pass);
     const decision = this._handleGateResult(phase, gateResult, { source: "codex-phase" });
     if (decision.kind === "block" && phase.cycle && phase.linkedCycle) {
       const canIterate = this.active.iteration < (phase.maxIterations || 3);
@@ -1023,6 +1076,8 @@ class PipelineExecutor {
               reason: "gate-failed",
             },
           });
+          // Slice F (v5): explicit close with "gate-fail" reason for analytics.
+          this.state.markPhaseExit(phase.id, { gatePass: false, reason: "cycle-reenter-gate-fail" });
           await this._enterPhase(linkedIdx);
           return;
         }
@@ -1094,6 +1149,16 @@ class PipelineExecutor {
 
   _complete(reason) {
     if (!this.active) return;
+
+    // Slice F (v5): close the currently open phase attempt before teardown
+    // so the final phase's duration shows up in snapshot/replay. gatePass
+    // is left null on _complete because the ladder decision happens at a
+    // different layer (verification / disabled flip / end-of-template).
+    const curPhase = this._currentPhase();
+    if (curPhase) {
+      this.state.markPhaseExit(curPhase.id, { gatePass: null, reason });
+      this._broadcastPhaseMetrics(curPhase.id);
+    }
 
     // Cancel any pending debounced checkpoint save
     if (this._checkpointTimer) {

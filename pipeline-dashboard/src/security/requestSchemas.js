@@ -20,6 +20,10 @@ const ALLOWED_EVENT_TYPES = new Set([
   "hook_event",
   "log_message",
   "node_update",
+  // Slice F (v5): broadcast whenever a phase attempt closes. Carries
+  // per-attempt durationMs + running totalDurationMs + gate counters so
+  // the analytics panel can render a timeline without re-computing.
+  "phase_metrics",
   "phase_update",
   "heartbeat",
   "pipeline_complete",

@@ -2105,6 +2105,17 @@ function initEventBindings() {
   _b("#btn-open-run-history", () => {
     if (window.HarnessRunHistory) window.HarnessRunHistory.open();
   });
+  // Slice F (v5): analytics panel — install handles the open/close button
+  // wiring + backdrop + Escape key, so no separate _b binding is needed.
+  if (window.HarnessAnalyticsPanel) {
+    window.HarnessAnalyticsPanel.install({
+      overlayId: "analytics-drawer",
+      bodyId: "analytics-body",
+      timelineId: "analytics-timeline",
+      openBtnId: "btn-open-analytics",
+      closeBtnId: "btn-analytics-close",
+    });
+  }
 
   // Stats
   _b("#btn-clear-tool-feed", clearToolFeed);

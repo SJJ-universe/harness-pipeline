@@ -29,6 +29,7 @@
         <span id="codex-label">Codex: —</span>
       </span>
       <button class="btn-ctrl" id="btn-codex-verify" title="Codex CLI 실제 호출 테스트">Codex 검증</button>
+      <button class="btn-ctrl" id="btn-open-analytics" title="Phase별 duration / gate 메트릭 열기">📈 메트릭</button>
       <button class="btn-ctrl" id="btn-open-run-history" title="과거 실행 기록 드로어 열기">📜 히스토리</button>
       <button class="btn-ctrl" id="btn-server-restart" title="서버 재시작">재시작</button>
       <button class="btn-ctrl danger" id="btn-server-stop" title="서버 종료">서버 종료</button>
@@ -202,6 +203,20 @@
     </div>
   </div>
 
+  <!-- Slice F (v5): Analytics Drawer — per-phase attempts[] + duration + gate counters -->
+  <div class="modal-overlay analytics-drawer is-hidden" id="analytics-drawer">
+    <div class="modal-content wide">
+      <div class="modal-header">
+        <span class="modal-title">📈 Phase 메트릭</span>
+        <button class="modal-close" id="btn-analytics-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="analytics-timeline-wrap" id="analytics-timeline"></div>
+        <div class="analytics-body" id="analytics-body"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- Slice E (v4): Run History Drawer — browse/replay past pipeline runs -->
   <div class="modal-overlay run-history-drawer" id="run-history-drawer">
     <div class="modal-content wide">
@@ -269,6 +284,9 @@
   <!-- Slice E: run history drawer — localStorage-backed replay. Depends on
        window.applyReplayEvent which is defined in app.js, so load after. -->
   <script src="js/run-history.js"></script>
+  <!-- Slice F: analytics panel — pure-render + /api/runs/current fetch.
+       No hard dep on app.js; app.js wires the #btn-open-analytics binding. -->
+  <script src="js/analytics-panel.js"></script>
   <script src="js/api-client.js"></script>
   <script src="app.js"></script>
 </body>

@@ -32,10 +32,86 @@ class PipelineState {
         artifacts: {},
         critique: null,
         skillContext: null,
-        enteredAt: Date.now(),
+        // Slice F (v5): every phase entry / cycle re-entry pushes a fresh
+        // attempt; exit paths close the latest one. Attempts are newest-last.
+        // This replaces the earlier single `enteredAt` field, which lost
+        // timing data on cycle re-entry.
+        attempts: [],
+        gateAttempts: 0,
+        gateFailures: 0,
       };
     }
     return this.phases[id];
+  }
+
+  /**
+   * Open a new attempt for a phase (called by PipelineExecutor on every
+   * _enterPhase). Defensively closes any still-open prior attempt, which
+   * can happen if a cycle re-entry path reaches _enterPhase without the
+   * caller having closed the previous attempt explicitly.
+   */
+  openPhaseAttempt(phaseId) {
+    const p = this._ensurePhase(phaseId);
+    const last = p.attempts[p.attempts.length - 1];
+    if (last && last.exitedAt === null) {
+      last.exitedAt = Date.now();
+      last.durationMs = last.exitedAt - last.enteredAt;
+      if (last.gatePass === null) last.gatePass = false;
+      if (!last.reason) last.reason = "reenter-unclosed";
+    }
+    p.attempts.push({
+      enteredAt: Date.now(),
+      exitedAt: null,
+      durationMs: null,
+      gatePass: null,
+      reason: null,
+    });
+  }
+
+  /**
+   * Close the latest attempt for a phase. Idempotent: a second call on an
+   * already-closed attempt is a no-op, so overlapping exit paths (e.g.
+   * _enterPhase default close + explicit cycle-reenter close) are safe.
+   */
+  markPhaseExit(phaseId, { gatePass = null, reason = null } = {}) {
+    const p = this.phases[phaseId];
+    if (!p) return;
+    const cur = p.attempts[p.attempts.length - 1];
+    if (!cur || cur.exitedAt !== null) return;
+    cur.exitedAt = Date.now();
+    cur.durationMs = cur.exitedAt - cur.enteredAt;
+    cur.gatePass = gatePass;
+    cur.reason = reason;
+  }
+
+  /**
+   * Book a gate evaluation against a phase. Called by PipelineExecutor
+   * immediately after `QualityGate.evaluate()`; QualityGate itself stays
+   * a pure evaluator and does NOT mutate state.
+   */
+  markGateAttempt(phaseId, pass) {
+    const p = this._ensurePhase(phaseId);
+    p.gateAttempts++;
+    if (!pass) p.gateFailures++;
+  }
+
+  phaseAttempts(phaseId) {
+    return this.phases[phaseId]?.attempts || [];
+  }
+
+  /** Sum of durationMs across every closed attempt for a phase. */
+  phaseTotalDurationMs(phaseId) {
+    const p = this.phases[phaseId];
+    if (!p) return 0;
+    return p.attempts.reduce((s, a) => s + (a.durationMs || 0), 0);
+  }
+
+  /** Duration of the most recent (possibly still-open) attempt. */
+  phaseLatestDurationMs(phaseId) {
+    const p = this.phases[phaseId];
+    if (!p) return 0;
+    const a = p.attempts[p.attempts.length - 1];
+    return a?.durationMs || 0;
   }
 
   /**
@@ -150,6 +226,21 @@ class PipelineState {
             toolCount: p.tools.length,
             artifactKeys: Object.keys(p.artifacts),
             hasCritique: !!p.critique,
+            // Slice F (v5): expose per-attempt timeline + aggregate totals.
+            // UI (analytics-panel) reads these to render one row per attempt
+            // and a bar chart. totalDurationMs sums all attempts; latest is
+            // the freshest (useful when previous attempts were cycles).
+            attempts: p.attempts.map((a) => ({
+              enteredAt: a.enteredAt,
+              exitedAt: a.exitedAt,
+              durationMs: a.durationMs,
+              gatePass: a.gatePass,
+              reason: a.reason,
+            })),
+            totalDurationMs: this.phaseTotalDurationMs(id),
+            latestDurationMs: this.phaseLatestDurationMs(id),
+            gateAttempts: p.gateAttempts,
+            gateFailures: p.gateFailures,
           },
         ])
       ),
