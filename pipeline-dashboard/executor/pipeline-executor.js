@@ -18,6 +18,10 @@ const { PipelineState } = require("./pipeline-state");
 const { QualityGate } = require("./quality-gate");
 const { SkillInjector } = require("./skill-injector");
 const { PipelineAdapter } = require("./pipeline-adapter");
+// Slice G (v5): phase-scoped TDD enforcement. Pure evaluator — consults
+// PipelineState.phaseTools(phase.id) to decide whether a src edit is
+// preceded by a test edit in the same phase.
+const { TddGuard } = require("./tdd-guard");
 const { enforceTemplateDefaults, evaluateTool } = require("../src/policy/phasePolicy");
 const dangerGate = require("../src/policy/dangerGate");
 const { checkToolAgainstContract } = require("../src/contracts/agentContracts");
@@ -62,6 +66,9 @@ class PipelineExecutor {
     this.gate = gate || new QualityGate();
     this.injector = injector || new SkillInjector({});
     this.adapter = adapter || new PipelineAdapter({ templates });
+    // Slice G (v5): TDD Guard — phase-scoped. Reads from this.state,
+    // never mutates it. Phases without a `tddGuard` block are no-ops.
+    this.tddGuard = new TddGuard(this.state);
     this.workspaceDir =
       workspaceDir || process.env.HARNESS_WORKSPACE_DIR || DEFAULT_WORKSPACE_DIR;
     this.repoRoot = repoRoot || path.resolve(__dirname, "..", "..");
@@ -247,6 +254,21 @@ class PipelineExecutor {
       });
       this._scheduleCheckpoint();
       return denyToolUse(contractResult.reason);
+    }
+
+    // Slice G (v5): TDD Guard Stage 1 — require-test-edit-first.
+    // Phases without `tddGuard` pass through (guard returns allow:true).
+    // We emit a dedicated `tdd_guard_blocked` broadcast (not tool_blocked)
+    // so the UI can highlight TDD violations distinctly from danger/policy/
+    // contract blocks.
+    const tddVerdict = this.tddGuard.evaluate(phase, tool, _input || {});
+    if (!tddVerdict.allow) {
+      this.broadcast({
+        type: "tdd_guard_blocked",
+        data: { phase: phase.id, tool, reason: tddVerdict.reason, filePath: _input?.file_path || _input?.filePath || null },
+      });
+      this._scheduleCheckpoint();
+      return denyToolUse(tddVerdict.reason);
     }
 
     const allowed = phase.allowedTools;

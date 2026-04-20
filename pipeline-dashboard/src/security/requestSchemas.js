@@ -45,6 +45,10 @@ const ALLOWED_EVENT_TYPES = new Set([
   // Slice E (v4): emitted when custom templates are added/removed so the
   // client's pipeline-selector can re-fetch the merged list.
   "template_registry_reloaded",
+  // Slice G (v5): TDD Guard emits this when a src Edit/Write is blocked
+  // for lacking a prior test edit in the same phase. Distinct from the
+  // generic tool_blocked so the UI can highlight TDD violations.
+  "tdd_guard_blocked",
   "tool_blocked",
   "tool_recorded",
 ]);
@@ -326,6 +330,8 @@ function _validatePhase(phase, label) {
       "id", "name", "label", "layout", "agent", "allowedTools",
       "timeoutMs", "cycle", "maxIterations", "linkedCycle",
       "connector", "artifactRules", "exitCriteria", "nodes",
+      // Slice G (v5): optional TDD Guard config — validated below.
+      "tddGuard",
     ]),
     label
   );
@@ -384,6 +390,22 @@ function _validatePhase(phase, label) {
     phase.nodes.forEach((n, i) =>
       _validateNode(n, `${label}.nodes[${i}]`));
   }
+  if (phase.tddGuard !== undefined) {
+    _validateTddGuard(phase.tddGuard, `${label}.tddGuard`);
+  }
+}
+
+function _validateTddGuard(rule, label) {
+  requireObject(rule, label);
+  _assertNoExtraKeys(
+    rule,
+    new Set(["stage", "srcPattern", "testPattern", "message"]),
+    label
+  );
+  _assertStringEnum(rule.stage, `${label}.stage`, new Set(["edit-first"]));
+  _assertRegex(rule.srcPattern, `${label}.srcPattern`);
+  _assertRegex(rule.testPattern, `${label}.testPattern`);
+  if (rule.message !== undefined) optionalString(rule.message, `${label}.message`, 300);
 }
 
 function validateTemplateUpload(body) {

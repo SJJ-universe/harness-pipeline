@@ -354,6 +354,12 @@
         "label": "Phase D",
         "agent": "claude",
         "allowedTools": ["Read", "Edit", "Write"],
+        "tddGuard": {
+          "stage": "edit-first",
+          "srcPattern": "^(?:src|executor|public/js)/.*\\.(?:js|ts|mjs|cjs)$",
+          "testPattern": "(?:^|[\\\\/])(?:__tests__|tests?)[\\\\/].*\\.(?:test|spec)\\.(?:js|ts|mjs|cjs)$",
+          "message": "[TDD Guard] 대응 테스트 파일을 먼저 편집하세요 (src 편집 전에 tests/*.test.js 수정 필요)."
+        },
         "exitCriteria": [
           {
             "type": "files-edited",
