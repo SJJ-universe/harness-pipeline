@@ -621,12 +621,52 @@ function startWsMonitor() {
   }, 2000);
 }
 
+// Slice C (v4) — surface connection transitions as toasts so the user knows
+// when live data stops flowing. `_wasConnected` flips from false→true on the
+// first onopen; subsequent close→open cycles are the ones worth announcing.
+let _wasConnected = false;
+
+function _toast(opts) {
+  try {
+    if (window.HarnessToast && typeof window.HarnessToast.show === "function") {
+      return window.HarnessToast.show(opts);
+    }
+  } catch (_) {}
+  return null;
+}
+
 function connectWS() {
   const protocol = location.protocol === "https:" ? "wss:" : "ws:";
   ws = new WebSocket(`${protocol}//${location.host}`);
-  ws.onopen = () => { _lastEventAt = Date.now(); startWsMonitor(); };
+  ws.onopen = () => {
+    _lastEventAt = Date.now();
+    startWsMonitor();
+    // Only announce a *reconnect*, not the very first connect on page load.
+    if (_wasConnected) {
+      _toast({ type: "success", message: "서버 재연결됨", duration: 2500 });
+    }
+    _wasConnected = true;
+  };
   ws.onmessage = (e) => { _lastEventAt = Date.now(); handleEvent(JSON.parse(e.data)); };
-  ws.onclose = () => setTimeout(connectWS, 2000);
+  ws.onclose = () => {
+    if (_wasConnected) {
+      _toast({ type: "warn", message: "서버 연결 끊김 — 재연결 중…", duration: 4000 });
+    }
+    setTimeout(connectWS, 2000);
+  };
+  ws.onerror = () => {
+    // Browsers fire onerror followed by onclose. The onclose toast carries the
+    // recovery message; we only surface onerror if we never connected at all
+    // (initial load fails), which is a distinct actionable failure mode.
+    if (!_wasConnected) {
+      _toast({
+        type: "error",
+        message: "서버에 연결할 수 없습니다",
+        actionLabel: "재시도",
+        onAction: () => { try { ws && ws.close(); } catch (_) {} connectWS(); },
+      });
+    }
+  };
 }
 
 // ── Event Handler ──
@@ -1090,6 +1130,34 @@ function handleEvent(event) {
       addLog(level === "error" ? "error" : "phase", msg, level === "error");
       break;
     }
+
+    // Slice C (v4): Claude Code's Notification hook is surfaced via
+    // harness_notification. Render as a toast with the hook's own level.
+    case "harness_notification": {
+      const d = event.data || {};
+      const level = (d.level || "info").toLowerCase();
+      const toastType =
+        level === "error" || level === "critical" ? "error"
+        : level === "warn" || level === "warning" ? "warn"
+        : level === "success" ? "success"
+        : "info";
+      _toast({ type: toastType, message: d.message || "(알림)" });
+      addLog(toastType === "error" ? "error" : "phase",
+        `[알림/${level}] ${d.message || ""}`, toastType === "error");
+      break;
+    }
+
+    // Slice A (v4): broadcast from onPreCompact. No UI state change required —
+    // the pipeline is briefly paused for compaction and SessionStart(compact)
+    // will re-inject the summary. Just log + toast so the user sees it.
+    case "pipeline_compacted": {
+      const d = event.data || {};
+      addLog("phase",
+        `컨텍스트 압축됨 (Phase ${d.phase || "?"}) — 요약 ${d.summaryBytes || 0}B 저장, 다음 세션에서 재주입`);
+      _toast({ type: "info", message: `컨텍스트 압축 — 요약 저장됨`, duration: 3500 });
+      break;
+    }
+
 
     case "general_plan_complete": {
       const triggerBtn = document.getElementById("btn-start-general");

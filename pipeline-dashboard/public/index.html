@@ -189,9 +189,17 @@
     </div>
   </div>
 
+  <!-- Slice C (v4): Toast surface. role/aria-live are overridden per-toast
+       at render time (error → alert+assertive), but giving the container a
+       polite default lets mid-update inserts stay well-behaved. -->
+  <div id="toast-container" class="toast-container" role="status" aria-live="polite" aria-atomic="false"></div>
+
   <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5/lib/xterm.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0/lib/addon-fit.min.js"></script>
   <script src="js/dom.js"></script>
+  <!-- toast.js must load before api-client + app.js so the HarnessToast
+       singleton is ready when those modules call showToast(). -->
+  <script src="js/toast.js"></script>
   <script src="js/api-client.js"></script>
   <script src="app.js"></script>
 </body>
