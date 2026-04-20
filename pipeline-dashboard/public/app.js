@@ -2098,6 +2098,13 @@ function initEventBindings() {
   _b("#btn-open-template-editor", () => {
     if (window.HarnessTemplateEditor) window.HarnessTemplateEditor.open();
   });
+  // Slice E (v4): run history drawer. applyReplayEvent must be reachable from
+  // the drawer's click handler — expose it on window explicitly so the test
+  // harness and the drawer both use the same reducer.
+  window.applyReplayEvent = applyReplayEvent;
+  _b("#btn-open-run-history", () => {
+    if (window.HarnessRunHistory) window.HarnessRunHistory.open();
+  });
 
   // Stats
   _b("#btn-clear-tool-feed", clearToolFeed);

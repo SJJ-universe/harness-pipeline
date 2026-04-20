@@ -29,6 +29,7 @@
         <span id="codex-label">Codex: —</span>
       </span>
       <button class="btn-ctrl" id="btn-codex-verify" title="Codex CLI 실제 호출 테스트">Codex 검증</button>
+      <button class="btn-ctrl" id="btn-open-run-history" title="과거 실행 기록 드로어 열기">📜 히스토리</button>
       <button class="btn-ctrl" id="btn-server-restart" title="서버 재시작">재시작</button>
       <button class="btn-ctrl danger" id="btn-server-stop" title="서버 종료">서버 종료</button>
     </div>
@@ -201,6 +202,26 @@
     </div>
   </div>
 
+  <!-- Slice E (v4): Run History Drawer — browse/replay past pipeline runs -->
+  <div class="modal-overlay run-history-drawer" id="run-history-drawer">
+    <div class="modal-content wide">
+      <div class="modal-header">
+        <span class="modal-title">📜 실행 기록</span>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="run-history-toolbar">
+          <button class="btn-ctrl primary" id="btn-run-history-save" type="button">현재 실행 저장</button>
+          <button class="btn-ctrl danger" id="btn-run-history-clear" type="button">전체 삭제</button>
+        </div>
+        <div class="run-history-empty" id="run-history-empty">
+          (저장된 기록 없음 — '현재 실행 저장'을 눌러 기록을 남기세요)
+        </div>
+        <div class="run-history-list" id="run-history-list"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- Slice E (v4): Template Editor Modal — manage user-uploadable templates -->
   <div class="modal-overlay" id="template-editor-overlay">
     <div class="modal-content wide">
@@ -245,6 +266,9 @@
   <!-- Slice E: template editor — self-contained modal that talks to
        /api/pipeline/templates via the api-client. -->
   <script src="js/template-editor.js"></script>
+  <!-- Slice E: run history drawer — localStorage-backed replay. Depends on
+       window.applyReplayEvent which is defined in app.js, so load after. -->
+  <script src="js/run-history.js"></script>
   <script src="js/api-client.js"></script>
   <script src="app.js"></script>
 </body>

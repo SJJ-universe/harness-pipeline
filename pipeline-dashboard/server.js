@@ -88,6 +88,8 @@ const { createTemplateRoutes } = require("./src/routes/templateRoutes");
 const { createServerControlRoutes } = require("./src/routes/serverControlRoutes");
 const { createCodexRoutes } = require("./src/routes/codexRoutes");
 const { createPipelineRoutes } = require("./src/routes/pipelineRoutes");
+// Slice E (v4): export the current run for the run-history drawer
+const { createRunsRoutes } = require("./src/routes/runsRoutes");
 
 app.use("/api", createHealthRoutes({ pty }));
 
@@ -500,6 +502,10 @@ app.use("/api", createPipelineRoutes({
   sessionWatcher,
   skillRegistry,
 }));
+
+// Slice E (v4): Run-history drawer's snapshot endpoint. Readonly — returns
+// the same data a reconnecting WebSocket client would see via pipeline_replay.
+app.use("/api", createRunsRoutes({ pipelineExecutor, eventReplayBuffer }));
 
 async function runGeneralPipeline(task, maxIter, runId) {
   const started = Date.now();

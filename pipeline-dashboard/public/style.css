@@ -1153,6 +1153,81 @@ h1 {
 }
 .subagent-item.done .subagent-elapsed { color: var(--green); }
 
+/* ── Slice E (v4): Run history drawer ──
+ * Reuses .modal-overlay / .modal-content for chrome; adds its own list layout.
+ */
+.run-history-drawer .modal-content.wide { max-width: 720px; }
+.run-history-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.run-history-empty {
+  color: var(--text-dim);
+  font-style: italic;
+  font-size: 12px;
+  padding: 24px;
+  text-align: center;
+  border: 1px dashed var(--border);
+  border-radius: 4px;
+}
+.run-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 480px;
+  overflow-y: auto;
+}
+.run-history-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-card);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.run-history-row:hover {
+  border-color: var(--codex);
+  background: rgba(88, 166, 255, 0.06);
+}
+.run-history-id {
+  font-family: 'Cascadia Code', 'Fira Code', monospace;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.run-history-ts {
+  color: var(--text-dim);
+  font-size: 10px;
+  white-space: nowrap;
+}
+.run-history-tpl {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(88, 166, 255, 0.15);
+  color: var(--codex);
+  white-space: nowrap;
+}
+.run-history-del {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  border-radius: 4px;
+  font-size: 13px;
+  line-height: 1;
+  padding: 2px 6px;
+  cursor: pointer;
+}
+.run-history-del:hover { color: var(--red); border-color: var(--red); }
+
 /* ── Slice E (v4): Template editor modal ──
  * Two-column layout: template list (left) + JSON editor (right).
  * Narrow list rows mimic .tool-feed-row so icons/badges align visually.
