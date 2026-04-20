@@ -5,7 +5,9 @@
 // Invocation (from .claude/settings.json):
 //   node pipeline-dashboard/hooks/harness-hook.js <event>
 //
-// Where <event> is one of: user-prompt | pre-tool | post-tool | stop | session-end
+// Where <event> is one of:
+//   user-prompt | pre-tool | post-tool | stop | session-end
+//   session-start | subagent-start | subagent-stop | notification | pre-compact  (Slice A v4)
 //
 // Claude Code sends hook payload as JSON on stdin and expects JSON on stdout.
 // On any failure we exit(0) with empty stdout so Claude is never blocked by harness issues.
@@ -30,12 +32,19 @@ function readHarnessToken() {
 
 // Per-event timeouts. Stop can trigger a Codex phase which itself waits up to
 // 120s; we add margin so the hook doesn't bail before the critique is persisted.
+// pre-compact writes a summary file + checkpoint, so it gets extra headroom.
 const TIMEOUTS = {
   "user-prompt": 3000,
   "pre-tool": 1500,
   "post-tool": 1500,
   "stop": 180000,
   "session-end": 5000,
+  // Slice A (v4)
+  "session-start": 3000,    // may read .harness/last-compact-summary.md on source=compact
+  "subagent-start": 1500,
+  "subagent-stop": 1500,
+  "notification": 1500,
+  "pre-compact": 5000,      // disk write + checkpoint save + replay flush
 };
 const TIMEOUT_MS = TIMEOUTS[EVENT] || 1500;
 

@@ -394,6 +394,213 @@ class PipelineExecutor {
     return {};
   }
 
+  // ── Slice A (v4) lifecycle handlers ─────────────────────────────
+  //
+  // Hook router wires the five additional Claude Code lifecycle events here.
+  // Each method tolerates disabled state and missing/malformed payloads.
+
+  /**
+   * SessionStart — Claude Code's `source` field distinguishes how the session began:
+   *   - "startup"  : fresh shell launch. Do nothing special; pipeline_replay on WS
+   *                   connect already restores UI state for reconnecting browsers.
+   *   - "resume"   : continuing an existing session (e.g. `claude --continue`).
+   *                   Mirrors the behavior startFromPrompt has when `this.active`
+   *                   is already populated — it's a no-op because state is in memory.
+   *   - "clear"    : /clear issued. Nothing to do here either.
+   *   - "compact"  : session re-emerges after /compact. This is the only reliable
+   *                   stdout→context channel we have for post-compaction state
+   *                   re-injection. Read the summary file written by onPreCompact
+   *                   and return `additionalContext` so Claude receives it.
+   */
+  async onSessionStart(payload) {
+    const source = payload && payload.source;
+    if (source !== "compact") return {};
+
+    try {
+      const summaryPath = path.join(this.repoRoot, ".harness", "last-compact-summary.md");
+      if (!fs.existsSync(summaryPath)) return {};
+      let body = fs.readFileSync(summaryPath, "utf-8");
+      // Guard against pathological summary files — the 2KB cap is enforced by
+      // the writer, but we re-check on read so a manually edited file can't
+      // flood the reconstructed session context.
+      const MAX_BYTES = 2048;
+      if (Buffer.byteLength(body, "utf-8") > MAX_BYTES) {
+        body = body.slice(0, MAX_BYTES) + "\n…(truncated on read)";
+      }
+      return { additionalContext: body };
+    } catch (_) {
+      // Summary file access problems should never block Claude — swallow + no-op.
+      return {};
+    }
+  }
+
+  /**
+   * SubagentStart — record the dispatching subagent so the UI can show a live
+   * "active subagents" tray. `parent_session_id` is optional in Claude Code
+   * payloads and we treat it as metadata only.
+   */
+  async onSubagentStart(payload) {
+    if (!this.active) return {};
+    const d = payload || {};
+    const sessionId = d.session_id || d.agent_id || null;
+    if (!this.active.subagents) this.active.subagents = {};
+    const entry = {
+      agent_type: d.agent_type || d.subagent_type || "unknown",
+      startedAt: Date.now(),
+      parent_session_id: d.parent_session_id || null,
+    };
+    if (sessionId) this.active.subagents[sessionId] = entry;
+    this.broadcast({
+      type: "subagent_started",
+      data: {
+        session_id: sessionId,
+        agent_type: entry.agent_type,
+        parent_session_id: entry.parent_session_id,
+      },
+    });
+    return {};
+  }
+
+  /**
+   * SubagentStop — complete the matching tray entry and emit a completion event.
+   * We intentionally keep the entry in-memory so replay can reconstruct a
+   * "✓ completed (Ns)" readonly rendering until the pipeline itself resets.
+   */
+  async onSubagentStop(payload) {
+    if (!this.active) return {};
+    const d = payload || {};
+    const sessionId = d.session_id || d.agent_id || null;
+    const entry = sessionId && this.active.subagents ? this.active.subagents[sessionId] : null;
+    const elapsedMs = entry ? Date.now() - entry.startedAt : null;
+    this.broadcast({
+      type: "subagent_completed",
+      data: {
+        session_id: sessionId,
+        agent_type: entry ? entry.agent_type : (d.agent_type || "unknown"),
+        elapsedMs,
+      },
+    });
+    // Mark as completed rather than delete — Slice D renders a brief "✓ done"
+    // state before fading out. Replay can still show this entry.
+    if (entry) entry.completedAt = Date.now();
+    return {};
+  }
+
+  /**
+   * Notification — surfaces Claude Code's Notification hook (idle reminders,
+   * permission prompts, etc.) into the UI via the `harness_notification`
+   * broadcast, which Slice C renders as a toast.
+   */
+  async onNotification(payload) {
+    const d = payload || {};
+    const message = typeof d.message === "string" ? d.message : "";
+    const level = typeof d.level === "string" ? d.level : "info";
+    if (!message) return {};
+    this.broadcast({
+      type: "harness_notification",
+      data: { level, message },
+    });
+    return {};
+  }
+
+  /**
+   * PreCompact — fire-before-compaction hook. We do NOT rely on stdout to
+   * inject the resulting summary into Claude's post-compact context (that path
+   * is fragile for PreCompact specifically). Instead:
+   *   1. force-save the checkpoint,
+   *   2. write a concise summary (≤2KB) to `.harness/last-compact-summary.md`,
+   *   3. broadcast `pipeline_compacted` so the UI + server-side replay buffer
+   *      can react.
+   *
+   * The actual re-injection happens in `onSessionStart({ source: "compact" })`
+   * which reads the same file and returns it as `additionalContext` — that IS
+   * a documented reliable channel.
+   */
+  async onPreCompact(payload) {
+    if (!this.active) return {};
+
+    // 1. Flush any pending debounced checkpoint, then force-save immediately
+    //    so the summary we're about to write describes the truly-latest state.
+    if (this._checkpointTimer) {
+      clearTimeout(this._checkpointTimer);
+      this._checkpointTimer = null;
+    }
+    try {
+      this.checkpointStore.save(this.active, this.state);
+    } catch (_) {}
+
+    // 2. Build a bounded summary. We cap at ~2KB to protect Claude's
+    //    post-compact context budget. Truncate individual sections before
+    //    assembly so no single noisy field blows the envelope.
+    const phase = this._currentPhase();
+    const lines = [];
+    lines.push(`# Harness PreCompact Summary`);
+    lines.push(`- At: ${new Date().toISOString()}`);
+    lines.push(`- Trigger: ${(payload && payload.trigger) || "unknown"}`);
+    lines.push(`- Template: ${this.active.templateId || "?"}`);
+    lines.push(`- Phase: ${phase ? `${phase.id} (${phase.name || ""})` : "n/a"}`);
+    lines.push(`- Iteration: ${this.active.iteration || 0}`);
+    const userPrompt = String(this.active.userPrompt || "").slice(0, 240);
+    if (userPrompt) lines.push(`- Original task: ${userPrompt}`);
+    const missing = phase && Array.isArray(phase.exitCriteria)
+      ? phase.exitCriteria.map((c) => c.message).filter(Boolean).slice(0, 6)
+      : [];
+    if (missing.length) {
+      lines.push(``);
+      lines.push(`## Pending exit criteria`);
+      for (const m of missing) lines.push(`- ${m}`);
+    }
+    const critique = this.active.lastCritique;
+    if (critique) {
+      lines.push(``);
+      lines.push(`## Last Codex critique (phase ${critique.phase})`);
+      const summary = String(critique.summary || "").slice(0, 400);
+      if (summary) lines.push(summary);
+      const findings = Array.isArray(critique.findings) ? critique.findings.slice(0, 5) : [];
+      for (const f of findings) {
+        lines.push(`- [${f.severity || "note"}] ${String(f.message || "").slice(0, 120)}`);
+      }
+    }
+    if (this.active.subagents && Object.keys(this.active.subagents).length > 0) {
+      lines.push(``);
+      lines.push(`## Active/recent subagents`);
+      for (const [sid, entry] of Object.entries(this.active.subagents).slice(0, 6)) {
+        const status = entry.completedAt ? "done" : "active";
+        lines.push(`- ${entry.agent_type} (${status}) sid=${String(sid).slice(0, 12)}`);
+      }
+    }
+    let summaryText = lines.join("\n");
+    const MAX_BYTES = 2048;
+    if (Buffer.byteLength(summaryText, "utf-8") > MAX_BYTES) {
+      summaryText = summaryText.slice(0, MAX_BYTES - 24) + "\n…(truncated on write)";
+    }
+
+    // 3. Persist. Directory creation is best-effort — if the filesystem is
+    //    hostile, fail silently so the hook never blocks Claude.
+    try {
+      const dir = path.join(this.repoRoot, ".harness");
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, "last-compact-summary.md"), summaryText, "utf-8");
+    } catch (_) {}
+
+    // 4. Broadcast so the UI shows a paused-for-compaction indicator and the
+    //    server-side replay buffer can be flushed (server.js wires this).
+    this.broadcast({
+      type: "pipeline_compacted",
+      data: {
+        phase: phase ? phase.id : null,
+        trigger: (payload && payload.trigger) || null,
+        summaryBytes: Buffer.byteLength(summaryText, "utf-8"),
+      },
+    });
+
+    // 5. No stdout injection here — we deliberately stay silent on this hook
+    //    because PreCompact's stdout semantics are not guaranteed to land in
+    //    the post-compact Claude context. The summary file + SessionStart
+    //    re-injection path is the contract.
+    return {};
+  }
+
   getReplaySnapshot() {
     if (this.active) {
       const phase = this._currentPhase();

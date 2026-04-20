@@ -54,6 +54,61 @@
           }
         ]
       }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"C:/Users/SJ/harness-pipeline-analysis/pipeline-dashboard/hooks/harness-hook.js\" session-start"
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"C:/Users/SJ/harness-pipeline-analysis/pipeline-dashboard/hooks/harness-hook.js\" subagent-start"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"C:/Users/SJ/harness-pipeline-analysis/pipeline-dashboard/hooks/harness-hook.js\" subagent-stop"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"C:/Users/SJ/harness-pipeline-analysis/pipeline-dashboard/hooks/harness-hook.js\" notification"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"C:/Users/SJ/harness-pipeline-analysis/pipeline-dashboard/hooks/harness-hook.js\" pre-compact"
+          }
+        ]
+      }
     ]
   }
 }

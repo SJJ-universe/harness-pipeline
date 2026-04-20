@@ -15,12 +15,17 @@ const ALLOWED_EVENT_TYPES = new Set([
   "gate_failed",
   "general_plan_complete",
   "harness_mode",
+  // Slice A (v4): harness_notification surfaces Notification hook payloads
+  "harness_notification",
   "hook_event",
   "log_message",
   "node_update",
   "phase_update",
   "heartbeat",
   "pipeline_complete",
+  // Slice A (v4): pipeline_compacted fires on PreCompact so the UI can show a
+  // "paused for compaction" indicator without guessing from hook_event alone.
+  "pipeline_compacted",
   "pipeline_mutated",
   "pipeline_paused",
   "pipeline_replay",
@@ -30,16 +35,34 @@ const ALLOWED_EVENT_TYPES = new Set([
   "pipeline_start",
   "server_restart",
   "server_shutdown",
+  // Slice A (v4): Claude subagent lifecycle surfaces via these two events
+  "subagent_started",
+  "subagent_completed",
   "tool_blocked",
   "tool_recorded",
 ]);
 
+// Canonical Claude Code hook event names (e.g. SessionStart, PreCompact) map to
+// the internal kebab-case aliases below in hooks/harness-hook.js via CLI args
+// and in .claude/settings.json entries. This Set is the single source of truth
+// for which aliases the dashboard's /api/hook endpoint accepts.
 const ALLOWED_HOOK_EVENTS = new Set([
   "user-prompt",
   "pre-tool",
   "post-tool",
   "stop",
   "session-end",
+  // Slice A (v4): expanded coverage for the remaining lifecycle events.
+  //   SessionStart   ↔ session-start   (source: startup|resume|clear|compact)
+  //   SubagentStart  ↔ subagent-start  (Agent tool dispatch — agent_id/agent_type)
+  //   SubagentStop   ↔ subagent-stop   (subagent completion)
+  //   Notification   ↔ notification    (level/message — surfaced as toast)
+  //   PreCompact     ↔ pre-compact     (flush replay buffer + save summary)
+  "session-start",
+  "subagent-start",
+  "subagent-stop",
+  "notification",
+  "pre-compact",
 ]);
 
 function fail(message, status = 400) {

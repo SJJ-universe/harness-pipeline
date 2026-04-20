@@ -62,6 +62,17 @@ class HookRouter {
         return this._onStop(payload);
       case "session-end":
         return this._onSessionEnd(payload);
+      // Slice A (v4): full lifecycle coverage
+      case "session-start":
+        return this._onSessionStart(payload);
+      case "subagent-start":
+        return this._onSubagentStart(payload);
+      case "subagent-stop":
+        return this._onSubagentStop(payload);
+      case "notification":
+        return this._onNotification(payload);
+      case "pre-compact":
+        return this._onPreCompact(payload);
       default:
         return {};
     }
@@ -95,6 +106,37 @@ class HookRouter {
 
   async _onSessionEnd(payload) {
     if (this.executor) return (await this.executor.onSessionEnd(payload)) || {};
+    return {};
+  }
+
+  // ── Slice A (v4) lifecycle handlers ─────────────────────────────
+  //
+  // All five delegate to the executor; each executor method is designed to
+  // be a no-op when the executor is disabled or has no active pipeline, so we
+  // can return `{}` safely from these defensive paths.
+
+  async _onSessionStart(payload) {
+    if (this.executor) return (await this.executor.onSessionStart(payload || {})) || {};
+    return {};
+  }
+
+  async _onSubagentStart(payload) {
+    if (this.executor) return (await this.executor.onSubagentStart(payload || {})) || {};
+    return {};
+  }
+
+  async _onSubagentStop(payload) {
+    if (this.executor) return (await this.executor.onSubagentStop(payload || {})) || {};
+    return {};
+  }
+
+  async _onNotification(payload) {
+    if (this.executor) return (await this.executor.onNotification(payload || {})) || {};
+    return {};
+  }
+
+  async _onPreCompact(payload) {
+    if (this.executor) return (await this.executor.onPreCompact(payload || {})) || {};
     return {};
   }
 

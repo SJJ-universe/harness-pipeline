@@ -246,6 +246,10 @@ const IMMEDIATE_TYPES = new Set([
   // Audit/append-only events — must not be coalesced (Codex T0 fix)
   "tool_recorded", "hook_event", "log_message", "cycle_iteration",
   "node_update", "artifact_captured",
+  // Slice A (v4): user-facing lifecycle — never throttle
+  //   harness_notification feeds toasts (Slice C)
+  //   pipeline_compacted tells the UI the pipeline pauses briefly for compaction
+  "harness_notification", "pipeline_compacted",
 ]);
 const _broadcastTimers = new Map();
 const THROTTLE_MS = 100;
