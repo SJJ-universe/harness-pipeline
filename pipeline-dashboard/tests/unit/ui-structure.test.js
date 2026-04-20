@@ -31,3 +31,21 @@ test("horse rein animation has rear-leg pivot and upward lift", () => {
   assert.match(css, /translateY\(-2px\)/);
   assert.match(css, /rotate\(-5deg\)/);
 });
+
+// Slice K (v5): ws-client extracted out of app.js. The app must route
+// through window.HarnessWsClient and the script tag must load before app.js.
+test("app.js delegates the main pipeline WebSocket to HarnessWsClient", () => {
+  assert.match(app, /window\.HarnessWsClient/);
+  assert.match(app, /HarnessWsClient\.install\(/);
+  // The pipeline-WS inline constructor is gone — regex is narrow enough to
+  // ignore the separate terminal WebSocket (URL ends with /terminal?token=).
+  assert.ok(!/new WebSocket\(`\$\{protocol\}\/\/\$\{location\.host\}`\)/.test(app),
+    "app.js still contains an inline new WebSocket() for the pipeline socket");
+});
+
+test("ws-client.js script tag loads before app.js in index.html", () => {
+  const posWs = index.indexOf("js/ws-client.js");
+  const posApp = index.indexOf("app.js\"></script>");
+  assert.ok(posWs > 0, "ws-client.js script tag missing from index.html");
+  assert.ok(posWs < posApp, "ws-client.js must load before app.js");
+});

@@ -343,6 +343,9 @@
   <!-- Slice F: analytics panel — pure-render + /api/runs/current fetch.
        No hard dep on app.js; app.js wires the #btn-open-analytics binding. -->
   <script src="js/analytics-panel.js"></script>
+  <!-- Slice K (v5): WebSocket client extracted from app.js. Must load
+       BEFORE app.js so connectWS() finds window.HarnessWsClient at init. -->
+  <script src="js/ws-client.js"></script>
   <script src="js/api-client.js"></script>
   <script src="app.js"></script>
 </body>

@@ -1,5 +1,7 @@
 // ── State ──
-let ws = null;
+// Slice K (v5): raw WebSocket is now owned by HarnessWsClient. app.js keeps
+// a reference to the client for watchdog reads.
+let _wsClient = null;
 let startTime = null;
 let timerInterval = null;
 let findings = { critical: 0, high: 0, medium: 0, low: 0, note: 0 };
@@ -606,25 +608,25 @@ function setHorseStatusText(text) {
 }
 
 // ── WebSocket ──
+// Slice K (v5): the raw socket / reconnect loop / wasConnected bookkeeping
+// moved into public/js/ws-client.js (HarnessWsClient). app.js keeps only
+//   - the watchdog that reads the client's last-event timestamp
+//   - the toast callbacks wired into the client's lifecycle events
+//   - a thin connectWS() entry point so init() reads the same as before.
 let _wsMonitorTimer = null;
-let _lastEventAt = Date.now();
 let _pipelineActive = false;
 
 function startWsMonitor() {
   if (_wsMonitorTimer) return; // single global monitor — no duplicates on reconnect
   _wsMonitorTimer = setInterval(() => {
-    const silentMs = Date.now() - _lastEventAt;
+    if (!_wsClient) return;
+    const silentMs = Date.now() - _wsClient.getLastEventAt();
     if (silentMs > 10_000 && _pipelineActive) {
       const sec = Math.round(silentMs / 1000);
       setBadge("warn", `서버 응답 없음 ${sec}s`);
     }
   }, 2000);
 }
-
-// Slice C (v4) — surface connection transitions as toasts so the user knows
-// when live data stops flowing. `_wasConnected` flips from false→true on the
-// first onopen; subsequent close→open cycles are the ones worth announcing.
-let _wasConnected = false;
 
 function _toast(opts) {
   try {
@@ -636,37 +638,31 @@ function _toast(opts) {
 }
 
 function connectWS() {
+  if (!window.HarnessWsClient) {
+    console.error("HarnessWsClient not loaded — check index.html script order");
+    return;
+  }
   const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-  ws = new WebSocket(`${protocol}//${location.host}`);
-  ws.onopen = () => {
-    _lastEventAt = Date.now();
-    startWsMonitor();
-    // Only announce a *reconnect*, not the very first connect on page load.
-    if (_wasConnected) {
+  _wsClient = window.HarnessWsClient.install({
+    url: `${protocol}//${location.host}`,
+    onEvent: (event) => handleEvent(event),
+    onConnected: () => { startWsMonitor(); },
+    onReconnected: () => {
+      startWsMonitor();
       _toast({ type: "success", message: "서버 재연결됨", duration: 2500 });
-    }
-    _wasConnected = true;
-  };
-  ws.onmessage = (e) => { _lastEventAt = Date.now(); handleEvent(JSON.parse(e.data)); };
-  ws.onclose = () => {
-    if (_wasConnected) {
+    },
+    onDisconnected: () => {
       _toast({ type: "warn", message: "서버 연결 끊김 — 재연결 중…", duration: 4000 });
-    }
-    setTimeout(connectWS, 2000);
-  };
-  ws.onerror = () => {
-    // Browsers fire onerror followed by onclose. The onclose toast carries the
-    // recovery message; we only surface onerror if we never connected at all
-    // (initial load fails), which is a distinct actionable failure mode.
-    if (!_wasConnected) {
+    },
+    onInitialError: ({ retry }) => {
       _toast({
         type: "error",
         message: "서버에 연결할 수 없습니다",
         actionLabel: "재시도",
-        onAction: () => { try { ws && ws.close(); } catch (_) {} connectWS(); },
+        onAction: retry,
       });
-    }
-  };
+    },
+  });
 }
 
 // ── Event Handler ──
