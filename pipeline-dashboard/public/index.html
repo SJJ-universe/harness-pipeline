@@ -54,6 +54,7 @@
           ■ 중단
         </button>
         <button class="btn-small" id="btn-toggle-compact" title="컴팩트/상세 보기 전환">compact</button>
+        <button class="btn-small" id="btn-open-template-editor" title="커스텀 템플릿 추가/편집/삭제">템플릿</button>
       </div>
       <div class="compact-pipeline hidden" id="compact-pipeline"></div>
       <!-- Dynamic pipeline container -->
@@ -200,6 +201,33 @@
     </div>
   </div>
 
+  <!-- Slice E (v4): Template Editor Modal — manage user-uploadable templates -->
+  <div class="modal-overlay" id="template-editor-overlay">
+    <div class="modal-content wide">
+      <div class="modal-header">
+        <span class="modal-title">파이프라인 템플릿 에디터</span>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body tpl-ed-body">
+        <div class="tpl-ed-left">
+          <div class="tpl-ed-toolbar">
+            <button class="btn-ctrl primary" id="btn-tpl-ed-new" type="button">+ 새 템플릿</button>
+          </div>
+          <div class="tpl-ed-list" id="tpl-ed-list"></div>
+        </div>
+        <div class="tpl-ed-right">
+          <label class="plan-field-label" for="tpl-ed-json">JSON (schema: src/templates/pipelineTemplate.schema.json)</label>
+          <textarea id="tpl-ed-json" class="tpl-ed-textarea" spellcheck="false" rows="24"></textarea>
+          <div class="tpl-ed-msg" id="tpl-ed-msg"></div>
+          <div class="plan-actions">
+            <button class="btn-ctrl danger" id="btn-tpl-ed-delete" type="button" disabled>삭제</button>
+            <button class="btn-ctrl primary" id="btn-tpl-ed-save" type="button" disabled>저장</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Slice C (v4): Toast surface. role/aria-live are overridden per-toast
        at render time (error → alert+assertive), but giving the container a
        polite default lets mid-update inserts stay well-behaved. -->
@@ -214,6 +242,9 @@
   <!-- Slice D: subagent tray wiring also needs to be live before app.js
        dispatches its first subagent_* event. -->
   <script src="js/subagent-tray.js"></script>
+  <!-- Slice E: template editor — self-contained modal that talks to
+       /api/pipeline/templates via the api-client. -->
+  <script src="js/template-editor.js"></script>
   <script src="js/api-client.js"></script>
   <script src="app.js"></script>
 </body>

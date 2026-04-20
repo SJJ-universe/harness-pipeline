@@ -1153,6 +1153,113 @@ h1 {
 }
 .subagent-item.done .subagent-elapsed { color: var(--green); }
 
+/* ── Slice E (v4): Template editor modal ──
+ * Two-column layout: template list (left) + JSON editor (right).
+ * Narrow list rows mimic .tool-feed-row so icons/badges align visually.
+ */
+.tpl-ed-body {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 12px;
+  min-height: 480px;
+}
+.tpl-ed-left {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-right: 1px solid var(--border);
+  padding-right: 12px;
+}
+.tpl-ed-toolbar {
+  display: flex;
+  justify-content: flex-end;
+}
+.tpl-ed-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 420px;
+  overflow-y: auto;
+}
+.tpl-ed-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.tpl-ed-row:hover { background: rgba(255, 255, 255, 0.04); }
+.tpl-ed-row.selected {
+  border-color: var(--codex);
+  background: rgba(88, 166, 255, 0.08);
+}
+.tpl-ed-row.empty {
+  color: var(--text-dim);
+  font-style: italic;
+  cursor: default;
+}
+.tpl-ed-row-id {
+  font-family: 'Cascadia Code', 'Fira Code', monospace;
+  font-size: 11px;
+}
+.tpl-ed-row-name {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.tpl-ed-row-badge {
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  letter-spacing: 0.3px;
+}
+.tpl-ed-row-badge.builtin {
+  background: rgba(210, 153, 34, 0.2);
+  color: var(--yellow);
+}
+.tpl-ed-row-badge.custom {
+  background: rgba(88, 166, 255, 0.2);
+  color: var(--codex);
+}
+.tpl-ed-right {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.tpl-ed-textarea {
+  flex: 1;
+  min-height: 320px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Cascadia Code', 'Fira Code', monospace;
+  font-size: 12px;
+  line-height: 1.4;
+  resize: vertical;
+}
+.tpl-ed-textarea:focus {
+  outline: 2px solid var(--codex);
+  outline-offset: -2px;
+  border-color: transparent;
+}
+.tpl-ed-msg {
+  min-height: 20px;
+  font-size: 11px;
+  color: var(--text-dim);
+  font-family: 'Cascadia Code', 'Fira Code', monospace;
+}
+.tpl-ed-msg-error { color: var(--red); }
+.tpl-ed-msg-ok { color: var(--green); }
+.tpl-ed-msg-info { color: var(--codex); }
+
 /* ── Slice C (v4): Toast system ──
  * Stacks in the bottom-right, up to 3 visible. Error toasts use the same
  * palette as .finding-chip.critical so users map severity consistently.

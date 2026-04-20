@@ -29,7 +29,10 @@ const { createCheckpointStore } = require("./executor/checkpoint");
 const { createEventReplayBuffer } = require("./src/runtime/eventReplayBuffer");
 const { createHeartbeat } = require("./executor/heartbeat");
 const skillRegistry = require("./skill-registry");
-const pipelineTemplates = require("./pipeline-templates.json");
+const builtInTemplates = require("./pipeline-templates.json");
+// Slice E (v4): user-uploaded "custom-*" templates live in .harness/templates.json
+// and get merged in at startup + after each successful upsert/delete.
+const { createTemplateStore } = require("./src/templates/templateStore");
 const { createAuthMiddleware, isLoopbackAddress } = require("./src/security/auth");
 const { resolveInsideRoot } = require("./src/security/pathSandbox");
 const {
@@ -354,7 +357,30 @@ function resolveTriggerContext(trigger, userInput) {
   }
 }
 
-app.use("/api", createTemplateRoutes({ pipelineTemplates }));
+// Slice E (v4): build the initial merged registry (built-ins + any customs
+// already in .harness/templates.json) and keep a single `pipelineTemplates`
+// reference that downstream components can read. After a successful upload
+// or delete, `_refreshTemplatesRegistry` rebuilds the merged map in place so
+// running executors see the new template without a server restart.
+const templateStore = createTemplateStore({ repoRoot: REPO_ROOT, builtins: builtInTemplates });
+let pipelineTemplates = templateStore.listAll();
+
+function _refreshTemplatesRegistry() {
+  const next = templateStore.listAll();
+  // In-place mutation: downstream components (pipelineExecutor, pipelineAdapter)
+  // capture the object reference at construction time, so we must preserve it.
+  for (const k of Object.keys(pipelineTemplates)) {
+    if (!(k in next)) delete pipelineTemplates[k];
+  }
+  Object.assign(pipelineTemplates, next);
+}
+
+app.use("/api", createTemplateRoutes({
+  pipelineTemplates,
+  templateStore,
+  broadcast,
+  onRegistryChange: _refreshTemplatesRegistry,
+}));
 
 // ── Session Watcher (auto-pipeline detection) ──
 const sessionWatcher = new SessionWatcher(broadcast, path.resolve(__dirname, ".."));

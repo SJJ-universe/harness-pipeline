@@ -1,0 +1,207 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "harness://templates/pipeline-template.schema.json",
+  "title": "Harness pipeline template (user-uploadable)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "name", "phases"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Must start with 'custom-' and use [a-z0-9_-] only. Reserved: default, code-review, testing.",
+      "pattern": "^custom-[a-z0-9_-]{1,40}$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "phases": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 20,
+      "items": { "$ref": "#/definitions/phase" }
+    }
+  },
+
+  "definitions": {
+    "phaseId": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_-]{0,15}$",
+      "description": "Single uppercase letter followed by up to 15 uppercase/digit/dash/underscore chars (e.g. A, B1, E0)."
+    },
+
+    "phase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name"],
+      "properties": {
+        "id": { "$ref": "#/definitions/phaseId" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "label": { "type": "string", "maxLength": 40 },
+        "layout": { "type": "string", "enum": ["row"] },
+        "agent": { "type": "string", "enum": ["claude", "codex"] },
+        "allowedTools": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "string",
+            "enum": [
+              "Read", "Write", "Edit", "NotebookEdit",
+              "Glob", "Grep", "Bash",
+              "Agent", "TodoWrite",
+              "WebSearch", "WebFetch"
+            ]
+          }
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 600000
+        },
+        "cycle": { "type": "boolean" },
+        "maxIterations": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10
+        },
+        "linkedCycle": { "$ref": "#/definitions/phaseId" },
+        "connector": { "type": "string", "enum": ["bidirectional"] },
+        "artifactRules": {
+          "type": "array",
+          "maxItems": 10,
+          "items": { "$ref": "#/definitions/artifactRule" }
+        },
+        "exitCriteria": {
+          "type": "array",
+          "maxItems": 10,
+          "items": { "$ref": "#/definitions/exitCriterion" }
+        },
+        "nodes": {
+          "type": "array",
+          "maxItems": 8,
+          "items": { "$ref": "#/definitions/node" }
+        }
+      }
+    },
+
+    "artifactRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["toolMatch", "pathMatch", "artifactKey"],
+      "properties": {
+        "toolMatch": { "type": "string", "enum": ["Write", "Edit", "NotebookEdit"] },
+        "pathMatch": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "artifactKey": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,39}$" }
+      }
+    },
+
+    "exitCriterion": {
+      "type": "object",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "required": ["type"],
+          "properties": {
+            "type": { "const": "min-tools" },
+            "count": { "type": "integer", "minimum": 1, "maximum": 100 },
+            "message": { "type": "string", "maxLength": 200 }
+          }
+        },
+        {
+          "additionalProperties": false,
+          "required": ["type"],
+          "properties": {
+            "type": { "const": "min-tools-in-phase" },
+            "count": { "type": "integer", "minimum": 1, "maximum": 100 },
+            "message": { "type": "string", "maxLength": 200 }
+          }
+        },
+        {
+          "additionalProperties": false,
+          "required": ["type", "key"],
+          "properties": {
+            "type": { "const": "has-artifact" },
+            "key": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,39}$" },
+            "scope": { "type": "string", "enum": ["phase", "any"] },
+            "message": { "type": "string", "maxLength": 200 }
+          }
+        },
+        {
+          "additionalProperties": false,
+          "required": ["type"],
+          "properties": {
+            "type": { "const": "no-critical-findings" },
+            "scope": { "type": "string", "enum": ["latest"] },
+            "severities": {
+              "type": "array",
+              "maxItems": 5,
+              "items": {
+                "type": "string",
+                "enum": ["critical", "high", "medium", "low", "note"]
+              }
+            },
+            "message": { "type": "string", "maxLength": 200 }
+          }
+        },
+        {
+          "additionalProperties": false,
+          "required": ["type"],
+          "properties": {
+            "type": { "const": "critique-received" },
+            "message": { "type": "string", "maxLength": 200 }
+          }
+        },
+        {
+          "additionalProperties": false,
+          "required": ["type"],
+          "properties": {
+            "type": { "const": "files-edited" },
+            "min": { "type": "integer", "minimum": 1, "maximum": 1000 },
+            "scope": { "type": "string", "enum": ["phase"] },
+            "pathMatch": { "type": "string", "minLength": 1, "maxLength": 200 },
+            "message": { "type": "string", "maxLength": 200 }
+          }
+        },
+        {
+          "additionalProperties": false,
+          "required": ["type"],
+          "properties": {
+            "type": { "const": "bash-ran" },
+            "min": { "type": "integer", "minimum": 1, "maximum": 1000 },
+            "scope": { "type": "string", "enum": ["phase"] },
+            "commandMatch": { "type": "string", "minLength": 1, "maxLength": 200 },
+            "message": { "type": "string", "maxLength": 200 }
+          }
+        },
+        {
+          "additionalProperties": false,
+          "required": ["type", "tool"],
+          "properties": {
+            "type": { "const": "used-tool" },
+            "tool": { "type": "string", "minLength": 1, "maxLength": 40 },
+            "min": { "type": "integer", "minimum": 1, "maximum": 1000 },
+            "message": { "type": "string", "maxLength": 200 }
+          }
+        }
+      ]
+    },
+
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,39}$" },
+        "icon": { "type": "string", "maxLength": 10 },
+        "iconType": {
+          "type": "string",
+          "enum": ["claude", "codex", "orch", "sabo", "sec", "read", "synth", "debug", "emoji"]
+        },
+        "label": { "type": "string", "maxLength": 40 },
+        "sublabel": { "type": "string", "maxLength": 40 },
+        "group": { "type": "string", "maxLength": 40 }
+      }
+    }
+  }
+}

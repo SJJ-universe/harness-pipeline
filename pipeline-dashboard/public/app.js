@@ -1172,6 +1172,22 @@ function handleEvent(event) {
       break;
     }
 
+    // Slice E (v4): custom template was added/removed on the server. If the
+    // editor modal is open, it refetches the list. Either way the pipeline
+    // selector pill should re-read the merged list so users can cycle into
+    // the newly-added template without reloading.
+    case "template_registry_reloaded": {
+      const d = event.data || {};
+      if (window.HarnessTemplateEditor && typeof window.HarnessTemplateEditor.onRegistryReloaded === "function") {
+        window.HarnessTemplateEditor.onRegistryReloaded();
+      }
+      // Refresh in-memory template cache that cyclePipelineTemplate uses
+      try { if (typeof loadAllTemplates === "function") loadAllTemplates(); } catch (_) {}
+      addLog("phase",
+        `템플릿 레지스트리 갱신 — ${d.kind || "?"}: ${d.changed || "?"}`);
+      break;
+    }
+
     // Slice D (v4): Claude Code subagent (Agent tool) lifecycle surfaces into
     // a dedicated tray. The live handlers just delegate to HarnessSubagentTray
     // which owns animation + fade-out; we only log the summary here.
@@ -2078,6 +2094,10 @@ function initEventBindings() {
   _b("#btn-start-general", openGeneralRun);
   _b("#btn-abort-general", abortGeneralRun);
   _b("#btn-toggle-compact", toggleCompactMode);
+  // Slice E (v4): open template editor modal
+  _b("#btn-open-template-editor", () => {
+    if (window.HarnessTemplateEditor) window.HarnessTemplateEditor.open();
+  });
 
   // Stats
   _b("#btn-clear-tool-feed", clearToolFeed);
