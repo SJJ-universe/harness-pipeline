@@ -32,6 +32,43 @@ body {
   flex-direction: column;
 }
 
+/* ── Slice H (v5): Accessibility primitives ──
+ * skip-link is visually hidden until focused, then materializes at the top
+ * of the viewport. This is the only way a keyboard user can bypass the
+ * 30+ header buttons without tabbing through all of them.
+ */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  padding: 8px 14px;
+  background: var(--codex);
+  color: #0b1a2d;
+  font-weight: 600;
+  z-index: 10000;
+  border-radius: 0 0 4px 0;
+  text-decoration: none;
+}
+.skip-link:focus {
+  left: 0;
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
+/* :focus-visible gives keyboard users a consistent ring without bothering
+ * mouse users. We scope it narrowly to interactive elements so it doesn't
+ * fight pre-existing hover styles. */
+:is(button, a, input, textarea, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--codex);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* main landmark needs no layout impact — it's a semantic wrapper only. */
+main#main-content:focus {
+  outline: none;   /* tabindex="-1" programmatic focus — don't show a ring */
+}
+
 /* ── Header ── */
 header {
   display: flex;

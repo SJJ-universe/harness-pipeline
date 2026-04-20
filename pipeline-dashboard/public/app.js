@@ -2117,6 +2117,62 @@ function initEventBindings() {
     });
   }
 
+  // Slice H (v5): wrap every modal panel's open/close so a focus trap is
+  // installed automatically. Monkey-patches each panel's methods so we
+  // don't have to touch template-editor.js / run-history.js / analytics-
+  // panel.js individually. Traps are released on close() so previously-
+  // focused elements regain focus — standard modal a11y contract.
+  function _installFocusTraps() {
+    if (!window.HarnessFocusTrap) return;
+    const wrap = (panel, overlayId) => {
+      if (!panel || typeof panel.open !== "function") return;
+      const origOpen = panel.open.bind(panel);
+      const origClose = typeof panel.close === "function" ? panel.close.bind(panel) : null;
+      let release = null;
+      panel.open = async function (...args) {
+        const result = await origOpen(...args);
+        const el = document.getElementById(overlayId);
+        if (el) {
+          release = window.HarnessFocusTrap.trap(el, {
+            onEscape: () => { if (origClose) origClose(); },
+          });
+        }
+        return result;
+      };
+      if (origClose) {
+        panel.close = function (...args) {
+          if (release) { release(); release = null; }
+          return origClose(...args);
+        };
+      }
+    };
+    wrap(window.HarnessTemplateEditor, "template-editor-overlay");
+    wrap(window.HarnessRunHistory, "run-history-drawer");
+    wrap(window.HarnessAnalyticsPanel, "analytics-drawer");
+  }
+  _installFocusTraps();
+
+  // Slice H (v5): keyboard shortcuts. 'g t' → template editor, 'g h' →
+  // history, 'g m' → metrics, '?' → tooltip hint. Escape is already
+  // handled by each modal's onEscape trap, so we don't bind it here.
+  if (window.HarnessKeybindings) {
+    window.HarnessKeybindings.install({ doc: document });
+    window.HarnessKeybindings.register({
+      "g t": () => { if (window.HarnessTemplateEditor) window.HarnessTemplateEditor.open(); },
+      "g h": () => { if (window.HarnessRunHistory) window.HarnessRunHistory.open(); },
+      "g m": () => { if (window.HarnessAnalyticsPanel) window.HarnessAnalyticsPanel.open(); },
+      "?": () => {
+        if (window.HarnessToast) {
+          window.HarnessToast.show({
+            type: "info",
+            message: "단축키: g t=템플릿, g h=히스토리, g m=메트릭, Esc=닫기",
+            duration: 6000,
+          });
+        }
+      },
+    });
+  }
+
   // Stats
   _b("#btn-clear-tool-feed", clearToolFeed);
   _b("#btn-clear-critique", clearCritiqueTimeline);

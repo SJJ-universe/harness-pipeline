@@ -8,8 +8,12 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5/css/xterm.min.css" />
 </head>
 <body>
+  <!-- Slice H (v5): Skip link for keyboard users — hidden until focused,
+       jumps past the header into the main content region. -->
+  <a class="skip-link" href="#main-content">본문 바로가기</a>
+
   <!-- Header -->
-  <header>
+  <header role="banner">
     <div class="header-left">
       <div class="logo">
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -28,13 +32,18 @@
         <span class="dot" id="codex-dot"></span>
         <span id="codex-label">Codex: —</span>
       </span>
-      <button class="btn-ctrl" id="btn-codex-verify" title="Codex CLI 실제 호출 테스트">Codex 검증</button>
-      <button class="btn-ctrl" id="btn-open-analytics" title="Phase별 duration / gate 메트릭 열기">📈 메트릭</button>
-      <button class="btn-ctrl" id="btn-open-run-history" title="과거 실행 기록 드로어 열기">📜 히스토리</button>
-      <button class="btn-ctrl" id="btn-server-restart" title="서버 재시작">재시작</button>
-      <button class="btn-ctrl danger" id="btn-server-stop" title="서버 종료">서버 종료</button>
+      <button class="btn-ctrl" id="btn-codex-verify" title="Codex CLI 실제 호출 테스트" aria-label="Codex CLI 실제 호출 테스트">Codex 검증</button>
+      <button class="btn-ctrl" id="btn-open-analytics" title="Phase별 duration / gate 메트릭 열기" aria-label="Phase 메트릭 드로어 열기 (g m)">📈 메트릭</button>
+      <button class="btn-ctrl" id="btn-open-run-history" title="과거 실행 기록 드로어 열기" aria-label="과거 실행 기록 드로어 열기 (g h)">📜 히스토리</button>
+      <button class="btn-ctrl" id="btn-server-restart" title="서버 재시작" aria-label="서버 재시작">재시작</button>
+      <button class="btn-ctrl danger" id="btn-server-stop" title="서버 종료" aria-label="서버 종료">서버 종료</button>
     </div>
   </header>
+
+  <!-- Slice H (v5): main landmark wrapping the dashboard body so screen
+       readers and skip-link get a proper target. tabindex="-1" lets the
+       skip-link focus the region itself (it's not natively focusable). -->
+  <main id="main-content" role="main" tabindex="-1">
 
   <!-- Harness Track: horse racing animation strip -->
   <div class="harness-track" id="harness-track">
@@ -154,11 +163,15 @@
     </section>
   </div>
 
+  </main>
+  <!-- /main-content — modals below are portals outside the main flow -->
+
   <!-- General Pipeline Task Input Modal -->
-  <div class="modal-overlay" id="general-run-overlay">
+  <div class="modal-overlay" id="general-run-overlay"
+       role="dialog" aria-modal="true" aria-labelledby="general-run-title">
     <div class="modal-content">
       <div class="modal-header">
-        <span class="modal-title">범용 파이프라인 시작 — Claude 플랜 ↔ Codex 비평</span>
+        <span class="modal-title" id="general-run-title">범용 파이프라인 시작 — Claude 플랜 ↔ Codex 비평</span>
         <button class="modal-close">&times;</button>
       </div>
       <div class="modal-body">
@@ -179,7 +192,8 @@
   </div>
 
   <!-- Final Plan Result Modal -->
-  <div class="modal-overlay" id="final-plan-overlay">
+  <div class="modal-overlay" id="final-plan-overlay"
+       role="dialog" aria-modal="true" aria-labelledby="final-plan-title">
     <div class="modal-content wide">
       <div class="modal-header">
         <span class="modal-title" id="final-plan-title">최종 플랜</span>
@@ -193,7 +207,8 @@
   </div>
 
   <!-- Stage Detail Modal -->
-  <div class="modal-overlay" id="modal-overlay">
+  <div class="modal-overlay" id="modal-overlay"
+       role="dialog" aria-modal="true" aria-labelledby="modal-title">
     <div class="modal-content">
       <div class="modal-header">
         <span class="modal-title" id="modal-title">단계 상세</span>
@@ -204,11 +219,12 @@
   </div>
 
   <!-- Slice F (v5): Analytics Drawer — per-phase attempts[] + duration + gate counters -->
-  <div class="modal-overlay analytics-drawer is-hidden" id="analytics-drawer">
+  <div class="modal-overlay analytics-drawer is-hidden" id="analytics-drawer"
+       role="dialog" aria-modal="true" aria-labelledby="analytics-drawer-title">
     <div class="modal-content wide">
       <div class="modal-header">
-        <span class="modal-title">📈 Phase 메트릭</span>
-        <button class="modal-close" id="btn-analytics-close">&times;</button>
+        <span class="modal-title" id="analytics-drawer-title">📈 Phase 메트릭</span>
+        <button class="modal-close" id="btn-analytics-close" aria-label="메트릭 드로어 닫기">&times;</button>
       </div>
       <div class="modal-body">
         <div class="analytics-timeline-wrap" id="analytics-timeline"></div>
@@ -218,11 +234,12 @@
   </div>
 
   <!-- Slice E (v4): Run History Drawer — browse/replay past pipeline runs -->
-  <div class="modal-overlay run-history-drawer" id="run-history-drawer">
+  <div class="modal-overlay run-history-drawer" id="run-history-drawer"
+       role="dialog" aria-modal="true" aria-labelledby="run-history-title">
     <div class="modal-content wide">
       <div class="modal-header">
-        <span class="modal-title">📜 실행 기록</span>
-        <button class="modal-close">&times;</button>
+        <span class="modal-title" id="run-history-title">📜 실행 기록</span>
+        <button class="modal-close" aria-label="기록 드로어 닫기">&times;</button>
       </div>
       <div class="modal-body">
         <div class="run-history-toolbar">
@@ -238,11 +255,12 @@
   </div>
 
   <!-- Slice E (v4): Template Editor Modal — manage user-uploadable templates -->
-  <div class="modal-overlay" id="template-editor-overlay">
+  <div class="modal-overlay" id="template-editor-overlay"
+       role="dialog" aria-modal="true" aria-labelledby="template-editor-title">
     <div class="modal-content wide">
       <div class="modal-header">
-        <span class="modal-title">파이프라인 템플릿 에디터</span>
-        <button class="modal-close">&times;</button>
+        <span class="modal-title" id="template-editor-title">파이프라인 템플릿 에디터</span>
+        <button class="modal-close" aria-label="템플릿 에디터 닫기">&times;</button>
       </div>
       <div class="modal-body tpl-ed-body">
         <div class="tpl-ed-left">
@@ -278,6 +296,10 @@
   <!-- Slice D: subagent tray wiring also needs to be live before app.js
        dispatches its first subagent_* event. -->
   <script src="js/subagent-tray.js"></script>
+  <!-- Slice H (v5): a11y primitives — loaded before the panels so each
+       panel's open() can wrap a focus trap around its overlay. -->
+  <script src="js/focus-trap.js"></script>
+  <script src="js/keybindings.js"></script>
   <!-- Slice E: template editor — self-contained modal that talks to
        /api/pipeline/templates via the api-client. -->
   <script src="js/template-editor.js"></script>
