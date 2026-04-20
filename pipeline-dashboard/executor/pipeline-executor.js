@@ -23,6 +23,11 @@ const dangerGate = require("../src/policy/dangerGate");
 const { checkToolAgainstContract } = require("../src/contracts/agentContracts");
 const { ClaimVerifier } = require("../src/verification/claimVerifier");
 const { createCheckpointStore } = require("./checkpoint");
+// Slice F0 (v5): every PreToolUse deny goes through this adapter so the
+// response carries both the legacy `decision: "block"` shape AND the modern
+// hookSpecificOutput.permissionDecision shape. Stop and SessionEnd returns
+// still use the legacy-only shape until upstream docs reshape them too.
+const { denyToolUse } = require("../src/hooks/hookDecisionAdapter");
 
 // _workspace/ lives in the user's project root (one level above pipeline-dashboard).
 // Codex critiques are persisted here so Claude can Read them between Phase C → D.
@@ -219,7 +224,7 @@ class PipelineExecutor {
         data: { phase: phase.id, tool, reason: danger.reason, matchedRule: danger.matchedRule, source: "danger" },
       });
       this._scheduleCheckpoint();
-      return { decision: "block", reason: danger.reason };
+      return denyToolUse(danger.reason);
     }
 
     const policy = evaluateTool({ phase, tool, input: _input || {} });
@@ -229,7 +234,7 @@ class PipelineExecutor {
         data: { phase: phase.id, tool, reason: policy.reason, source: "policy" },
       });
       this._scheduleCheckpoint();
-      return { decision: "block", reason: policy.reason };
+      return denyToolUse(policy.reason);
     }
 
     // Agent contract enforcement
@@ -241,7 +246,7 @@ class PipelineExecutor {
         data: { phase: phase.id, tool, reason: contractResult.reason, source: "contract" },
       });
       this._scheduleCheckpoint();
-      return { decision: "block", reason: contractResult.reason };
+      return denyToolUse(contractResult.reason);
     }
 
     const allowed = phase.allowedTools;
@@ -267,7 +272,7 @@ class PipelineExecutor {
         data: { phase: phase.id, tool, allowed, source: "allowedTools" },
       });
       this._scheduleCheckpoint();
-      return { decision: "block", reason };
+      return denyToolUse(reason);
     }
     return {};
   }
