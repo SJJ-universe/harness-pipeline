@@ -11,6 +11,7 @@
     "test:legacy": "node executor/__phase2-test.js && node executor/__phase3-test.js && node executor/__phase4-test.js",
     "test:smoke": "node tests/run-tests.js tests/smoke",
     "verify:hooks": "node scripts/validate-hook-deployment.js",
+    "sri:print": "node scripts/compute-sri.js",
     "audit:moderate": "npm audit --package-lock-only --audit-level=moderate"
   },
   "keywords": [],

@@ -69,6 +69,11 @@ main#main-content:focus {
   outline: none;   /* tabindex="-1" programmatic focus — don't show a ring */
 }
 
+/* Slice J (v5): generic visibility utility so JS can toggle display via
+ * classList instead of inline style="display:none" (CSP style-src compat).
+ * !important so it wins over element-specific display rules. */
+.is-hidden { display: none !important; }
+
 /* ── Header ── */
 header {
   display: flex;

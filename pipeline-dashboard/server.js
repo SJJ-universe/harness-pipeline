@@ -3,6 +3,9 @@ const http = require("http");
 const { execSync, exec } = require("child_process");
 const path = require("path");
 const fs = require("fs");
+// Slice J (v5): per-request CSP nonce + inline report endpoint.
+const crypto = require("crypto");
+const express = require("express");
 
 // node-pty (optional — graceful fallback if not installed)
 let pty = null;
@@ -60,7 +63,94 @@ const auth = createAuthMiddleware({ repoRoot: REPO_ROOT, host: HOST, allowRemote
 const runsDir = path.join(REPO_ROOT, "runs");
 const runRegistry = new RunRegistry({ rootDir: runsDir });
 const evidenceLedger = new EvidenceLedger({ rootDir: runsDir });
-const app = createApp({ staticDir: path.join(__dirname, "public"), jsonLimit: "256kb" });
+// Slice J (v5): indexRenderer injects a per-request nonce into every
+// <script> and <link rel="stylesheet"> tag in index.html, and sets the
+// Content-Security-Policy (or Content-Security-Policy-Report-Only) header
+// dynamically. The static CSP in auth.js still covers /api/* responses —
+// indexRenderer only overrides for the / route.
+//
+// Rollout: defaults to Report-Only so real-world violations surface via
+//   /api/csp-report before any production break. Promote via
+//   HARNESS_CSP_MODE=enforce once /api/csp-report is quiet.
+const INDEX_HTML = fs.readFileSync(path.join(__dirname, "public", "index.html"), "utf-8");
+
+function indexRenderer(req, res) {
+  const nonce = crypto.randomBytes(16).toString("base64");
+  const html = INDEX_HTML
+    .replace(/<script(\s|>)/g, `<script nonce="${nonce}"$1`)
+    .replace(/<link(\s[^>]*rel="stylesheet")/g, `<link nonce="${nonce}"$1`);
+
+  const cspMode = process.env.HARNESS_CSP_MODE || "report-only";
+  const headerName = cspMode === "enforce"
+    ? "Content-Security-Policy"
+    : "Content-Security-Policy-Report-Only";
+
+  // script-src: removes 'unsafe-inline' via nonce-based policy — any injected
+  //   <script> without the matching nonce is blocked.
+  // style-src: retains 'unsafe-inline' because the context bar (.style.width)
+  //   still drives a dynamic percentage. Deferred to Slice K (SVG conversion).
+  // report-uri: browser will POST violations to /api/csp-report.
+  res.setHeader(headerName, [
+    "default-src 'self'",
+    `script-src 'self' 'nonce-${nonce}' https://cdn.jsdelivr.net`,
+    "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+    "connect-src 'self' ws: wss:",
+    "img-src 'self' data:",
+    "font-src 'self' https://cdn.jsdelivr.net",
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "report-uri /api/csp-report",
+  ].join("; "));
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.send(html);
+}
+
+const app = createApp({
+  staticDir: path.join(__dirname, "public"),
+  jsonLimit: "256kb",
+  indexRenderer,
+});
+
+// Slice J (v5): CSP violation report endpoint. Browser-initiated (no CSRF
+// token), accepts both the legacy application/csp-report shape and the
+// Reporting API's application/reports+json. Cap at 64KB per report to avoid
+// a malicious page flooding us. `broadcast` is declared later in this file
+// but hoisted as a function declaration, so it's safe to reference here.
+app.post(
+  "/api/csp-report",
+  express.json({
+    type: ["application/csp-report", "application/json", "application/reports+json"],
+    limit: "64kb",
+  }),
+  (req, res) => {
+    const body = req.body || {};
+    const report = body["csp-report"] || body; // normalize legacy shape
+    console.warn(
+      "[csp-violation]",
+      JSON.stringify({
+        directive: report["violated-directive"] || report.effectiveDirective,
+        blocked: report["blocked-uri"] || report.blockedURL,
+        source: report["source-file"] || report.sourceFile,
+        line: report["line-number"] || report.lineNumber,
+      })
+    );
+    try {
+      broadcast({
+        type: "csp_violation",
+        data: {
+          documentURI: report["document-uri"] || report.documentURL || null,
+          violatedDirective: report["violated-directive"] || report.effectiveDirective || null,
+          blockedURI: report["blocked-uri"] || report.blockedURL || null,
+          disposition: report.disposition || null,
+        },
+      });
+    } catch (_) {
+      // broadcast may throw at startup if wss has no clients — swallow.
+    }
+    res.status(204).end();
+  }
+);
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 

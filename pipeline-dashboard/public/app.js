@@ -1021,7 +1021,7 @@ function handleEvent(event) {
       const card = document.getElementById("codex-live-card");
       const out = document.getElementById("codex-live-output");
       const meta = document.getElementById("codex-live-meta");
-      if (card) card.style.display = "";
+      if (card) card.classList.remove("is-hidden");
       if (out) out.textContent = "";
       if (meta) meta.textContent = `phase ${d.phase || "?"} · iter ${d.iteration || 0}`;
       addLog("phase", `[${d.phase}] Codex 시작 — ${d.promptPreview || ""}`, false, _stageKeys);
@@ -1093,7 +1093,7 @@ function handleEvent(event) {
         // If a new codex_started changed the runId, the next cycle is using the card — don't hide
         if (_codexLiveRunId !== hidingRunId) return;
         const card = document.getElementById("codex-live-card");
-        if (card) card.style.display = "none";
+        if (card) card.classList.add("is-hidden");
         _codexLiveRunId = null;
       }, 5000);
       break;
@@ -1223,7 +1223,7 @@ function handleEvent(event) {
       const triggerBtn = document.getElementById("btn-start-general");
       const abortBtn = document.getElementById("btn-abort-general");
       if (triggerBtn) triggerBtn.disabled = false;
-      if (abortBtn) abortBtn.style.display = "none";
+      if (abortBtn) abortBtn.classList.add("is-hidden");
       showFinalPlan(event.data || {});
       break;
     }
@@ -2025,7 +2025,7 @@ async function submitGeneralRun() {
       return;
     }
     closeGeneralRun();
-    if (abortBtn) abortBtn.style.display = "";
+    if (abortBtn) abortBtn.classList.remove("is-hidden");
     addLog("phase", `범용 파이프라인 시작 — ${task.slice(0, 60)} (max ${maxIter} iter)`);
   } catch (err) {
     alert("요청 실패: " + err.message);

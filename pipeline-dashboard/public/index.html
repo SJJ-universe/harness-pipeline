@@ -5,7 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SJ Harness Engine</title>
   <link rel="stylesheet" href="style.css" />
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5/css/xterm.min.css" />
+  <!-- Slice J (v5): crossorigin="anonymous" is required for SRI hash
+       validation. Run `npm run sri:print` and paste the resulting integrity
+       attribute in a follow-up commit; Report-Only mode lets us ship the
+       crossorigin attribute now without breaking the page. -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5/css/xterm.min.css" crossorigin="anonymous" />
 </head>
 <body>
   <!-- Slice H (v5): Skip link for keyboard users — hidden until focused,
@@ -61,7 +65,7 @@
         <button class="btn-ctrl primary" id="btn-start-general" title="범용 태스크 파이프라인 실행 (Claude 플랜 ↔ Codex 비평 순환)">
           ▶ 작업 시작
         </button>
-        <button class="btn-ctrl danger" id="btn-abort-general" style="display:none" title="진행 중인 파이프라인 중단">
+        <button class="btn-ctrl danger is-hidden" id="btn-abort-general" title="진행 중인 파이프라인 중단">
           ■ 중단
         </button>
         <button class="btn-small" id="btn-toggle-compact" title="컴팩트/상세 보기 전환">compact</button>
@@ -105,7 +109,7 @@
       </div>
 
       <!-- Codex Live Output — visible only during Codex execution -->
-      <div class="stat-mini codex-live-mini" id="codex-live-card" style="display:none">
+      <div class="stat-mini codex-live-mini is-hidden" id="codex-live-card">
         <div class="stat-mini-title">
           <span>🤖 Codex 라이브 출력</span>
           <span class="codex-live-meta" id="codex-live-meta">—</span>
@@ -287,8 +291,8 @@
        polite default lets mid-update inserts stay well-behaved. -->
   <div id="toast-container" class="toast-container" role="status" aria-live="polite" aria-atomic="false"></div>
 
-  <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5/lib/xterm.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0/lib/addon-fit.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5/lib/xterm.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0/lib/addon-fit.min.js" crossorigin="anonymous"></script>
   <script src="js/dom.js"></script>
   <!-- toast.js must load before api-client + app.js so the HarnessToast
        singleton is ready when those modules call showToast(). -->

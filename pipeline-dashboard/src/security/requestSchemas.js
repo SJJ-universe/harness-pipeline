@@ -49,6 +49,10 @@ const ALLOWED_EVENT_TYPES = new Set([
   // for lacking a prior test edit in the same phase. Distinct from the
   // generic tool_blocked so the UI can highlight TDD violations.
   "tdd_guard_blocked",
+  // Slice J (v5): forwarded from /api/csp-report when the browser reports
+  // a CSP violation (Report-Only rollout). Used by the dashboard to flag
+  // deployment drift before promoting to enforce mode.
+  "csp_violation",
   "tool_blocked",
   "tool_recorded",
 ]);
