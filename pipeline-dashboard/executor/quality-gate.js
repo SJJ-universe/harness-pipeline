@@ -10,9 +10,37 @@
 //   { type: "has-artifact",         key: str,   scope?: "phase"|"any", message?: str }
 //   { type: "no-critical-findings", severities?: ["critical","high"], message?: str }
 //   { type: "critique-received",    message?: str }
-//   { type: "files-edited",         min: N,     message?: str }
-//   { type: "bash-ran",             min: N,     message?: str }
+//   { type: "files-edited",         min: N,     message?: str,
+//                                   scope?: "phase",      // restrict to current phase
+//                                   pathMatch?: regex-str // only count files matching this regex
+//   }
+//   { type: "bash-ran",             min: N,     message?: str,
+//                                   scope?: "phase",         // restrict to current phase
+//                                   commandMatch?: regex-str // only count commands matching this regex
+//   }
 //   { type: "used-tool",            tool: str,  min?: N, message?: str }
+//
+// Slice B (v4) added `scope`, `pathMatch`, `commandMatch`. Criteria without
+// any of these options behave exactly as before (global counters). If the
+// supplied regex is malformed we do NOT silently accept — we log once and
+// treat the criterion as failed so bad templates surface quickly.
+
+function _compileRegex(source, label) {
+  if (source == null || source === "") return null;
+  try {
+    return new RegExp(source);
+  } catch (err) {
+    // One-shot console warning — we can't rely on any logger being injected.
+    // The criterion-failure message carries the real signal to the user.
+    if (!_compileRegex._warned) _compileRegex._warned = new Set();
+    const key = `${label}:${source}`;
+    if (!_compileRegex._warned.has(key)) {
+      _compileRegex._warned.add(key);
+      try { console.warn(`[QualityGate] bad ${label} regex ${source}: ${err.message}`); } catch (_) {}
+    }
+    return { __invalid: true, source };
+  }
+}
 
 class QualityGate {
   async evaluate(phase, state) {
@@ -60,14 +88,92 @@ class QualityGate {
       case "critique-received":
         return state.phases[phase.id]?.critique != null;
       case "files-edited":
-        return state.metrics.filesEdited.size >= (c.min || 1);
+        return this._checkFilesEdited(c, phase, state);
       case "bash-ran":
-        return state.metrics.bashCommands >= (c.min || 1);
+        return this._checkBashRan(c, phase, state);
       case "used-tool":
         return (state.metrics.byTool[c.tool] || 0) >= (c.min || 1);
       default:
         return true; // unknown criterion types pass (forward-compat)
     }
+  }
+
+  /**
+   * files-edited predicate with optional `scope: "phase"` and `pathMatch`
+   * regex. The fast path (no scope, no pathMatch) falls through to the global
+   * Set-size check so legacy templates keep their behavior.
+   */
+  _checkFilesEdited(c, phase, state) {
+    const pathRe = _compileRegex(c.pathMatch, "files-edited.pathMatch");
+    if (pathRe && pathRe.__invalid) return false;
+    const min = c.min || 1;
+
+    if (c.scope === "phase") {
+      // Only count files touched by Edit/Write calls in the current phase.
+      const seen = new Set();
+      const tools = (typeof state.phaseTools === "function")
+        ? state.phaseTools(phase.id)
+        : (state.phases[phase.id]?.tools || []);
+      for (const t of tools) {
+        if (t.tool !== "Edit" && t.tool !== "Write") continue;
+        if (!t.filePath) continue;
+        if (pathRe && !pathRe.test(t.filePath)) continue;
+        seen.add(t.filePath);
+      }
+      return seen.size >= min;
+    }
+
+    if (pathRe) {
+      let n = 0;
+      for (const f of state.metrics.filesEdited) {
+        if (pathRe.test(f)) n++;
+      }
+      return n >= min;
+    }
+
+    return state.metrics.filesEdited.size >= min;
+  }
+
+  /**
+   * bash-ran predicate with optional `scope: "phase"` and `commandMatch`
+   * regex. When `commandMatch` is set, we iterate recorded tool entries (which
+   * only have the command text after Slice B's PipelineState.recordTool
+   * extension) — otherwise we fall back to the global counter.
+   */
+  _checkBashRan(c, phase, state) {
+    const cmdRe = _compileRegex(c.commandMatch, "bash-ran.commandMatch");
+    if (cmdRe && cmdRe.__invalid) return false;
+    const min = c.min || 1;
+
+    // commandMatch requires looking at actual command text, which lives on
+    // per-phase tool entries. Whether scope is "phase" or not, the iteration
+    // loops differ only in which tools we walk.
+    if (cmdRe) {
+      const iter = c.scope === "phase"
+        ? ((typeof state.phaseTools === "function"
+            ? state.phaseTools(phase.id)
+            : (state.phases[phase.id]?.tools || [])))
+        : _allTools(state);
+      let n = 0;
+      for (const t of iter) {
+        if (t.tool !== "Bash") continue;
+        if (!t.command) continue;
+        if (!cmdRe.test(t.command)) continue;
+        n++;
+      }
+      return n >= min;
+    }
+
+    if (c.scope === "phase") {
+      const tools = (typeof state.phaseTools === "function")
+        ? state.phaseTools(phase.id)
+        : (state.phases[phase.id]?.tools || []);
+      let n = 0;
+      for (const t of tools) if (t.tool === "Bash") n++;
+      return n >= min;
+    }
+
+    return state.metrics.bashCommands >= min;
   }
 
   _defaultMessage(c) {
@@ -83,6 +189,18 @@ class QualityGate {
       default:                     return `알 수 없는 조건: ${c.type}`;
     }
   }
+}
+
+/**
+ * Flatten all recorded tool entries across phases. Used by commandMatch when
+ * scope is not constrained to the current phase (legacy global behavior).
+ */
+function _allTools(state) {
+  const out = [];
+  for (const p of Object.values(state.phases || {})) {
+    for (const t of (p.tools || [])) out.push(t);
+  }
+  return out;
 }
 
 module.exports = { QualityGate };

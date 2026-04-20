@@ -289,6 +289,11 @@
         "id": "A",
         "name": "분석",
         "label": "Phase A",
+        "agent": "claude",
+        "allowedTools": ["Read", "Glob", "Grep", "Bash"],
+        "exitCriteria": [
+          { "type": "min-tools-in-phase", "count": 2, "message": "기존 테스트/커버리지 탐색 2회 이상 필요" }
+        ],
         "nodes": [
           {
             "id": "coverage-analyzer",
@@ -303,6 +308,14 @@
         "id": "B",
         "name": "테스트 계획",
         "label": "Phase B",
+        "agent": "claude",
+        "allowedTools": ["Read", "Write", "TodoWrite"],
+        "artifactRules": [
+          { "toolMatch": "Write", "pathMatch": "test-plan.*\\.md$", "artifactKey": "test-plan" }
+        ],
+        "exitCriteria": [
+          { "type": "has-artifact", "key": "test-plan", "message": "테스트 계획 문서(test-plan*.md)를 Write로 작성하세요" }
+        ],
         "nodes": [
           {
             "id": "test-planner",
@@ -317,8 +330,14 @@
         "id": "C",
         "name": "계획 검토",
         "label": "Phase C",
+        "agent": "codex",
         "cycle": true,
         "maxIterations": 3,
+        "linkedCycle": "D",
+        "timeoutMs": 120000,
+        "exitCriteria": [
+          { "type": "critique-received", "message": "Codex 비평이 도착하지 않음" }
+        ],
         "nodes": [
           {
             "id": "test-critic",
@@ -333,6 +352,17 @@
         "id": "D",
         "name": "테스트 작성",
         "label": "Phase D",
+        "agent": "claude",
+        "allowedTools": ["Read", "Edit", "Write"],
+        "exitCriteria": [
+          {
+            "type": "files-edited",
+            "min": 1,
+            "scope": "phase",
+            "pathMatch": "(?:^|[\\\\/])(?:__tests__|tests?)[\\\\/].*\\.(?:test|spec)\\.(?:js|ts|mjs|cjs)$",
+            "message": "테스트 파일(tests/**/*.test.js 등) 수정이 없음"
+          }
+        ],
         "nodes": [
           {
             "id": "test-writer",
@@ -347,6 +377,18 @@
         "id": "E",
         "name": "실행 & 검증",
         "label": "Phase E",
+        "agent": "claude",
+        "allowedTools": ["Bash", "Read"],
+        "exitCriteria": [
+          {
+            "type": "bash-ran",
+            "min": 1,
+            "scope": "phase",
+            "commandMatch": "(?:npm\\s+(?:run\\s+)?test|jest|vitest|node\\s+--test|pytest)",
+            "message": "테스트 실행 명령(npm test | jest | vitest | node --test | pytest) 없음"
+          },
+          { "type": "no-critical-findings", "message": "critical/high finding이 남아있음" }
+        ],
         "nodes": [
           {
             "id": "test-runner",

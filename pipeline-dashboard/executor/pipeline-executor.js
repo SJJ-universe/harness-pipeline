@@ -277,7 +277,9 @@ class PipelineExecutor {
     const phase = this._currentPhase();
     if (!phase) return {};
 
-    this.state.recordTool(phase.id, tool, response);
+    // Slice B (v4): forward tool input so PipelineState can record file paths
+    // and shell commands for phase-scoped / pathMatch / commandMatch criteria.
+    this.state.recordTool(phase.id, tool, response, input || {});
     this._captureArtifacts(phase, tool, response);
     this._scheduleCheckpoint();
 
@@ -302,41 +304,14 @@ class PipelineExecutor {
       return {};
     }
 
+    // Slice B (v4): gate evaluation + retry/bypass bookkeeping extracted into
+    // _handleGateResult so Codex phases can reuse the exact same ladder.
     const gateResult = await this.gate.evaluate(phase, this.state);
-    this.broadcast({
-      type: "gate_evaluated",
-      data: { phase: phase.id, pass: gateResult.pass, missing: gateResult.missing },
-    });
-
-    if (!gateResult.pass) {
-      this.active.gateRetries = (this.active.gateRetries || 0) + 1;
-
-      if (this.active.gateRetries >= MAX_GATE_RETRIES) {
-        // Give up blocking after too many retries to avoid an infinite loop
-        this.broadcast({
-          type: "gate_bypassed",
-          data: { phase: phase.id, retries: this.active.gateRetries, missing: gateResult.missing },
-        });
-        this.active.gateRetries = 0;
-        await this._advance();
-        return {};
-      }
-
-      const tools = (phase.allowedTools || []).join(", ");
-      const reason =
-        `[SJ 하네스] Phase ${phase.id} (${phase.name}) 완료 조건 미충족\n` +
-        `미충족 조건: ${gateResult.missing.join("; ")}\n` +
-        `허용 도구: ${tools || "제한 없음"}\n` +
-        `위 조건을 충족한 후 다시 턴을 종료하세요. (시도 ${this.active.gateRetries}/${MAX_GATE_RETRIES})`;
-      this.broadcast({
-        type: "gate_failed",
-        data: { phase: phase.id, missing: gateResult.missing, retries: this.active.gateRetries },
-      });
-      this._scheduleCheckpoint();
-      return { decision: "block", reason };
+    const decision = this._handleGateResult(phase, gateResult, { source: "stop" });
+    if (decision.kind === "block") {
+      return { decision: "block", reason: decision.reason };
     }
-
-    this.active.gateRetries = 0;
+    // pass or bypass: continue advancing
     await this._advance();
 
     // FIX-2: if Phase C just ran and produced a critique, instruct Claude to
@@ -713,6 +688,69 @@ class PipelineExecutor {
     return this.active.template.phases[this.active.phaseIdx] || null;
   }
 
+  /**
+   * Slice B (v4): common gate-result ladder used by both `onStop` and
+   * `_runCodexPhase`. Broadcasts `gate_evaluated`, then decides the caller's
+   * next move via the returned kind:
+   *
+   *   { kind: "pass"  }   — gate passed; caller should advance
+   *   { kind: "bypass" }  — gate failed but retry budget exhausted; caller
+   *                          should advance (gate_bypassed broadcast happened)
+   *   { kind: "block", reason } — gate failed and there's retry budget left;
+   *                          onStop surfaces this as `{ decision: "block" }`
+   *                          back to Claude, while Codex phases use it as a
+   *                          signal to loop back through linkedCycle.
+   *
+   * opts.source is informational ("stop" or "codex-phase") and tailors the
+   * block-reason wording so Claude understands which transition was denied.
+   */
+  _handleGateResult(phase, gateResult, opts = {}) {
+    this.broadcast({
+      type: "gate_evaluated",
+      data: { phase: phase.id, pass: gateResult.pass, missing: gateResult.missing },
+    });
+
+    if (gateResult.pass) {
+      this.active.gateRetries = 0;
+      return { kind: "pass" };
+    }
+
+    this.active.gateRetries = (this.active.gateRetries || 0) + 1;
+    if (this.active.gateRetries >= MAX_GATE_RETRIES) {
+      this.broadcast({
+        type: "gate_bypassed",
+        data: {
+          phase: phase.id,
+          retries: this.active.gateRetries,
+          missing: gateResult.missing,
+        },
+      });
+      this.active.gateRetries = 0;
+      return { kind: "bypass" };
+    }
+
+    const tools = (phase.allowedTools || []).join(", ");
+    const suffix = opts.source === "codex-phase"
+      ? `Codex phase 완료 조건 미충족 — 다음 반복에서 재검증합니다.`
+      : `위 조건을 충족한 후 다시 턴을 종료하세요.`;
+    const reason =
+      `[SJ 하네스] Phase ${phase.id} (${phase.name}) 완료 조건 미충족\n` +
+      `미충족 조건: ${gateResult.missing.join("; ")}\n` +
+      `허용 도구: ${tools || "제한 없음"}\n` +
+      `${suffix} (시도 ${this.active.gateRetries}/${MAX_GATE_RETRIES})`;
+    this.broadcast({
+      type: "gate_failed",
+      data: {
+        phase: phase.id,
+        missing: gateResult.missing,
+        retries: this.active.gateRetries,
+        source: opts.source || "stop",
+      },
+    });
+    this._scheduleCheckpoint();
+    return { kind: "block", reason };
+  }
+
   _resolveAgentName(phase) {
     if (!phase) return "default";
     if (phase.agent === "codex") return "critic";
@@ -945,6 +983,39 @@ class PipelineExecutor {
               phase: phase.id,
               iteration: this.active.iteration,
               linkedTo: phase.linkedCycle,
+            },
+          });
+          await this._enterPhase(linkedIdx);
+          return;
+        }
+      }
+    }
+
+    // Slice B (v4) FIX: previously Codex phases went straight to _advance()
+    // so criteria like `critique-received` were declaratively present but
+    // never actually enforced (pipeline-executor.js:749 pre-fix). We now run
+    // the same gate ladder as onStop, but since a Codex phase has no user
+    // turn to re-prompt, a `block` decision falls back to one more
+    // linkedCycle iteration if the iteration budget allows. When nothing
+    // more can be done, we advance anyway — the gate_failed / gate_bypassed
+    // broadcasts are the user-visible signal.
+    const gateResult = await this.gate.evaluate(phase, this.state);
+    const decision = this._handleGateResult(phase, gateResult, { source: "codex-phase" });
+    if (decision.kind === "block" && phase.cycle && phase.linkedCycle) {
+      const canIterate = this.active.iteration < (phase.maxIterations || 3);
+      if (canIterate) {
+        this.active.iteration++;
+        const linkedIdx = this.active.template.phases.findIndex(
+          (p) => p.id === phase.linkedCycle
+        );
+        if (linkedIdx >= 0) {
+          this.broadcast({
+            type: "cycle_iteration",
+            data: {
+              phase: phase.id,
+              iteration: this.active.iteration,
+              linkedTo: phase.linkedCycle,
+              reason: "gate-failed",
             },
           });
           await this._enterPhase(linkedIdx);

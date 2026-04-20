@@ -38,17 +38,47 @@ class PipelineState {
     return this.phases[id];
   }
 
-  recordTool(phaseId, tool, response) {
+  /**
+   * Record a tool call against a phase.
+   *
+   * Slice B (v4) extended the signature to take `input` — the raw tool input
+   * that Claude Code sends to PreToolUse/PostToolUse. This lets QualityGate
+   * filter by actual file paths and shell commands instead of just counting
+   * totals, which is what `pathMatch`/`commandMatch` criteria need.
+   *
+   * Backward compatibility: `input` defaults to `{}` so every existing caller
+   * that passes only `(phaseId, tool, response)` still works. File-path
+   * extraction falls back to the previous response-based path so legacy tests
+   * that pass `{ filePath: "..." }` in `response` continue to populate metrics.
+   */
+  recordTool(phaseId, tool, response, input = {}) {
     const p = this._ensurePhase(phaseId);
-    p.tools.push({ tool, at: Date.now() });
+    const filePath = this._extractToolFilePath(tool, response, input);
+    const command = tool === "Bash" ? String((input && input.command) || "") : null;
+    p.tools.push({ tool, at: Date.now(), filePath, command });
     this.metrics.toolCount++;
     this.metrics.byTool[tool] = (this.metrics.byTool[tool] || 0) + 1;
 
-    if (tool === "Edit" || tool === "Write") {
-      const filePath = this._extractFilePath(response);
-      if (filePath) this.metrics.filesEdited.add(filePath);
+    // filesEdited remains an Edit/Write-only metric (Read "touches" a file but
+    // doesn't mutate it, so it never counts toward edit gates).
+    if ((tool === "Edit" || tool === "Write") && filePath) {
+      this.metrics.filesEdited.add(filePath);
     }
     if (tool === "Bash") this.metrics.bashCommands++;
+  }
+
+  _extractToolFilePath(tool, response, input) {
+    // Prefer the explicit tool input (Claude Code PostToolUse payloads use
+    // `file_path`; we also accept camelCase/alt aliases for flexibility).
+    if (input && typeof input === "object") {
+      const fromInput = input.file_path || input.filePath || input.path;
+      if (fromInput) return String(fromInput);
+    }
+    // Fall back to response extraction — preserves pre-Slice-B callers.
+    if (tool === "Edit" || tool === "Write" || tool === "Read") {
+      return this._extractFilePath(response);
+    }
+    return null;
   }
 
   _extractFilePath(response) {
@@ -60,6 +90,14 @@ class PipelineState {
       (response.structuredPatch && response.structuredPatch.filePath) ||
       null
     );
+  }
+
+  /**
+   * Iterate all recorded tools in a given phase that match a predicate.
+   * Used by QualityGate for phase-scoped criteria.
+   */
+  phaseTools(phaseId) {
+    return this.phases[phaseId]?.tools || [];
   }
 
   setArtifact(phaseId, key, value) {
