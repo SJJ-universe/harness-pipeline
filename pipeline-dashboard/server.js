@@ -481,12 +481,26 @@ const sessionWatcher = new SessionWatcher(broadcast, path.resolve(__dirname, "..
 
 // ── Hook Router + Pipeline Executor (Phase 1 + 2 + 3 + 4) ──
 const hookRouter = new HookRouter({ broadcast, sessionWatcher, runRegistry });
+// Slice N (v6): shared child-process semaphore across Codex + Claude so the
+// two runners can't collectively spawn more than HARNESS_CHILD_MAX processes
+// at once. Queue depth broadcasts as `child_queue_depth` → dashboard.
+const { createChildSemaphore } = require("./src/runtime/childSemaphore");
+const childSemaphore = createChildSemaphore({
+  maxConcurrent: Number(process.env.HARNESS_CHILD_MAX || 2),
+  timeoutMs: Number(process.env.HARNESS_CHILD_QUEUE_TIMEOUT_MS || 30000),
+  broadcast,
+});
 const codexRunner = new CodexRunner({
   runRegistry,
   repoRoot: REPO_ROOT,
   broadcast,
+  childSemaphore,
 });
-const claudeRunner = new ClaudeRunner({ runRegistry, repoRoot: REPO_ROOT });
+const claudeRunner = new ClaudeRunner({
+  runRegistry,
+  repoRoot: REPO_ROOT,
+  childSemaphore,
+});
 
 // generalRunRef.active is set by pipelineRoutes — see above
 const pipelineState = new PipelineState();

@@ -19,7 +19,16 @@ function resolveCommand(cmd) {
 }
 
 class ClaudeRunner {
-  constructor({ claudeCommand = "claude", fallbackCommands, defaultTimeoutMs = 180000, runRegistry, repoRoot } = {}) {
+  constructor({
+    claudeCommand = "claude",
+    fallbackCommands,
+    defaultTimeoutMs = 180000,
+    runRegistry,
+    repoRoot,
+    // Slice N (v6): shared child-process semaphore. Optional — when absent
+    // the runner behaves as before.
+    childSemaphore = null,
+  } = {}) {
     this.claudeCommand = claudeCommand;
     this.fallbackCommands = fallbackCommands || [
       { cmd: "claude", argsPrefix: [] },
@@ -28,21 +37,36 @@ class ClaudeRunner {
     this.defaultTimeoutMs = defaultTimeoutMs;
     this.runRegistry = runRegistry || null;
     this.repoRoot = repoRoot || process.cwd();
+    this.childSemaphore = childSemaphore;
     this._resolvedSpec = null;
   }
 
   async exec(prompt, opts = {}) {
-    const specs = this._resolvedSpec ? [this._resolvedSpec] : this.fallbackCommands;
-    let lastFailure = null;
-    for (const spec of specs) {
-      const result = await this._tryExec(spec, prompt, opts);
-      if (result.ok || !result._enoent) {
-        if (result.ok && !this._resolvedSpec) this._resolvedSpec = spec;
-        return result;
-      }
-      lastFailure = result;
+    // Slice N (v6): acquire one slot before spawning. See CodexRunner.exec
+    // for the guarantee: try/finally ensures release even on synchronous
+    // throw inside _tryExec.
+    let release = null;
+    if (this.childSemaphore) {
+      release = await this.childSemaphore.acquire({
+        label: "claude",
+        timeoutMs: opts.queueTimeoutMs,
+      });
     }
-    return lastFailure || this._failure("no claude launcher available");
+    try {
+      const specs = this._resolvedSpec ? [this._resolvedSpec] : this.fallbackCommands;
+      let lastFailure = null;
+      for (const spec of specs) {
+        const result = await this._tryExec(spec, prompt, opts);
+        if (result.ok || !result._enoent) {
+          if (result.ok && !this._resolvedSpec) this._resolvedSpec = spec;
+          return result;
+        }
+        lastFailure = result;
+      }
+      return lastFailure || this._failure("no claude launcher available");
+    } finally {
+      if (release) release();
+    }
   }
 
   _tryExec(spec, prompt, { timeoutMs, cwd, onChild, explicitConfirmation = false } = {}) {

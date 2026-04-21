@@ -52,6 +52,9 @@ class CodexRunner {
     redact = defaultRedact,
     flushIntervalMs = 500,
     flushBytes = 4096,
+    // Slice N (v6): shared child-process semaphore. Optional for backward
+    // compatibility with existing tests that instantiate CodexRunner bare.
+    childSemaphore = null,
   } = {}) {
     this.codexCommand = codexCommand;
     this.fallbackCommands = fallbackCommands || [
@@ -70,21 +73,36 @@ class CodexRunner {
     this.redact = redact;
     this.flushIntervalMs = flushIntervalMs;
     this.flushBytes = flushBytes;
+    this.childSemaphore = childSemaphore;
     this._resolvedSpec = null;
   }
 
   async exec(prompt, opts = {}) {
-    const specs = this._resolvedSpec ? [this._resolvedSpec] : this.fallbackCommands;
-    let lastFailure = null;
-    for (const spec of specs) {
-      const result = await this._tryExec(spec, prompt, opts);
-      if (result.ok || !result._enoent) {
-        if (result.ok && !this._resolvedSpec) this._resolvedSpec = spec;
-        return result;
-      }
-      lastFailure = result;
+    // Slice N (v6): acquire one child-process slot before spawning. If the
+    // semaphore is absent (legacy tests) behavior is unchanged. Release is
+    // guaranteed via try/finally even if _tryExec throws synchronously.
+    let release = null;
+    if (this.childSemaphore) {
+      release = await this.childSemaphore.acquire({
+        label: "codex",
+        timeoutMs: opts.queueTimeoutMs,
+      });
     }
-    return lastFailure || this._failure("no codex launcher available");
+    try {
+      const specs = this._resolvedSpec ? [this._resolvedSpec] : this.fallbackCommands;
+      let lastFailure = null;
+      for (const spec of specs) {
+        const result = await this._tryExec(spec, prompt, opts);
+        if (result.ok || !result._enoent) {
+          if (result.ok && !this._resolvedSpec) this._resolvedSpec = spec;
+          return result;
+        }
+        lastFailure = result;
+      }
+      return lastFailure || this._failure("no codex launcher available");
+    } finally {
+      if (release) release();
+    }
   }
 
   _tryExec(spec, prompt, opts = {}) {

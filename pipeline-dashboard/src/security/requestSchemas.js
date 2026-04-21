@@ -53,6 +53,9 @@ const ALLOWED_EVENT_TYPES = new Set([
   // a CSP violation (Report-Only rollout). Used by the dashboard to flag
   // deployment drift before promoting to enforce mode.
   "csp_violation",
+  // Slice N (v6): shared child-process semaphore publishes queue depth on
+  // every acquire/release/timeout. Dashboard can surface contention.
+  "child_queue_depth",
   "tool_blocked",
   "tool_recorded",
 ]);
