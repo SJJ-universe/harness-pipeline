@@ -768,6 +768,15 @@ function applyReplayEvent(event) {
 }
 
 function handleEvent(event) {
+  // Slice R (v6): try the registry first. Handlers registered via
+  // HarnessEventDispatcher.register() handle their own type; the switch
+  // below is the legacy fallback for types that haven't been migrated yet.
+  // This lets Slice T/U add new event types (child_queue_depth, run_tab_*,
+  // runId-scoped events) without stretching the 32-case switch.
+  if (window.HarnessEventDispatcher && window.HarnessEventDispatcher.dispatch(event)) {
+    return;
+  }
+
   // Track which stage keys this event belongs to (for modal popup)
   const _stageKeys = getStageKeysForEvent(event);
 

@@ -324,6 +324,10 @@
   <script src="js/i18n/ko.js"></script>
   <script src="js/i18n/en.js"></script>
   <script src="js/i18n.js"></script>
+  <!-- Slice R (v6): event dispatcher registry — loaded before app.js so
+       the legacy handleEvent switch can delegate to it. Also available to
+       every panel for registering new runId/tab-scoped handlers. -->
+  <script src="js/event-dispatcher.js"></script>
   <!-- toast.js must load before api-client + app.js so the HarnessToast
        singleton is ready when those modules call showToast(). -->
   <script src="js/toast.js"></script>

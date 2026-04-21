@@ -49,3 +49,14 @@ test("ws-client.js script tag loads before app.js in index.html", () => {
   assert.ok(posWs > 0, "ws-client.js script tag missing from index.html");
   assert.ok(posWs < posApp, "ws-client.js must load before app.js");
 });
+
+// Slice R (v6): event dispatcher registry must be loaded before app.js so
+// handleEvent's `window.HarnessEventDispatcher.dispatch()` call works.
+test("event-dispatcher.js loads before app.js; handleEvent checks registry first", () => {
+  const posEd = index.indexOf("js/event-dispatcher.js");
+  const posApp = index.indexOf("app.js\"></script>");
+  assert.ok(posEd > 0, "event-dispatcher.js script tag missing");
+  assert.ok(posEd < posApp, "event-dispatcher.js must load before app.js");
+  assert.match(app, /window\.HarnessEventDispatcher\.dispatch\(event\)/,
+    "handleEvent must consult the dispatcher before falling through to switch");
+});
