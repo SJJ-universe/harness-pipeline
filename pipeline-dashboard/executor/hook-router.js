@@ -166,6 +166,19 @@ class HookRouter {
         this.fileConflictDetector.recordEdit(runId, filePath);
       }
     }
+    // Slice W (v6): if this payload's session_id is a known subagent of the
+    // resolved executor, attribute the tool call to its SubRun too. Parent
+    // state is already updated via exec.onPostTool above.
+    const subagentSessionId = payload?.session_id;
+    if (exec && exec.active && exec.active.subRuns && subagentSessionId) {
+      const subRun = exec.active.subRuns.get(subagentSessionId);
+      if (subRun && !subRun.completedAt) {
+        subRun.recordTool(tool, {
+          filePath: input?.file_path || input?.filePath || null,
+          command: tool === "Bash" ? (input?.command || null) : null,
+        });
+      }
+    }
     return result;
   }
 

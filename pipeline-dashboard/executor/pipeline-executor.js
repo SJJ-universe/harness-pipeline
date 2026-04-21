@@ -24,6 +24,8 @@ const { PipelineAdapter } = require("./pipeline-adapter");
 const { TddGuard } = require("./tdd-guard");
 // Slice Q (v6): test-runner command detection for Stage 2 failing-proof.
 const { looksLikeTestCommand: _looksLikeTestCommand } = require("../src/runtime/testOutputParser");
+// Slice W (v6): subagent-scoped state — per-subagent tools / artifacts / metrics.
+const { SubRun } = require("./sub-run");
 const { enforceTemplateDefaults, evaluateTool } = require("../src/policy/phasePolicy");
 const dangerGate = require("../src/policy/dangerGate");
 const { checkToolAgainstContract } = require("../src/contracts/agentContracts");
@@ -488,12 +490,26 @@ class PipelineExecutor {
     const d = payload || {};
     const sessionId = d.session_id || d.agent_id || null;
     if (!this.active.subagents) this.active.subagents = {};
+    // Slice W (v6): keep a richer SubRun alongside the legacy tray entry
+    // so later tool calls from this subagent can be scoped per-agent.
+    if (!this.active.subRuns) this.active.subRuns = new Map();
+    const agentType = d.agent_type || d.subagent_type || "unknown";
     const entry = {
-      agent_type: d.agent_type || d.subagent_type || "unknown",
+      agent_type: agentType,
       startedAt: Date.now(),
       parent_session_id: d.parent_session_id || null,
     };
-    if (sessionId) this.active.subagents[sessionId] = entry;
+    if (sessionId) {
+      this.active.subagents[sessionId] = entry;
+      if (!this.active.subRuns.has(sessionId)) {
+        this.active.subRuns.set(sessionId, new SubRun({
+          sessionId,
+          agentId: d.agent_id || null,
+          agentType,
+          parentSessionId: d.parent_session_id || null,
+        }));
+      }
+    }
     this.broadcast({
       type: "subagent_started",
       data: {
@@ -516,12 +532,24 @@ class PipelineExecutor {
     const sessionId = d.session_id || d.agent_id || null;
     const entry = sessionId && this.active.subagents ? this.active.subagents[sessionId] : null;
     const elapsedMs = entry ? Date.now() - entry.startedAt : null;
+    // Slice W (v6): close SubRun + include per-subagent metrics in the
+    // completion broadcast so the tray can render "✓ Edit×3 Read×7 (2.3s)".
+    let subRunSnapshot = null;
+    if (sessionId && this.active.subRuns && this.active.subRuns.has(sessionId)) {
+      const subRun = this.active.subRuns.get(sessionId);
+      subRun.complete();
+      subRunSnapshot = subRun.snapshot();
+    }
     this.broadcast({
       type: "subagent_completed",
       data: {
         session_id: sessionId,
         agent_type: entry ? entry.agent_type : (d.agent_type || "unknown"),
         elapsedMs,
+        // Slice W additions:
+        metrics: subRunSnapshot
+          ? { toolCount: subRunSnapshot.toolCount, byTool: subRunSnapshot.byTool, durationMs: subRunSnapshot.durationMs }
+          : null,
       },
     });
     // Mark as completed rather than delete — Slice D renders a brief "✓ done"
