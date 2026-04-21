@@ -63,7 +63,19 @@ class PipelineExecutor {
     // PipelineOrchestrator. Defaults to "default" for single-active mode
     // so pre-Slice-S callers keep working without a runId.
     this.runId = runId || "default";
-    this.broadcast = broadcast;
+    // Slice T (v6): every broadcast from this executor gets tagged with
+    // runId under event.data so subscribers can filter per-run. Tests that
+    // construct PipelineExecutor without a broadcast still work (no-op).
+    const rawBroadcast = broadcast || (() => {});
+    const _runId = this.runId;
+    this.broadcast = (event) => {
+      if (!event || typeof event !== "object") return rawBroadcast(event);
+      const data = (event.data && typeof event.data === "object") ? event.data : {};
+      if (data.runId === undefined) {
+        return rawBroadcast({ ...event, data: { ...data, runId: _runId } });
+      }
+      return rawBroadcast(event);
+    };
     this.templates = templates;
     this.codex = codex;
     this.state = state || new PipelineState();

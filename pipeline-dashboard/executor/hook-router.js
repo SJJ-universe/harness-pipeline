@@ -15,6 +15,11 @@ class HookRouter {
     this.runRegistry = runRegistry || null;
     this.fixturesDir = fixturesDir || path.resolve(__dirname, "..", "fixtures", "hooks");
     this.executor = null; // Phase 2: PipelineExecutor instance
+    // Slice T (v6): when an orchestrator is attached, hook routing resolves
+    // the target executor from payload.session_id (or agent_id, or default)
+    // before calling onXxx. Single-active mode (maxConcurrent=1) still
+    // collapses everything to the default run — this is the infra only.
+    this.orchestrator = null;
     this.stats = { total: 0, byEvent: {} };
   }
 
@@ -22,6 +27,39 @@ class HookRouter {
     this.executor = executor;
     // Hook-driven mode — disable SessionWatcher polling to avoid duplicates
     if (this.sessionWatcher) this.sessionWatcher.isHookDriven = true;
+  }
+
+  attachOrchestrator(orchestrator) {
+    this.orchestrator = orchestrator;
+  }
+
+  /**
+   * Slice T (v6): derive a runId from the hook payload. Preference:
+   *   1. payload.session_id   (Claude Code hooks v0.2+)
+   *   2. payload.agent_id     (SubagentStart/Stop)
+   *   3. "default"            (backward compatible single-active)
+   *
+   * Returning a non-existent runId is fine — PipelineOrchestrator.get() will
+   * return null and _resolveExecutor() falls through to the attached
+   * executor. Real routing to new runs happens in Slice V when the
+   * concurrency gate unlocks.
+   */
+  _resolveRunId(payload) {
+    if (payload && typeof payload === "object") {
+      if (payload.session_id) return String(payload.session_id);
+      if (payload.agent_id) return String(payload.agent_id);
+    }
+    return "default";
+  }
+
+  /** Slice T (v6): pick the PipelineExecutor that owns this payload. */
+  _resolveExecutor(payload) {
+    if (this.orchestrator) {
+      const runId = this._resolveRunId(payload);
+      const exec = this.orchestrator.get(runId);
+      if (exec) return exec;
+    }
+    return this.executor;
   }
 
   async route(event, payload) {
@@ -78,16 +116,24 @@ class HookRouter {
     }
   }
 
+  // Slice T (v6): every handler now resolves the target executor via the
+  // orchestrator (if attached), so a future Slice V unlock can route
+  // payloads with distinct session_id / agent_id to distinct runs. In
+  // single-active compat (maxConcurrent=1), the lookup collapses back to
+  // the same executor — zero behavior change.
+
   async _onUserPrompt(payload) {
     const prompt = payload?.prompt || payload?.user_prompt || "";
-    if (this.executor) return this.executor.startFromPrompt(prompt) || {};
+    const exec = this._resolveExecutor(payload);
+    if (exec) return exec.startFromPrompt(prompt) || {};
     return {};
   }
 
   async _onPreTool(payload) {
     const tool = payload?.tool_name;
     const input = payload?.tool_input || {};
-    if (this.executor) return (await this.executor.onPreTool(tool, input)) || {};
+    const exec = this._resolveExecutor(payload);
+    if (exec) return (await exec.onPreTool(tool, input)) || {};
     return {};
   }
 
@@ -95,17 +141,20 @@ class HookRouter {
     const tool = payload?.tool_name;
     const input = payload?.tool_input || {};
     const response = payload?.tool_response || {};
-    if (this.executor) return (await this.executor.onPostTool(tool, response, input)) || {};
+    const exec = this._resolveExecutor(payload);
+    if (exec) return (await exec.onPostTool(tool, response, input)) || {};
     return {};
   }
 
   async _onStop(payload) {
-    if (this.executor) return (await this.executor.onStop(payload)) || {};
+    const exec = this._resolveExecutor(payload);
+    if (exec) return (await exec.onStop(payload)) || {};
     return {};
   }
 
   async _onSessionEnd(payload) {
-    if (this.executor) return (await this.executor.onSessionEnd(payload)) || {};
+    const exec = this._resolveExecutor(payload);
+    if (exec) return (await exec.onSessionEnd(payload)) || {};
     return {};
   }
 
@@ -116,27 +165,32 @@ class HookRouter {
   // can return `{}` safely from these defensive paths.
 
   async _onSessionStart(payload) {
-    if (this.executor) return (await this.executor.onSessionStart(payload || {})) || {};
+    const exec = this._resolveExecutor(payload);
+    if (exec) return (await exec.onSessionStart(payload || {})) || {};
     return {};
   }
 
   async _onSubagentStart(payload) {
-    if (this.executor) return (await this.executor.onSubagentStart(payload || {})) || {};
+    const exec = this._resolveExecutor(payload);
+    if (exec) return (await exec.onSubagentStart(payload || {})) || {};
     return {};
   }
 
   async _onSubagentStop(payload) {
-    if (this.executor) return (await this.executor.onSubagentStop(payload || {})) || {};
+    const exec = this._resolveExecutor(payload);
+    if (exec) return (await exec.onSubagentStop(payload || {})) || {};
     return {};
   }
 
   async _onNotification(payload) {
-    if (this.executor) return (await this.executor.onNotification(payload || {})) || {};
+    const exec = this._resolveExecutor(payload);
+    if (exec) return (await exec.onNotification(payload || {})) || {};
     return {};
   }
 
   async _onPreCompact(payload) {
-    if (this.executor) return (await this.executor.onPreCompact(payload || {})) || {};
+    const exec = this._resolveExecutor(payload);
+    if (exec) return (await exec.onPreCompact(payload || {})) || {};
     return {};
   }
 

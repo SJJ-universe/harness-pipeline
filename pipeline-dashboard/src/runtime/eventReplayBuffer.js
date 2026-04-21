@@ -43,8 +43,19 @@ function createEventReplayBuffer({ maxSize = 500 } = {}) {
         buf.splice(0, buf.length - maxSize);
       }
     },
-    snapshot() {
-      return buf.slice();
+    /**
+     * Slice T (v6): optional `{ runId }` filter returns only entries whose
+     * event.data.runId matches. Entries WITHOUT a runId (pre-Slice-T events)
+     * are included in every filter — they predate multi-run and shouldn't
+     * vanish just because a client asked for a specific run. Passing no arg
+     * returns the full buffer (backward compatible).
+     */
+    snapshot({ runId } = {}) {
+      if (!runId) return buf.slice();
+      return buf.filter((entry) => {
+        const evRunId = entry.event?.data?.runId;
+        return evRunId === undefined || evRunId === null || evRunId === runId;
+      });
     },
     clear() {
       buf.length = 0;

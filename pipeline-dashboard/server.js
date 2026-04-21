@@ -542,6 +542,11 @@ const heartbeat = createHeartbeat({
   intervalMs: 5000,
 });
 hookRouter.attachExecutor(pipelineExecutor);
+// Slice T (v6): give hookRouter access to the orchestrator so it can
+// resolve session_id / agent_id → runId. In single-active mode (max=1)
+// unknown runIds fall back to the default executor, so behavior is
+// unchanged — the routing just becomes available for Slice V to use.
+hookRouter.attachOrchestrator(pipelineOrchestrator);
 
 app.use("/api", createHookRoutes({ hookRouter, validateHook }));
 app.use("/api", createExecutorRoutes({ pipelineExecutor, validateExecutorMode }));
