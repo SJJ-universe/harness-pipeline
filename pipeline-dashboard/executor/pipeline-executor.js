@@ -58,7 +58,11 @@ const TEMPLATE_MAP = {
 const MAX_GATE_RETRIES = 3;
 
 class PipelineExecutor {
-  constructor({ broadcast, templates, codex, state, gate, injector, adapter, workspaceDir, repoRoot, checkpointStore }) {
+  constructor({ broadcast, templates, codex, state, gate, injector, adapter, workspaceDir, repoRoot, checkpointStore, runId }) {
+    // Slice S (v6): runId identifies this executor within a
+    // PipelineOrchestrator. Defaults to "default" for single-active mode
+    // so pre-Slice-S callers keep working without a runId.
+    this.runId = runId || "default";
     this.broadcast = broadcast;
     this.templates = templates;
     this.codex = codex;

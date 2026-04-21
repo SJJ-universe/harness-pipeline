@@ -508,22 +508,37 @@ const qualityGate = new QualityGate();
 const skillInjector = new SkillInjector({ skillRegistry });
 const pipelineAdapter = new PipelineAdapter({ templates: pipelineTemplates });
 const checkpointStore = createCheckpointStore({ repoRoot: REPO_ROOT });
-const pipelineExecutor = new PipelineExecutor({
+
+// Slice S (v6): wrap the singleton executor in a PipelineOrchestrator so
+// later slices (T: runId routing, U: tabs, V: concurrent unlock) can grow
+// naturally. Single-active compat: maxConcurrent=1, default run eagerly
+// bootstrapped. External references (routes, hookRouter, heartbeat) still
+// talk to the same `pipelineExecutor` reference — now sourced from
+// `orchestrator.getActive()`.
+const { PipelineOrchestrator } = require("./executor/pipeline-orchestrator");
+const pipelineOrchestrator = new PipelineOrchestrator({
   broadcast,
-  templates: pipelineTemplates,
-  codex: codexRunner,
-  state: pipelineState,
-  gate: qualityGate,
-  injector: skillInjector,
-  adapter: pipelineAdapter,
-  repoRoot: REPO_ROOT,
-  checkpointStore,
+  maxConcurrent: Number(process.env.HARNESS_MAX_RUNS || 1),
+  createExecutor: (runId) => new PipelineExecutor({
+    broadcast,
+    templates: pipelineTemplates,
+    codex: codexRunner,
+    state: pipelineState,
+    gate: qualityGate,
+    injector: skillInjector,
+    adapter: pipelineAdapter,
+    repoRoot: REPO_ROOT,
+    checkpointStore,
+    runId,
+  }),
 });
-// Heartbeat: broadcasts elapsed time every 5s while a pipeline is active
+const pipelineExecutor = pipelineOrchestrator.getActive();
+// Heartbeat: broadcasts elapsed time every 5s while a pipeline is active.
+// Reads through the orchestrator so a Slice V unlock picks up new runs.
 const heartbeat = createHeartbeat({
   broadcast,
-  getActive: () => pipelineExecutor.active,
-  getCurrentPhase: () => pipelineExecutor._currentPhase(),
+  getActive: () => pipelineOrchestrator.getActive().active,
+  getCurrentPhase: () => pipelineOrchestrator.getActive()._currentPhase(),
   intervalMs: 5000,
 });
 hookRouter.attachExecutor(pipelineExecutor);
