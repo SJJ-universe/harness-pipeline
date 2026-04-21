@@ -356,6 +356,15 @@
        app.js to decide whether an incoming event belongs to the focused
        run tab. Ships as a UMD module so Node tests can require() it. -->
   <script src="js/run-id-filter.js"></script>
+  <!-- Slice AC (Phase 2.5, v6): harness horse animation (pixel art +
+       gallop loop + state machine) extracted from app.js. Must load
+       before app.js so window.HarnessHorseAnimation is ready when the
+       first setHorseState() call fires. -->
+  <script src="js/horse-animation.js"></script>
+  <!-- Slice AC (Phase 2.5, v6): pure formatters (escapeHtml / shortPath /
+       formatHMS / summarizeToolInput) moved out of app.js. DOM-free module
+       so Node tests can require() it directly. -->
+  <script src="js/formatters.js"></script>
   <!-- Slice H (v5): a11y primitives — loaded before the panels so each
        panel's open() can wrap a focus trap around its overlay. -->
   <script src="js/focus-trap.js"></script>

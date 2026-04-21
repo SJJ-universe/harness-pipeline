@@ -391,126 +391,28 @@ function nodeToPhase(node) {
   return _nodePhaseMap[node] || null;
 }
 
-// ── Harness Horse Animation (pixel art, 3 frames) ──
-const P = 3;
-function _px(x, y, c) { return `<rect x="${x*P}" y="${y*P}" width="${P}" height="${P}" fill="${c}"/>`; }
-
-// mode: "run1" | "run2" (gallop frames) | "rein" (front legs raised, body lifts)
-function _buildHorseSvg(mode) {
-  const B = "#d4a574", H = "#e8c9a0", D = "#a07850";
-  const R = "#58a6ff", K = "#3a3a3a";
-  const isRein = mode === "rein";
-  const G = isRein ? "#f85149" : "#3fb950";
-  const W = 20 * P, Ht = 14 * P;
-
-  // Rein offsets: front body lifts, rear stays planted
-  const liftY = isRein ? -1 : 0;       // slight body lift
-  const chestY = isRein ? -2 : 0;      // front body/head lift
-  const viewMinY = isRein ? -2 * P : 0;
-  const viewHeight = Ht + (isRein ? 2 * P : 0);
-
-  let px = "";
-
-  if (isRein) {
-    // ── REARING POSE: rider leans back, reins taut, front legs raised ──
-    // Render order: back→front so legs/reins visible on top.
-
-    // Rear body (slightly lifted, planted on rear legs)
-    [5,6,7,8,9].forEach(x => [6,7,8].forEach(y => { px += _px(x, y + liftY, B); }));
-    [7,8,9].forEach(x => { px += _px(x, 6 + liftY, H); });
-    [6,7,8,9].forEach(x => { px += _px(x, 8 + liftY, D); });
-
-    // Front body (chest raised high)
-    [10,11,12,13].forEach(x => [6,7,8].forEach(y => { px += _px(x, y + chestY, B); }));
-    [10,11].forEach(x => { px += _px(x, 6 + chestY, H); });
-    [10,11,12].forEach(x => { px += _px(x, 8 + chestY, D); });
-
-    // Neck (lifts with chest)
-    [12,13].forEach(x => [4,5].forEach(y => { px += _px(x, y + chestY, B); }));
-
-    // Head raised high
-    px += _px(14, 1 + chestY, B); px += _px(15, 0 + chestY, B);
-    [13,14,15].forEach(x => [2,3].forEach(y => { px += _px(x, y + chestY, B); }));
-    px += _px(15, 2 + chestY, K);  // eye
-    px += _px(16, 3 + chestY, H);  // muzzle highlight
-
-    // Tail (follows rear body)
-    px += _px(4, 7 + liftY, D); px += _px(3, 8 + liftY, D);
-
-    // Back legs planted on ground (no offset)
-    px += _px(6, 9, D); px += _px(6, 10, D); px += _px(6, 11, K);
-    px += _px(7, 9, D); px += _px(7, 10, D); px += _px(7, 11, K);
-
-    // ── Front legs: bent at knee, hooves dangling forward (rendered ON TOP) ──
-    // Left front leg (rear of pair): upper close to body, knee bent forward
-    px += _px(11, 7, D);   // thigh below belly
-    px += _px(12, 8, D);   // knee
-    px += _px(13, 9, K);   // hoof (forward & down)
-    // Right front leg (forward pair): more extended forward
-    px += _px(12, 7, D);   // thigh
-    px += _px(13, 7, D);   // knee bent forward
-    px += _px(14, 8, D);   // shin
-    px += _px(15, 9, K);   // hoof (extended forward)
-
-    // ── Rider leaning BACK (shifted from x=9-10 to x=8-9), arm extended forward ──
-    // Upper body (head, torso) — leaned back at x=8
-    px += _px(8, 0, R);    // head top
-    px += _px(8, 1, R);    // head/face
-    px += _px(8, 2, R);    // neck/upper torso
-    px += _px(8, 3, R);    // mid torso
-    px += _px(9, 2, R);    // shoulder
-    px += _px(9, 3, R);    // chest
-    px += _px(9, 4, R);    // waist (sitting)
-    px += _px(10, 4, R);   // hip on horse
-    px += _px(10, 5, R);   // leg on horse
-    px += _px(9, 5, R);    // thigh
-    // Arm extended forward holding the reins
-    px += _px(10, 3, R);   // shoulder-to-arm
-    px += _px(11, 3, R);   // forearm
-    px += _px(12, 3, R);   // hand grip
-
-    // ── Long taut reins: from rider's hand (12,3) diagonally to horse's mouth (16,1) ──
-    px += _px(13, 2, G);
-    px += _px(14, 2, G);
-    px += _px(15, 1, G);
-  } else {
-    // ── RUNNING POSE (existing) ──
-    // Rider
-    [9,10].forEach(x => [1,2].forEach(y => { px += _px(x, y, R); }));
-    [9,10].forEach(x => [3,4,5].forEach(y => { px += _px(x, y, R); }));
-    // Reins (short, attached to mouth area)
-    [11,12,13].forEach(x => { px += _px(x, 5, G); });
-    // Head + ear
-    px += _px(15, 2, B); px += _px(16, 1, B);
-    [14,15,16].forEach(x => [3,4].forEach(y => { px += _px(x, y, B); }));
-    px += _px(16, 3, K); px += _px(17, 4, H);
-    // Neck
-    [12,13].forEach(x => [4,5].forEach(y => { px += _px(x, y, B); }));
-    // Body
-    [5,6,7,8,9,10,11,12,13].forEach(x => [6,7,8].forEach(y => { px += _px(x, y, B); }));
-    [7,8,9,10,11].forEach(x => { px += _px(x, 6, H); });
-    [6,7,8,9,10,11,12].forEach(x => { px += _px(x, 8, D); });
-    // Tail
-    px += _px(4, 5, D); px += _px(3, 4, D); px += _px(2, 3, D);
+// ── Harness Horse Animation ──
+// Slice AC (Phase 2.5): the pixel-art horse SVG generator, the gallop
+// frame loop, and the idle/galloping/reining state machine all moved
+// to public/js/horse-animation.js (HarnessHorseAnimation). The wrappers
+// below keep every inline call site in app.js working without a mass
+// find-and-replace, so this refactor stays diff-safe. New callers should
+// use `window.HarnessHorseAnimation.*` directly.
+function setHorseState(state, statusText) {
+  if (window.HarnessHorseAnimation) {
+    window.HarnessHorseAnimation.setState(state, statusText);
   }
-
-  // Running gait legs (only for run1/run2 — rein mode handled above)
-  if (mode === "run1") {
-    px += _px(13, 9, D); px += _px(14, 10, D); px += _px(15, 11, K);
-    px += _px(11, 9, D); px += _px(11, 10, D); px += _px(11, 11, K);
-    px += _px(6, 9, D); px += _px(5, 10, D); px += _px(4, 11, K);
-    px += _px(8, 9, D); px += _px(8, 10, D); px += _px(8, 11, K);
-  } else if (mode === "run2") {
-    px += _px(12, 9, D); px += _px(12, 10, D); px += _px(12, 11, K);
-    px += _px(13, 9, D); px += _px(12, 10, D); px += _px(11, 11, K);
-    px += _px(7, 9, D); px += _px(7, 10, D); px += _px(7, 11, K);
-    px += _px(6, 9, D); px += _px(5, 10, D); px += _px(5, 11, K);
-  }
-  return `<svg viewBox="0 ${viewMinY} ${W} ${viewHeight}" xmlns="http://www.w3.org/2000/svg" style="image-rendering:pixelated">${px}</svg>`;
 }
-
-const HORSE_FRAMES = [_buildHorseSvg("run1"), _buildHorseSvg("run2")];
-const HORSE_SVG_STOP = _buildHorseSvg("rein");
+function reinThenResume(statusText, delayMs) {
+  if (window.HarnessHorseAnimation) {
+    window.HarnessHorseAnimation.reinThenResume(statusText, delayMs);
+  }
+}
+function setHorseStatusText(text) {
+  if (window.HarnessHorseAnimation) {
+    window.HarnessHorseAnimation.setStatusText(text);
+  }
+}
 
 // ── Codex live output panel state ──
 let _codexLiveRunId = null;
@@ -532,79 +434,6 @@ function _trimCodexLive() {
   if (lines.length > MAX_CODEX_LIVE_LINES) {
     out.textContent = lines.slice(-MAX_CODEX_LIVE_LINES).join("\n");
   }
-}
-
-let horseState = "idle";
-let _horseTimer = null;
-let _gallopInterval = null;
-let _gallopFrame = 0;
-
-function _clearHorseTimer() {
-  if (_horseTimer) { clearTimeout(_horseTimer); _horseTimer = null; }
-}
-
-function _stopGallop() {
-  if (_gallopInterval) { clearInterval(_gallopInterval); _gallopInterval = null; }
-}
-
-function _startGallop() {
-  _stopGallop();
-  const rider = document.getElementById("horse-rider");
-  if (!rider) return;
-  _gallopFrame = 0;
-  rider.innerHTML = HORSE_FRAMES[0];
-  _gallopInterval = setInterval(() => {
-    _gallopFrame = (_gallopFrame + 1) % 2;
-    rider.innerHTML = HORSE_FRAMES[_gallopFrame];
-  }, 250);
-}
-
-function _renderHorseSvg(state) {
-  _stopGallop();
-  if (state === "galloping") {
-    _startGallop();
-  } else {
-    const rider = document.getElementById("horse-rider");
-    if (rider) rider.innerHTML = HORSE_SVG_STOP;
-  }
-}
-
-function setHorseState(state, statusText) {
-  _clearHorseTimer();
-  if (state === horseState && state !== "reining") return;
-  horseState = state;
-  const rider = document.getElementById("horse-rider");
-  const status = document.getElementById("harness-status");
-  if (!rider) return;
-
-  rider.classList.remove("galloping", "reining");
-
-  if (state === "galloping") {
-    _renderHorseSvg("galloping");
-    rider.classList.add("galloping");
-    if (status) { status.textContent = statusText || ""; status.className = "harness-status active"; }
-  } else if (state === "reining") {
-    _renderHorseSvg("reining");
-    rider.classList.add("reining");
-    if (status) { status.textContent = statusText || ""; status.className = "harness-status blocked"; }
-  } else {
-    _renderHorseSvg("idle");
-    if (status) { status.textContent = ""; status.className = "harness-status"; }
-  }
-}
-
-function reinThenResume(statusText, delayMs) {
-  setHorseState("reining", statusText);
-  _horseTimer = setTimeout(() => {
-    _horseTimer = null;
-    if (horseState === "reining") setHorseState("galloping", "실행 중");
-  }, delayMs);
-}
-
-// Update only the status text without toggling horse state (for heartbeat ticks)
-function setHorseStatusText(text) {
-  const status = document.getElementById("harness-status");
-  if (status) status.textContent = text || "";
 }
 
 // ── WebSocket ──
@@ -1530,35 +1359,23 @@ function renderFindingCounts() {
   }
 }
 
+// Slice AC (Phase 2.5): summarizeToolInput / shortPath / formatHMS moved
+// to public/js/formatters.js (HarnessFormatters). Thin wrappers preserve
+// every inline call site so the refactor stays diff-safe.
 function summarizeToolInput(tool, input) {
-  if (!input || typeof input !== "object") return "";
-  if (tool === "Read" || tool === "Edit" || tool === "Write" || tool === "NotebookEdit") {
-    return shortPath(input.filePath || input.file_path || input.notebook_path || "");
-  }
-  if (tool === "Grep" || tool === "Glob") return input.pattern || "";
-  if (tool === "Bash") return String(input.command || "").slice(0, 80);
-  if (tool === "Agent") return (input.description || input.subagent_type || "").slice(0, 50);
-  if (tool === "TodoWrite") return `${(input.todos || []).length} items`;
-  if (tool === "WebFetch") return input.url || "";
-  if (tool === "WebSearch") return input.query || "";
-  if (tool === "Skill") return input.skill || "";
-  // MCP tools (mcp__xxx__yyy)
-  if (tool.startsWith("mcp__")) {
-    const parts = tool.split("__");
-    return parts.length >= 3 ? parts[2] : tool;
-  }
-  return "";
+  return window.HarnessFormatters
+    ? window.HarnessFormatters.summarizeToolInput(tool, input)
+    : "";
 }
 
 function shortPath(p) {
-  if (!p) return "";
-  const parts = String(p).replace(/\\/g, "/").split("/").filter(Boolean);
-  return parts.slice(-2).join("/");
+  return window.HarnessFormatters ? window.HarnessFormatters.shortPath(p) : "";
 }
 
 function formatHMS(ts) {
-  const d = new Date(ts);
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}`;
+  return window.HarnessFormatters
+    ? window.HarnessFormatters.formatHMS(ts)
+    : new Date(ts).toISOString();
 }
 
 function clearToolFeed() {
@@ -1665,10 +1482,11 @@ function clearLog() {
   document.getElementById("log-content").textContent = "";
 }
 
+// Slice AC (Phase 2.5): escapeHtml moved to public/js/formatters.js.
 function escapeHtml(str) {
-  const d = document.createElement("div");
-  d.textContent = str;
-  return d.innerHTML;
+  return window.HarnessFormatters
+    ? window.HarnessFormatters.escapeHtml(str)
+    : String(str == null ? "" : str);
 }
 
 // ── Reset ──
@@ -2308,4 +2126,4 @@ fetchHarnessMode();
 fetchServerInfo();
 setInterval(fetchServerInfo, 15000);
 // Init horse in idle state
-_renderHorseSvg("idle");
+if (window.HarnessHorseAnimation) window.HarnessHorseAnimation.renderInitial();

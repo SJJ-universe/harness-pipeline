@@ -191,10 +191,18 @@ describe("Harness track animation structure", () => {
     assert.ok(!htmlSrc.includes('<select id="pipeline-select"'), "old select dropdown still present");
   });
 
-  it("app.js defines setHorseState and _clearHorseTimer", () => {
-    assert.ok(appSrc.includes("function setHorseState"), "setHorseState missing");
-    assert.ok(appSrc.includes("function _clearHorseTimer"), "_clearHorseTimer missing");
-    assert.ok(appSrc.includes("function reinThenResume"), "reinThenResume missing");
+  it("app.js still exposes setHorseState / reinThenResume as wrappers (Slice AC)", () => {
+    // Slice AC (Phase 2.5): the pixel-art horse, gallop loop, and internal
+    // timers moved into public/js/horse-animation.js. The public-facing
+    // wrappers (setHorseState / reinThenResume) remain in app.js so no
+    // call site had to be rewritten. `_clearHorseTimer` is now a private
+    // implementation detail of the module — don't assert on it here.
+    assert.ok(appSrc.includes("function setHorseState"), "setHorseState wrapper missing");
+    assert.ok(appSrc.includes("function reinThenResume"), "reinThenResume wrapper missing");
+    assert.ok(
+      appSrc.includes("window.HarnessHorseAnimation"),
+      "wrapper must delegate to window.HarnessHorseAnimation"
+    );
   });
 
   it("app.js calls setHorseState in pipeline_start and pipeline_complete handlers", () => {
