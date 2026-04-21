@@ -33,6 +33,11 @@ class HookRouter {
     this.orchestrator = orchestrator;
   }
 
+  /** Slice V (v6): optional file-conflict detector for multi-run Edit/Write. */
+  attachFileConflictDetector(detector) {
+    this.fileConflictDetector = detector;
+  }
+
   /**
    * Slice T (v6): derive a runId from the hook payload. Preference:
    *   1. payload.session_id   (Claude Code hooks v0.2+)
@@ -52,12 +57,21 @@ class HookRouter {
     return "default";
   }
 
-  /** Slice T (v6): pick the PipelineExecutor that owns this payload. */
+  /**
+   * Slice T (v6): pick the PipelineExecutor that owns this payload.
+   * Slice V (v6): if runId is unknown and the orchestrator has headroom,
+   * lazily create a new run for it so events don't collapse to the default.
+   */
   _resolveExecutor(payload) {
     if (this.orchestrator) {
       const runId = this._resolveRunId(payload);
-      const exec = this.orchestrator.get(runId);
-      if (exec) return exec;
+      if (typeof this.orchestrator.getOrCreateRun === "function") {
+        const exec = this.orchestrator.getOrCreateRun(runId);
+        if (exec) return exec;
+      } else {
+        const exec = this.orchestrator.get(runId);
+        if (exec) return exec;
+      }
     }
     return this.executor;
   }
@@ -142,8 +156,17 @@ class HookRouter {
     const input = payload?.tool_input || {};
     const response = payload?.tool_response || {};
     const exec = this._resolveExecutor(payload);
-    if (exec) return (await exec.onPostTool(tool, response, input)) || {};
-    return {};
+    const result = exec ? (await exec.onPostTool(tool, response, input)) || {} : {};
+    // Slice V (v6): record Edit/Write claims so cross-run collisions surface
+    // as `file_conflict_warning` broadcasts. Warning only — no block.
+    if (this.fileConflictDetector && (tool === "Edit" || tool === "Write")) {
+      const filePath = input?.file_path || input?.filePath;
+      if (filePath) {
+        const runId = this._resolveRunId(payload);
+        this.fileConflictDetector.recordEdit(runId, filePath);
+      }
+    }
+    return result;
   }
 
   async _onStop(payload) {

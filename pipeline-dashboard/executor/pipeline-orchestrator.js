@@ -68,19 +68,50 @@ class PipelineOrchestrator {
 
   /**
    * Enforce the concurrency cap. Returns true when a new run can be created,
-   * false when at capacity (Slice T/V will use this for on-demand creation).
+   * false when at capacity.
    */
   canAddRun() {
     return this.runs.size < this.maxConcurrent;
   }
 
   /**
-   * Shape hint for Slice T: route a hook event to the right executor by
-   * runId. Currently all routing collapses to the default run because
-   * maxConcurrent === 1.
+   * Slice V (v6): lazily create a run for an unknown runId when capacity
+   * allows. Returns the existing executor if runId is known, a newly-created
+   * one if capacity headroom exists, or null when at cap. The broadcast
+   * notifies the dashboard so the tab bar can surface the new run
+   * immediately (before any events carry that runId in data).
+   */
+  getOrCreateRun(runId) {
+    if (!runId || typeof runId !== "string") return this.getActive();
+    if (this.runs.has(runId)) return this.runs.get(runId);
+    if (!this.canAddRun()) {
+      // At capacity — broadcast once so the UI can warn the user. Caller
+      // decides whether to fall back to getActive() or reject the event.
+      this.broadcast({
+        type: "run_capacity_reached",
+        data: { requestedRunId: runId, active: this.runs.size, max: this.maxConcurrent, runId: null },
+      });
+      return null;
+    }
+    const exec = this.createExecutor(runId);
+    this.runs.set(runId, exec);
+    this.broadcast({
+      type: "run_created",
+      data: { runId, active: this.runs.size, max: this.maxConcurrent },
+    });
+    return exec;
+  }
+
+  /**
+   * Route a hook event to the executor that owns this runId. In Slice V
+   * unknown runIds become new runs when capacity allows; otherwise we fall
+   * back to the current active run so the event doesn't get dropped.
    */
   routeHook(runId, event, payload) {
-    const exec = this.runs.get(runId) || this.getActive();
+    const exec =
+      this.getOrCreateRun(runId) ||
+      this.runs.get(runId) ||
+      this.getActive();
     if (!exec || typeof exec.route !== "function") return null;
     return exec.route(event, payload);
   }

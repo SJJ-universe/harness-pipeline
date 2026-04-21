@@ -56,6 +56,10 @@ const ALLOWED_EVENT_TYPES = new Set([
   // Slice N (v6): shared child-process semaphore publishes queue depth on
   // every acquire/release/timeout. Dashboard can surface contention.
   "child_queue_depth",
+  // Slice V (v6): multi-run signaling.
+  "run_created",
+  "run_capacity_reached",
+  "file_conflict_warning",
   "tool_blocked",
   "tool_recorded",
 ]);

@@ -518,7 +518,10 @@ const checkpointStore = createCheckpointStore({ repoRoot: REPO_ROOT });
 const { PipelineOrchestrator } = require("./executor/pipeline-orchestrator");
 const pipelineOrchestrator = new PipelineOrchestrator({
   broadcast,
-  maxConcurrent: Number(process.env.HARNESS_MAX_RUNS || 1),
+  // Slice V (v6): multi-run unlock. Default raised to 3; HARNESS_MAX_RUNS=1
+  // collapses back to single-active compat for users who want the old
+  // behavior.
+  maxConcurrent: Number(process.env.HARNESS_MAX_RUNS || 3),
   createExecutor: (runId) => new PipelineExecutor({
     broadcast,
     templates: pipelineTemplates,
@@ -543,10 +546,13 @@ const heartbeat = createHeartbeat({
 });
 hookRouter.attachExecutor(pipelineExecutor);
 // Slice T (v6): give hookRouter access to the orchestrator so it can
-// resolve session_id / agent_id → runId. In single-active mode (max=1)
-// unknown runIds fall back to the default executor, so behavior is
-// unchanged — the routing just becomes available for Slice V to use.
+// resolve session_id / agent_id → runId.
 hookRouter.attachOrchestrator(pipelineOrchestrator);
+// Slice V (v6): surface cross-run file edit collisions as
+// file_conflict_warning broadcasts so the dashboard can flag them.
+const { createFileConflictDetector } = require("./src/runtime/fileConflictDetector");
+const fileConflictDetector = createFileConflictDetector({ broadcast });
+hookRouter.attachFileConflictDetector(fileConflictDetector);
 
 app.use("/api", createHookRoutes({ hookRouter, validateHook }));
 app.use("/api", createExecutorRoutes({ pipelineExecutor, validateExecutorMode }));
