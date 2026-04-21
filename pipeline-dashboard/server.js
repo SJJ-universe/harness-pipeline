@@ -87,13 +87,15 @@ function indexRenderer(req, res) {
 
   // script-src: removes 'unsafe-inline' via nonce-based policy — any injected
   //   <script> without the matching nonce is blocked.
-  // style-src: retains 'unsafe-inline' because the context bar (.style.width)
-  //   still drives a dynamic percentage. Deferred to Slice K (SVG conversion).
+  // style-src: Slice O (v6) — 'unsafe-inline' REMOVED. The last holdout
+  //   (context bar .style.width) was converted to an SVG <rect width="...">
+  //   attribute, which is governed by default-src, not style-src. Other
+  //   callers already use classList for visibility toggles.
   // report-uri: browser will POST violations to /api/csp-report.
   res.setHeader(headerName, [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' https://cdn.jsdelivr.net`,
-    "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+    "style-src 'self' https://cdn.jsdelivr.net",
     "connect-src 'self' ws: wss:",
     "img-src 'self' data:",
     "font-src 'self' https://cdn.jsdelivr.net",

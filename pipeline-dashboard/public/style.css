@@ -1075,20 +1075,29 @@ h1 {
   background: var(--bg); border-radius: 4px;
   overflow: hidden; border: 1px solid var(--border);
 }
-.context-fill {
-  position: absolute; top: 0; left: 0; height: 100%;
-  transition: width 0.4s ease, background 0.3s;
-  border-radius: 3px;
+/* Slice O (v6): SVG replaces the div-with-inline-width so we can drop
+ * style-src 'unsafe-inline' from CSP. The rect's `width` attribute is
+ * set via setAttribute (not .style.width) so CSP doesn't trip. */
+.context-bar-svg {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  display: block;
 }
+.context-fill {
+  fill: rgba(88, 166, 255, 0.35);
+  transition: fill 0.3s;
+}
+/* SVG width attribute transition — supported in modern browsers */
+.context-bar-svg rect { transition: width 0.4s ease; }
 .context-label {
   position: absolute; inset: 0;
   display: flex; align-items: center; justify-content: center;
   font-size: 11px; font-weight: 700; color: var(--text);
   z-index: 1;
 }
-.context-fill.context-warning { background: rgba(210, 153, 34, 0.5); }
-.context-fill.context-suggest_compaction { background: rgba(249, 115, 22, 0.5); }
-.context-fill.context-block { background: rgba(248, 81, 73, 0.6); }
+.context-fill.context-warning { fill: rgba(210, 153, 34, 0.5); }
+.context-fill.context-suggest_compaction { fill: rgba(249, 115, 22, 0.5); }
+.context-fill.context-block { fill: rgba(248, 81, 73, 0.6); }
 .verify-mini { flex: 0 0 70px; text-align: center; align-items: center; }
 .verify-status {
   font-size: 16px; font-weight: 800;

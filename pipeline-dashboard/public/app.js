@@ -1690,14 +1690,20 @@ function resetUI() {
 
 
 // ── Context Bar + Verification Status ──
+// Slice O (v6): fill is now an SVG <rect>. Setting `width` via
+// setAttribute() is a plain DOM attribute update, not an inline style, so
+// CSP `style-src 'self'` (no 'unsafe-inline') permits it.
 function updateContextBar(percent, level) {
   const bar = document.getElementById("context-bar");
   if (!bar) return;
   const fill = bar.querySelector(".context-fill");
   const label = bar.querySelector(".context-label");
   if (fill) {
-    fill.style.width = `${Math.min(percent, 100)}%`;
-    fill.className = `context-fill context-${level}`;
+    const capped = Math.min(percent, 100);
+    // SVG viewBox is 0..100 wide, so width=capped directly maps to percent.
+    fill.setAttribute("width", String(capped));
+    // setAttribute on class (not className) is the SVG-compliant path.
+    fill.setAttribute("class", `context-fill context-${level}`);
   }
   if (label) label.textContent = `${percent}%`;
 }

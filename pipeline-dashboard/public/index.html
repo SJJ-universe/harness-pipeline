@@ -122,8 +122,15 @@
         <!-- Context pressure bar -->
         <div class="stat-mini context-mini" id="context-card">
           <div class="stat-mini-title" data-i18n="stat.context">컨텍스트</div>
+          <!-- Slice O (v6): context bar re-authored as SVG so the dynamic
+               width is a rect attribute (not inline style). Removes the
+               last dependency on style-src 'unsafe-inline'. The rect is
+               width=0 by default; updateContextBar() sets its width
+               attribute and its CSS class. -->
           <div class="context-bar" id="context-bar">
-            <div class="context-fill"></div>
+            <svg class="context-bar-svg" viewBox="0 0 100 22" preserveAspectRatio="none" aria-hidden="true">
+              <rect class="context-fill" x="0" y="0" width="0" height="22" rx="3"></rect>
+            </svg>
             <span class="context-label">--</span>
           </div>
         </div>

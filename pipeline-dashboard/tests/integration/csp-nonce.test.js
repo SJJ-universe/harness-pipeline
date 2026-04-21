@@ -47,10 +47,14 @@ test("/ serves index.html with a per-request CSP nonce in Report-Only mode", asy
     // What matters is that the Report-Only mode is the dynamic CSP we just set.
     assert.match(reportOnly, /script-src[^;]*'nonce-[^']+'/, "script-src nonce missing");
     assert.match(reportOnly, /report-uri \/api\/csp-report/);
-    // No 'unsafe-inline' in script-src (only style-src may retain it).
+    // Slice O (v6): 'unsafe-inline' must be absent from BOTH script-src AND
+    // style-src (context bar now uses SVG attributes instead of inline style).
     const scriptSrc = reportOnly.match(/script-src [^;]+/)[0];
     assert.ok(!/['"]unsafe-inline['"]/.test(scriptSrc),
       `script-src must not include 'unsafe-inline' (got: ${scriptSrc})`);
+    const styleSrc = reportOnly.match(/style-src [^;]+/)[0];
+    assert.ok(!/['"]unsafe-inline['"]/.test(styleSrc),
+      `style-src must not include 'unsafe-inline' (Slice O regression) (got: ${styleSrc})`);
 
     // Nonce in header must match the nonce in the body.
     const nonceInHeader = reportOnly.match(/'nonce-([^']+)'/)[1];
