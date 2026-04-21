@@ -101,6 +101,26 @@
         // test mock works even without the constant exported.
         return ws.readyState === (WS.OPEN != null ? WS.OPEN : 1);
       },
+      /**
+       * Slice AA-2 (Phase 2.5, v6) — client-to-server send helper.
+       *
+       * Added to support `replay_request` (tab switch → server re-emits
+       * run-scoped replay). Serializes non-string payloads as JSON and
+       * silently no-ops if the socket is not OPEN so callers do not have
+       * to guard every send. Returns true when the frame was handed off
+       * to the underlying WebSocket, false when dropped.
+       */
+      send: (payload) => {
+        if (!ws) return false;
+        const openCode = WS.OPEN != null ? WS.OPEN : 1;
+        if (ws.readyState !== openCode) return false;
+        try {
+          ws.send(typeof payload === "string" ? payload : JSON.stringify(payload));
+          return true;
+        } catch (_) {
+          return false;
+        }
+      },
       close: () => {
         userClosed = true;
         try { ws && ws.close && ws.close(); } catch (_) {}

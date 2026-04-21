@@ -307,6 +307,51 @@ wss.on("connection", (ws, req) => {
     if (clients.size === 0) armShutdownTimer();
   });
 
+  // Slice AA-2 (Phase 2.5, v6): run-scoped replay on tab switch.
+  // The dashboard sends `{ type: "replay_request", runId, includeGlobal }`
+  // when the user clicks a tab so the server re-emits only that run's
+  // events (plus global UI events when includeGlobal=true). `includeGlobal`
+  // defaults to false from the client because tab switches should NOT
+  // re-fire past toast / hook_event traces that already rendered before.
+  // Other message types are ignored — the pipeline WS is otherwise read-
+  // only from the client's side.
+  ws.on("message", (msg) => {
+    let parsed;
+    try {
+      parsed = JSON.parse(msg.toString());
+    } catch (_) {
+      return; // drop malformed
+    }
+    if (!parsed || typeof parsed !== "object") return;
+    if (parsed.type !== "replay_request") return;
+    const runId = typeof parsed.runId === "string" && parsed.runId.length > 0
+      ? parsed.runId
+      : null;
+    if (!runId) return;
+    const includeGlobal = parsed.includeGlobal === true; // explicit opt-in
+    try {
+      const exec =
+        (pipelineOrchestrator && typeof pipelineOrchestrator.get === "function"
+          ? pipelineOrchestrator.get(runId)
+          : null) || pipelineExecutor;
+      const snapshot =
+        exec && typeof exec.getReplaySnapshot === "function"
+          ? exec.getReplaySnapshot()
+          : {};
+      const events = eventReplayBuffer
+        .snapshot({ runId, includeGlobal })
+        .map((e) => e.event);
+      if (ws.readyState === 1) {
+        ws.send(JSON.stringify({
+          type: "pipeline_replay",
+          data: { ...snapshot, runId, events },
+        }));
+      }
+    } catch (err) {
+      console.error("[ws] replay_request failed:", err.message);
+    }
+  });
+
   // Send replay snapshot so reconnecting clients restore UI state
   try {
     if (pipelineExecutor && typeof pipelineExecutor.getReplaySnapshot === "function") {

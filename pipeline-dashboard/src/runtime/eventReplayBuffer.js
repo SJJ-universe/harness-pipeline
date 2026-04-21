@@ -49,12 +49,28 @@ function createEventReplayBuffer({ maxSize = 500 } = {}) {
      * are included in every filter — they predate multi-run and shouldn't
      * vanish just because a client asked for a specific run. Passing no arg
      * returns the full buffer (backward compatible).
+     *
+     * Slice AA-2 (Phase 2.5): optional `includeGlobal` switch decides how
+     * to treat entries without a runId.
+     *   - `includeGlobal: true` (default, backward-compatible): keep global
+     *     entries — used at initial hydration so the browser sees toasts
+     *     and other run-agnostic state.
+     *   - `includeGlobal: false`: drop global entries — used when the user
+     *     switches tabs mid-session so a re-hydration does not re-fire
+     *     past toast/hook_event events across every tab (duplicate render).
+     *     Only events whose `data.runId` strictly equals the requested
+     *     runId are returned.
+     * When no `runId` is passed the switch is ignored — we return the full
+     * buffer.
      */
-    snapshot({ runId } = {}) {
+    snapshot({ runId, includeGlobal = true } = {}) {
       if (!runId) return buf.slice();
       return buf.filter((entry) => {
         const evRunId = entry.event?.data?.runId;
-        return evRunId === undefined || evRunId === null || evRunId === runId;
+        if (evRunId === undefined || evRunId === null) {
+          return includeGlobal === true;
+        }
+        return evRunId === runId;
       });
     },
     clear() {

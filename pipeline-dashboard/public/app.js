@@ -2215,17 +2215,24 @@ function initEventBindings() {
   }
 
   // Slice U (v6): run tab bar — tracks runIds from broadcasts, shows tabs
-  // when >=2 runs exist. Kept minimal in Slice U; Slice V adds the actual
-  // per-tab view switching.
+  // when >=2 runs exist.
+  //
+  // Slice AA-2 (Phase 2.5, v6): on tab switch we clear the visible timeline
+  // and ask the server for a run-scoped replay. `includeGlobal: false` so
+  // the server skips runId-less entries (toast / hook_event / etc.) — those
+  // already fired once at their original wall-clock time and should NOT
+  // re-fire every time the user flips tabs. The live filter (Slice AA-1)
+  // already routes runId-less events to every tab, so nothing is lost.
   if (window.HarnessRunTabBar) {
     window._runTabBar = window.HarnessRunTabBar.install({
       mountEl: "run-tabs",
       onSelect: (runId) => {
-        if (window.HarnessToast) {
-          window.HarnessToast.show({
-            type: "info",
-            message: `Run 선택: ${runId} (Slice V 이후 탭별 타임라인 전환)`,
-            duration: 2500,
+        try { resetUI(); } catch (_) { /* resetUI is defensive; never fatal */ }
+        if (_wsClient && typeof _wsClient.send === "function") {
+          _wsClient.send({
+            type: "replay_request",
+            runId,
+            includeGlobal: false,
           });
         }
       },
