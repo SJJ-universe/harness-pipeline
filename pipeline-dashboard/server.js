@@ -584,14 +584,15 @@ const pipelineOrchestrator = new PipelineOrchestrator({
   // remove(runId) so manual-teardown paths also clear stale claims.
   fileConflictDetector,
   // Slice V (v6): multi-run unlock capability (up to N concurrent runs).
-  // Slice A0 (Phase 2.5, 2026-04-21): the runtime default is temporarily
-  // locked to 1 while the Phase 2.5 correction round closes the remaining
-  // multi-run isolation gaps (per-run PipelineState / checkpointStore,
-  // run-scoped UI filtering, file conflict claim cleanup). A rollback
-  // commit will raise the default back to 3 once Slices Y+Z, AA-1, AA-2
-  // and AD have landed. Users who need multi-run *today* can still opt in
-  // explicitly with HARNESS_MAX_RUNS=3 — the env override is untouched.
-  maxConcurrent: Number(process.env.HARNESS_MAX_RUNS || 1),
+  // Slice A0 rollback (Phase 2.5, 2026-04-21 final): Phase 2.5 landed
+  // Y+Z (per-run PipelineState + checkpointStore), AA-1 (live run-scoped
+  // DOM filter), AA-2 (run-scoped replay + includeGlobal policy), AD
+  // (fileConflictDetector.clear wiring on complete/reset/remove), and AB
+  // (hook-adapter carve-out audit). The A0 hotfix that temporarily forced
+  // the default down to 1 is now lifted — multi-run is safe by default
+  // again. Users can still pin to 1 with HARNESS_MAX_RUNS=1 for
+  // single-active compat.
+  maxConcurrent: Number(process.env.HARNESS_MAX_RUNS || 3),
   createExecutor: (runId) => new PipelineExecutor({
     broadcast,
     templates: pipelineTemplates,
