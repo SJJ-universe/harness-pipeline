@@ -32,16 +32,17 @@ async function waitFor(pathname) {
 }
 
 test("/ serves index.html with a per-request CSP nonce in Report-Only mode", async () => {
-  delete process.env.HARNESS_CSP_MODE; // default = report-only
+  // Slice P (v6): default is now enforce, so this test explicitly opts into
+  // Report-Only mode to exercise that path.
+  process.env.HARNESS_CSP_MODE = "report-only";
   const listener = start(PORT, "127.0.0.1");
   try {
     const res = await waitFor("/");
     assert.equal(res.status, 200);
     const body = await res.text();
 
-    // Report-Only header present; enforce header absent.
+    // Report-Only header present.
     const reportOnly = res.headers.get("content-security-policy-report-only");
-    const enforce = res.headers.get("content-security-policy");
     assert.ok(reportOnly, "Content-Security-Policy-Report-Only header missing");
     // Note: enforce header MAY also be present from the static auth.js middleware.
     // What matters is that the Report-Only mode is the dynamic CSP we just set.
@@ -61,12 +62,13 @@ test("/ serves index.html with a per-request CSP nonce in Report-Only mode", asy
     assert.match(body, new RegExp(`<script nonce="${nonceInHeader.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&")}"`),
       "body's <script nonce=...> must match the header nonce");
   } finally {
+    delete process.env.HARNESS_CSP_MODE;
     await new Promise((r) => listener.close(r));
   }
 });
 
 test("consecutive / requests get different nonces (defense-in-depth)", async () => {
-  delete process.env.HARNESS_CSP_MODE;
+  process.env.HARNESS_CSP_MODE = "report-only";
   const listener = start(PORT + 1, "127.0.0.1");
   try {
     const u = `http://127.0.0.1:${PORT + 1}/`;
@@ -78,22 +80,26 @@ test("consecutive / requests get different nonces (defense-in-depth)", async () 
     const n2 = h2.match(/'nonce-([^']+)'/)[1];
     assert.notEqual(n1, n2, "nonce must regenerate per request");
   } finally {
+    delete process.env.HARNESS_CSP_MODE;
     await new Promise((r) => listener.close(r));
   }
 });
 
-test("HARNESS_CSP_MODE=enforce switches to Content-Security-Policy header", async () => {
-  process.env.HARNESS_CSP_MODE = "enforce";
+test("default mode is enforce (Slice P flip)", async () => {
+  delete process.env.HARNESS_CSP_MODE;
   const listener = start(PORT + 2, "127.0.0.1");
   try {
     const res = await fetch(`http://127.0.0.1:${PORT + 2}/`);
     assert.equal(res.status, 200);
-    // In enforce mode, the dynamic CSP is sent as Content-Security-Policy.
+    // After Slice P, default is enforce: Content-Security-Policy header set.
     const enforce = res.headers.get("content-security-policy");
-    assert.ok(enforce, "Content-Security-Policy header must be set in enforce mode");
+    assert.ok(enforce, "Content-Security-Policy header must be set in default (enforce) mode");
     assert.match(enforce, /'nonce-[^']+'/);
+    // Report-Only should be absent when not opted-in.
+    const reportOnly = res.headers.get("content-security-policy-report-only");
+    assert.equal(reportOnly, null,
+      "Report-Only header must be absent in default enforce mode");
   } finally {
-    delete process.env.HARNESS_CSP_MODE;
     await new Promise((r) => listener.close(r));
   }
 });

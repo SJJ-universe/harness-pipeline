@@ -80,7 +80,11 @@ function indexRenderer(req, res) {
     .replace(/<script(\s|>)/g, `<script nonce="${nonce}"$1`)
     .replace(/<link(\s[^>]*rel="stylesheet")/g, `<link nonce="${nonce}"$1`);
 
-  const cspMode = process.env.HARNESS_CSP_MODE || "report-only";
+  // Slice P (v6): default flipped to enforce after Slice O removed the
+  // last 'unsafe-inline' dependency and SRI integrity hashes pin the CDN
+  // resources. Set HARNESS_CSP_MODE=report-only to roll back during
+  // incident response.
+  const cspMode = process.env.HARNESS_CSP_MODE || "enforce";
   const headerName = cspMode === "enforce"
     ? "Content-Security-Policy"
     : "Content-Security-Policy-Report-Only";

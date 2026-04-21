@@ -5,11 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SJ Harness Engine</title>
   <link rel="stylesheet" href="style.css" />
-  <!-- Slice J (v5): crossorigin="anonymous" is required for SRI hash
-       validation. Run `npm run sri:print` and paste the resulting integrity
-       attribute in a follow-up commit; Report-Only mode lets us ship the
-       crossorigin attribute now without breaking the page. -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5/css/xterm.min.css" crossorigin="anonymous" />
+  <!-- Slice P (v6): SRI integrity hashes for xterm CDN resources. Obtained
+       via `npm run sri:print`. On version bump, re-run sri:print and paste
+       the new hashes here. If the fetched file doesn't match, the browser
+       blocks the resource (CSP `require-sri-for` style protection). -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5/css/xterm.min.css"
+        integrity="sha384-tStR1zLfWgsiXCF3IgfB3lBa8KmBe/lG287CL9WCeKgQYcp1bjb4/+mwN6oti4Co"
+        crossorigin="anonymous" />
 </head>
 <body>
   <!-- Slice H (v5): Skip link for keyboard users — hidden until focused,
@@ -325,8 +327,12 @@
        polite default lets mid-update inserts stay well-behaved. -->
   <div id="toast-container" class="toast-container" role="status" aria-live="polite" aria-atomic="false"></div>
 
-  <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5/lib/xterm.min.js" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0/lib/addon-fit.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5/lib/xterm.min.js"
+          integrity="sha384-J4qzUjBl1FxyLsl/kQPQIOeINsmp17OHYXDOMpMxlKX53ZfYsL+aWHpgArvOuof9"
+          crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0/lib/addon-fit.min.js"
+          integrity="sha384-UwMkGaBqfOcrTjPjXdAPWrGQkhpxTJ21vKtTwLb6wBpBM8HQXKAiUuwVJfgY0Yw6"
+          crossorigin="anonymous"></script>
   <script src="js/dom.js"></script>
   <!-- Slice I (v5): i18n tables + module. ko/en populate window.HARNESS_I18N
        before i18n.js reads it. Load order: ko → en → i18n → (panels that
