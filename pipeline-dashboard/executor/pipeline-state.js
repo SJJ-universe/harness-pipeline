@@ -4,6 +4,14 @@
 // Purpose: decouple "what happened during phase X" from "what phase Y needs",
 // and give QualityGate a single place to query.
 
+// Slice M (v6): memory hygiene caps. A long-running pipeline (many cycles,
+// many tool calls) used to accumulate state unbounded — lethal with Phase 1
+// (A-lite) multi-run where N runs × each cap would multiply. Trimmed data
+// is aggregated into summary objects so downstream consumers (ClaimVerifier,
+// analytics UI, snapshot broadcasts) still see totals.
+const MAX_FINDINGS = 200;
+const MAX_TOOLS_PER_PHASE = 500;
+
 class PipelineState {
   constructor() {
     this.reset();
@@ -16,7 +24,16 @@ class PipelineState {
       startedAt: Date.now(),
     };
     this.phases = {}; // phaseId → { tools[], artifacts{}, critique, skillContext }
-    this.findings = []; // accumulated across all critique phases
+    this.findings = []; // accumulated across all critique phases (trimmed to MAX_FINDINGS)
+    // Slice M (v6): severity-aggregated totals for findings that got trimmed
+    // off the front of `this.findings`. Verifier uses this so "how many
+    // critical findings in total" stays correct even after long runs.
+    this.findingsOverflow = {
+      count: 0,
+      bySeverity: {}, // severity → count
+      oldestAt: null,
+      newestAt: null,
+    };
     this.metrics = {
       filesEdited: new Set(),
       bashCommands: 0,
@@ -39,6 +56,15 @@ class PipelineState {
         attempts: [],
         gateAttempts: 0,
         gateFailures: 0,
+        // Slice M (v6): when tools[] exceeds MAX_TOOLS_PER_PHASE, the oldest
+        // entries are collapsed into this summary object so the snapshot
+        // still reports accurate totals.
+        toolsOverflow: {
+          count: 0,
+          byTool: {},
+          oldestAt: null,
+          newestAt: null,
+        },
       };
     }
     return this.phases[id];
@@ -141,6 +167,23 @@ class PipelineState {
       this.metrics.filesEdited.add(filePath);
     }
     if (tool === "Bash") this.metrics.bashCommands++;
+
+    // Slice M (v6): cap `tools[]` to prevent unbounded growth in long runs
+    // (many cycles × many tool calls). The oldest entries are collapsed
+    // into `toolsOverflow` so snapshots still report true totals.
+    this._trimPhaseTools(p);
+  }
+
+  _trimPhaseTools(p) {
+    while (p.tools.length > MAX_TOOLS_PER_PHASE) {
+      const evicted = p.tools.shift();
+      if (!evicted) break;
+      const ov = p.toolsOverflow;
+      ov.count++;
+      ov.byTool[evicted.tool] = (ov.byTool[evicted.tool] || 0) + 1;
+      if (ov.oldestAt === null) ov.oldestAt = evicted.at;
+      ov.newestAt = evicted.at;
+    }
   }
 
   _extractToolFilePath(tool, response, input) {
@@ -198,6 +241,26 @@ class PipelineState {
       this.findings.push(
         ...critique.findings.map((f) => ({ ...f, fromPhase: phaseId }))
       );
+      // Slice M (v6): cap `findings[]`. Evicted entries feed the aggregated
+      // overflow counters so ClaimVerifier / analytics can still answer
+      // "how many critical findings TOTAL" even after trimming.
+      this._trimFindings();
+    }
+  }
+
+  _trimFindings() {
+    while (this.findings.length > MAX_FINDINGS) {
+      const evicted = this.findings.shift();
+      if (!evicted) break;
+      const ov = this.findingsOverflow;
+      ov.count++;
+      const sev = evicted.severity || "unknown";
+      ov.bySeverity[sev] = (ov.bySeverity[sev] || 0) + 1;
+      const at = evicted.at || evicted.ts || null;
+      if (at) {
+        if (ov.oldestAt === null) ov.oldestAt = at;
+        ov.newestAt = at;
+      }
     }
   }
 
@@ -213,6 +276,14 @@ class PipelineState {
     return {
       meta: { ...this.meta },
       findings: [...this.findings],
+      // Slice M (v6): expose aggregated totals for trimmed findings so
+      // consumers can compute "true totals" via findings.length + overflow.count.
+      findingsOverflow: {
+        count: this.findingsOverflow.count,
+        bySeverity: { ...this.findingsOverflow.bySeverity },
+        oldestAt: this.findingsOverflow.oldestAt,
+        newestAt: this.findingsOverflow.newestAt,
+      },
       metrics: {
         toolCount: this.metrics.toolCount,
         bashCommands: this.metrics.bashCommands,
@@ -241,6 +312,15 @@ class PipelineState {
             latestDurationMs: this.phaseLatestDurationMs(id),
             gateAttempts: p.gateAttempts,
             gateFailures: p.gateFailures,
+            // Slice M (v6): per-phase tool overflow summary. `toolCount` stays
+            // accurate for in-memory tools; totalToolsEver = toolCount +
+            // toolsOverflow.count.
+            toolsOverflow: {
+              count: p.toolsOverflow.count,
+              byTool: { ...p.toolsOverflow.byTool },
+              oldestAt: p.toolsOverflow.oldestAt,
+              newestAt: p.toolsOverflow.newestAt,
+            },
           },
         ])
       ),
@@ -248,4 +328,4 @@ class PipelineState {
   }
 }
 
-module.exports = { PipelineState };
+module.exports = { PipelineState, MAX_FINDINGS, MAX_TOOLS_PER_PHASE };
