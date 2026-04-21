@@ -35,7 +35,11 @@ class TddGuard {
   evaluate(phase, tool, input = {}) {
     if (!phase || !phase.tddGuard) return { allow: true };
     const rule = phase.tddGuard;
-    if (rule.stage !== "edit-first") return { allow: true };
+    // Slice Q (v6): stage 2 = "failing-proof" — same edit-first rule PLUS
+    // require state.hasFailingTestRun(phase.id) === true.
+    if (rule.stage !== "edit-first" && rule.stage !== "failing-proof") {
+      return { allow: true };
+    }
 
     // Only source-mutating tools are subject to the guard.
     if (tool !== "Edit" && tool !== "Write") return { allow: true };
@@ -72,12 +76,30 @@ class TddGuard {
         t.filePath &&
         testRe.test(t.filePath)
     );
-    if (hadTestEdit) return { allow: true };
+    if (!hadTestEdit) {
+      const msg =
+        rule.message ||
+        "[TDD Guard] 대응 테스트 파일을 먼저 편집해야 합니다 (Stage 1).";
+      return { allow: false, reason: msg };
+    }
 
-    const msg =
-      rule.message ||
-      "[TDD Guard] 대응 테스트 파일을 먼저 편집해야 합니다 (TDD Guard Stage 1).";
-    return { allow: false, reason: msg };
+    // Slice Q (v6) — Stage 2: also require a recorded failing test run in
+    // this phase. Parser returning null (unknown format) does NOT satisfy.
+    if (rule.stage === "failing-proof") {
+      const hasFailing =
+        this.state &&
+        typeof this.state.hasFailingTestRun === "function" &&
+        this.state.hasFailingTestRun(phase.id);
+      if (!hasFailing) {
+        const msg =
+          rule.failingProofMessage ||
+          rule.message ||
+          "[TDD Guard Stage 2] 실패하는 테스트가 먼저 기록되어야 src 편집이 허용됩니다.";
+        return { allow: false, reason: msg };
+      }
+    }
+
+    return { allow: true };
   }
 }
 

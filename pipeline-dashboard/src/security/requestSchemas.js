@@ -410,13 +410,17 @@ function _validateTddGuard(rule, label) {
   requireObject(rule, label);
   _assertNoExtraKeys(
     rule,
-    new Set(["stage", "srcPattern", "testPattern", "message"]),
+    new Set(["stage", "srcPattern", "testPattern", "message", "failingProofMessage"]),
     label
   );
-  _assertStringEnum(rule.stage, `${label}.stage`, new Set(["edit-first"]));
+  // Slice Q (v6): "failing-proof" stage added for Stage 2 TDD Guard.
+  _assertStringEnum(rule.stage, `${label}.stage`, new Set(["edit-first", "failing-proof"]));
   _assertRegex(rule.srcPattern, `${label}.srcPattern`);
   _assertRegex(rule.testPattern, `${label}.testPattern`);
   if (rule.message !== undefined) optionalString(rule.message, `${label}.message`, 300);
+  if (rule.failingProofMessage !== undefined) {
+    optionalString(rule.failingProofMessage, `${label}.failingProofMessage`, 300);
+  }
 }
 
 function validateTemplateUpload(body) {

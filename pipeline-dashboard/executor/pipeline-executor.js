@@ -22,6 +22,8 @@ const { PipelineAdapter } = require("./pipeline-adapter");
 // PipelineState.phaseTools(phase.id) to decide whether a src edit is
 // preceded by a test edit in the same phase.
 const { TddGuard } = require("./tdd-guard");
+// Slice Q (v6): test-runner command detection for Stage 2 failing-proof.
+const { looksLikeTestCommand: _looksLikeTestCommand } = require("../src/runtime/testOutputParser");
 const { enforceTemplateDefaults, evaluateTool } = require("../src/policy/phasePolicy");
 const dangerGate = require("../src/policy/dangerGate");
 const { checkToolAgainstContract } = require("../src/contracts/agentContracts");
@@ -324,6 +326,20 @@ class PipelineExecutor {
     // and shell commands for phase-scoped / pathMatch / commandMatch criteria.
     this.state.recordTool(phase.id, tool, response, input || {});
     this._captureArtifacts(phase, tool, response);
+    // Slice Q (v6): if this was a Bash test runner invocation, parse its
+    // stdout to record pass/fail counts for TDD Guard Stage 2.
+    if (tool === "Bash") {
+      const cmd = (input && input.command) || "";
+      if (_looksLikeTestCommand(cmd)) {
+        this.state.recordTestRun({
+          phaseId: phase.id,
+          command: cmd,
+          exitCode: (response && (response.exit_code ?? response.exitCode)) ?? 0,
+          stdout: (response && response.stdout) || "",
+          stderr: (response && response.stderr) || "",
+        });
+      }
+    }
     this._scheduleCheckpoint();
 
     this.broadcast({

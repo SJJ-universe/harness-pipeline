@@ -11,6 +11,11 @@
 // analytics UI, snapshot broadcasts) still see totals.
 const MAX_FINDINGS = 200;
 const MAX_TOOLS_PER_PHASE = 500;
+// Slice Q (v6): TDD Guard Stage 2 reads this log; cap is generous since
+// each entry is ~4KB of stdout sample.
+const MAX_TEST_RUNS = 50;
+
+const { parseTestOutput } = require("../src/runtime/testOutputParser");
 
 class PipelineState {
   constructor() {
@@ -39,7 +44,48 @@ class PipelineState {
       bashCommands: 0,
       toolCount: 0,
       byTool: {},
+      // Slice Q (v6): recorded test-runner executions. Used by TDD Guard
+      // Stage 2 (failing-proof) to verify a failing test exists before
+      // allowing src edits.
+      testRuns: [],
     };
+  }
+
+  /**
+   * Slice Q (v6): record a test runner invocation + parsed pass/fail counts.
+   * `stdoutSample` is capped at 4KB to avoid bloating snapshots; full stdout
+   * is the runner's concern.
+   */
+  recordTestRun({ phaseId, command, exitCode = 0, stdout = "", stderr = "" } = {}) {
+    const parsed = parseTestOutput(stdout, stderr);
+    const entry = {
+      ts: Date.now(),
+      phaseId: phaseId || null,
+      command: String(command || "").slice(0, 500),
+      exitCode,
+      format: parsed.format,
+      pass: parsed.pass,
+      fail: parsed.fail,
+      skipped: parsed.skipped,
+      hasFailure: parsed.hasFailure,
+      stdoutSample: String(stdout || "").slice(0, 4096),
+    };
+    this.metrics.testRuns.push(entry);
+    while (this.metrics.testRuns.length > MAX_TEST_RUNS) {
+      this.metrics.testRuns.shift();
+    }
+    return entry;
+  }
+
+  /**
+   * Slice Q (v6): does this phase have a recorded failing test run?
+   * Used by TDD Guard Stage 2. Parser returning `hasFailure: null`
+   * (unrecognized format) does NOT satisfy the guard — fail-closed.
+   */
+  hasFailingTestRun(phaseId) {
+    return this.metrics.testRuns.some(
+      (r) => r.phaseId === phaseId && r.hasFailure === true
+    );
   }
 
   _ensurePhase(id) {
@@ -328,4 +374,4 @@ class PipelineState {
   }
 }
 
-module.exports = { PipelineState, MAX_FINDINGS, MAX_TOOLS_PER_PHASE };
+module.exports = { PipelineState, MAX_FINDINGS, MAX_TOOLS_PER_PHASE, MAX_TEST_RUNS };

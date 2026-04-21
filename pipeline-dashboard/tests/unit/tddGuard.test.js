@@ -34,9 +34,11 @@ test("phase without tddGuard → always allow", () => {
   assert.equal(g.evaluate({ id: "D" }, "Edit", { file_path: "src/anything.js" }).allow, true);
 });
 
-test("stage !== 'edit-first' → bypass (Stage 2+ not implemented)", () => {
+test("unknown tddGuard.stage → bypass (unrecognized stages never gate)", () => {
+  // Slice Q (v6): failing-proof is now implemented, so this test uses a
+  // truly unknown stage name to exercise the bypass path.
   const g = new TddGuard(stateWith("D", []));
-  const phase = phaseD({ stage: "failing-proof" });
+  const phase = phaseD({ stage: "future-stage-not-in-enum" });
   assert.equal(g.evaluate(phase, "Edit", { file_path: "src/a.js" }).allow, true);
 });
 
