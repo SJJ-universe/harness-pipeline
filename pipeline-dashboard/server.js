@@ -563,6 +563,14 @@ const qualityGate = new QualityGate();
 const skillInjector = new SkillInjector({ skillRegistry });
 const pipelineAdapter = new PipelineAdapter({ templates: pipelineTemplates });
 
+// Slice V (v6): cross-run file edit collision detector. Moved above the
+// orchestrator so Slice AD can inject it into every executor and the
+// orchestrator itself — otherwise completed runs' Edit/Write claims would
+// linger and produce false file_conflict_warning broadcasts for the next
+// run that touches the same file.
+const { createFileConflictDetector } = require("./src/runtime/fileConflictDetector");
+const fileConflictDetector = createFileConflictDetector({ broadcast });
+
 // Slice S (v6): wrap the singleton executor in a PipelineOrchestrator so
 // later slices (T: runId routing, U: tabs, V: concurrent unlock) can grow
 // naturally. Single-active compat: maxConcurrent=1, default run eagerly
@@ -572,6 +580,9 @@ const pipelineAdapter = new PipelineAdapter({ templates: pipelineTemplates });
 const { PipelineOrchestrator } = require("./executor/pipeline-orchestrator");
 const pipelineOrchestrator = new PipelineOrchestrator({
   broadcast,
+  // Slice AD (Phase 2.5): the orchestrator uses this detector in
+  // remove(runId) so manual-teardown paths also clear stale claims.
+  fileConflictDetector,
   // Slice V (v6): multi-run unlock capability (up to N concurrent runs).
   // Slice A0 (Phase 2.5, 2026-04-21): the runtime default is temporarily
   // locked to 1 while the Phase 2.5 correction round closes the remaining
@@ -596,6 +607,10 @@ const pipelineOrchestrator = new PipelineOrchestrator({
     // legacy `.harness/pipeline-checkpoint.json` path (zero migration for
     // single-run users); non-default runs get `.harness/runs/{runId}/…`.
     checkpointStore: createCheckpointStore({ repoRoot: REPO_ROOT, runId }),
+    // Slice AD (Phase 2.5): each executor clears its own claims on
+    // _complete() / resetActive() so finished runs don't trigger false
+    // `file_conflict_warning` broadcasts for later runs.
+    fileConflictDetector,
     runId,
   }),
 });
@@ -614,8 +629,8 @@ hookRouter.attachExecutor(pipelineExecutor);
 hookRouter.attachOrchestrator(pipelineOrchestrator);
 // Slice V (v6): surface cross-run file edit collisions as
 // file_conflict_warning broadcasts so the dashboard can flag them.
-const { createFileConflictDetector } = require("./src/runtime/fileConflictDetector");
-const fileConflictDetector = createFileConflictDetector({ broadcast });
+// (The detector instance was constructed above, before the orchestrator,
+// so Slice AD can inject it into each executor and into remove(runId).)
 hookRouter.attachFileConflictDetector(fileConflictDetector);
 
 app.use("/api", createHookRoutes({ hookRouter, validateHook }));

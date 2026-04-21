@@ -22,11 +22,14 @@ const DEFAULT_RUN_ID = "default";
 class PipelineOrchestrator {
   /**
    * @param {object} opts
-   * @param {Function} opts.createExecutor  factory: (runId) => PipelineExecutor
-   * @param {number} [opts.maxConcurrent]   max active runs (1 in Slice S)
-   * @param {Function} [opts.broadcast]     for orchestrator-level events
+   * @param {Function} opts.createExecutor          factory: (runId) => PipelineExecutor
+   * @param {number} [opts.maxConcurrent]           max active runs (1 in Slice S)
+   * @param {Function} [opts.broadcast]             for orchestrator-level events
+   * @param {object}   [opts.fileConflictDetector]  Slice AD: optional detector so
+   *                                                remove(runId) also clears the
+   *                                                run's file claims.
    */
-  constructor({ createExecutor, maxConcurrent = 1, broadcast = () => {} } = {}) {
+  constructor({ createExecutor, maxConcurrent = 1, broadcast = () => {}, fileConflictDetector = null } = {}) {
     if (typeof createExecutor !== "function") {
       throw new Error("PipelineOrchestrator requires a createExecutor factory");
     }
@@ -36,6 +39,7 @@ class PipelineOrchestrator {
     this.createExecutor = createExecutor;
     this.maxConcurrent = maxConcurrent;
     this.broadcast = broadcast;
+    this.fileConflictDetector = fileConflictDetector;
     this.runs = new Map();
     this.defaultRunId = DEFAULT_RUN_ID;
     // Eagerly bootstrap the default run so getActive() never returns null.
@@ -60,9 +64,18 @@ class PipelineOrchestrator {
   /**
    * Remove a non-default run from the orchestrator. The default run is
    * protected because it's the single-active mode's anchor.
+   *
+   * Slice AD (Phase 2.5, v6): also drop the run's file-conflict claims so
+   * a future run with a recycled runId does not inherit stale ownership.
+   * PipelineExecutor._complete() already clears on pipeline_complete, but
+   * remove() covers the manual-teardown path (user clicked "remove tab"
+   * or the orchestrator reclaimed a stale runId).
    */
   remove(runId) {
     if (runId === this.defaultRunId) return false;
+    if (this.fileConflictDetector && typeof this.fileConflictDetector.clear === "function") {
+      this.fileConflictDetector.clear(runId);
+    }
     return this.runs.delete(runId);
   }
 

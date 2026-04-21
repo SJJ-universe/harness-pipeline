@@ -62,7 +62,7 @@ const TEMPLATE_MAP = {
 const MAX_GATE_RETRIES = 3;
 
 class PipelineExecutor {
-  constructor({ broadcast, templates, codex, state, gate, injector, adapter, workspaceDir, repoRoot, checkpointStore, runId }) {
+  constructor({ broadcast, templates, codex, state, gate, injector, adapter, workspaceDir, repoRoot, checkpointStore, runId, fileConflictDetector }) {
     // Slice S (v6): runId identifies this executor within a
     // PipelineOrchestrator. Defaults to "default" for single-active mode
     // so pre-Slice-S callers keep working without a runId.
@@ -95,6 +95,14 @@ class PipelineExecutor {
     // Checkpoint store: must be explicitly injected (via server.js) for disk persistence.
     // Default is a no-op store — safe for tests that don't need persistence.
     this.checkpointStore = checkpointStore || { path: null, save() {}, load() { return null; }, clear() {} };
+
+    // Slice AD (Phase 2.5, v6): file conflict detector. Injected by server.js
+    // so this executor can clear its own claims on pipeline_complete /
+    // resetActive — otherwise completed runs' Edit/Write claims stayed in
+    // the detector forever and caused false `file_conflict_warning`
+    // broadcasts when a later run touched the same file. Optional — tests
+    // that don't care about conflicts can omit it.
+    this.fileConflictDetector = fileConflictDetector || null;
 
     this.active = null;
     this.enabled = process.env.HARNESS_ENABLED === "1";
@@ -939,6 +947,12 @@ class PipelineExecutor {
     this.active = null;
     this.state.reset({ userPrompt: "", templateId: null });
     this.checkpointStore.clear();
+    // Slice AD (Phase 2.5, v6): reset is the manual equivalent of
+    // _complete — drop all file claims the aborted run had registered
+    // so the next run starts with a clean conflict ledger.
+    if (this.fileConflictDetector && typeof this.fileConflictDetector.clear === "function") {
+      this.fileConflictDetector.clear(this.runId);
+    }
     this.broadcast({ type: "pipeline_reset", data: { reason } });
     return this.getStatus();
   }
@@ -1230,6 +1244,14 @@ class PipelineExecutor {
   }
 
   _complete(reason) {
+    // Slice AD (Phase 2.5, v6): clear file-conflict claims UNCONDITIONALLY
+    // — even on the noop path where `this.active` is already null. The
+    // clear() is idempotent (a no-op for a runId with no claims) but the
+    // positioning matters: we want any completed / already-completed run
+    // to leave behind zero stale claims for a later run to stumble over.
+    if (this.fileConflictDetector && typeof this.fileConflictDetector.clear === "function") {
+      this.fileConflictDetector.clear(this.runId);
+    }
     if (!this.active) return;
 
     // Slice F (v5): close the currently open phase attempt before teardown
@@ -1249,6 +1271,8 @@ class PipelineExecutor {
     }
     // Clear checkpoint — pipeline is done, next session should start fresh
     this.checkpointStore.clear();
+    // (File-conflict claims were already cleared at the top of _complete
+    //  so the noop / early-return path is also covered.)
 
     // Self-verification: check claim-vs-evidence before declaring complete
     const verifier = new ClaimVerifier();
