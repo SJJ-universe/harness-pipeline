@@ -780,6 +780,25 @@ function handleEvent(event) {
     window._runTabBar.complete(event.data && event.data.runId);
   }
 
+  // Slice AA-1 (Phase 2.5, v6): run-scoped DOM routing. When the user has
+  // a run tab focused, events that belong to a different run must not
+  // render into the active timeline — otherwise parallel runs collapse
+  // into one visual stream and the tabs are meaningless. Global UI events
+  // without a `data.runId` (toast, hook_event, context_alarm, etc.) still
+  // render on every tab; see HarnessRunIdFilter.shouldSkip for the exact
+  // carve-out rules. The seen()/complete() calls above already fired, so
+  // the tab bar still surfaces the other run's existence even while we
+  // stop here.
+  if (
+    window.HarnessRunIdFilter &&
+    window._runTabBar &&
+    typeof window._runTabBar.current === "function"
+  ) {
+    if (window.HarnessRunIdFilter.shouldSkip(event, window._runTabBar.current())) {
+      return;
+    }
+  }
+
   // Slice R (v6): try the registry first. Handlers registered via
   // HarnessEventDispatcher.register() handle their own type; the switch
   // below is the legacy fallback for types that haven't been migrated yet.

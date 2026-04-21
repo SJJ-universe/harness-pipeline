@@ -352,6 +352,10 @@
   <script src="js/subagent-tray.js"></script>
   <!-- Slice U (v6): run tab bar — visible only when ≥2 runs exist. -->
   <script src="js/run-tab-bar.js"></script>
+  <!-- Slice AA-1 (Phase 2.5, v6): pure helper used by handleEvent in
+       app.js to decide whether an incoming event belongs to the focused
+       run tab. Ships as a UMD module so Node tests can require() it. -->
+  <script src="js/run-id-filter.js"></script>
   <!-- Slice H (v5): a11y primitives — loaded before the panels so each
        panel's open() can wrap a focus trap around its overlay. -->
   <script src="js/focus-trap.js"></script>
