@@ -524,10 +524,15 @@ const checkpointStore = createCheckpointStore({ repoRoot: REPO_ROOT });
 const { PipelineOrchestrator } = require("./executor/pipeline-orchestrator");
 const pipelineOrchestrator = new PipelineOrchestrator({
   broadcast,
-  // Slice V (v6): multi-run unlock. Default raised to 3; HARNESS_MAX_RUNS=1
-  // collapses back to single-active compat for users who want the old
-  // behavior.
-  maxConcurrent: Number(process.env.HARNESS_MAX_RUNS || 3),
+  // Slice V (v6): multi-run unlock capability (up to N concurrent runs).
+  // Slice A0 (Phase 2.5, 2026-04-21): the runtime default is temporarily
+  // locked to 1 while the Phase 2.5 correction round closes the remaining
+  // multi-run isolation gaps (per-run PipelineState / checkpointStore,
+  // run-scoped UI filtering, file conflict claim cleanup). A rollback
+  // commit will raise the default back to 3 once Slices Y+Z, AA-1, AA-2
+  // and AD have landed. Users who need multi-run *today* can still opt in
+  // explicitly with HARNESS_MAX_RUNS=3 — the env override is untouched.
+  maxConcurrent: Number(process.env.HARNESS_MAX_RUNS || 1),
   createExecutor: (runId) => new PipelineExecutor({
     broadcast,
     templates: pipelineTemplates,
