@@ -101,6 +101,42 @@ main#main-content:focus {
   color: #0b1a2d;
 }
 
+/* Slice U (v6): run tabs — appear only when the orchestrator has >= 2 runs
+ * (Slice V unlocks this). Tab labels are runIds (session_id). */
+.run-tabs {
+  display: inline-flex;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-right: 4px;
+}
+.run-tabs.is-hidden { display: none; }
+.run-tab {
+  background: transparent;
+  color: var(--text-dim);
+  border: 0;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: 'Cascadia Code', 'Fira Code', monospace;
+  border-right: 1px solid var(--border);
+}
+.run-tab:last-child { border-right: 0; }
+.run-tab:hover:not(.is-active) {
+  color: var(--text);
+  background: rgba(88, 166, 255, 0.08);
+}
+.run-tab.is-active {
+  background: var(--codex);
+  color: #0b1a2d;
+}
+.run-tab.is-completed {
+  opacity: 0.55;
+  text-decoration: line-through;
+}
+
 /* ── Header ── */
 header {
   display: flex;

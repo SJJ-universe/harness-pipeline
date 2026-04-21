@@ -41,6 +41,9 @@
         <button class="lang-btn" data-lang="ko" type="button">KO</button>
         <button class="lang-btn" data-lang="en" type="button">EN</button>
       </div>
+      <!-- Slice U (v6): run tabs — hidden by default (only visible when
+           ≥2 runs active, which requires Slice V unlock). -->
+      <div class="run-tabs is-hidden" id="run-tabs" role="tablist" aria-label="활성 런"></div>
       <button class="btn-ctrl" id="btn-codex-verify"
               data-i18n="btn.codexVerify" data-i18n-title="btn.codexVerify.title" data-i18n-aria-label="btn.codexVerify.title"
               title="Codex CLI 실제 호출 테스트" aria-label="Codex CLI 실제 호출 테스트">Codex 검증</button>
@@ -334,6 +337,8 @@
   <!-- Slice D: subagent tray wiring also needs to be live before app.js
        dispatches its first subagent_* event. -->
   <script src="js/subagent-tray.js"></script>
+  <!-- Slice U (v6): run tab bar — visible only when ≥2 runs exist. -->
+  <script src="js/run-tab-bar.js"></script>
   <!-- Slice H (v5): a11y primitives — loaded before the panels so each
        panel's open() can wrap a focus trap around its overlay. -->
   <script src="js/focus-trap.js"></script>

@@ -768,6 +768,18 @@ function applyReplayEvent(event) {
 }
 
 function handleEvent(event) {
+  // Slice U (v6): feed every event's runId into the tab bar so new runs
+  // auto-surface as tabs. In single-active mode (Slice V not yet unlocked)
+  // all events carry runId="default", which is already seeded — so the bar
+  // stays collapsed. Once Slice V raises maxConcurrent, new session_ids
+  // will populate new tabs automatically.
+  if (window._runTabBar && event && event.data && event.data.runId) {
+    window._runTabBar.seen(event.data.runId);
+  }
+  if (event && event.type === "pipeline_complete" && window._runTabBar) {
+    window._runTabBar.complete(event.data && event.data.runId);
+  }
+
   // Slice R (v6): try the registry first. Handlers registered via
   // HarnessEventDispatcher.register() handle their own type; the switch
   // below is the legacy fallback for types that haven't been migrated yet.
@@ -2172,6 +2184,24 @@ function initEventBindings() {
             ? window.HarnessI18n.t("toast.keybindings")
             : "단축키: g t=템플릿, g h=히스토리, g m=메트릭, Esc=닫기";
           window.HarnessToast.show({ type: "info", message: msg, duration: 6000 });
+        }
+      },
+    });
+  }
+
+  // Slice U (v6): run tab bar — tracks runIds from broadcasts, shows tabs
+  // when >=2 runs exist. Kept minimal in Slice U; Slice V adds the actual
+  // per-tab view switching.
+  if (window.HarnessRunTabBar) {
+    window._runTabBar = window.HarnessRunTabBar.install({
+      mountEl: "run-tabs",
+      onSelect: (runId) => {
+        if (window.HarnessToast) {
+          window.HarnessToast.show({
+            type: "info",
+            message: `Run 선택: ${runId} (Slice V 이후 탭별 타임라인 전환)`,
+            duration: 2500,
+          });
         }
       },
     });
