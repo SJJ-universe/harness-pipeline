@@ -509,11 +509,14 @@ const claudeRunner = new ClaudeRunner({
 });
 
 // generalRunRef.active is set by pipelineRoutes — see above
-const pipelineState = new PipelineState();
+// Slice Y (Phase 2.5): the global singleton PipelineState / checkpointStore
+// were shared across every run the orchestrator created, so concurrent runs
+// would overwrite each other's findings, metrics, and checkpoint file. Both
+// are now instantiated fresh inside `createExecutor(runId)` below — each
+// run gets its own state container and its own checkpoint path.
 const qualityGate = new QualityGate();
 const skillInjector = new SkillInjector({ skillRegistry });
 const pipelineAdapter = new PipelineAdapter({ templates: pipelineTemplates });
-const checkpointStore = createCheckpointStore({ repoRoot: REPO_ROOT });
 
 // Slice S (v6): wrap the singleton executor in a PipelineOrchestrator so
 // later slices (T: runId routing, U: tabs, V: concurrent unlock) can grow
@@ -537,12 +540,17 @@ const pipelineOrchestrator = new PipelineOrchestrator({
     broadcast,
     templates: pipelineTemplates,
     codex: codexRunner,
-    state: pipelineState,
+    // Slice Y (Phase 2.5): per-run PipelineState — no more cross-run
+    // findings/metrics bleed.
+    state: new PipelineState(),
     gate: qualityGate,
     injector: skillInjector,
     adapter: pipelineAdapter,
     repoRoot: REPO_ROOT,
-    checkpointStore,
+    // Slice Z (Phase 2.5): per-run checkpoint. The default run keeps the
+    // legacy `.harness/pipeline-checkpoint.json` path (zero migration for
+    // single-run users); non-default runs get `.harness/runs/{runId}/…`.
+    checkpointStore: createCheckpointStore({ repoRoot: REPO_ROOT, runId }),
     runId,
   }),
 });
