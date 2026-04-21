@@ -381,6 +381,11 @@ class PipelineExecutor {
     this.state.markGateAttempt(phase.id, gateResult.pass);
     const decision = this._handleGateResult(phase, gateResult, { source: "stop" });
     if (decision.kind === "block") {
+      // Slice AB (Phase 2.5) carve-out: this is a Stop hook response, NOT
+      // a PreToolUse response. denyToolUse() emits PreToolUse-specific
+      // `hookSpecificOutput.permissionDecision: "deny"`, which Claude Code
+      // ignores on Stop — only the legacy `{ decision: "block", reason }`
+      // shape re-prompts the session. Keep legacy shape here.
       return { decision: "block", reason: decision.reason };
     }
     // pass or bypass: continue advancing
@@ -416,6 +421,10 @@ class PipelineExecutor {
           `2. 비평 내용을 반영하여 plan*.md를 Edit/Write로 보완하세요.\n` +
           `3. 보완이 끝나면 턴을 종료하여 다음 Phase로 진행하세요.\n` +
           `(이 메시지는 Phase C→D 전환 시 한 번만 표시됩니다.)`;
+        // Slice AB (Phase 2.5) carve-out: Stop hook pendingHint re-prompt.
+        // Same reasoning as the gate-block above — Stop hooks do not read
+        // hookSpecificOutput.permissionDecision, so only the legacy
+        // `{ decision, reason }` shape re-injects this hint into Claude.
         return { decision: "block", reason };
       }
     }

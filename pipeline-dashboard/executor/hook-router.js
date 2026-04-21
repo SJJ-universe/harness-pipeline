@@ -86,6 +86,14 @@ class HookRouter {
     if (alarm) {
       this.broadcast({ type: "context_alarm", data: { ...usage, ...alarm } });
       if (alarm.level === "block" && event === "user-prompt" && !payload?.override_context_alarm) {
+        // Slice AB (Phase 2.5) carve-out: this is a UserPromptSubmit block,
+        // NOT a PreToolUse block. Claude Code's UserPromptSubmit hook only
+        // understands the legacy `{ decision, reason }` shape — the modern
+        // `hookSpecificOutput.permissionDecision` field is PreToolUse-
+        // specific (see src/hooks/hookDecisionAdapter.js comment header).
+        // Running this through denyToolUse() would silently get ignored by
+        // Claude Code because permissionDecision is not consulted for
+        // UserPromptSubmit. Keep the legacy shape here; do not migrate.
         return { decision: "block", reason: alarm.message };
       }
     }
