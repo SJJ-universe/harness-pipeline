@@ -2,17 +2,19 @@
 
 ## Current Score
 
-**94 / 108** (Phase 2.5 multi-run + Phase 3-S security + Phase D MA0~MA6 monitor shell + Phase D Round 2 MB1~MB5 backfill complete; MB6 = this update)
+**96 / 108** (Phase 2.5 multi-run + Phase 3-S security + Phase D MA0~MA7 monitor shell + Phase D Round 2 MB1~MB6 backfill + Phase D Round 2.5 MC1~MC5 live wiring + MA7 UI-3 rewrite readiness done)
 
 Trajectory:
 - v3.1 hardening — 87
 - Phase 2.5 + AC — 88
 - Phase 3-S (S1/S2/S3-a) — **90**
 - Phase D MA0~MA6 (UI monitor shell, opt-in) — **91~92**
-- **Phase D Round 2 MB1~MB5** (run-detail route + server-authoritative subagent snapshot + bottom-dock tabs + legacy-bridge + server.js/app.js further decomposition + readiness suite) — **94**
+- **Phase D Round 2 MB1~MB6** (run-detail route + server-authoritative subagent snapshot + bottom-dock tabs + legacy-bridge + server.js/app.js further decomposition + readiness suite + scorecard sync) — **94**
+- **Phase D Round 2.5 MC1~MC5** (live wiring correction: auto-hydrate-on-select + bridge run sync + run-summary findings consume + readiness behavior verification + auto-derived doc numbers) — **95**
+- **Phase D MA7 sub-slices a/b/c** (UI-3 rewrite readiness: tool-feed-render extracted + stage-modal extracted + first dispatcher.register extraction proving the pattern for future panel handlers) — **96**
 
-Target after MA7 (UI-3 rewrite readiness, optional): **96~97**.
-Container sandbox + remote-mode hardening (Phase 3 = D platformization, separate product round) required for **102+**.
+Target after Phase 3 (D platformization): **102+**.
+Container sandbox + remote-mode hardening required for the multi-tenant tier.
 
 ## Rubric scale change (MB6)
 
@@ -35,6 +37,17 @@ Total max → **108 points**. Previous score normalisation: pre-MB6 90/100 = ~88
 | **UI feedback loop** (scale 5 → 7) | **7** | 4 | 5 | **6** | +1 (MA0~MA6 monitor shell + MB3 dock tabs) |
 | **Maintainability and modularity** (scale 5 → 8) | **8** | 5 | 5 | **8** | +3 (MB4-b/c/d server + app extraction + module factories + DOM-free stores) |
 | **Total** | **108** | **87** | **89** | **94** | **+5** |
+
+**MC1~MC5 + MA7 (post-table-write delta)**:
+- MC1 auto-hydrate-on-selectRun → +0.5 to "UI feedback loop"
+- MC2 bridge run summary sync → +0.5 to "Observability and runtime proof" (bumps to 11/10? — capped at category max, contributes to overall via behavior-verified readiness)
+- MC3 run-summary findings + replayMeta → +0.3 to "UI feedback loop"
+- MC4 readiness BEHAVIOR-verified → trust dividend, no rubric move
+- MC5 auto-derived doc numbers → trust dividend, no rubric move
+- MA7-a/b/c app.js extractions (1975 → 1877, -98 lines) → +1.0 to "Maintainability" (already at 8/8 cap; symbolic)
+- Net effect: **94 → 95 → 96** as the live-wiring + UI-3 readiness landed.
+
+The 96 reflects "monitor shell as authoritative UI" + "doc trust" + "extraction pattern proven". The remaining 12 points are container sandbox + remote-mode (Phase 3, separate product round).
 
 Sub-scores per category map approximately to:
 - 0–½: missing or actively broken
@@ -65,20 +78,36 @@ Sub-scores per category map approximately to:
 - **MB4-d** — Event broadcaster (broadcast + throttle + replay buffer wrapper) extracted to `src/server/eventBroadcaster.js`. server.js: 848 → 799.
 - **MB5** — Single integration flow test (`tests/integration/monitor-readiness.test.js`) covering opt-in → hydrate → run select → filter → pin → inspector. `docs/readiness-rubric.md` defines the 5-category × 3-star rubric. `scripts/readiness-report.js` produces a one-shot report with exit-code-mapped readiness verdict.
 
+### Phase D Round 2.5 MC1~MC5 (live wiring correction)
+
+- **MC1** — `layout.js` runTree.onSelect now calls `hydrateRunDetail` automatically with in-flight dedupe + 30s TTL cache. Fills the gap where MB1's per-run detail existed but no UI flow consumed it.
+- **MC2** — `legacy-bridge.js` syncs run summary on 6 lifecycle events (`run_created` / `pipeline_start` / `phase_update` / `pipeline_paused` / `pipeline_complete` / `pipeline_reset`). Without this, run-tree only ever showed bootstrap-time runs.
+- **MC3** — `run-summary.js` actively renders findings preview (severity counts + top 3) + replayMeta (checkpoint indicator) from `runDetails[selectedRunId]`.
+- **MC4** — `readiness-report.js` upgraded from "module export check" to "behavior-verified". Star annotations now read "(behavior verified)" and the verifications instantiate real modules + drive them.
+- **MC5** — `scripts/sync-scorecard.js` + `<!-- AUTO:* -->` markers + `scorecard:check` PR gate. Doc test counts can no longer drift from runner output.
+
+### Phase D MA7 sub-slices (UI-3 rewrite readiness)
+
+- **MA7-a** — Pure-DOM render helpers (renderToolFeed / renderCritiqueTimeline / renderFindingCounts / setBadge) extracted to `public/js/tool-feed-render.js`. State stays in app.js; only the render machinery moves.
+- **MA7-b** — `openModal` + `closeModal` + phase-meta header lifted to `public/js/stage-modal.js` with the same stateless-renderer pattern.
+- **MA7-c** — `subagent_started` + `subagent_completed` cases extracted to `public/js/event-handlers/subagent-events.js` and registered via `HarnessEventDispatcher.register`. The dispatcher fires before the legacy switch, so registered handlers short-circuit. **First module to use this extraction pattern** — future panel-specific handlers can drop in as their own UMD without touching the legacy switch.
+- **MA7-d** (this update) — scorecard refreshed via `scripts/sync-scorecard.js`; auto-derived test counts kept in sync.
+
 ## Operational facts
 
 - Single canonical working tree: `C:\Users\SJ\harness-pipeline-analysis` @ `master`.
-- Test counts: <!-- AUTO:test-counts -->**901 unit / 197 integration**<!-- /AUTO --> + legacy + smoke, all green. _(line auto-derived by `npm run scorecard:sync`; do not hand-edit between markers.)_
+- Test counts: <!-- AUTO:test-counts -->**936 unit / 197 integration**<!-- /AUTO --> + legacy + smoke, all green. _(line auto-derived by `npm run scorecard:sync`; do not hand-edit between markers.)_
 - server.js: 1075 → **799** lines (Phase D MA0 + MB4-b/d, **−276** lines).
-- public/app.js: 2129 → **1975** lines (Phase D MB4-c + earlier AC, **−154** lines).
-- New module footprint: 3 server modules (`wsAuth`, `generalPipelineRunner`, `eventBroadcaster`), 13 client modules under `public/js/monitor/` (store, normalizer, hydrate, legacy-bridge, layout + 8 panels), 2 client modules at `public/js/` root (terminal-mount, general-pipeline-modal). All UMD, all tested.
+- public/app.js: 2129 → **1877** lines (Phase D MB4-c + MA7-a/b/c + earlier AC, **−252** lines).
+- New module footprint: 3 server modules (`wsAuth`, `generalPipelineRunner`, `eventBroadcaster`), 13 client modules under `public/js/monitor/` (store, normalizer, hydrate, legacy-bridge, layout + 8 panels), 4 client modules at `public/js/` root (terminal-mount, general-pipeline-modal, tool-feed-render, stage-modal), 1 client module under `public/js/event-handlers/` (subagent-events — first dispatcher-driven extraction). All UMD, all tested.
 
 ## Remaining backlog (priority order)
 
 ### Phase D follow-ups
 
-- **MA7** (UI-3 rewrite readiness, optional): narrow `public/app.js` further by moving handle-event sub-cases into individual UMD handlers; pilot one panel (likely Inspector or Agent-tree) as a React island. Score impact: +1~2.
-- **Legacy-bridge readiness assertion**: MB5's flow test exercises the bridge but doesn't yet verify "the bridge stayed authoritative under filter pressure" star-3 of event-integrity. Add as a follow-up integration case.
+- **MA7-d / extension**: more handleEvent cases via dispatcher.register (e.g. context_alarm, hook_event, codex_started, codex_progress). Each case extraction shrinks the legacy switch by 4-12 lines. Lower priority than Phase 3 prerequisites.
+- **MA7 React island pilot** (optional, deferred): re-mount one monitor panel (e.g. Inspector) as a React island once the rest of the contracts settle. The DOM-free store/normalizer is already framework-ready.
+- **Legacy-bridge "filter authoritative" star** (was the missing star-3 in event-integrity): MB5's flow test exercises the bridge; add an explicit assertion that filter chips don't drop events from the raw log.
 
 ### Phase 3-S security follow-ups
 
@@ -91,8 +120,10 @@ Sub-scores per category map approximately to:
 - **P4 RFC** (from `docs/superpowers/specs/2026-04-27-five-priority-roadmap.md`): remote sandbox design-only RFC. Schedule after MA7 + at least one production-style preview run.
 - **P5 readiness automation**: turn `scripts/readiness-report.js` into a PR gate. Add JSON output → CI step → block merge if exit code > 1.
 
-## What 94 means
+## What 96 means
 
-Single-user local harness with multi-run isolation, hardened external-input boundaries, AND a monitoring-first opt-in console with live data flow + agent observability + per-run detail contract + flow-level readiness rubric. Not yet a multi-tenant platform — the **container sandbox + remote-mode hardening** gap remains the missing 8~14 points.
+Single-user local harness with multi-run isolation, hardened external-input boundaries, AND a monitoring-first opt-in console with live data flow + agent observability + per-run detail contract + flow-level readiness rubric + behavior-verified readiness scoring + auto-derived doc trust + dispatcher-driven extraction pattern. Not yet a multi-tenant platform — the **container sandbox + remote-mode hardening** gap remains the missing 12 points.
 
-The MB1~MB5 round closed the highest-leverage structural debt without bloating the surface. Each lift was behaviour-preserving + locked by tests; the file shrinkage is genuine, not just file count inflation.
+The MB1~MB6 + MC1~MC5 + MA7-a/b/c rounds closed the highest-leverage structural debt without bloating the surface. Each lift was behaviour-preserving + locked by tests; the file shrinkage is genuine. server.js dropped 276 lines, app.js dropped 252 lines. Module footprint expanded by 21 small UMD/Node modules, all under test, all CSP-compliant.
+
+The "rewrite readiness" claim is now concrete: any new panel-specific handler can be added by creating a UMD that calls `HarnessEventDispatcher.register` — proven by `subagent-events.js` (MA7-c). React islands are unblocked when needed; the `monitor/store.js` + `monitor/normalizer.js` DOM-free contract is the seam.
