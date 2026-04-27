@@ -1,16 +1,19 @@
-// Slice MA6 (Phase D, 2026-04-27) — HarnessMonitorAgentTree.
+// Slice MA6 + MB2 (Phase D, 2026-04-27) — HarnessMonitorAgentTree.
 //
 // Left-rail companion to run-tree. Surfaces the operational data the
 // global-bar can only summarise as counters:
 //
 //   1. Children — snapshot.activeChildren grouped by runId (the
 //      childRegistry data Phase 3-S Slice S3-a started tracking).
-//   2. Subagents — derived from the events ring: subagent_started
-//      events without a matching subagent_completed are still alive.
-//      Grouped by runId. The events ring is bounded (default 200) so
-//      a long-running subagent whose start event was evicted will
-//      drop out of this list — that's accepted: agent-tree is for
-//      RECENT agent activity, not historical accounting.
+//   2. Subagents — TWO data sources, server-snapshot preferred:
+//      a) snapshot.runDetails[runId].subagents (server-authoritative,
+//         populated by MB1+MB2 hydrateRunDetail. Survives the events
+//         ring bound — a subagent active for hours stays visible.)
+//      b) Fallback: derived from snapshot.events ring (MA6 behaviour).
+//         Used when no run detail has been hydrated yet (cold start)
+//         OR when the executor lacks getSubagentSnapshot.
+//      Both sources merge: server-derived entries win on session_id
+//      collision. Grouped by runId.
 //
 // Click → onSelect("child", payload) or onSelect("subagent", payload).
 // Layout wires the callback to store.selectItem so the inspector lights
@@ -43,6 +46,63 @@
       groups.get(rid).push(item);
     }
     return groups;
+  }
+
+  /**
+   * Slice MB2: merge server-authoritative subagent snapshots from
+   * `snapshot.runDetails[*].subagents` with the events-ring derivation.
+   * Server entries WIN on session_id collision (they're authoritative).
+   *
+   * Returns [{ session_id, agent_id, runId, agent_type, startedAt,
+   *            completedAt, active, source }]
+   *
+   * `source` is "server" or "events" — the agent-tree CSS uses it to
+   * mark server-backed entries with a small badge, signaling "this row
+   * is durable across long runs".
+   */
+  function _mergeSubagentSources(serverByRun, eventDerived) {
+    const seen = new Set();
+    const out = [];
+    // Server entries first (preferred).
+    if (serverByRun && typeof serverByRun === "object") {
+      for (const runId of Object.keys(serverByRun)) {
+        const list = serverByRun[runId] || [];
+        for (const sub of list) {
+          if (!sub || !sub.session_id) continue;
+          const key = String(sub.session_id);
+          if (seen.has(key)) continue;
+          seen.add(key);
+          out.push({
+            session_id: key,
+            agent_id: sub.agent_id || null,
+            agent_type: sub.agent_type || null,
+            runId,
+            startedAt: sub.startedAt || null,
+            completedAt: sub.completedAt || null,
+            active: sub.active !== false,
+            source: "server",
+          });
+        }
+      }
+    }
+    // Then events-ring entries that aren't already covered by server.
+    for (const sub of eventDerived || []) {
+      if (!sub || !sub.session_id) continue;
+      const key = String(sub.session_id);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({
+        session_id: key,
+        agent_id: sub.agent_id || null,
+        agent_type: sub.agent_type || null,
+        runId: sub.runId || null,
+        startedAt: sub.ts || null,
+        completedAt: null,
+        active: true,
+        source: "events",
+      });
+    }
+    return out;
   }
 
   /**
@@ -142,7 +202,14 @@
 
     function _renderSubagentRow(sub, isSelected) {
       const li = _doc.createElement("li");
-      li.className = "at-item at-subagent" + (isSelected ? " is-selected" : "");
+      // Slice MB2: classes mark active/completed + server/events source so
+      // CSS can grey out completed entries and add a small badge to
+      // server-backed rows ("durable across long runs").
+      const isCompleted = sub.completedAt != null || sub.active === false;
+      li.className = "at-item at-subagent"
+        + (isSelected ? " is-selected" : "")
+        + (isCompleted ? " is-completed" : "")
+        + " is-source-" + (sub.source || "events");
       li.setAttribute("role", "option");
       li.setAttribute("aria-selected", isSelected ? "true" : "false");
       li.setAttribute("tabindex", isSelected ? "0" : "-1");
@@ -156,7 +223,8 @@
       labelWrap.className = "at-label";
       const name = _doc.createElement("span");
       name.className = "at-name";
-      name.textContent = sub.agent_type ? sub.agent_type : "subagent";
+      name.textContent = (isCompleted ? "✓ " : "")
+        + (sub.agent_type ? sub.agent_type : "subagent");
       labelWrap.appendChild(name);
       const meta = _doc.createElement("span");
       meta.className = "at-meta";
@@ -225,7 +293,20 @@
     function render(snapshot) {
       root.innerHTML = "";
       const children = (snapshot && snapshot.activeChildren) || [];
-      const subs = _activeSubagents((snapshot && snapshot.events) || []);
+      // Slice MB2: collect server-authoritative subagents from every
+      // hydrated runDetail, then merge with the events-ring derivation.
+      // server entries WIN on session_id collision so a long-lived
+      // subagent stays visible even after subagent_started got evicted.
+      const runDetails = (snapshot && snapshot.runDetails) || {};
+      const serverByRun = {};
+      for (const runId of Object.keys(runDetails)) {
+        const detail = runDetails[runId];
+        if (detail && Array.isArray(detail.subagents) && detail.subagents.length > 0) {
+          serverByRun[runId] = detail.subagents;
+        }
+      }
+      const eventDerived = _activeSubagents((snapshot && snapshot.events) || []);
+      const subs = _mergeSubagentSources(serverByRun, eventDerived);
       const sel = (snapshot && snapshot.selectedItem) || null;
       root.appendChild(_renderSection("Children", "child", children, sel));
       root.appendChild(_renderSection("Subagents", "subagent", subs, sel));
@@ -244,8 +325,9 @@
       _formatAge,
       _groupByRunId,
       _activeSubagents,
+      _mergeSubagentSources,
     };
   }
 
-  return { create, _formatAge, _groupByRunId, _activeSubagents };
+  return { create, _formatAge, _groupByRunId, _activeSubagents, _mergeSubagentSources };
 });

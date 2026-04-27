@@ -627,6 +627,22 @@ body.monitor-active {
 .monitor-shell .at-status-child    { background: var(--green, #3fb950); }
 .monitor-shell .at-status-subagent { background: var(--purple, #bc8cff); }
 
+/* Slice MB2: completed subagents grey out + server-source rows get a
+ * subtle "·" badge on the dot to signal "this row is server-backed and
+ * survives long runs". Pure source-of-truth visual hint, no interaction. */
+.monitor-shell .at-subagent.is-completed {
+  opacity: 0.55;
+}
+
+.monitor-shell .at-subagent.is-completed .at-status-subagent {
+  background: var(--text-dim, #8b949e);
+}
+
+.monitor-shell .at-subagent.is-source-server .at-status-subagent {
+  outline: 1px solid rgba(188, 140, 255, 0.55);
+  outline-offset: 1px;
+}
+
 .monitor-shell .at-label {
   display: flex;
   flex-direction: column;

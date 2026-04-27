@@ -690,6 +690,49 @@ class PipelineExecutor {
     return {};
   }
 
+  /**
+   * Slice MB2 (Phase D Round 2): authoritative subagent snapshot.
+   *
+   * Returns one entry per subagent the executor knows about. Agent-tree
+   * panel prefers this over its own events-ring derivation because the
+   * ring is bounded (default 200) and a long-running subagent whose
+   * subagent_started event was evicted would otherwise vanish from view.
+   *
+   * shape:
+   *   [{
+   *     session_id,
+   *     agent_id,
+   *     agent_type,
+   *     parent_session_id,
+   *     startedAt,
+   *     completedAt,   // null when still active
+   *     active,        // boolean shortcut: !completedAt
+   *     metrics,       // SubRun.snapshot() or null
+   *   }, ...]
+   *
+   * Returns [] when no active run, no subagents map, or all entries are
+   * malformed.
+   */
+  getSubagentSnapshot() {
+    if (!this.active || !this.active.subagents) return [];
+    const out = [];
+    for (const [sid, entry] of Object.entries(this.active.subagents)) {
+      if (!entry || typeof entry !== "object") continue;
+      const subRun = this.active.subRuns && this.active.subRuns.get(sid);
+      out.push({
+        session_id: sid,
+        agent_id: entry.agent_id || (subRun && subRun.agentId) || null,
+        agent_type: entry.agent_type || (subRun && subRun.agentType) || null,
+        parent_session_id: entry.parent_session_id || null,
+        startedAt: entry.startedAt || null,
+        completedAt: entry.completedAt || null,
+        active: !entry.completedAt,
+        metrics: subRun ? subRun.snapshot() : null,
+      });
+    }
+    return out;
+  }
+
   getReplaySnapshot() {
     if (this.active) {
       const phase = this._currentPhase();

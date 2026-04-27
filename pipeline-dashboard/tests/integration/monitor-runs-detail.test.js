@@ -218,6 +218,52 @@ test("/api/monitor/runs/:runId tolerates missing childRegistry + eventReplayBuff
   }
 });
 
+// ── MB2: subagents from executor.getSubagentSnapshot ──────────────────
+
+test("/api/monitor/runs/:runId carries subagents from exec.getSubagentSnapshot", async () => {
+  const pipelineOrchestrator = new PipelineOrchestrator({
+    createExecutor: (runId) => makeStubExecutor(runId, {
+      snap: { status: "active" },
+      subagents: [
+        {
+          session_id: "s-1",
+          agent_type: "codex",
+          parent_session_id: null,
+          startedAt: 1700000000000,
+          completedAt: null,
+          active: true,
+          metrics: null,
+        },
+        {
+          session_id: "s-2",
+          agent_type: "claude",
+          parent_session_id: "s-1",
+          startedAt: 1700000001000,
+          completedAt: 1700000005000,
+          active: false,
+          metrics: { toolCount: 3, byTool: { Edit: 2, Read: 1 } },
+        },
+      ],
+    }),
+  });
+  const { server, port } = await startApp({
+    pipelineOrchestrator,
+    childRegistry: createChildRegistry(),
+    eventReplayBuffer: createEventReplayBuffer(),
+  });
+  try {
+    const { status, body } = await get(port, "/api/monitor/runs/default");
+    assert.equal(status, 200);
+    assert.equal(body.subagents.length, 2);
+    assert.equal(body.subagents[0].session_id, "s-1");
+    assert.equal(body.subagents[0].active, true);
+    assert.equal(body.subagents[1].active, false);
+    assert.equal(body.subagents[1].metrics.toolCount, 3);
+  } finally {
+    server.close();
+  }
+});
+
 // ── executor without getSubagentSnapshot still works ──────────────────
 
 test("/api/monitor/runs/:runId returns subagents:[] when executor lacks the method", async () => {

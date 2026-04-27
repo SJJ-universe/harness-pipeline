@@ -11,6 +11,7 @@ const {
   _formatAge,
   _groupByRunId,
   _activeSubagents,
+  _mergeSubagentSources,
 } = require("../../public/js/monitor/panels/agent-tree");
 const { createMonitorStore } = require("../../public/js/monitor/store");
 
@@ -319,4 +320,134 @@ test("create throws on bad inputs", () => {
     () => create({ root: doc.createElement("div"), store, doc: {} }),
     /no document available/
   );
+});
+
+// ── Slice MB2: _mergeSubagentSources ──────────────────────────────────
+
+test("_mergeSubagentSources prefers server entries on session_id collision", () => {
+  const serverByRun = {
+    default: [
+      { session_id: "s-1", agent_type: "codex-server", startedAt: 100, completedAt: null, active: true },
+    ],
+  };
+  const eventDerived = [
+    { session_id: "s-1", agent_type: "codex-events", runId: "default", ts: 50 }, // collides
+    { session_id: "s-2", agent_type: "claude",      runId: "default", ts: 200 },
+  ];
+  const out = _mergeSubagentSources(serverByRun, eventDerived);
+  assert.equal(out.length, 2);
+  const byId = Object.fromEntries(out.map((s) => [s.session_id, s]));
+  // server wins on s-1.
+  assert.equal(byId["s-1"].agent_type, "codex-server");
+  assert.equal(byId["s-1"].source, "server");
+  // events-only s-2 is preserved.
+  assert.equal(byId["s-2"].source, "events");
+});
+
+test("_mergeSubagentSources tolerates missing or empty inputs", () => {
+  assert.deepEqual(_mergeSubagentSources(null, null), []);
+  assert.deepEqual(_mergeSubagentSources({}, []), []);
+  // Server-only.
+  const out1 = _mergeSubagentSources(
+    { default: [{ session_id: "x", agent_type: "codex" }] },
+    null
+  );
+  assert.equal(out1[0].source, "server");
+  // Events-only.
+  const out2 = _mergeSubagentSources(null, [{ session_id: "y", runId: "default" }]);
+  assert.equal(out2[0].source, "events");
+});
+
+test("_mergeSubagentSources skips entries without session_id", () => {
+  const out = _mergeSubagentSources(
+    { default: [{ agent_type: "codex" }] },               // no session_id
+    [null, undefined, { agent_type: "claude" }]           // no session_id either
+  );
+  assert.deepEqual(out, []);
+});
+
+// ── Slice MB2: render uses server snapshot when present ──────────────
+
+test("render prefers runDetails subagents over events-ring derivation", () => {
+  const doc = makeDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  // Push an old subagent_started event but DON'T push completed (events
+  // ring would normally show this as active).
+  pushEnv(store, { type: "subagent_started", ts: 1, runId: "default", payload: { session_id: "s-1", agent_type: "events-derived-codex" } });
+  // Now hydrate run detail with a different agent_type for the same session_id.
+  store.setRunDetail("default", {
+    run: { id: "default", status: "active" },
+    recentEvents: [],
+    children: [],
+    subagents: [
+      { session_id: "s-1", agent_type: "server-codex", parent_session_id: null, startedAt: 1000, completedAt: null, active: true },
+    ],
+    findings: [],
+    findingsOverflow: null,
+    replayMeta: { hasCheckpoint: false, savedAt: null },
+  });
+  create({ root, store, doc });
+  const items = root._findAllByClass("at-subagent");
+  assert.equal(items.length, 1, "merge dedupes by session_id");
+  // Server name wins.
+  assert.equal(items[0]._firstByClass("at-name")._textContent, "server-codex");
+  assert.ok(items[0].classList.contains("is-source-server"));
+});
+
+test("render shows completed subagents with is-completed class + ✓ prefix", () => {
+  const doc = makeDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  store.setRunDetail("default", {
+    run: { id: "default", status: "active" },
+    recentEvents: [], children: [],
+    subagents: [
+      { session_id: "s-done", agent_type: "codex", startedAt: 1000, completedAt: 1500, active: false },
+    ],
+    findings: [], findingsOverflow: null, replayMeta: { hasCheckpoint: false },
+  });
+  create({ root, store, doc });
+  const item = root._findAllByClass("at-subagent")[0];
+  assert.ok(item.classList.contains("is-completed"));
+  assert.equal(item._firstByClass("at-name")._textContent, "✓ codex");
+});
+
+test("render uses events-ring derivation as fallback when no runDetails subagents", () => {
+  const doc = makeDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  pushEnv(store, { type: "subagent_started", ts: 1, runId: "default", payload: { session_id: "s-fallback", agent_type: "claude" } });
+  // No runDetails set → fallback path active.
+  create({ root, store, doc });
+  const items = root._findAllByClass("at-subagent");
+  assert.equal(items.length, 1);
+  assert.equal(items[0]._firstByClass("at-name")._textContent, "claude");
+  assert.ok(items[0].classList.contains("is-source-events"));
+});
+
+test("server-backed subagent survives events-ring eviction", () => {
+  const doc = makeDoc();
+  const root = doc.createElement("div");
+  // Tiny ring — easy to evict.
+  const store = createMonitorStore({ maxEvents: 3 });
+  // Pre-push subagent_started (will be evicted shortly).
+  pushEnv(store, { type: "subagent_started", ts: 1, runId: "default", payload: { session_id: "s-long", agent_type: "codex" } });
+  // Then push enough other events to evict it.
+  for (let i = 0; i < 5; i++) pushEnv(store, { type: "tool_recorded", ts: 100 + i, runId: "default" });
+  // Hydrate runDetails with the still-active subagent.
+  store.setRunDetail("default", {
+    run: { id: "default", status: "active" },
+    recentEvents: [], children: [],
+    subagents: [
+      { session_id: "s-long", agent_type: "codex", startedAt: 1, completedAt: null, active: true },
+    ],
+    findings: [], findingsOverflow: null, replayMeta: { hasCheckpoint: false },
+  });
+  create({ root, store, doc });
+  const items = root._findAllByClass("at-subagent");
+  // Without server snapshot, derivation would yield 0 (start event evicted).
+  // With MB2 wiring, server snapshot keeps the row alive.
+  assert.equal(items.length, 1);
+  assert.equal(items[0].attributes["data-session-id"], "s-long");
 });
