@@ -407,6 +407,11 @@
   <!-- Slice MA7-b (Phase D, 2026-04-27): stage modal open/close +
        stage-log render + phase-meta header. Same lazy-install pattern. -->
   <script src="js/stage-modal.js"></script>
+  <!-- Slice MA7-c (Phase D, 2026-04-27): subagent_started +
+       subagent_completed handleEvent cases extracted to a dispatcher-
+       registered handler. Proves the pattern future panel-specific
+       handlers can use without touching the legacy switch. -->
+  <script src="js/event-handlers/subagent-events.js"></script>
   <script src="app.js"></script>
 
   <!-- Slice MA1+MA2+MA3 (Phase D): opt-in monitor shell.

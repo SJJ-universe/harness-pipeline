@@ -1060,36 +1060,12 @@ function handleEvent(event) {
       break;
     }
 
-    // Slice D (v4): Claude Code subagent (Agent tool) lifecycle surfaces into
-    // a dedicated tray. The live handlers just delegate to HarnessSubagentTray
-    // which owns animation + fade-out; we only log the summary here.
-    case "subagent_started": {
-      const d = event.data || {};
-      if (window.HarnessSubagentTray) {
-        window.HarnessSubagentTray.start({
-          session_id: d.session_id || d.agent_id,
-          agent_type: d.agent_type,
-          parent_session_id: d.parent_session_id || null,
-        });
-      }
-      addLog("phase",
-        `서브에이전트 시작 — ${d.agent_type || "unknown"} (id=${String(d.session_id || d.agent_id || "").slice(0, 8)})`);
-      break;
-    }
-    case "subagent_completed": {
-      const d = event.data || {};
-      if (window.HarnessSubagentTray) {
-        window.HarnessSubagentTray.complete({
-          session_id: d.session_id || d.agent_id,
-          agent_type: d.agent_type,
-          elapsedMs: d.elapsedMs,
-        });
-      }
-      const sec = Number.isFinite(d.elapsedMs) ? (d.elapsedMs / 1000).toFixed(1) + "s" : "?s";
-      addLog("phase",
-        `서브에이전트 완료 — ${d.agent_type || "unknown"} (${sec})`);
-      break;
-    }
+    // Slice MA7-c (Phase D, 2026-04-27): subagent_started + subagent_completed
+    // cases moved to public/js/event-handlers/subagent-events.js. They now
+    // register via HarnessEventDispatcher.register and short-circuit BEFORE
+    // this switch (see line ~643). Replay-path subagent restoration still
+    // lives in applyReplayEvent above, since the dispatcher doesn't intercept
+    // replay events.
 
     case "general_plan_complete": {
       const triggerBtn = document.getElementById("btn-start-general");
@@ -1875,6 +1851,15 @@ function initEventBindings() {
 
 // ── Init ──
 initEventBindings();
+// Slice MA7-c (Phase D, 2026-04-27): register dispatcher-based event
+// handlers BEFORE the WS opens. The dispatcher fires before the legacy
+// switch in handleEvent, so registered types short-circuit and never
+// reach the switch.
+if (window.HarnessSubagentEvents && typeof window.HarnessSubagentEvents.install === "function") {
+  window.HarnessSubagentEvents.install({
+    addLog: (kind, msg) => addLog(kind, msg),
+  });
+}
 connectWS();
 // Terminal is default tab — init immediately
 initTerminal();
