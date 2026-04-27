@@ -3,6 +3,21 @@ node_modules/
 runs/
 *.log
 npm-debug.log*
+# Tooling caches (Apr 27): uv (Python package manager) leaves a 22k+ file
+# tree under .uv-cache that bloats every codebase scan. Same idea applies
+# to other resolver / build caches that may appear next to package.json.
+.uv-cache/
+.cache/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.parcel-cache/
+.next/
+.nuxt/
+.turbo/
+.svelte-kit/
+coverage/
+.nyc_output/
 .env
 .env.*
 # Slice S1 (Phase 3-S): doc templates are not real secrets — keep tracked.
