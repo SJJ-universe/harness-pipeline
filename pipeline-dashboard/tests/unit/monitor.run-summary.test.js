@@ -11,6 +11,8 @@ const {
   _formatRelative,
   _statusClass,
   _selectedRun,
+  _selectedDetail,
+  _aggregateFindings,
 } = require("../../public/js/monitor/panels/run-summary");
 const { createMonitorStore } = require("../../public/js/monitor/store");
 
@@ -54,6 +56,15 @@ function makeStubElement(tag) {
         }
       }
       return null;
+    },
+    // MC3: findings block tests need to enumerate chips + items.
+    _findAllByClass(cls) {
+      const out = [];
+      for (const c of this.children) {
+        if (c.classList && c.classList.contains(cls)) out.push(c);
+        if (typeof c._findAllByClass === "function") out.push(...c._findAllByClass(cls));
+      }
+      return out;
     },
     _firstByTag(tag) {
       const t = String(tag).toUpperCase();
@@ -276,4 +287,156 @@ test("create throws on bad inputs", () => {
     () => create({ root: doc.createElement("div"), store, doc: {} }),
     /no document available/
   );
+});
+
+// ── Slice MC3: findings + replayMeta from runDetails ──────────────────
+
+test("_selectedDetail returns the detail payload for the selected run", () => {
+  assert.equal(_selectedDetail(null), null);
+  assert.equal(_selectedDetail({}), null);
+  assert.equal(_selectedDetail({ selectedRunId: "x", runDetails: {} }), null);
+  assert.deepEqual(
+    _selectedDetail({
+      selectedRunId: "x",
+      runDetails: { x: { run: { id: "x" }, findings: [] } },
+    }),
+    { run: { id: "x" }, findings: [] }
+  );
+});
+
+test("_aggregateFindings counts each severity bucket + total", () => {
+  const out = _aggregateFindings([
+    { severity: "critical" },
+    { severity: "critical" },
+    { severity: "high" },
+    { severity: "low" },
+    { severity: "weird" },     // unknown → bucketed to note
+    null,                       // skipped
+    {},                         // no severity → note
+  ]);
+  assert.equal(out.critical, 2);
+  assert.equal(out.high, 1);
+  assert.equal(out.medium, 0);
+  assert.equal(out.low, 1);
+  assert.equal(out.note, 2);
+  assert.equal(out.total, 6);
+});
+
+test("MC3: findings block renders when runDetails.findings is non-empty", () => {
+  const doc = makeDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  store.upsertRun("default", { status: "active", templateId: "general" });
+  store.selectRun("default");
+  store.setRunDetail("default", {
+    run: { id: "default", status: "active" },
+    recentEvents: [],
+    children: [],
+    subagents: [],
+    findings: [
+      { severity: "critical", message: "missing test for foo" },
+      { severity: "high", message: "doc nit" },
+      { severity: "low", message: "trailing space" },
+      { severity: "medium", message: "TODO comment" },
+    ],
+    replayMeta: { hasCheckpoint: false },
+  });
+  create({ root, store, doc });
+  const card = root._firstByClass("rs-card");
+  const findings = card._firstByClass("rs-findings");
+  assert.ok(findings, "findings block rendered");
+  // Severity chips show the right counts.
+  const chips = findings._findAllByClass("rs-find-chip");
+  const chipText = chips.map((c) => c._textContent);
+  assert.deepEqual(chipText, ["C:1", "H:1", "M:1", "L:1", "N:0"]);
+  // Top 3 list — sorted by severity (critical first).
+  const items = findings._findAllByClass("rs-find-item");
+  assert.equal(items.length, 3);
+  const top = items[0];
+  // First bullet is the critical one.
+  assert.equal(top._firstByClass("rs-find-sev")._textContent, "[critical]");
+  assert.equal(top._firstByClass("rs-find-msg")._textContent, "missing test for foo");
+});
+
+test("MC3: findings block omitted when runDetails.findings is empty", () => {
+  const doc = makeDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  store.upsertRun("default", { status: "active" });
+  store.selectRun("default");
+  store.setRunDetail("default", {
+    run: { id: "default", status: "active" },
+    recentEvents: [], children: [], subagents: [], findings: [],
+    replayMeta: { hasCheckpoint: false },
+  });
+  create({ root, store, doc });
+  assert.equal(root._firstByClass("rs-findings"), null, "no findings block when empty");
+});
+
+test("MC3: replay-hint renders when replayMeta.hasCheckpoint is true", () => {
+  const doc = makeDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  store.upsertRun("default", { status: "paused" });
+  store.selectRun("default");
+  const NOW = 1_700_000_000_000;
+  store.setRunDetail("default", {
+    run: { id: "default", status: "paused" },
+    recentEvents: [], children: [], subagents: [], findings: [],
+    replayMeta: { hasCheckpoint: true, savedAt: NOW - 60_000 },
+  });
+  create({ root, store, doc, now: () => NOW });
+  const hint = root._firstByClass("rs-replay-hint");
+  assert.ok(hint, "replay hint rendered");
+  assert.match(hint._textContent, /Checkpoint available · saved 1분 전/);
+});
+
+test("MC3: replay-hint omitted when hasCheckpoint is false", () => {
+  const doc = makeDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  store.upsertRun("default", { status: "active" });
+  store.selectRun("default");
+  store.setRunDetail("default", {
+    run: { id: "default", status: "active" },
+    recentEvents: [], children: [], subagents: [], findings: [],
+    replayMeta: { hasCheckpoint: false },
+  });
+  create({ root, store, doc });
+  assert.equal(root._firstByClass("rs-replay-hint"), null);
+});
+
+test("MC3: cold start (no runDetails) → legacy MA4 card alone", () => {
+  // Pre-MC3 behavior must be preserved when the auto-hydrate hasn't
+  // landed yet (e.g. between mount and first onSelect).
+  const doc = makeDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  store.upsertRun("default", { status: "active", templateId: "general" });
+  store.selectRun("default");
+  // NO setRunDetail.
+  create({ root, store, doc });
+  const card = root._firstByClass("rs-card");
+  assert.ok(card);
+  assert.equal(card._firstByClass("rs-findings"), null);
+  assert.equal(card._firstByClass("rs-replay-hint"), null);
+});
+
+test("MC3: live re-render when runDetails arrives mid-flight", () => {
+  const doc = makeDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  store.upsertRun("default", { status: "active" });
+  store.selectRun("default");
+  create({ root, store, doc });
+  // Initially no findings block.
+  assert.equal(root._firstByClass("rs-findings"), null);
+  // Hydrate fires after — store publishes → re-render → block appears.
+  store.setRunDetail("default", {
+    run: { id: "default", status: "active" },
+    recentEvents: [], children: [], subagents: [],
+    findings: [{ severity: "high", message: "fresh hydrate" }],
+    replayMeta: { hasCheckpoint: false },
+  });
+  assert.ok(root._firstByClass("rs-findings"));
 });

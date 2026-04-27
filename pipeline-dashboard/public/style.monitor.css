@@ -303,6 +303,94 @@ body.monitor-active {
   font-style: italic;
 }
 
+/* ── Slice MC3: findings preview + replayMeta indicator ── */
+
+.monitor-shell .rs-findings {
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border, #30363d);
+}
+
+.monitor-shell .rs-findings-header {
+  color: var(--text-dim, #8b949e);
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+}
+
+.monitor-shell .rs-findings-counts {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.monitor-shell .rs-find-chip {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  background: var(--bg-node, #1c2333);
+  color: var(--text-dim, #8b949e);
+  font-family: 'Cascadia Code', 'Consolas', monospace;
+}
+
+.monitor-shell .rs-find-chip.rs-find-critical { background: rgba(248, 81, 73, 0.25); color: var(--red, #f85149); }
+.monitor-shell .rs-find-chip.rs-find-high     { background: rgba(219, 109, 40, 0.25); color: var(--orange, #db6d28); }
+.monitor-shell .rs-find-chip.rs-find-medium   { background: rgba(210, 153, 34, 0.25); color: var(--yellow, #d29922); }
+.monitor-shell .rs-find-chip.rs-find-low      { background: rgba(63, 185, 80, 0.20);  color: var(--green, #3fb950); }
+.monitor-shell .rs-find-chip.rs-find-note     { background: var(--bg-node, #1c2333);  color: var(--text-dim, #8b949e); }
+
+.monitor-shell .rs-findings-top {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.monitor-shell .rs-find-item {
+  display: grid;
+  grid-template-columns: 70px 1fr;
+  gap: 6px;
+  align-items: baseline;
+  font-size: 11px;
+  padding: 2px 0;
+  border-left: 2px solid transparent;
+  padding-left: 6px;
+}
+
+.monitor-shell .rs-find-item.rs-find-critical { border-left-color: var(--red, #f85149); }
+.monitor-shell .rs-find-item.rs-find-high     { border-left-color: var(--orange, #db6d28); }
+.monitor-shell .rs-find-item.rs-find-medium   { border-left-color: var(--yellow, #d29922); }
+.monitor-shell .rs-find-item.rs-find-low      { border-left-color: var(--green, #3fb950); }
+.monitor-shell .rs-find-item.rs-find-note     { border-left-color: var(--text-dim, #8b949e); }
+
+.monitor-shell .rs-find-sev {
+  color: var(--text-dim, #8b949e);
+  font-size: 10px;
+  font-family: 'Cascadia Code', 'Consolas', monospace;
+}
+
+.monitor-shell .rs-find-msg {
+  color: var(--text, #e6edf3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.monitor-shell .rs-replay-hint {
+  margin-top: 8px;
+  padding: 4px 8px;
+  background: rgba(88, 166, 255, 0.10);
+  border-left: 2px solid var(--codex, #58a6ff);
+  color: var(--codex, #58a6ff);
+  font-size: 11px;
+}
+
 /* ── Slice MA5: timeline (centre bottom) ── */
 
 .monitor-shell .tl-list {
