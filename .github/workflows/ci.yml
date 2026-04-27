@@ -28,6 +28,36 @@ on:
   pull_request:
     branches: [master]
 
+# Slice ME1 (Phase D Round ME, 2026-04-27) — CI hygiene.
+#
+# 1. Least-privilege token: this workflow only reads the repo + publishes
+#    nothing, so contents:read is enough. Anything that wants to write
+#    (release notes, deploys) opts in explicitly per-job. Default in
+#    GHA used to be "write everything"; pinning here matches setup-node's
+#    own examples.
+#
+# 2. Concurrency: cancel an in-flight run for the same ref before
+#    starting a new one. Without this, two close-together pushes on
+#    master spawn two ~6-minute jobs that race; the second push's
+#    result is what we want to know about anyway.
+#
+# 3. FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: GitHub starts switching the
+#    default JS-action runtime to Node 24 on 2026-06-02 and removes
+#    Node 20 entirely on 2026-09-16. Opting in early means we discover
+#    Node-24 incompatibilities NOW, not on the day GitHub flips the
+#    default. The actions themselves still resolve via the @v4 tags;
+#    this env var only changes the runtime they execute under.
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 jobs:
   test:
     name: Test + readiness gate
