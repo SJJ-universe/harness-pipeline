@@ -400,6 +400,10 @@
        on first invocation. -->
   <script src="js/terminal-mount.js"></script>
   <script src="js/general-pipeline-modal.js"></script>
+  <!-- Slice MA7-a (Phase D, 2026-04-27): pure-DOM render helpers for
+       tool feed + critique timeline + finding counts + status badge.
+       Must load before app.js since app.js uses _ensureToolFeedRender. -->
+  <script src="js/tool-feed-render.js"></script>
   <script src="app.js"></script>
 
   <!-- Slice MA1+MA2+MA3 (Phase D): opt-in monitor shell.

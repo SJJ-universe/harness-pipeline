@@ -1274,41 +1274,30 @@ function showFindingsBadge(node, count) {
 
 
 // ── Tool Feed + Critique Timeline ──
+//
+// Slice MA7-a (Phase D, 2026-04-27): the pure-DOM render helpers
+// (renderToolFeed / renderCritiqueTimeline / renderFindingCounts /
+// setBadge) have been lifted to public/js/tool-feed-render.js.
+// app.js still owns the toolFeed / critiqueTimeline / findings arrays
+// and just calls the lifted helpers after each mutation. Keeping state
+// here avoids forcing every caller through a getter while still
+// compressing app.js by ~80 lines.
+let __toolFeedRender = null;
+function _ensureToolFeedRender() {
+  if (__toolFeedRender) return __toolFeedRender;
+  if (typeof window === "undefined" || !window.HarnessToolFeedRender) return null;
+  __toolFeedRender = window.HarnessToolFeedRender.install({});
+  return __toolFeedRender;
+}
+
 function pushToolFeed(entry) {
   toolFeed.unshift(entry);
   if (toolFeed.length > TOOL_FEED_LIMIT) toolFeed.length = TOOL_FEED_LIMIT;
   renderToolFeed();
 }
-
 function renderToolFeed() {
-  const el = document.getElementById("tool-feed");
-  const counter = document.getElementById("tool-feed-counter");
-  if (!el) return;
-  if (counter) counter.textContent = toolFeed.length;
-  if (toolFeed.length === 0) {
-    el.textContent = "";
-    el.appendChild(Object.assign(document.createElement("div"), { className: "tool-empty", textContent: "아직 기록된 툴 호출이 없습니다." }));
-    return;
-  }
-  el.textContent = "";
-  for (const e of toolFeed) {
-    const div = document.createElement("div");
-    div.className = e.blocked ? "tool-entry blocked" : "tool-entry";
-    const time = Object.assign(document.createElement("span"), { className: "tool-time", textContent: formatHMS(e.ts) });
-    const phase = Object.assign(document.createElement("span"), { className: "tool-phase", textContent: `[${e.phase}]` });
-    const tool = Object.assign(document.createElement("span"), { className: "tool-tool", textContent: e.tool });
-    div.appendChild(time);
-    div.appendChild(phase);
-    div.appendChild(tool);
-    if (e.blocked) {
-      div.appendChild(Object.assign(document.createElement("span"), { className: "tool-blocked", textContent: "BLOCK" }));
-      div.appendChild(Object.assign(document.createElement("span"), { className: "tool-reason", textContent: e.reason || (e.allowed || []).join(",") }));
-    } else {
-      div.appendChild(document.createElement("span"));
-      div.appendChild(Object.assign(document.createElement("span"), { className: "tool-input", textContent: e.input || "" }));
-    }
-    el.appendChild(div);
-  }
+  const r = _ensureToolFeedRender();
+  if (r) r.renderToolFeed(toolFeed);
 }
 
 function pushCritique(entry) {
@@ -1316,54 +1305,14 @@ function pushCritique(entry) {
   if (critiqueTimeline.length > CRITIQUE_TIMELINE_LIMIT) critiqueTimeline.length = CRITIQUE_TIMELINE_LIMIT;
   renderCritiqueTimeline();
 }
-
 function renderCritiqueTimeline() {
-  const el = document.getElementById("critique-timeline");
-  const counter = document.getElementById("critique-counter");
-  if (!el) return;
-  if (counter) counter.textContent = critiqueTimeline.length;
-  if (critiqueTimeline.length === 0) {
-    el.textContent = "";
-    el.appendChild(Object.assign(document.createElement("div"), { className: "tool-empty", textContent: "아직 수신된 비평이 없습니다." }));
-    return;
-  }
-  el.textContent = "";
-  for (const e of critiqueTimeline) {
-    const entry = document.createElement("div");
-    entry.className = "critique-entry";
-    const head = document.createElement("div");
-    head.className = "critique-head";
-    const iter = e.iteration != null ? ` iter ${e.iteration}` : "";
-    head.appendChild(Object.assign(document.createElement("span"), { className: "critique-time", textContent: formatHMS(e.ts) }));
-    head.appendChild(Object.assign(document.createElement("span"), { className: "critique-phase", textContent: `[${e.phase}${iter}]` }));
-    const chipsSpan = document.createElement("span");
-    chipsSpan.className = "critique-chips";
-    for (const k of ["critical", "high", "medium", "low", "note"]) {
-      if (e.counts[k] > 0) {
-        chipsSpan.appendChild(Object.assign(document.createElement("span"), { className: `sev-chip sev-${k}`, textContent: `${k.charAt(0).toUpperCase()}:${e.counts[k]}` }));
-      }
-    }
-    head.appendChild(chipsSpan);
-    entry.appendChild(head);
-    if (e.summary) {
-      entry.appendChild(Object.assign(document.createElement("div"), { className: "critique-summary", textContent: e.summary }));
-    }
-    for (const f of (e.topFindings || [])) {
-      const finding = document.createElement("div");
-      finding.className = "critique-finding";
-      finding.appendChild(Object.assign(document.createElement("span"), { className: `sev-dot sev-${f.severity}` }));
-      finding.appendChild(document.createTextNode(f.note));
-      entry.appendChild(finding);
-    }
-    el.appendChild(entry);
-  }
+  const r = _ensureToolFeedRender();
+  if (r) r.renderCritiqueTimeline(critiqueTimeline);
 }
 
 function renderFindingCounts() {
-  for (const k of ["critical", "high", "medium", "low", "note"]) {
-    const el = document.getElementById(`count-${k}`);
-    if (el) el.textContent = findings[k];
-  }
+  const r = _ensureToolFeedRender();
+  if (r) r.renderFindingCounts(findings);
 }
 
 // Slice AC (Phase 2.5): summarizeToolInput / shortPath / formatHMS moved
@@ -1429,9 +1378,8 @@ function handleError(data, stageKeys) {
 
 
 function setBadge(cls, text) {
-  const el = document.getElementById("status-badge");
-  el.className = "badge " + cls;
-  el.textContent = text;
+  const r = _ensureToolFeedRender();
+  if (r) r.setBadge(cls, text);
 }
 
 // ── Timer (internal tracking only) ──
