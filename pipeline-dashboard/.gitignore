@@ -5,6 +5,10 @@ runs/
 npm-debug.log*
 .env
 .env.*
+# Slice S1 (Phase 3-S): doc templates are not real secrets — keep tracked.
+!.env.example
+!.env.sample
+!.env.template
 dist/
 build/
 .DS_Store

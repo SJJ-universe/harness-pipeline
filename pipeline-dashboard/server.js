@@ -36,7 +36,7 @@ const builtInTemplates = require("./pipeline-templates.json");
 // Slice E (v4): user-uploaded "custom-*" templates live in .harness/templates.json
 // and get merged in at startup + after each successful upsert/delete.
 const { createTemplateStore } = require("./src/templates/templateStore");
-const { createAuthMiddleware, isLoopbackAddress } = require("./src/security/auth");
+const { createAuthMiddleware, isLoopbackAddress, isLoopbackHost } = require("./src/security/auth");
 const { resolveInsideRoot } = require("./src/security/pathSandbox");
 const {
   validateCodexTrigger,
@@ -233,7 +233,53 @@ function gracefulShutdown(reason = "manual") {
   setTimeout(() => process.exit(0), 400);
 }
 
+// Slice S1 (Phase 3-S, 2026-04-27) — WS upgrade auth gate.
+//
+// Pipeline event WebSocket previously had no origin/loopback/token check;
+// only the terminal WS branch (below) verified credentials. With
+// HARNESS_ALLOW_REMOTE=1 + HARNESS_HOST=0.0.0.0 a remote attacker could
+// open a pipeline WS and read every broadcast (tool calls, findings,
+// checkpoints) without a token. This helper applies one consistent policy
+// for ANY incoming ws connection (terminal or pipeline) — loopback always
+// passes (frictionless local dev), non-loopback requires HARNESS_ALLOW_REMOTE
+// AND a valid ?token=…  AND a trusted Origin header (when present).
+function verifyWsConnection(req) {
+  const remote = req && req.socket ? req.socket.remoteAddress : null;
+  if (isLoopbackAddress(remote)) {
+    return { ok: true };
+  }
+  if (!ALLOW_REMOTE) {
+    return { ok: false, code: 1008, reason: "non-loopback ws disabled" };
+  }
+  let suppliedToken = "";
+  try {
+    const wsUrl = new URL(req.url || "/", `http://${(req.headers && req.headers.host) || "localhost"}`);
+    suppliedToken = wsUrl.searchParams.get("token") || "";
+  } catch (_) { /* malformed URL → no token */ }
+  if (!auth.validateToken(suppliedToken)) {
+    return { ok: false, code: 1008, reason: "missing or invalid harness token" };
+  }
+  const originHeader = req.headers && req.headers.origin;
+  if (originHeader) {
+    let originHost = "";
+    try { originHost = new URL(originHeader).hostname.toLowerCase(); } catch (_) { /* malformed */ }
+    const configuredHost = String(HOST || "").toLowerCase();
+    if (!isLoopbackHost(originHost) && originHost && originHost !== configuredHost) {
+      return { ok: false, code: 1008, reason: "untrusted ws origin" };
+    }
+  }
+  return { ok: true };
+}
+
 wss.on("connection", (ws, req) => {
+  // Slice S1: gate first — terminal-specific token check below remains as a
+  // belt-and-suspenders second layer for the /terminal subpath.
+  const verdict = verifyWsConnection(req);
+  if (!verdict.ok) {
+    try { ws.close(verdict.code, verdict.reason); } catch (_) {}
+    return;
+  }
+
   // ── Terminal WebSocket ──
   if (req.url.startsWith("/terminal")) {
     const terminalUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
