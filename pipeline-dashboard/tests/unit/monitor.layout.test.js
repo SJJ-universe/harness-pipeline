@@ -358,6 +358,72 @@ test("MA6: panels.agentTree override is honored + onSelect routes through store.
   assert.equal(stubAgentTree._destroyed, true);
 });
 
+// ── MB4-a: legacy-bridge install / destroy ───────────────────────────
+
+test("MB4-a: bridge override is invoked with store + normalize, destroy fans out", async () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  let bridgeOpts = null;
+  const stubBridge = {
+    install(opts) {
+      bridgeOpts = opts;
+      return { destroy() { stubBridge._destroyed = true; } };
+    },
+  };
+  const handle = mount({
+    root, store, normalize,
+    hydrate: () => Promise.resolve({ snapshot: store.snapshot(), raw: {} }),
+    doc,
+    bridge: stubBridge,
+    bridgeRefreshIntervalMs: 0,
+  });
+  await handle.hydrationPromise;
+  assert.ok(bridgeOpts, "bridge.install was called");
+  assert.equal(bridgeOpts.store, store);
+  assert.equal(bridgeOpts.normalize, normalize);
+  assert.equal(bridgeOpts.refreshIntervalMs, 0);
+  assert.ok(handle._bridgeHandle, "bridge handle exposed for destroy");
+  handle.destroy();
+  assert.equal(stubBridge._destroyed, true);
+});
+
+test("MB4-a: bridge install throw is caught + surfaces in error box", async () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  const angryBridge = {
+    install() { throw new Error("bridge boom"); },
+  };
+  const handle = mount({
+    root, store, normalize,
+    hydrate: () => Promise.resolve({ snapshot: store.snapshot(), raw: {} }),
+    doc,
+    bridge: angryBridge,
+  });
+  await handle.hydrationPromise;
+  assert.equal(handle._errorBox.hasAttribute("hidden"), false);
+  assert.match(handle._errorBox._textContent, /bridge boom/);
+});
+
+test("MB4-a: layout works without a bridge (graceful — older deployments)", async () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  const handle = mount({
+    root, store, normalize,
+    hydrate: () => Promise.resolve({ snapshot: store.snapshot(), raw: {} }),
+    doc,
+    bridge: null,                  // explicit no-bridge
+  });
+  await handle.hydrationPromise;
+  // Skeleton + panels still present.
+  assert.equal(root._findAllByClass("global-bar").length, 1);
+  assert.equal(handle._bridgeHandle, null);
+  // destroy is a no-op for the bridge slot — must not throw.
+  assert.doesNotThrow(() => handle.destroy());
+});
+
 // ── panel injection (via panels override) ─────────────────────────────
 
 test("mount uses the panels.globalBar override when provided", async () => {

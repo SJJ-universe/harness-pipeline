@@ -1,0 +1,162 @@
+// Slice MB4-a (Phase D Round 2, 2026-04-27) — HarnessMonitorLegacyBridge.
+//
+// Without this bridge the monitor store is a snapshot frozen at the
+// moment hydrateMonitorStore returned. The legacy WebSocket stream
+// (handled by app.js::handleEvent → tab bar / tool feed / etc.) keeps
+// flowing but never reaches the monitor store, so the timeline + agent
+// tree + inspector show stale data.
+//
+// The bridge fixes that with two cheap mechanisms:
+//
+//   1. Tap into HarnessEventDispatcher (MB4-a addition) — every event
+//      app.js receives is mirrored to a wildcard tap. The tap normalizes
+//      via HarnessMonitorNormalizer and pushes to store.pushEvent. No
+//      changes to app.js's existing routing.
+//
+//   2. Periodic /api/server/info refresh — server summary + active
+//      children don't flow through the WS event stream. A small
+//      setInterval (default 5s, matching app.js's existing health poll
+//      cadence) re-fetches and applies via store.setServerSummary +
+//      setActiveChildren. Skipped entirely if no fetch is available
+//      (Node test envs).
+//
+// Lifecycle:
+//   install({...}) → { destroy(), refresh() }
+//   destroy() unsubscribes the tap and clears the interval. Must be
+//   called when the monitor shell is closed/torn down to avoid leaks.
+//
+// All inputs are optional except `store` and `normalize`. Test envs
+// inject stubs for dispatcher, fetch, setInterval — production wiring
+// reads them from window.* defaults.
+
+(function (root, factory) {
+  const api = factory();
+  if (typeof module !== "undefined" && module.exports) module.exports = api;
+  if (typeof window !== "undefined") root.HarnessMonitorLegacyBridge = api;
+})(typeof window !== "undefined" ? window : globalThis, function () {
+  const DEFAULT_REFRESH_MS = 5000;
+  const DEFAULT_INFO_URL = "/api/server/info";
+
+  function install({
+    store,
+    normalize,
+    dispatcher = null,           // window.HarnessEventDispatcher in browser
+    fetchImpl = null,            // window.fetch in browser
+    setIntervalFn = null,        // setInterval in browser
+    clearIntervalFn = null,      // clearInterval in browser
+    refreshIntervalMs = DEFAULT_REFRESH_MS,
+    infoUrl = DEFAULT_INFO_URL,
+    headers = {},
+  } = {}) {
+    if (!store || typeof store.pushEvent !== "function") {
+      throw new Error("legacyBridge.install: store must be a HarnessMonitorStore");
+    }
+    if (typeof normalize !== "function") {
+      throw new Error("legacyBridge.install: normalize must be a function");
+    }
+    const _dispatcher = dispatcher
+      || (typeof globalThis !== "undefined" && globalThis.HarnessEventDispatcher);
+    const _fetch = fetchImpl
+      || (typeof fetch === "function" ? fetch : null);
+    const _setInterval = setIntervalFn
+      || (typeof setInterval !== "undefined" ? setInterval : null);
+    const _clearInterval = clearIntervalFn
+      || (typeof clearInterval !== "undefined" ? clearInterval : null);
+
+    let stats = { eventsForwarded: 0, eventsDropped: 0, refreshes: 0, refreshErrors: 0 };
+    let unsubscribeTap = null;
+    let intervalId = null;
+
+    // ── 1. Wildcard tap → store.pushEvent ──
+    function _onLegacyEvent(event) {
+      const env = normalize(event);
+      if (!env) {
+        stats.eventsDropped++;
+        return;
+      }
+      try {
+        store.pushEvent(env);
+        stats.eventsForwarded++;
+      } catch (_) {
+        // store mutation can't fail under normal operation, but be defensive
+        stats.eventsDropped++;
+      }
+    }
+    if (_dispatcher && typeof _dispatcher.addTap === "function") {
+      unsubscribeTap = _dispatcher.addTap(_onLegacyEvent);
+    }
+
+    // ── 2. Periodic /api/server/info refresh ──
+    async function refresh() {
+      if (typeof _fetch !== "function") return null;
+      try {
+        const res = await _fetch(infoUrl, {
+          method: "GET",
+          headers: { Accept: "application/json", ...headers },
+        });
+        if (!res || typeof res.ok !== "boolean") {
+          stats.refreshErrors++;
+          return null;
+        }
+        if (!res.ok) {
+          stats.refreshErrors++;
+          return null;
+        }
+        const payload = typeof res.json === "function" ? await res.json() : null;
+        if (!payload || typeof payload !== "object") {
+          stats.refreshErrors++;
+          return null;
+        }
+        // Apply known fields. Other fields ignored — keep store schema strict.
+        if (typeof store.setServerSummary === "function") {
+          // /api/server/info doesn't carry bootTime; preserve previous if any
+          // by spreading the existing summary shape onto the new fields.
+          const prev = (store.snapshot && store.snapshot().server) || {};
+          store.setServerSummary({
+            ...prev,
+            pid: payload.pid,
+            uptime: payload.uptime,
+            supervised: payload.supervised,
+            clients: payload.clients,
+            graceMs: payload.graceMs,
+            shutdownArmed: payload.shutdownArmed,
+            activeChildCount: payload.activeChildCount,
+          });
+        }
+        if (typeof store.setActiveChildren === "function" && Array.isArray(payload.activeChildren)) {
+          store.setActiveChildren(payload.activeChildren);
+        }
+        stats.refreshes++;
+        return payload;
+      } catch (_) {
+        stats.refreshErrors++;
+        return null;
+      }
+    }
+    if (typeof _setInterval === "function" && refreshIntervalMs > 0) {
+      intervalId = _setInterval(() => { refresh(); }, refreshIntervalMs);
+      // Don't run an initial refresh here — the layout's hydrate already
+      // populates the store on mount. The first interval tick takes over
+      // 5s later, which keeps boot-time noise low.
+    }
+
+    function destroy() {
+      try { unsubscribeTap && unsubscribeTap(); } catch (_) {}
+      unsubscribeTap = null;
+      try {
+        if (intervalId !== null && typeof _clearInterval === "function") {
+          _clearInterval(intervalId);
+        }
+      } catch (_) {}
+      intervalId = null;
+    }
+
+    return {
+      destroy,
+      refresh,
+      stats: () => ({ ...stats }),
+    };
+  }
+
+  return { install, DEFAULT_REFRESH_MS, DEFAULT_INFO_URL };
+});

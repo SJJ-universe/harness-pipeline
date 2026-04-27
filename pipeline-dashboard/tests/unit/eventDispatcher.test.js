@@ -109,3 +109,100 @@ test("registered handler receives full event object (type + data)", () => {
     assert.equal(received.data.tool, "Edit");
   });
 });
+
+// ── Slice MB4-a (Phase D Round 2): wildcard taps ─────────────────────
+
+test("addTap accepts only functions", () => {
+  withFreshRegistry(() => {
+    assert.throws(() => dispatcher.addTap(null), /must be a function/);
+    assert.throws(() => dispatcher.addTap(42),  /must be a function/);
+  });
+});
+
+test("notifyTaps fires every tap with the same event", () => {
+  withFreshRegistry(() => {
+    const seenA = []; const seenB = [];
+    dispatcher.addTap((ev) => seenA.push(ev));
+    dispatcher.addTap((ev) => seenB.push(ev));
+    dispatcher.notifyTaps({ type: "x", data: { v: 1 } });
+    dispatcher.notifyTaps({ type: "y", data: { v: 2 } });
+    assert.equal(seenA.length, 2);
+    assert.equal(seenB.length, 2);
+    assert.equal(seenA[1].type, "y");
+  });
+});
+
+test("notifyTaps fires for events with NO registered handler", () => {
+  // The whole point of taps — wildcard observation.
+  withFreshRegistry(() => {
+    let seen = null;
+    dispatcher.addTap((ev) => { seen = ev; });
+    dispatcher.notifyTaps({ type: "totally_made_up", data: {} });
+    assert.ok(seen);
+    assert.equal(seen.type, "totally_made_up");
+  });
+});
+
+test("addTap returns an unsubscribe handle", () => {
+  withFreshRegistry(() => {
+    let calls = 0;
+    const off = dispatcher.addTap(() => { calls++; });
+    dispatcher.notifyTaps({ type: "x" });
+    off();
+    dispatcher.notifyTaps({ type: "x" });
+    assert.equal(calls, 1);
+  });
+});
+
+test("removeTap returns true when the tap existed", () => {
+  withFreshRegistry(() => {
+    const fn = () => {};
+    dispatcher.addTap(fn);
+    assert.equal(dispatcher.removeTap(fn), true);
+    assert.equal(dispatcher.removeTap(fn), false);
+  });
+});
+
+test("addTap is idempotent on the same fn ref (Set semantics)", () => {
+  withFreshRegistry(() => {
+    const fn = () => {};
+    dispatcher.addTap(fn);
+    dispatcher.addTap(fn);
+    assert.equal(dispatcher.tapCount(), 1);
+  });
+});
+
+test("a throwing tap doesn't prevent other taps from running", () => {
+  withFreshRegistry(() => {
+    dispatcher.addTap(() => { throw new Error("bad tap"); });
+    let other = 0;
+    dispatcher.addTap(() => { other++; });
+    assert.doesNotThrow(() => dispatcher.notifyTaps({ type: "x" }));
+    assert.equal(other, 1);
+  });
+});
+
+test("a tap can add or remove other taps during iteration without crashing", () => {
+  withFreshRegistry(() => {
+    const second = () => {};
+    dispatcher.addTap(() => { dispatcher.addTap(second); });
+    dispatcher.addTap(() => { dispatcher.removeTap(second); });
+    assert.doesNotThrow(() => dispatcher.notifyTaps({ type: "x" }));
+  });
+});
+
+test("notifyTaps with zero taps is a no-op (cheap fast-path)", () => {
+  withFreshRegistry(() => {
+    assert.doesNotThrow(() => dispatcher.notifyTaps({ type: "x" }));
+  });
+});
+
+test("_resetForTests clears both registry and taps", () => {
+  withFreshRegistry(() => {
+    dispatcher.register("a", () => {});
+    dispatcher.addTap(() => {});
+    dispatcher._resetForTests();
+    assert.equal(dispatcher.size(), 0);
+    assert.equal(dispatcher.tapCount(), 0);
+  });
+});

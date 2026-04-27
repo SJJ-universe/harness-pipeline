@@ -37,10 +37,12 @@ test("index.html loads all monitor UMD modules", () => {
   // MA4 added: panels/run-tree + panels/run-summary.
   // MA5 added: panels/timeline + panels/inspector + panels/bottom-dock.
   // MA6 added: panels/agent-tree.
+  // MB4-a added: legacy-bridge.
   const required = [
     "js/monitor/store.js",
     "js/monitor/normalizer.js",
     "js/monitor/hydrate.js",
+    "js/monitor/legacy-bridge.js",
     "js/monitor/panels/global-bar.js",
     "js/monitor/panels/run-tree.js",
     "js/monitor/panels/run-summary.js",
@@ -53,6 +55,13 @@ test("index.html loads all monitor UMD modules", () => {
   for (const src of required) {
     assert.match(HTML, new RegExp(`<script src="${src.replace(/\//g, "\\/")}"`), `script tag for ${src}`);
   }
+});
+
+test("MB4-a legacy-bridge loads BEFORE layout.js", () => {
+  const bridgeIdx = HTML.indexOf("<script src=\"js/monitor/legacy-bridge.js\"></script>");
+  const layoutIdx = HTML.indexOf("<script src=\"js/monitor/layout.js\"></script>");
+  assert.ok(bridgeIdx > -1 && layoutIdx > -1);
+  assert.ok(bridgeIdx < layoutIdx, "legacy-bridge must load before layout");
 });
 
 test("MA6 agent-tree loads BEFORE layout.js (so layout.js can resolve it)", () => {

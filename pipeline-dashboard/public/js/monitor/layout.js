@@ -1,15 +1,20 @@
-// Slice MA3+MA4+MA5+MA6 (Phase D, 2026-04-27) — HarnessMonitorLayout.
+// Slice MA3+MA4+MA5+MA6+MB4-a (Phase D, 2026-04-27) — HarnessMonitorLayout.
 //
 // Mounts the monitor shell into a host element, kicks off hydration, and
 // instantiates each panel.
-//   - MA3 — global-bar (top) + gb-error
-//   - MA4 — shell-body row: run-rail (left) + center-workspace (centre)
-//   - MA5 — center-workspace splits into cw-summary (top) + cw-timeline
-//           (bottom); shell-body grows a right-inspector column;
-//           shell-dock (raw event log) sits below shell-body.
-//   - MA6 — run-rail splits into run-rail-section (run-tree mount) and
-//           agent-rail-section (agent-tree mount); inspector picks up
-//           kind:"child" + kind:"subagent" via store.selectItem.
+//   - MA3   — global-bar (top) + gb-error
+//   - MA4   — shell-body row: run-rail (left) + center-workspace (centre)
+//   - MA5   — center-workspace splits into cw-summary (top) + cw-timeline
+//             (bottom); shell-body grows a right-inspector column;
+//             shell-dock (raw event log) sits below shell-body.
+//   - MA6   — run-rail splits into run-rail-section (run-tree mount) and
+//             agent-rail-section (agent-tree mount); inspector picks up
+//             kind:"child" + kind:"subagent" via store.selectItem.
+//   - MB4-a — installs HarnessMonitorLegacyBridge so live WS events
+//             (via app.js → HarnessEventDispatcher tap) flow into the
+//             store, and /api/server/info polls keep server summary +
+//             active children fresh. Without this the store is frozen
+//             at hydration time. Bridge handle returned for destroy().
 //
 // Default behaviour: completely opt-in. The init script in index.html
 // only invokes mount() when ?monitor=1 is in the URL or
@@ -72,6 +77,18 @@
     return null;
   }
 
+  // Slice MB4-a: resolve the legacy bridge factory. Tests pass an
+  // explicit override; browser uses window.HarnessMonitorLegacyBridge.
+  function _resolveBridge(override) {
+    if (override && typeof override.install === "function") return override;
+    if (typeof globalThis !== "undefined"
+        && globalThis.HarnessMonitorLegacyBridge
+        && typeof globalThis.HarnessMonitorLegacyBridge.install === "function") {
+      return globalThis.HarnessMonitorLegacyBridge;
+    }
+    return null;
+  }
+
   function mount({
     root,
     store,
@@ -81,6 +98,12 @@
     panels = {},
     hydrate,
     doc,
+    // Slice MB4-a: legacy-bridge override for tests; browser falls back
+    // to window.HarnessMonitorLegacyBridge.
+    bridge,
+    // Slice MB4-a: optional bridge config — refreshIntervalMs (0 disables
+    // the periodic /api/server/info poll, useful in tests).
+    bridgeRefreshIntervalMs,
   } = {}) {
     if (!root || typeof root.appendChild !== "function") {
       throw new Error("HarnessMonitorLayout.mount: root must be an element");
@@ -200,13 +223,30 @@
     root.appendChild(shellBody);
     root.appendChild(shellDock);
 
-    function showError(msg) {
+    // Slice MB4-a: keyed error sources so hydrate's success-path doesn't
+    // wipe a bridge's install failure (and vice versa). Each caller
+    // passes a key ("hydrate" / "bridge") and only its own message gets
+    // cleared. The rendered text concatenates all live messages.
+    const _errorByKey = new Map();
+    function _renderError() {
+      if (_errorByKey.size === 0) {
+        errorBox.setAttribute("hidden", "");
+        errorBox.textContent = "";
+        return;
+      }
       errorBox.removeAttribute("hidden");
-      errorBox.textContent = "monitor: " + msg;
+      errorBox.textContent = "monitor: "
+        + Array.from(_errorByKey.values()).join(" • ");
     }
-    function clearError() {
-      errorBox.setAttribute("hidden", "");
-      errorBox.textContent = "";
+    function showError(msg, key) {
+      _errorByKey.set(key || "general", msg);
+      _renderError();
+    }
+    function clearError(key) {
+      const k = key || "general";
+      if (!_errorByKey.has(k)) return;
+      _errorByKey.delete(k);
+      _renderError();
     }
 
     // ── Mount the global-bar panel ──
@@ -307,6 +347,24 @@
       });
     }
 
+    // ── Slice MB4-a: install the legacy bridge BEFORE hydration so any
+    //    events that arrive while bootstrap is in flight are captured. ──
+    let bridgeHandle = null;
+    const Bridge = _resolveBridge(bridge);
+    if (Bridge && typeof normalize === "function") {
+      try {
+        const bridgeOpts = { store, normalize, fetchImpl, headers };
+        if (typeof bridgeRefreshIntervalMs === "number") {
+          bridgeOpts.refreshIntervalMs = bridgeRefreshIntervalMs;
+        }
+        bridgeHandle = Bridge.install(bridgeOpts);
+      } catch (err) {
+        // Bridge install must never abort the layout mount. Surface in
+        // the error box (keyed) but keep going so panels still render.
+        showError("bridge: " + (err && err.message ? err.message : String(err)), "bridge");
+      }
+    }
+
     // ── Kick off hydration ──
     const hydrateFn = _resolveHydrate(hydrate);
     let hydrationPromise = Promise.resolve();
@@ -317,9 +375,9 @@
         fetchImpl,
         headers,
       })
-        .then(() => clearError())
+        .then(() => clearError("hydrate"))
         .catch((err) => {
-          showError(err && err.message ? err.message : String(err));
+          showError(err && err.message ? err.message : String(err), "hydrate");
         });
     }
 
@@ -333,6 +391,9 @@
         try { inspectorHandle && inspectorHandle.destroy && inspectorHandle.destroy(); } catch (_) {}
         try { bottomDockHandle && bottomDockHandle.destroy && bottomDockHandle.destroy(); } catch (_) {}
         try { agentTreeHandle && agentTreeHandle.destroy && agentTreeHandle.destroy(); } catch (_) {}
+        // Slice MB4-a: tear down the bridge LAST so any final events that
+        // panels might emit during destroy still reach the store cleanly.
+        try { bridgeHandle && bridgeHandle.destroy && bridgeHandle.destroy(); } catch (_) {}
         root.classList.remove("is-active");
         root.classList.remove("monitor-shell");
         if (typeof root.setAttribute === "function") root.setAttribute("hidden", "");
@@ -359,6 +420,8 @@
       _agentRailSection: agentRailSection,
       _runTreeMount: runTreeMount,
       _agentTreeMount: agentTreeMount,
+      // MB4-a hooks
+      _bridgeHandle: bridgeHandle,
     };
   }
 

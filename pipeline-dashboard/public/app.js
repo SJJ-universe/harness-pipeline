@@ -597,6 +597,13 @@ function applyReplayEvent(event) {
 }
 
 function handleEvent(event) {
+  // Slice MB4-a (Phase D Round 2): notify wildcard taps FIRST so the
+  // monitor legacy-bridge sees every event regardless of legacy
+  // routing. Throws are swallowed inside notifyTaps — no abort risk.
+  if (window.HarnessEventDispatcher && typeof window.HarnessEventDispatcher.notifyTaps === "function") {
+    window.HarnessEventDispatcher.notifyTaps(event);
+  }
+
   // Slice U (v6): feed every event's runId into the tab bar so new runs
   // auto-surface as tabs. In single-active mode (Slice V not yet unlocked)
   // all events carry runId="default", which is already seeded — so the bar
