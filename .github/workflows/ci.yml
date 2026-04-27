@@ -1,0 +1,87 @@
+# Slice MD2 (Phase D Round MD, 2026-04-27) — CI workflow.
+#
+# Goal: turn the readiness rubric from a script that lives in /scripts
+# into a hard PR gate. After this workflow lands, regressions in:
+#   - any of the 936 unit tests
+#   - any of the 197 integration tests
+#   - the legacy 3-phase suite
+#   - the server-boot smoke test
+#   - hook deployment shape (.claude/settings.json)
+#   - readiness rubric (drops below 14/15 release-ready)
+#   - doc freshness (scorecard.md or readiness-rubric.md AUTO markers
+#     out of sync with runner output)
+# all fail the build.
+#
+# Audit:moderate runs as informational — vulnerabilities go to the
+# issue tracker, not the branch gate, so a transient advisory cannot
+# block unrelated work.
+#
+# Why no matrix: the harness only ships against Node 24 (the runtime
+# the project's pinned to). Adding 18/20/22 would expand the test
+# surface without representing actual deployment risk.
+
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  test:
+    name: Test + readiness gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    defaults:
+      run:
+        working-directory: pipeline-dashboard
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: pipeline-dashboard/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Unit tests
+        run: npm run test:unit
+
+      - name: Integration tests
+        run: npm run test:integration
+
+      - name: Legacy phase tests
+        run: npm run test:legacy
+
+      - name: Smoke tests (server boot)
+        run: npm run test:smoke
+
+      - name: Hook deployment validator
+        run: npm run verify:hooks
+
+      # Informational only — moderate npm advisories surface here but
+      # don't block the gate. Severe vulns surface via Dependabot.
+      - name: npm audit (moderate, informational)
+        run: npm run audit:moderate
+        continue-on-error: true
+
+      # Live readiness check — exits 0 only when total ≥ 14/15. The
+      # script spawns its own throwaway harness on port 5099, runs the
+      # http endpoint checks alongside the in-process behavior checks,
+      # then prints the human-readable star table.
+      - name: Readiness gate (live, ≥ 14/15)
+        run: npm run readiness:check
+
+      # Doc freshness gate — fails with a clear "STALE: ..." message
+      # when scorecard.md or readiness-rubric.md AUTO markers don't
+      # match the runner output. The fix is `npm run scorecard:sync`.
+      - name: Scorecard freshness gate
+        run: npm run scorecard:check
