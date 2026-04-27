@@ -5,6 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SJ Harness Engine</title>
   <link rel="stylesheet" href="style.css" />
+  <!-- Slice MA3 (Phase D, 2026-04-27): monitor shell stylesheet. Scoped
+       under .monitor-shell so it only affects the new shell DOM (default
+       hidden — needs ?monitor=1 opt-in to render). -->
+  <link rel="stylesheet" href="style.monitor.css" />
   <!-- Slice P (v6): SRI integrity hashes for xterm CDN resources. Obtained
        via `npm run sri:print`. On version bump, re-run sri:print and paste
        the new hashes here. If the fetched file doesn't match, the browser
@@ -327,6 +331,14 @@
        polite default lets mid-update inserts stay well-behaved. -->
   <div id="toast-container" class="toast-container" role="status" aria-live="polite" aria-atomic="false"></div>
 
+  <!-- Slice MA3 (Phase D, 2026-04-27): monitor shell mount boundary.
+       Default hidden — populated only when the inline init below detects
+       ?monitor=1 in the URL or localStorage.harnessMonitor === "1". This
+       keeps the legacy dashboard UX 100% unchanged for users who haven't
+       opted in. The shell is fixed-positioned so it overlays at the top
+       without disturbing the existing flex layout. -->
+  <div id="monitor-shell-root" class="monitor-shell" hidden></div>
+
   <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5/lib/xterm.min.js"
           integrity="sha384-J4qzUjBl1FxyLsl/kQPQIOeINsmp17OHYXDOMpMxlKX53ZfYsL+aWHpgArvOuof9"
           crossorigin="anonymous"></script>
@@ -383,5 +395,55 @@
   <script src="js/ws-client.js"></script>
   <script src="js/api-client.js"></script>
   <script src="app.js"></script>
+
+  <!-- Slice MA1+MA2+MA3 (Phase D): opt-in monitor shell.
+       store + normalizer + hydrate + global-bar + layout are all DOM-free
+       UMD modules and load fine even when the user hasn't opted in (they
+       simply sit unused on window.*). The init script below activates the
+       shell only when ?monitor=1 / localStorage.harnessMonitor==="1". -->
+  <script src="js/monitor/store.js"></script>
+  <script src="js/monitor/normalizer.js"></script>
+  <script src="js/monitor/hydrate.js"></script>
+  <script src="js/monitor/panels/global-bar.js"></script>
+  <script src="js/monitor/layout.js"></script>
+  <script>
+  (function () {
+    // Slice MA3 (Phase D, 2026-04-27): opt-in init for the monitor shell.
+    // Default behaviour: do nothing. Users who pass ?monitor=1 in the URL
+    // (or run `localStorage.harnessMonitor = "1"` once in the console) get
+    // the new shell mounted at the top of the page. Other users see the
+    // legacy dashboard exactly as before.
+    try {
+      var qsOptIn = false;
+      try {
+        qsOptIn = new URL(window.location.href).searchParams.get("monitor") === "1";
+      } catch (_) {}
+      var lsOptIn = false;
+      try {
+        lsOptIn = window.localStorage && window.localStorage.getItem("harnessMonitor") === "1";
+      } catch (_) {}
+      if (!qsOptIn && !lsOptIn) return;
+
+      var rootEl = document.getElementById("monitor-shell-root");
+      if (!rootEl) return;
+      if (typeof window.HarnessMonitorStore === "undefined"
+          || typeof window.HarnessMonitorNormalizer === "undefined"
+          || typeof window.HarnessMonitorLayout === "undefined") {
+        console.warn("[monitor] required modules missing — skipping init");
+        return;
+      }
+
+      var store = window.HarnessMonitorStore.createMonitorStore();
+      var handle = window.HarnessMonitorLayout.mount({
+        root: rootEl,
+        store: store,
+        normalize: window.HarnessMonitorNormalizer.normalize,
+      });
+      window.__HarnessMonitor = { store: store, handle: handle };
+    } catch (e) {
+      try { console.error("[monitor] init failed:", e && e.message ? e.message : e); } catch (_) {}
+    }
+  })();
+  </script>
 </body>
 </html>

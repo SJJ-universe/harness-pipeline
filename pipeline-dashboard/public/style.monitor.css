@@ -1,0 +1,95 @@
+/* Slice MA3 (Phase D, 2026-04-27) — monitor shell + global-bar panel.
+ *
+ * Scoped under .monitor-shell so nothing here can leak into the legacy
+ * dashboard layout. Default state: completely hidden (display:none) — the
+ * shell only paints when the inline init in index.html adds .is-active
+ * after detecting the ?monitor=1 / localStorage opt-in.
+ *
+ * Design tokens reuse the existing palette (--bg, --border, etc.) from
+ * style.css so the bar matches the rest of the dashboard when active.
+ */
+
+.monitor-shell {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  background: var(--bg-card, #161b22);
+  color: var(--text, #e6edf3);
+  border-bottom: 1px solid var(--border, #30363d);
+  padding: 6px 12px;
+  font-family: 'Segoe UI', -apple-system, sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.monitor-shell.is-active {
+  display: block;
+}
+
+.monitor-shell .global-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.monitor-shell .gb-cell {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.monitor-shell .gb-cell-label {
+  color: var(--text-dim, #8b949e);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.monitor-shell .gb-cell-value {
+  font-weight: 600;
+  color: var(--text, #c9d1d9);
+}
+
+.monitor-shell .gb-cell-value.is-warn { color: var(--yellow, #d29922); }
+.monitor-shell .gb-cell-value.is-error { color: var(--red, #f85149); }
+.monitor-shell .gb-cell-value.is-good { color: var(--green, #3fb950); }
+
+.monitor-shell .gb-actions {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 8px;
+}
+
+.monitor-shell .gb-btn {
+  background: transparent;
+  color: var(--text, #c9d1d9);
+  border: 1px solid var(--border, #30363d);
+  border-radius: 4px;
+  padding: 2px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.monitor-shell .gb-btn:hover { background: var(--border, #30363d); }
+
+.monitor-shell .gb-error {
+  margin-top: 4px;
+  background: #4d1418;
+  color: #ffa198;
+  padding: 4px 8px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+/* When the monitor shell is active, push the existing dashboard down so
+ * the fixed bar doesn't overlap the header. ~36px is one line of padded
+ * cells; future MA4/MA5 panels (left rail, center, etc.) will adjust this
+ * via additional shell classes. */
+body.monitor-active {
+  padding-top: 36px;
+}
