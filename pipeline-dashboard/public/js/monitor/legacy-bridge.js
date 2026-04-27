@@ -1,4 +1,4 @@
-// Slice MB4-a (Phase D Round 2, 2026-04-27) — HarnessMonitorLegacyBridge.
+// Slice MB4-a + MC2 (Phase D Round 2 + 2.5, 2026-04-27) — HarnessMonitorLegacyBridge.
 //
 // Without this bridge the monitor store is a snapshot frozen at the
 // moment hydrateMonitorStore returned. The legacy WebSocket stream
@@ -6,7 +6,7 @@
 // flowing but never reaches the monitor store, so the timeline + agent
 // tree + inspector show stale data.
 //
-// The bridge fixes that with two cheap mechanisms:
+// The bridge fixes that with three cheap mechanisms:
 //
 //   1. Tap into HarnessEventDispatcher (MB4-a addition) — every event
 //      app.js receives is mirrored to a wildcard tap. The tap normalizes
@@ -19,6 +19,19 @@
 //      cadence) re-fetches and applies via store.setServerSummary +
 //      setActiveChildren. Skipped entirely if no fetch is available
 //      (Node test envs).
+//
+//   3. Slice MC2: run summary sync. After pushEvent, the bridge
+//      inspects the event type and calls store.upsertRun for lifecycle
+//      events:
+//        run_created       → status:idle, templateId, createdAt
+//        pipeline_start    → status:active, templateId, startedAt, phase, phaseIdx
+//        phase_update      → phase, phaseIdx, status (active|error)
+//        pipeline_paused   → status:paused
+//        pipeline_complete → status:completed, completedAt
+//        pipeline_reset    → status:idle, phase:null, phaseIdx:null
+//      Without this, run-tree + run-summary panels would only ever
+//      show the bootstrap-time snapshot — phase changes and new runs
+//      would never propagate.
 //
 // Lifecycle:
 //   install({...}) → { destroy(), refresh() }
@@ -63,11 +76,86 @@
     const _clearInterval = clearIntervalFn
       || (typeof clearInterval !== "undefined" ? clearInterval : null);
 
-    let stats = { eventsForwarded: 0, eventsDropped: 0, refreshes: 0, refreshErrors: 0 };
+    let stats = {
+      eventsForwarded: 0,
+      eventsDropped: 0,
+      refreshes: 0,
+      refreshErrors: 0,
+      // Slice MC2: count run-summary upserts so tests + readiness
+      // checks can verify lifecycle event handling.
+      runSyncs: 0,
+    };
     let unsubscribeTap = null;
     let intervalId = null;
 
-    // ── 1. Wildcard tap → store.pushEvent ──
+    // Slice MC2: lifecycle event → store.upsertRun mapping.
+    //
+    // Returns true if the event was a known lifecycle type and a sync
+    // ran (or was attempted). Returns false for non-lifecycle events
+    // so the caller knows when nothing happened.
+    function _syncRunFromEvent(event) {
+      if (!event || typeof event !== "object") return false;
+      const type = event.type;
+      const data = (event.data && typeof event.data === "object") ? event.data : {};
+      const runId = data.runId;
+      if (typeof store.upsertRun !== "function") return false;
+      if (typeof runId !== "string" || !runId) return false;
+
+      const now = Date.now();
+      let partial = null;
+      switch (type) {
+        case "run_created":
+          partial = {
+            status: "idle",
+            templateId: data.templateId || null,
+            createdAt: data.at || data.ts || now,
+          };
+          break;
+        case "pipeline_start":
+          partial = {
+            status: "active",
+            templateId: data.template || data.templateId || null,
+            startedAt: data.at || data.ts || now,
+          };
+          if (typeof data.phase === "string") partial.phase = data.phase;
+          if (typeof data.phaseIdx === "number") partial.phaseIdx = data.phaseIdx;
+          break;
+        case "phase_update":
+          partial = {
+            phase: data.phase || null,
+            // status from phase_update only flips the run-level status
+            // when the phase reports "error"; otherwise we leave the
+            // run as "active" (the legacy semantics).
+            status: data.status === "error" ? "error" : "active",
+          };
+          if (typeof data.phaseIdx === "number") partial.phaseIdx = data.phaseIdx;
+          break;
+        case "pipeline_paused":
+          partial = { status: "paused" };
+          break;
+        case "pipeline_complete":
+          partial = {
+            status: "completed",
+            completedAt: data.at || data.ts || now,
+          };
+          break;
+        case "pipeline_reset":
+          partial = { status: "idle", phase: null, phaseIdx: null };
+          break;
+        default:
+          return false; // not a lifecycle event
+      }
+
+      try {
+        store.upsertRun(runId, partial);
+        stats.runSyncs++;
+      } catch (_) {
+        // upsertRun can't normally fail; defensive only.
+      }
+      return true;
+    }
+
+    // ── 1. Wildcard tap → store.pushEvent + run sync ──
     function _onLegacyEvent(event) {
       const env = normalize(event);
       if (!env) {
@@ -81,6 +169,10 @@
         // store mutation can't fail under normal operation, but be defensive
         stats.eventsDropped++;
       }
+      // Slice MC2: also sync the runs map. We pass the RAW event so the
+      // function can read data.template / data.phaseIdx / etc. directly
+      // (the normalised envelope flattens these into payload).
+      try { _syncRunFromEvent(event); } catch (_) { /* defensive */ }
     }
     if (_dispatcher && typeof _dispatcher.addTap === "function") {
       unsubscribeTap = _dispatcher.addTap(_onLegacyEvent);
@@ -155,6 +247,9 @@
       destroy,
       refresh,
       stats: () => ({ ...stats }),
+      // Slice MC2: test hook so unit tests can drive the sync function
+      // directly without going through the dispatcher tap.
+      _syncRunFromEvent,
     };
   }
 

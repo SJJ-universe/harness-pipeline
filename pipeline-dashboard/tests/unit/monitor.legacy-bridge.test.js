@@ -242,3 +242,157 @@ test("install with no dispatcher attaches no tap (graceful)", () => {
   // Calling destroy must not throw even though there was nothing to clean up.
   assert.doesNotThrow(() => handle.destroy());
 });
+
+// ── Slice MC2: lifecycle event → store.upsertRun ─────────────────────
+
+function makeBridge(store) {
+  dispatcher._resetForTests();
+  return install({
+    store, normalize, dispatcher,
+    fetchImpl: null,
+    setIntervalFn: () => null,
+  });
+}
+
+test("MC2: run_created upserts a fresh run with status:idle", () => {
+  const store = createMonitorStore();
+  const handle = makeBridge(store);
+  dispatcher.notifyTaps({
+    type: "run_created",
+    data: { runId: "X", templateId: "general", at: 1700000000000 },
+  });
+  const r = store.snapshot().runs.X;
+  assert.ok(r);
+  assert.equal(r.status, "idle");
+  assert.equal(r.templateId, "general");
+  assert.equal(r.createdAt, 1700000000000);
+  assert.equal(handle.stats().runSyncs, 1);
+});
+
+test("MC2: pipeline_start upserts status:active + templateId + startedAt + phase", () => {
+  const store = createMonitorStore();
+  makeBridge(store);
+  dispatcher.notifyTaps({
+    type: "pipeline_start",
+    data: { runId: "Y", template: "code-review", at: 1, phase: "B", phaseIdx: 1 },
+  });
+  const r = store.snapshot().runs.Y;
+  assert.equal(r.status, "active");
+  assert.equal(r.templateId, "code-review");
+  assert.equal(r.startedAt, 1);
+  assert.equal(r.phase, "B");
+  assert.equal(r.phaseIdx, 1);
+});
+
+test("MC2: phase_update updates phase + phaseIdx + status:active by default", () => {
+  const store = createMonitorStore();
+  makeBridge(store);
+  store.upsertRun("Z", { status: "active" });
+  dispatcher.notifyTaps({
+    type: "phase_update",
+    data: { runId: "Z", phase: "C", phaseIdx: 2, status: "active" },
+  });
+  const r = store.snapshot().runs.Z;
+  assert.equal(r.phase, "C");
+  assert.equal(r.phaseIdx, 2);
+  assert.equal(r.status, "active");
+});
+
+test("MC2: phase_update with status:error flips run-level status to error", () => {
+  const store = createMonitorStore();
+  makeBridge(store);
+  store.upsertRun("Z", { status: "active" });
+  dispatcher.notifyTaps({
+    type: "phase_update",
+    data: { runId: "Z", phase: "C", status: "error" },
+  });
+  assert.equal(store.snapshot().runs.Z.status, "error");
+});
+
+test("MC2: pipeline_paused / pipeline_complete / pipeline_reset update status correctly", () => {
+  const store = createMonitorStore();
+  makeBridge(store);
+  store.upsertRun("R", { status: "active", phase: "B", phaseIdx: 1 });
+
+  dispatcher.notifyTaps({ type: "pipeline_paused", data: { runId: "R" } });
+  assert.equal(store.snapshot().runs.R.status, "paused");
+
+  dispatcher.notifyTaps({
+    type: "pipeline_complete",
+    data: { runId: "R", at: 999 },
+  });
+  let r = store.snapshot().runs.R;
+  assert.equal(r.status, "completed");
+  assert.equal(r.completedAt, 999);
+
+  dispatcher.notifyTaps({ type: "pipeline_reset", data: { runId: "R" } });
+  r = store.snapshot().runs.R;
+  assert.equal(r.status, "idle");
+  assert.equal(r.phase, null);
+  assert.equal(r.phaseIdx, null);
+});
+
+test("MC2: non-lifecycle event types don't bump runSyncs", () => {
+  const store = createMonitorStore();
+  const handle = makeBridge(store);
+  dispatcher.notifyTaps({ type: "tool_recorded", data: { runId: "X", tool: "Edit" } });
+  dispatcher.notifyTaps({ type: "toast", data: { message: "hi" } });
+  assert.equal(handle.stats().runSyncs, 0);
+  // pushEvent still ran, though.
+  assert.ok(handle.stats().eventsForwarded >= 1);
+});
+
+test("MC2: lifecycle events without runId are skipped (no upsertRun)", () => {
+  const store = createMonitorStore();
+  const handle = makeBridge(store);
+  dispatcher.notifyTaps({ type: "pipeline_start", data: { /* no runId */ template: "x" } });
+  assert.deepEqual(store.snapshot().runIds, []);
+  assert.equal(handle.stats().runSyncs, 0);
+});
+
+test("MC2: bridge picks up a brand-new run after mount (the gap MC2 closes)", () => {
+  const store = createMonitorStore();
+  // Bootstrap delivered ZERO runs; bridge then sees a run_created.
+  assert.deepEqual(store.snapshot().runIds, []);
+  makeBridge(store);
+  dispatcher.notifyTaps({
+    type: "run_created",
+    data: { runId: "session-2", templateId: "general", at: 1 },
+  });
+  assert.deepEqual(store.snapshot().runIds, ["session-2"]);
+});
+
+test("MC2: a phase_update sequence on the same run reflects every step in run-summary state", () => {
+  const store = createMonitorStore();
+  makeBridge(store);
+  dispatcher.notifyTaps({
+    type: "pipeline_start",
+    data: { runId: "S", template: "default", phase: "A", phaseIdx: 0 },
+  });
+  dispatcher.notifyTaps({
+    type: "phase_update",
+    data: { runId: "S", phase: "B", phaseIdx: 1, status: "active" },
+  });
+  dispatcher.notifyTaps({
+    type: "phase_update",
+    data: { runId: "S", phase: "C", phaseIdx: 2, status: "active" },
+  });
+  dispatcher.notifyTaps({
+    type: "pipeline_complete",
+    data: { runId: "S", at: 555 },
+  });
+  const r = store.snapshot().runs.S;
+  assert.equal(r.status, "completed");
+  assert.equal(r.phase, "C");        // phase preserved through complete
+  assert.equal(r.phaseIdx, 2);
+  assert.equal(r.completedAt, 555);
+});
+
+test("MC2: _syncRunFromEvent is exposed as a test hook", () => {
+  const store = createMonitorStore();
+  const handle = makeBridge(store);
+  assert.equal(typeof handle._syncRunFromEvent, "function");
+  // Calling directly bypasses the dispatcher tap.
+  handle._syncRunFromEvent({ type: "run_created", data: { runId: "T", templateId: "general" } });
+  assert.deepEqual(Object.keys(store.snapshot().runs), ["T"]);
+});
