@@ -68,12 +68,25 @@ jobs:
       run:
         working-directory: pipeline-dashboard
 
+    # Slice ME2 (Phase D Round ME, 2026-04-27) — actions major bump.
+    #
+    # ME1 validated that v4 actions run cleanly when forced to Node 24
+    # (the FORCE_JAVASCRIPT_ACTIONS_TO_NODE24 env var). With that proof
+    # in hand, bump to v6 — the latest major for both actions, which
+    # ships Node 24 natively. The env var becomes a belt-and-suspenders
+    # safety net (it's a no-op when the action targets Node 24).
+    #
+    # Breaking changes scanned for:
+    #   - actions/checkout v6: persists creds to a separate file. Not
+    #     used here (no submodules / no LFS / no custom token).
+    #   - actions/setup-node v6: "limit automatic caching to npm" —
+    #     we explicitly pass cache:'npm' already, so unchanged.
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node 24
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '24'
           cache: 'npm'
