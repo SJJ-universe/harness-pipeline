@@ -66,29 +66,52 @@ Each category has 0..3 stars. Total 15 stars across the rubric. A category at 0 
 | ★★ | The legacy `/api/server/info` and `/api/runs/current` shapes are unchanged from before Phase D — additive contracts only (MB1 was additive). |
 | ★★★ | A new monitor panel can be added by registering a `panels.X` override in `HarnessMonitorLayout.mount` without modifying any other module. |
 
-## 3. Current readiness (as of MB4-d)
+## 3. Current readiness (auto-derived, live mode)
 
-| Category | Stars | Justification |
-| --- | :---: | --- |
-| Run visibility | ★★★ | All three criteria green. MB1 lit up the third star. |
-| Child visibility | ★★★ | MA6 + MB2 lit up the third star (server-authoritative subagent snapshot). |
-| Replay visibility | ★★★ | MA6 pinned events + AA-2 includeGlobal policy = all green. |
-| Event integrity | ★★ | First two stars green; the third needs MB5's flow test to verify the bridge behaviour under filter pressure. |
-| Contract stability | ★★ | First two stars green; the third star ("new panel via override only") is **proven by the existing layout tests**, but no regression test specifically locks it. |
+The numbers below come from `npm run scorecard:sync` running
+`scripts/readiness-report.js` in **live mode** — i.e. the script spawns
+a throwaway harness (`node server.js` on `HARNESS_READINESS_PORT=5099`)
+and exercises the http endpoints alongside the in-process module
+checks. This is the canonical signal; the rest of this document and
+the doc-sync test suite agree that "readiness" means "live readiness".
 
-**Total** (auto-derived without spawn — full live verification with spawn often scores higher): <!-- AUTO:readiness-total -->**6 / 15**<!-- /AUTO -->.
+**Total** (live, server-spawned): <!-- AUTO:readiness-total -->**15 / 15**<!-- /AUTO -->.
 
-Per-category breakdown (auto-derived):
+Per-category breakdown (live):
 
-<!-- AUTO:readiness-stars -->  - run-visibility: 0/3
-  - child-visibility: 0/3
-  - replay-visibility: 2/3
+<!-- AUTO:readiness-stars -->  - run-visibility: 3/3
+  - child-visibility: 3/3
+  - replay-visibility: 3/3
   - event-integrity: 3/3
-  - contract-stability: 1/3<!-- /AUTO -->
+  - contract-stability: 3/3<!-- /AUTO -->
 
 A 12+ score means "ready for external preview"; 14+ for a release tag.
 
 _(totals + per-category breakdown above auto-derived by `npm run scorecard:sync`; do not hand-edit between markers.)_
+
+### Two modes — when each is appropriate
+
+| Mode | Command | What it scores | When to use |
+| --- | --- | --- | --- |
+| **Live** (default) | `npm run readiness:check` <br> `npm run scorecard:sync` | All 5 categories × 3 stars (15 max). HTTP checks plus in-process behavior. | Local dev, CI, release gating. |
+| **Static** | `node scripts/readiness-report.js --no-spawn` <br> `node scripts/sync-scorecard.js --no-spawn` | Only stars verifiable without a server (currently 6/15: replay-visibility 2/3 + event-integrity 3/3 + contract-stability 1/3). | Sandboxed runners that cannot bind a port. |
+
+The static score is **honest, not artificially low** — it tells you
+exactly how many readiness criteria you can verify when you can't boot
+the server. If a CI job has to use `--no-spawn`, the scorecard:check gate
+will compare against the static baseline, not the live one.
+
+### Star ledger (history)
+
+Each entry below records when a category last hit its third star.
+
+| Category | Reached ★★★ at | What unlocked it |
+| --- | --- | --- |
+| Run visibility | MB1 | `/api/monitor/runs/:runId` per-run detail endpoint |
+| Child visibility | MB2 | `PipelineExecutor.getSubagentSnapshot()` exposed via run detail |
+| Replay visibility | MA6 + AA-2 | Pinned events survive ring eviction; `snapshot({runId, includeGlobal})` |
+| Event integrity | MC4 | Bridge forward + run-sync verifications upgraded to behavior checks |
+| Contract stability | MC4 | Layout panels-override checked by stub-panel behavior, not just type-check |
 
 ## 4. How readiness checks run
 
@@ -125,10 +148,13 @@ Exit codes:
 
 The `--json` flag produces machine-readable output for PR gates.
 
+The `--no-spawn` flag skips the server boot. Use it when the runner
+cannot bind a port — the resulting score (currently 6/15) only counts
+the in-process behavior checks. CI runs in live mode by default.
+
 ## 5. Out of scope
 
 - Per-category sub-rubrics (e.g. run-visibility-by-route). Adding those before they're needed bloats the report.
-- Auto-failing tests on readiness regressions. P5 plan ships that as a follow-up — for now, the rubric is informational.
 - A web UI for the rubric. Operators read the script output from the terminal.
 
 ## 6. Sources

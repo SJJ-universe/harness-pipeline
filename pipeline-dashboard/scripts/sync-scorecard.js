@@ -17,13 +17,20 @@
 // script logs a warning + skips that field.
 //
 // Usage:
-//   node scripts/sync-scorecard.js              # update files in place
+//   node scripts/sync-scorecard.js              # update files in place (live readiness)
 //   node scripts/sync-scorecard.js --check      # exit 1 if files would change
 //   node scripts/sync-scorecard.js --quiet      # suppress per-doc info logs
+//   node scripts/sync-scorecard.js --no-spawn   # static mode (skip server boot)
 //
 // CI usage:
 //   - Local dev: run after every meaningful slice to refresh docs.
 //   - PR gate: `npm run scorecard:check` exits 1 when docs are stale.
+//
+// Slice MD1 (Phase D Round MD, 2026-04-27) — readiness defaults to live
+// mode so the auto-derived markers reflect a single canonical signal.
+// Use `--no-spawn` only when the runner can't bind a port (sandboxed
+// environments). The static score is honest but lower (currently 6/15
+// vs. 15/15 live) because http checks fail without a server.
 
 const fs = require("node:fs");
 const path = require("node:path");
@@ -37,6 +44,7 @@ const args = process.argv.slice(2);
 const flag = (n) => args.includes(n);
 const isCheck = flag("--check");
 const isQuiet = flag("--quiet");
+const isNoSpawn = flag("--no-spawn");   // MD1: pass-through to readiness-report.
 
 function log(...args) { if (!isQuiet) process.stdout.write(args.join(" ") + "\n"); }
 function warn(...args) { process.stderr.write("[sync-scorecard] " + args.join(" ") + "\n"); }
@@ -58,9 +66,27 @@ function runTestSuite(suiteName) {
 }
 
 // ── 2. Collect readiness score via JSON output. ─────────────────────
+//
+// Slice MD1 (Phase D Round MD, 2026-04-27) — switched the default to
+// LIVE mode so the auto-derived doc numbers reflect the canonical signal
+// (server-spawned, all category checks executable). Previously the call
+// hard-coded `--no-spawn`, which only scored 6/15 because the http GET
+// checks (run-visibility / child-visibility / contract-stability stars
+// 1-2) silently failed without a server. The 6/15 value then ended up
+// in scorecard.md auto-markers next to a hand-written snapshot showing
+// 13/15 next to an example block showing 15/15 — three different signals
+// in one doc.
+//
+// Live mode is now the only signal that drives the markers. The
+// `--no-spawn` flag is preserved as a pass-through escape hatch for
+// environments where spawning the server isn't possible (sandboxed CI,
+// firewalled hosts), but the resulting low score is honest about what
+// was actually verified.
 
 function runReadiness() {
-  const out = spawnSync("node", ["scripts/readiness-report.js", "--json", "--no-spawn"], {
+  const readinessArgs = ["scripts/readiness-report.js", "--json"];
+  if (isNoSpawn) readinessArgs.push("--no-spawn");
+  const out = spawnSync("node", readinessArgs, {
     cwd: ROOT, encoding: "utf-8", env: process.env,
   });
   const text = (out.stdout || "").trim();
@@ -95,7 +121,8 @@ function rewriteMarkers(text, replacements) {
 // ── 4. Main flow. ───────────────────────────────────────────────────
 
 function main() {
-  log("[sync-scorecard] running test:unit + test:integration + readiness…");
+  const readinessMode = isNoSpawn ? "static (--no-spawn)" : "live (server-spawned)";
+  log("[sync-scorecard] running test:unit + test:integration + readiness [" + readinessMode + "]…");
   const unit = runTestSuite("unit");
   const integ = runTestSuite("integration");
   const readiness = runReadiness();
