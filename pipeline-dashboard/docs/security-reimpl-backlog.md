@@ -24,8 +24,9 @@
 | 슬라이스 | 의도 | 상태 | 커밋 |
 |---|---|:---:|---|
 | **S1** | Loopback 바인딩 + 토큰 게이트 + WS Origin 검증 + `.env.example` + `auth.js` 단위 테스트 | **DONE** | `a350357` |
-| **S2** | File access sandbox / 경로 가드 (`src/runtime/pathSandbox.js` 강화) | TODO | — |
-| **S3** | CLI runner hardening + 자식 프로세스 unified registry | TODO | — |
+| **S2** | File access sandbox 강화 (Windows case + triggerId slug + skill-registry pathSandbox 통합) | **DONE** | `98bc99c` |
+| **S3-a** | childRegistry 신규 + runner integration + gracefulShutdown SIGTERM→1s→SIGKILL | **DONE** | `bb40c22` |
+| **S3-b** (선택) | codex-runner Windows `shell: true` → `cmd.exe /c` wrapper (Node 24 DEP0190 대응) | TODO | — |
 
 S1 결과 (커밋 `a350357`): `server.js`의 `wss.on("connection")` 진입부에
 공통 검증 헬퍼(`verifyWsConnection`)를 두어 일반 pipeline event WS도
@@ -33,8 +34,29 @@ loopback / token / origin 정책을 따른다. 정본의 `src/security/auth.js`
 는 이미 풍부한 미들웨어를 갖추고 있어 재구현보다 보강 + 누락 보완 +
 회귀 보호 테스트(unit 17 + integration 13) 위주로 마감.
 
+S2 결과 (커밋 `98bc99c`): pathSandbox에 Windows case-insensitive
+double-check, `validateCodexTrigger`에 triggerId slug regex
+(`/^[a-zA-Z0-9._-]+$/`), `skill-registry.js getSkillContent`를
+`resolveInsideRoot`로 통합 (slug regex는 첫 방어층 유지). 신규/확장
+테스트 unit +38 / integration +18.
+
+S3-a 결과 (커밋 `bb40c22`): `src/runtime/childRegistry.js` 신규.
+claude/codex runner가 spawn 직후 `register({label, runId})` →
+close/error 시 `unregister`. server.js `gracefulShutdown` 시퀀스를
+SIGTERM → 1s grace → SIGKILL → exit으로 교체 (이전: 단순 400ms 후
+exit, zombie 위험). 신규 테스트 unit +16 / integration +7.
+
 부수 정리: `scripts/env-check.ps1` 의 archived 디렉토리 노이즈와
 untracked count 버그 동시 수정 (`e7162dd`).
+
+## S3-b 후속 (별도 슬라이스로 보류)
+
+`executor/codex-runner.js:135`의 `shell: process.platform === "win32"`는
+Node 24 DEP0190 경고 후보 + shell quoting 위험. workspace P1-5
+(`e24a83c`)의 `shell:false` + `cmd.exe /c <cmd>` wrapper 패턴이 더 안전.
+단 spawn 동작 변경이라 codex 호출 회귀(quote/escape/glob)가 발생할 수
+있어 별도 슬라이스에서 진행. 그 동안은 정본 동작(shell:true)을 유지하며
+경고만 허용.
 
 ## 미래 backlog (선별)
 
