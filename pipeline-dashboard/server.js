@@ -186,6 +186,10 @@ const { createCodexRoutes } = require("./src/routes/codexRoutes");
 const { createPipelineRoutes } = require("./src/routes/pipelineRoutes");
 // Slice E (v4): export the current run for the run-history drawer
 const { createRunsRoutes } = require("./src/routes/runsRoutes");
+// Slice MA2 (Phase D, 2026-04-27): single hydration endpoint for the
+// future monitoring console — consolidates server summary, orchestrator
+// run list, active children, and recent replay events into one response.
+const { createMonitorRoutes } = require("./src/routes/monitorRoutes");
 
 app.use("/api", createHealthRoutes({ pty }));
 
@@ -775,6 +779,21 @@ app.use("/api", createPipelineRoutes({
 // Slice E (v4): Run-history drawer's snapshot endpoint. Readonly — returns
 // the same data a reconnecting WebSocket client would see via pipeline_replay.
 app.use("/api", createRunsRoutes({ pipelineExecutor, eventReplayBuffer }));
+
+// Slice MA2 (Phase D, 2026-04-27): /api/monitor/bootstrap. Mounted after
+// the orchestrator + childRegistry + eventReplayBuffer are constructed so
+// the route can read them on demand. Token middleware (auth.requireStateChangingToken)
+// is GET-tolerant, so the dashboard can hydrate without an extra header dance.
+app.use("/api", createMonitorRoutes({
+  // Slice MA2 (Phase D): consolidated bootstrap — orchestrator + registry
+  // + replay buffer + boot meta funnel into a single hydration response so
+  // the dashboard avoids a 3–4 round-trip cold start.
+  pipelineOrchestrator,
+  childRegistry,
+  eventReplayBuffer,
+  bootTime: BOOT_TIME,
+  mode: MODE,
+}));
 
 async function runGeneralPipeline(task, maxIter, runId) {
   const started = Date.now();
