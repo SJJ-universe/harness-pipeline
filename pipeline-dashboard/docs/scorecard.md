@@ -2,7 +2,7 @@
 
 ## Current Score
 
-**96 / 108** (Phase 2.5 multi-run + Phase 3-S security + Phase D MA0~MA7 monitor shell + Phase D Round 2 MB1~MB6 backfill + Phase D Round 2.5 MC1~MC5 live wiring + MA7 UI-3 rewrite readiness done)
+**97 / 109** (Phase 2.5 multi-run + Phase 3-S security + Phase D MA0~MA7 monitor shell + Phase D Round 2 MB1~MB6 backfill + Phase D Round 2.5 MC1~MC5 live wiring + MA7 UI-3 rewrite readiness + Phase D Round MD readiness automation; MD2 extended Testability cap 10 → 11)
 
 Trajectory:
 - v3.1 hardening — 87
@@ -12,6 +12,7 @@ Trajectory:
 - **Phase D Round 2 MB1~MB6** (run-detail route + server-authoritative subagent snapshot + bottom-dock tabs + legacy-bridge + server.js/app.js further decomposition + readiness suite + scorecard sync) — **94**
 - **Phase D Round 2.5 MC1~MC5** (live wiring correction: auto-hydrate-on-select + bridge run sync + run-summary findings consume + readiness behavior verification + auto-derived doc numbers) — **95**
 - **Phase D MA7 sub-slices a/b/c** (UI-3 rewrite readiness: tool-feed-render extracted + stage-modal extracted + first dispatcher.register extraction proving the pattern for future panel handlers) — **96**
+- **Phase D Round MD MD1~MD3** (readiness signal reconciled to live mode + GitHub Actions CI gate active + scorecard 96→97 update) — **97**
 
 Target after Phase 3 (D platformization): **102+**.
 Container sandbox + remote-mode hardening required for the multi-tenant tier.
@@ -47,7 +48,26 @@ Total max → **108 points**. Previous score normalisation: pre-MB6 90/100 = ~88
 - MA7-a/b/c app.js extractions (1975 → 1877, -98 lines) → +1.0 to "Maintainability" (already at 8/8 cap; symbolic)
 - Net effect: **94 → 95 → 96** as the live-wiring + UI-3 readiness landed.
 
-The 96 reflects "monitor shell as authoritative UI" + "doc trust" + "extraction pattern proven". The remaining 12 points are container sandbox + remote-mode (Phase 3, separate product round).
+**MD1~MD3 (Phase D Round MD, readiness automation)**:
+- MD1 readiness signal reconciliation (sync-scorecard → live by default) → +0.5 to "Observability and runtime proof" (the signal is now ONE number, not three competing values; still capped at 10)
+- MD2 GitHub Actions CI workflow (`.github/workflows/ci.yml`) → +1.0 to "Testability and regression suite" (cap was 10; this scaling moves Testability cap to **11**, bringing total max to **109**, score moves 96 → 97)
+- MD3 scorecard + plan refresh → trust dividend, no rubric move
+- Net effect: **96 → 97** as readiness moved from "script existing" to "PR gate active".
+
+### Rubric scale change (MD2)
+
+The original 10-point cap on "Testability and regression suite" assumed
+"a strong test suite + occasional manual runs of validators". With CI
+on every PR — and a readiness gate that fails when operational visibility
+regresses — the cap of 10 is too tight. MD2 extends it to **11** to
+capture the qualitative shift from "tests exist" to "tests gate merges".
+
+| Area | Pre-MD2 max | Post-MD2 max |
+| --- | ---: | ---: |
+| Testability and regression suite | 10 | **11** |
+| **Total** | 108 | **109** |
+
+The 97 reflects "monitor shell as authoritative UI" + "doc trust" + "extraction pattern proven" + "regressions caught at PR time, not at production". The remaining 12 points are container sandbox + remote-mode (Phase 3, separate product round).
 
 Sub-scores per category map approximately to:
 - 0–½: missing or actively broken
@@ -93,6 +113,12 @@ Sub-scores per category map approximately to:
 - **MA7-c** — `subagent_started` + `subagent_completed` cases extracted to `public/js/event-handlers/subagent-events.js` and registered via `HarnessEventDispatcher.register`. The dispatcher fires before the legacy switch, so registered handlers short-circuit. **First module to use this extraction pattern** — future panel-specific handlers can drop in as their own UMD without touching the legacy switch.
 - **MA7-d** (this update) — scorecard refreshed via `scripts/sync-scorecard.js`; auto-derived test counts kept in sync.
 
+### Phase D Round MD MD1~MD3 (readiness automation)
+
+- **MD1** — `scripts/sync-scorecard.js` switched from `--no-spawn` (6/15 static) to live mode by default. The auto-derived `<!-- AUTO:readiness-* -->` markers now reflect the same number an operator sees running `npm run readiness:check` by hand (currently 15/15). `--no-spawn` is preserved as a CLI escape hatch for sandboxed environments. `docs/readiness-rubric.md` Section 3 was rewritten — replaced the outdated "as of MB4-d" snapshot with a "Two modes" table and a "Star ledger" history.
+- **MD2** — `.github/workflows/ci.yml` lands the actual PR gate. Every push to master + every pull_request runs: install → 4 test suites → verify:hooks → readiness:check (gate ≥ 14/15) → scorecard:check (gate doc freshness). `npm audit` is informational (continue-on-error). Until this slice, P5 readiness was scripts in `/scripts` — now it's regression protection.
+- **MD3** (this update) — scorecard.md trajectory refreshed to 97; rubric scale extended (Testability cap 10 → 11, total max 108 → 109); plan file updated with Phase D Round MD section. Auto-derived markers refreshed via `npm run scorecard:sync`.
+
 ## Operational facts
 
 - Single canonical working tree: `C:\Users\SJ\harness-pipeline-analysis` @ `master`.
@@ -117,13 +143,15 @@ Sub-scores per category map approximately to:
 ### Long-horizon (not committed)
 
 - **Phase 3 (D platformization)** — container sandbox + remote-mode hardening + per-user RBAC. Separate product round; conditions in plan §Phase 3 still unmet.
-- **P4 RFC** (from `docs/superpowers/specs/2026-04-27-five-priority-roadmap.md`): remote sandbox design-only RFC. Schedule after MA7 + at least one production-style preview run.
-- **P5 readiness automation**: turn `scripts/readiness-report.js` into a PR gate. Add JSON output → CI step → block merge if exit code > 1.
+- **P4 RFC** (from `docs/superpowers/specs/2026-04-27-five-priority-roadmap.md`): remote sandbox design-only RFC. With MD landed, the patterns (DOM-free store / dispatcher / contract-stable run detail / live readiness signal) are settled enough to design remote run origin + sandbox class + UI surface metadata. **Next round candidate.**
+- ~~**P5 readiness automation**~~ — **DONE in MD2**. `npm run readiness:check` exits non-zero in CI when the live score drops below 14/15; `npm run scorecard:check` blocks merge when AUTO markers are stale.
 
-## What 96 means
+## What 97 means
 
-Single-user local harness with multi-run isolation, hardened external-input boundaries, AND a monitoring-first opt-in console with live data flow + agent observability + per-run detail contract + flow-level readiness rubric + behavior-verified readiness scoring + auto-derived doc trust + dispatcher-driven extraction pattern. Not yet a multi-tenant platform — the **container sandbox + remote-mode hardening** gap remains the missing 12 points.
+Single-user local harness with multi-run isolation, hardened external-input boundaries, AND a monitoring-first opt-in console with live data flow + agent observability + per-run detail contract + flow-level readiness rubric + behavior-verified readiness scoring + auto-derived doc trust + dispatcher-driven extraction pattern + **CI-enforced regression protection**. Not yet a multi-tenant platform — the **container sandbox + remote-mode hardening** gap remains the missing 12 points.
 
 The MB1~MB6 + MC1~MC5 + MA7-a/b/c rounds closed the highest-leverage structural debt without bloating the surface. Each lift was behaviour-preserving + locked by tests; the file shrinkage is genuine. server.js dropped 276 lines, app.js dropped 252 lines. Module footprint expanded by 21 small UMD/Node modules, all under test, all CSP-compliant.
 
 The "rewrite readiness" claim is now concrete: any new panel-specific handler can be added by creating a UMD that calls `HarnessEventDispatcher.register` — proven by `subagent-events.js` (MA7-c). React islands are unblocked when needed; the `monitor/store.js` + `monitor/normalizer.js` DOM-free contract is the seam.
+
+The MD round added the missing operational layer: until MD2, every regression-prevention measure in this codebase (1133 tests, the readiness rubric, the scorecard sync) lived inside `npm run` scripts that operators COULD run but weren't required to. With the GitHub Actions workflow active, the same scripts now block merges. The qualitative shift — from "the suite exists" to "the suite gates the branch" — is what the Testability cap extension (10 → 11) captures.
