@@ -29,7 +29,9 @@ const { QualityGate } = require("./executor/quality-gate");
 const { SkillInjector } = require("./executor/skill-injector");
 const { PipelineAdapter } = require("./executor/pipeline-adapter");
 const { createCheckpointStore } = require("./executor/checkpoint");
-const { createEventReplayBuffer } = require("./src/runtime/eventReplayBuffer");
+// MB4-d: createEventReplayBuffer is now owned by createEventBroadcaster
+// (src/server/eventBroadcaster.js). Server.js still uses
+// eventReplayBuffer through the broadcaster's exposed reference.
 const { createHeartbeat } = require("./executor/heartbeat");
 const skillRegistry = require("./skill-registry");
 const builtInTemplates = require("./pipeline-templates.json");
@@ -432,70 +434,16 @@ const _pingInterval = setInterval(() => {
 // Unref so the interval doesn't keep Node alive during shutdown
 if (_pingInterval.unref) _pingInterval.unref();
 
-// P-5 Performance: throttle high-frequency events, deliver critical events immediately
-const IMMEDIATE_TYPES = new Set([
-  "pipeline_start", "pipeline_complete", "pipeline_reset",
-  "phase_update", "gate_failed", "gate_evaluated", "gate_bypassed",
-  "tool_blocked", "error", "server_shutdown", "server_restart",
-  "general_plan_complete", "critique_received", "codex_trigger_done",
-  "codex_started", "codex_progress", "context_alarm", "pipeline_mutated",
-  // Audit/append-only events — must not be coalesced (Codex T0 fix)
-  "tool_recorded", "hook_event", "log_message", "cycle_iteration",
-  "node_update", "artifact_captured",
-  // Slice A (v4): user-facing lifecycle — never throttle
-  //   harness_notification feeds toasts (Slice C)
-  //   pipeline_compacted tells the UI the pipeline pauses briefly for compaction
-  "harness_notification", "pipeline_compacted",
-]);
-const _broadcastTimers = new Map();
-const THROTTLE_MS = 100;
-
-function _broadcastRaw(event) {
-  const data = JSON.stringify(event);
-  for (const ws of clients) {
-    if (ws.readyState === 1) ws.send(data);
-  }
-}
-
-// Replay buffer captures UI-relevant events for reconnect replay
-const eventReplayBuffer = createEventReplayBuffer({ maxSize: 500 });
-
-function broadcast(event) {
-  const type = event && event.type;
-  // Capture before send so reconnecting clients see consistent history
-  eventReplayBuffer.append(event);
-  // Auto-manage heartbeat and replay buffer on pipeline lifecycle events
-  if (type === "pipeline_start" || type === "pipeline_reset") {
-    eventReplayBuffer.clear();
-    if (heartbeat) heartbeat.start();
-  } else if (type === "pipeline_complete") {
-    if (heartbeat) heartbeat.stop();
-  } else if (type === "auto_pipeline_detect") {
-    // Hook-driven pipeline start
-    if (heartbeat) heartbeat.start();
-  } else if (type === "pipeline_paused") {
-    if (heartbeat) heartbeat.stop();
-  }
-  if (!type || IMMEDIATE_TYPES.has(type)) {
-    _broadcastRaw(event);
-    return;
-  }
-  // Throttle: first event of a type sends immediately, subsequent debounce 100ms
-  if (!_broadcastTimers.has(type)) {
-    _broadcastRaw(event);
-    _broadcastTimers.set(type, setTimeout(() => {
-      _broadcastTimers.delete(type);
-    }, THROTTLE_MS));
-  } else {
-    // Replace pending — when timer fires the latest event is already sent above
-    // on next fresh cycle. Store for edge case where timer just expired.
-    clearTimeout(_broadcastTimers.get(type));
-    _broadcastTimers.set(type, setTimeout(() => {
-      _broadcastTimers.delete(type);
-      _broadcastRaw(event);
-    }, THROTTLE_MS));
-  }
-}
+// MB4-d (Phase D Round 2, 2026-04-27): the ~60 lines of broadcast +
+// throttle + replay buffer plumbing that lived here have been lifted
+// to src/server/eventBroadcaster.js. Same wire contract — broadcast(event)
+// JSON-stringifies + sends to every OPEN ws in `clients`, with throttle
+// on non-IMMEDIATE types and pipeline-lifecycle hooks. heartbeat is
+// attached separately because it's constructed later in this file.
+const { createEventBroadcaster } = require("./src/server/eventBroadcaster");
+const _eb = createEventBroadcaster({ clients });
+const broadcast = _eb.broadcast;
+const eventReplayBuffer = _eb.eventReplayBuffer;
 
 // Token tracking stub — kept for eventRoutes /api/reset compatibility
 const tokenUsage = {};
@@ -684,6 +632,9 @@ const heartbeat = createHeartbeat({
   getCurrentPhase: () => pipelineOrchestrator.getActive()._currentPhase(),
   intervalMs: 5000,
 });
+// MB4-d: hand the heartbeat to the lifted broadcaster so its
+// pipeline-lifecycle hooks (start/stop on pipeline_start/complete) fire.
+_eb.attachHeartbeat(heartbeat);
 hookRouter.attachExecutor(pipelineExecutor);
 // Slice T (v6): give hookRouter access to the orchestrator so it can
 // resolve session_id / agent_id → runId.
