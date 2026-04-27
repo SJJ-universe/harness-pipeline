@@ -534,3 +534,187 @@ body.monitor-active {
   text-align: center;
   font-style: italic;
 }
+
+/* ── Slice MA6: rail sections (run-tree + agent-tree) ── */
+
+.monitor-shell .rail-section {
+  border-bottom: 1px solid var(--border, #30363d);
+  padding-bottom: 4px;
+}
+
+.monitor-shell .rail-section:last-child {
+  border-bottom: none;
+}
+
+.monitor-shell .rail-section-title {
+  padding: 6px 12px 4px;
+  color: var(--text-dim, #8b949e);
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+
+/* ── Slice MA6: agent-tree ── */
+
+.monitor-shell .at-section {
+  padding-bottom: 4px;
+}
+
+.monitor-shell .at-section-title {
+  padding: 4px 12px;
+  color: var(--text-dim, #8b949e);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.monitor-shell .at-empty {
+  padding: 4px 12px;
+  color: var(--text-dim, #8b949e);
+  font-size: 11px;
+  font-style: italic;
+}
+
+.monitor-shell .at-group {
+  margin-bottom: 4px;
+}
+
+.monitor-shell .at-group-title {
+  padding: 2px 12px;
+  color: var(--codex, #58a6ff);
+  font-size: 10px;
+  font-family: 'Cascadia Code', 'Consolas', monospace;
+}
+
+.monitor-shell .at-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.monitor-shell .at-item {
+  display: grid;
+  grid-template-columns: 8px 1fr;
+  gap: 8px;
+  align-items: center;
+  padding: 4px 12px;
+  cursor: pointer;
+  font-size: 11px;
+  border-left: 2px solid transparent;
+}
+
+.monitor-shell .at-item:hover {
+  background: var(--bg-node, #1c2333);
+}
+
+.monitor-shell .at-item.is-selected {
+  background: var(--bg-node, #1c2333);
+  border-left-color: var(--codex, #58a6ff);
+}
+
+.monitor-shell .at-item:focus {
+  outline: 2px solid var(--codex, #58a6ff);
+  outline-offset: -2px;
+}
+
+.monitor-shell .at-status {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.monitor-shell .at-status-child    { background: var(--green, #3fb950); }
+.monitor-shell .at-status-subagent { background: var(--purple, #bc8cff); }
+
+.monitor-shell .at-label {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.monitor-shell .at-name {
+  color: var(--text, #e6edf3);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.monitor-shell .at-meta {
+  color: var(--text-dim, #8b949e);
+  font-size: 10px;
+  font-family: 'Cascadia Code', 'Consolas', monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Slice MA6: timeline scope-filter chips ── */
+
+.monitor-shell .tl-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px 0 6px;
+  border-bottom: 1px solid var(--border, #30363d);
+  margin-bottom: 4px;
+}
+
+.monitor-shell .tl-chip {
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--border, #30363d);
+  background: transparent;
+  color: var(--text-dim, #8b949e);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  font-family: inherit;
+  opacity: 0.5;
+}
+
+.monitor-shell .tl-chip:hover {
+  border-color: var(--codex, #58a6ff);
+}
+
+.monitor-shell .tl-chip.is-active {
+  opacity: 1;
+  background: var(--bg-node, #1c2333);
+  color: var(--text, #e6edf3);
+  border-color: var(--bg-node, #1c2333);
+}
+
+.monitor-shell .tl-row.is-pinned {
+  border-left-color: var(--purple, #bc8cff);
+  background: rgba(188, 140, 255, 0.07);
+}
+
+/* ── Slice MA6: inspector pin button ── */
+
+.monitor-shell .ip-pin-btn {
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--border, #30363d);
+  background: transparent;
+  color: var(--text-dim, #8b949e);
+  font-size: 11px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.monitor-shell .ip-pin-btn:hover {
+  border-color: var(--purple, #bc8cff);
+}
+
+.monitor-shell .ip-pin-btn.is-pinned {
+  background: rgba(188, 140, 255, 0.18);
+  color: var(--purple, #bc8cff);
+  border-color: var(--purple, #bc8cff);
+}
+
+/* MA6: child + subagent inspector cards reuse most of .ip-* styles. */
+.monitor-shell .ip-scope-child    { background: rgba(63, 185, 80, 0.2); color: var(--green, #3fb950); }
+.monitor-shell .ip-scope-subagent { background: rgba(188, 140, 255, 0.2); color: var(--purple, #bc8cff); }

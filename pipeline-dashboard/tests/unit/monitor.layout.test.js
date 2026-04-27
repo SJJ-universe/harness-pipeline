@@ -284,6 +284,80 @@ test("MA5: panel overrides timeline/inspector/bottomDock are honored", async () 
   assert.equal(stubDock._destroyed, true);
 });
 
+// ── MA6: rail subdivision + agent-tree mount ─────────────────────────
+
+test("MA6: run-rail splits into run-rail-section + agent-rail-section", async () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  const handle = mount({
+    root,
+    store,
+    normalize,
+    hydrate: () => Promise.resolve({ snapshot: store.snapshot(), raw: {} }),
+    doc,
+  });
+  await handle.hydrationPromise;
+  assert.equal(root._findAllByClass("rail-section").length, 2);
+  assert.equal(root._findAllByClass("run-rail-section").length, 1);
+  assert.equal(root._findAllByClass("agent-rail-section").length, 1);
+  // Test hooks expose them.
+  assert.ok(handle._runRailSection);
+  assert.ok(handle._agentRailSection);
+  assert.ok(handle._runTreeMount);
+  assert.ok(handle._agentTreeMount);
+});
+
+test("MA6: run-tree now mounts to .run-tree-mount, not the whole rail", async () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  let runTreeRoot = null;
+  const stubRunTree = {
+    create(opts) { runTreeRoot = opts.root; return { destroy() {} }; },
+  };
+  const handle = mount({
+    root,
+    store,
+    normalize,
+    hydrate: () => Promise.resolve({ snapshot: store.snapshot(), raw: {} }),
+    doc,
+    panels: { runTree: stubRunTree },
+  });
+  await handle.hydrationPromise;
+  assert.equal(runTreeRoot, handle._runTreeMount);
+});
+
+test("MA6: panels.agentTree override is honored + onSelect routes through store.selectItem", async () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  let agentTreeOpts = null;
+  const stubAgentTree = {
+    create(opts) { agentTreeOpts = opts; return { destroy() { stubAgentTree._destroyed = true; } }; },
+  };
+  const handle = mount({
+    root,
+    store,
+    normalize,
+    hydrate: () => Promise.resolve({ snapshot: store.snapshot(), raw: {} }),
+    doc,
+    panels: { agentTree: stubAgentTree },
+  });
+  await handle.hydrationPromise;
+  assert.ok(agentTreeOpts);
+  assert.equal(agentTreeOpts.root, handle._agentTreeMount);
+  assert.equal(agentTreeOpts.store, store);
+  assert.equal(typeof agentTreeOpts.onSelect, "function");
+  // Calling onSelect routes through store.selectItem.
+  const child = { pid: 101, label: "codex", runId: "X", ageMs: 100 };
+  agentTreeOpts.onSelect("child", child);
+  assert.deepEqual(store.snapshot().selectedItem, { kind: "child", payload: child });
+  // destroy fans out.
+  handle.destroy();
+  assert.equal(stubAgentTree._destroyed, true);
+});
+
 // ── panel injection (via panels override) ─────────────────────────────
 
 test("mount uses the panels.globalBar override when provided", async () => {

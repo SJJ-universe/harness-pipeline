@@ -59,7 +59,7 @@
       return [dt, dd];
     }
 
-    function _renderEvent(env) {
+    function _renderEvent(env, isPinned) {
       const card = _doc.createElement("div");
       card.className = "ip-card";
 
@@ -73,6 +73,19 @@
       scopeEl.className = "ip-scope ip-scope-" + (env.scope || "unknown");
       scopeEl.textContent = env.scope || "unknown";
       header.appendChild(scopeEl);
+
+      // Slice MA6: pin button — toggle the envelope into store.pinnedEvents
+      // so it survives ring eviction. Label flips between "📌 pin" /
+      // "✕ unpin" so the user always sees the action verb.
+      const pinBtn = _doc.createElement("button");
+      pinBtn.type = "button";
+      pinBtn.className = "ip-pin-btn" + (isPinned ? " is-pinned" : "");
+      pinBtn.setAttribute("aria-pressed", isPinned ? "true" : "false");
+      pinBtn.textContent = isPinned ? "✕ unpin" : "📌 pin";
+      pinBtn.addEventListener("click", () => {
+        if (typeof store.togglePinEvent === "function") store.togglePinEvent(env);
+      });
+      header.appendChild(pinBtn);
       card.appendChild(header);
 
       const dl = _doc.createElement("dl");
@@ -95,6 +108,67 @@
       payload.textContent = _safeStringify(env.payload);
       card.appendChild(payload);
 
+      return card;
+    }
+
+    // Slice MA6: kind:"child" — agent-tree row → child detail card.
+    function _renderChild(child) {
+      const card = _doc.createElement("div");
+      card.className = "ip-card ip-card-child";
+
+      const header = _doc.createElement("div");
+      header.className = "ip-header";
+      const typeEl = _doc.createElement("span");
+      typeEl.className = "ip-type";
+      typeEl.textContent = "child: " + (child.label || "(?)");
+      header.appendChild(typeEl);
+      const scopeEl = _doc.createElement("span");
+      scopeEl.className = "ip-scope ip-scope-child";
+      scopeEl.textContent = "child";
+      header.appendChild(scopeEl);
+      card.appendChild(header);
+
+      const dl = _doc.createElement("dl");
+      dl.className = "ip-meta";
+      const rows = [
+        _kv("pid", child.pid != null ? String(child.pid) : "—"),
+        _kv("label", child.label || "—"),
+        _kv("runId", child.runId || "—"),
+        _kv("ageMs", child.ageMs != null ? String(child.ageMs) : "—"),
+      ];
+      for (const [dt, dd] of rows) { dl.appendChild(dt); dl.appendChild(dd); }
+      card.appendChild(dl);
+      return card;
+    }
+
+    // Slice MA6: kind:"subagent" — agent-tree row → subagent detail card.
+    function _renderSubagent(sub) {
+      const card = _doc.createElement("div");
+      card.className = "ip-card ip-card-subagent";
+
+      const header = _doc.createElement("div");
+      header.className = "ip-header";
+      const typeEl = _doc.createElement("span");
+      typeEl.className = "ip-type";
+      typeEl.textContent = "subagent: " + (sub.agent_type || "(?)");
+      header.appendChild(typeEl);
+      const scopeEl = _doc.createElement("span");
+      scopeEl.className = "ip-scope ip-scope-subagent";
+      scopeEl.textContent = "subagent";
+      header.appendChild(scopeEl);
+      card.appendChild(header);
+
+      const dl = _doc.createElement("dl");
+      dl.className = "ip-meta";
+      const rows = [
+        _kv("session_id", sub.session_id || "—"),
+        _kv("agent_id", sub.agent_id || "—"),
+        _kv("agent_type", sub.agent_type || "—"),
+        _kv("runId", sub.runId || "—"),
+        _kv("started", sub.ts ? _formatTime(sub.ts) : "—"),
+      ];
+      for (const [dt, dd] of rows) { dl.appendChild(dt); dl.appendChild(dd); }
+      card.appendChild(dl);
       return card;
     }
 
@@ -130,7 +204,18 @@
         return;
       }
       if (sel.kind === "event" && sel.payload) {
-        root.appendChild(_renderEvent(sel.payload));
+        // Slice MA6: pin status drives the button label + class.
+        const pinned = (snapshot && snapshot.pinnedEvents) || [];
+        const isPinned = pinned.indexOf(sel.payload) !== -1;
+        root.appendChild(_renderEvent(sel.payload, isPinned));
+        return;
+      }
+      if (sel.kind === "child" && sel.payload) {
+        root.appendChild(_renderChild(sel.payload));
+        return;
+      }
+      if (sel.kind === "subagent" && sel.payload) {
+        root.appendChild(_renderSubagent(sel.payload));
         return;
       }
       // Unknown kind → generic dump so future panels don't silently break.
@@ -150,6 +235,8 @@
       _formatTime,
       _safeStringify,
       _renderEvent,
+      _renderChild,
+      _renderSubagent,
       _renderGeneric,
     };
   }

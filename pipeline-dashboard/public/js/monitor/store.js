@@ -45,9 +45,20 @@
       counters: {},                  // { critical: 3, warnings: 12, ... }
       // Slice MA5: generic selection slot for the right inspector.
       // shape: { kind: string, payload: object | null } | null
-      // Today the only kind producer is the timeline panel ("event") but
-      // future MA6 panels will populate "child"/"finding"/"subagent".
+      // MA5 wired the timeline → "event"; MA6 added "child" + "subagent"
+      // (agent-tree panel) and "pinned-event" support stays under "event".
       selectedItem: null,
+      // Slice MA6: timeline scope filter — Set<string> of scopes the user
+      // has toggled OFF. Empty set = show every scope (default). When the
+      // user clicks a chip, that scope toggles in/out of the set; the
+      // timeline panel reads snapshot.timelineExcluded and filters on it.
+      timelineExcluded: new Set(),
+      // Slice MA6: pinned events — references survive eviction from the
+      // events ring. A user pins an envelope from the inspector; the
+      // store keeps the reference alive (the events ring may evict the
+      // original entry, but the pinned ref still renders in the timeline
+      // and the inspector keeps working).
+      pinnedEvents: new Set(),
     };
   }
 
@@ -84,6 +95,9 @@
         selectedItem: state.selectedItem
           ? { kind: state.selectedItem.kind, payload: state.selectedItem.payload }
           : null,
+        // Slice MA6: filter + pin slices. Sorted for stable test asserts.
+        timelineExcluded: Array.from(state.timelineExcluded).sort(),
+        pinnedEvents: Array.from(state.pinnedEvents),
       };
     }
 
@@ -184,6 +198,68 @@
       return snapshot();
     }
 
+    // ── Slice MA6: timeline scope filter ──────────────────────────
+
+    function toggleTimelineScope(scope) {
+      // No-op for non-string / empty scope so the panel doesn't have to
+      // pre-validate.
+      if (typeof scope !== "string" || scope.length === 0) return snapshot();
+      if (state.timelineExcluded.has(scope)) {
+        state.timelineExcluded.delete(scope);
+      } else {
+        state.timelineExcluded.add(scope);
+      }
+      _publish();
+      return snapshot();
+    }
+
+    function setTimelineFilter(scopes) {
+      // null / undefined → clear all exclusions.
+      if (scopes == null) {
+        if (state.timelineExcluded.size === 0) return snapshot();
+        state.timelineExcluded = new Set();
+        _publish();
+        return snapshot();
+      }
+      // Replace the exclusion set wholesale.
+      const next = new Set();
+      if (scopes && typeof scopes[Symbol.iterator] === "function") {
+        for (const s of scopes) if (typeof s === "string" && s.length > 0) next.add(s);
+      }
+      state.timelineExcluded = next;
+      _publish();
+      return snapshot();
+    }
+
+    // ── Slice MA6: event pinning ──────────────────────────────────
+
+    function pinEvent(env) {
+      // pinEvent is for envelope refs only — no-op on bad input.
+      if (!env || typeof env !== "object") return snapshot();
+      if (state.pinnedEvents.has(env)) return snapshot();
+      state.pinnedEvents.add(env);
+      _publish();
+      return snapshot();
+    }
+
+    function unpinEvent(env) {
+      if (!env || !state.pinnedEvents.has(env)) return snapshot();
+      state.pinnedEvents.delete(env);
+      _publish();
+      return snapshot();
+    }
+
+    function togglePinEvent(env) {
+      if (!env || typeof env !== "object") return snapshot();
+      if (state.pinnedEvents.has(env)) {
+        state.pinnedEvents.delete(env);
+      } else {
+        state.pinnedEvents.add(env);
+      }
+      _publish();
+      return snapshot();
+    }
+
     // Test-only inspection so unit tests don't need to read the snapshot
     // every time. Internals not exposed by the public API.
     function _internal() {
@@ -206,6 +282,12 @@
       // Slice MA5
       selectItem,
       clearSelection,
+      // Slice MA6
+      toggleTimelineScope,
+      setTimelineFilter,
+      pinEvent,
+      unpinEvent,
+      togglePinEvent,
       // testing aid
       _internal,
     };

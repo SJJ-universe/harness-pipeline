@@ -1,4 +1,4 @@
-// Slice MA3+MA4+MA5 (Phase D, 2026-04-27) — HarnessMonitorLayout.
+// Slice MA3+MA4+MA5+MA6 (Phase D, 2026-04-27) — HarnessMonitorLayout.
 //
 // Mounts the monitor shell into a host element, kicks off hydration, and
 // instantiates each panel.
@@ -7,6 +7,9 @@
 //   - MA5 — center-workspace splits into cw-summary (top) + cw-timeline
 //           (bottom); shell-body grows a right-inspector column;
 //           shell-dock (raw event log) sits below shell-body.
+//   - MA6 — run-rail splits into run-rail-section (run-tree mount) and
+//           agent-rail-section (agent-tree mount); inspector picks up
+//           kind:"child" + kind:"subagent" via store.selectItem.
 //
 // Default behaviour: completely opt-in. The init script in index.html
 // only invokes mount() when ?monitor=1 is in the URL or
@@ -29,10 +32,11 @@
 //                     timeline?:    { create({root,store,onSelect,doc}) },  // MA5
 //                     inspector?:   { create({root,store,doc}) },           // MA5
 //                     bottomDock?:  { create({root,store,doc}) },           // MA5
+//                     agentTree?:   { create({root,store,onSelect,doc}) },  // MA6
 //                   }
 //                   Defaults are window.HarnessMonitor{GlobalBar,RunTree,
-//                   RunSummary,Timeline,Inspector,BottomDock} in browsers;
-//                   tests inject stubs.
+//                   RunSummary,Timeline,Inspector,BottomDock,AgentTree} in
+//                   browsers; tests inject stubs.
 //   - hydrate     : optional hydrate fn override (defaults to
 //                   HarnessMonitorHydrate.hydrateMonitorStore).
 //   - doc         : optional document override (test injection).
@@ -120,7 +124,34 @@
     const runRail = _doc.createElement("div");
     runRail.className = "run-rail";
     runRail.setAttribute("role", "navigation");
-    runRail.setAttribute("aria-label", "Runs");
+    runRail.setAttribute("aria-label", "Runs and agents");
+
+    // Slice MA6: split the rail into two sections so run-tree (top) and
+    // agent-tree (bottom) each own their mount and don't fight over
+    // innerHTML clears. Each subregion gets a small header so users can
+    // tell the lists apart.
+    const runRailSection = _doc.createElement("div");
+    runRailSection.className = "rail-section run-rail-section";
+    const runRailTitle = _doc.createElement("div");
+    runRailTitle.className = "rail-section-title";
+    runRailTitle.textContent = "RUNS";
+    const runTreeMount = _doc.createElement("div");
+    runTreeMount.className = "run-tree-mount";
+    runRailSection.appendChild(runRailTitle);
+    runRailSection.appendChild(runTreeMount);
+
+    const agentRailSection = _doc.createElement("div");
+    agentRailSection.className = "rail-section agent-rail-section";
+    const agentRailTitle = _doc.createElement("div");
+    agentRailTitle.className = "rail-section-title";
+    agentRailTitle.textContent = "AGENTS";
+    const agentTreeMount = _doc.createElement("div");
+    agentTreeMount.className = "agent-tree-mount";
+    agentRailSection.appendChild(agentRailTitle);
+    agentRailSection.appendChild(agentTreeMount);
+
+    runRail.appendChild(runRailSection);
+    runRail.appendChild(agentRailSection);
 
     const centerWs = _doc.createElement("div");
     centerWs.className = "center-workspace";
@@ -198,11 +229,14 @@
     }
 
     // ── Slice MA4: mount the run-tree (left rail) + run-summary (centre) ──
+    // Slice MA6: run-tree mounts to .run-tree-mount inside the rail
+    // section instead of the whole rail (agent-tree gets its own
+    // sibling section below).
     let runTreeHandle = null;
     const RunTree = _resolvePanel(panels, "runTree", "HarnessMonitorRunTree");
     if (RunTree) {
       runTreeHandle = RunTree.create({
-        root: runRail,
+        root: runTreeMount,
         store,
         doc: _doc,
         onSelect(runId) {
@@ -258,6 +292,21 @@
       });
     }
 
+    // ── Slice MA6: agent-tree (left rail bottom) ──
+    let agentTreeHandle = null;
+    const AgentTree = _resolvePanel(panels, "agentTree", "HarnessMonitorAgentTree");
+    if (AgentTree) {
+      agentTreeHandle = AgentTree.create({
+        root: agentTreeMount,
+        store,
+        doc: _doc,
+        onSelect(kind, payload) {
+          // child / subagent → store.selectItem, inspector picks it up.
+          if (typeof store.selectItem === "function") store.selectItem(kind, payload);
+        },
+      });
+    }
+
     // ── Kick off hydration ──
     const hydrateFn = _resolveHydrate(hydrate);
     let hydrationPromise = Promise.resolve();
@@ -283,6 +332,7 @@
         try { timelineHandle && timelineHandle.destroy && timelineHandle.destroy(); } catch (_) {}
         try { inspectorHandle && inspectorHandle.destroy && inspectorHandle.destroy(); } catch (_) {}
         try { bottomDockHandle && bottomDockHandle.destroy && bottomDockHandle.destroy(); } catch (_) {}
+        try { agentTreeHandle && agentTreeHandle.destroy && agentTreeHandle.destroy(); } catch (_) {}
         root.classList.remove("is-active");
         root.classList.remove("monitor-shell");
         if (typeof root.setAttribute === "function") root.setAttribute("hidden", "");
@@ -304,6 +354,11 @@
       _cwTimeline: cwTimeline,
       _rightInspector: rightInspector,
       _shellDock: shellDock,
+      // MA6 hooks
+      _runRailSection: runRailSection,
+      _agentRailSection: agentRailSection,
+      _runTreeMount: runTreeMount,
+      _agentTreeMount: agentTreeMount,
     };
   }
 

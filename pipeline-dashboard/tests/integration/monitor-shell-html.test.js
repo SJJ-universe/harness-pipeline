@@ -36,6 +36,7 @@ test("index.html loads all monitor UMD modules", () => {
   // MA3 set: store/normalizer/hydrate/global-bar/layout.
   // MA4 added: panels/run-tree + panels/run-summary.
   // MA5 added: panels/timeline + panels/inspector + panels/bottom-dock.
+  // MA6 added: panels/agent-tree.
   const required = [
     "js/monitor/store.js",
     "js/monitor/normalizer.js",
@@ -46,11 +47,19 @@ test("index.html loads all monitor UMD modules", () => {
     "js/monitor/panels/timeline.js",
     "js/monitor/panels/inspector.js",
     "js/monitor/panels/bottom-dock.js",
+    "js/monitor/panels/agent-tree.js",
     "js/monitor/layout.js",
   ];
   for (const src of required) {
     assert.match(HTML, new RegExp(`<script src="${src.replace(/\//g, "\\/")}"`), `script tag for ${src}`);
   }
+});
+
+test("MA6 agent-tree loads BEFORE layout.js (so layout.js can resolve it)", () => {
+  const agentTreeIdx = HTML.indexOf("<script src=\"js/monitor/panels/agent-tree.js\"></script>");
+  const layoutIdx = HTML.indexOf("<script src=\"js/monitor/layout.js\"></script>");
+  assert.ok(agentTreeIdx > -1 && layoutIdx > -1);
+  assert.ok(agentTreeIdx < layoutIdx, "agent-tree must load before layout");
 });
 
 test("MA4 panels load BEFORE layout.js (so layout.js can resolve them)", () => {

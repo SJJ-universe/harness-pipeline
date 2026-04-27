@@ -23,6 +23,9 @@ test("createMonitorStore returns the public action surface", () => {
     "pushEvent", "bumpCounter", "reset",
     // Slice MA5
     "selectItem", "clearSelection",
+    // Slice MA6
+    "toggleTimelineScope", "setTimelineFilter",
+    "pinEvent", "unpinEvent", "togglePinEvent",
   ]) {
     assert.equal(typeof s[fn], "function", fn + " is exposed");
   }
@@ -50,6 +53,9 @@ test("snapshot of a fresh store has the canonical shape", () => {
   assert.deepEqual(snap.counters, {});
   // Slice MA5
   assert.equal(snap.selectedItem, null);
+  // Slice MA6
+  assert.deepEqual(snap.timelineExcluded, []);
+  assert.deepEqual(snap.pinnedEvents, []);
 });
 
 // ── server / activeChildren ─────────────────────────────────────────────
@@ -316,4 +322,117 @@ test("reset() clears selectedItem along with everything else", () => {
   s.selectItem("event", { a: 1 });
   s.reset();
   assert.equal(s.snapshot().selectedItem, null);
+});
+
+// ── Slice MA6: timelineExcluded ──────────────────────────────────────
+
+test("toggleTimelineScope adds + removes scope from the exclude set", () => {
+  const s = createMonitorStore();
+  s.toggleTimelineScope("phase");
+  assert.deepEqual(s.snapshot().timelineExcluded, ["phase"]);
+  s.toggleTimelineScope("tool");
+  assert.deepEqual(s.snapshot().timelineExcluded, ["phase", "tool"]);
+  s.toggleTimelineScope("phase");
+  assert.deepEqual(s.snapshot().timelineExcluded, ["tool"]);
+  s.toggleTimelineScope("tool");
+  assert.deepEqual(s.snapshot().timelineExcluded, []);
+});
+
+test("toggleTimelineScope ignores empty / non-string scope", () => {
+  const s = createMonitorStore();
+  s.toggleTimelineScope("");
+  s.toggleTimelineScope(null);
+  s.toggleTimelineScope(42);
+  assert.deepEqual(s.snapshot().timelineExcluded, []);
+});
+
+test("setTimelineFilter replaces the set wholesale", () => {
+  const s = createMonitorStore();
+  s.toggleTimelineScope("phase");
+  s.setTimelineFilter(["tool", "gate"]);
+  assert.deepEqual(s.snapshot().timelineExcluded, ["gate", "tool"]);
+});
+
+test("setTimelineFilter(null) clears all exclusions", () => {
+  const s = createMonitorStore();
+  s.toggleTimelineScope("phase");
+  s.toggleTimelineScope("tool");
+  s.setTimelineFilter(null);
+  assert.deepEqual(s.snapshot().timelineExcluded, []);
+});
+
+test("setTimelineFilter(null) on already-empty is a no-op (no publish)", () => {
+  const s = createMonitorStore();
+  let calls = 0;
+  s.subscribe(() => { calls++; });
+  const before = calls;
+  s.setTimelineFilter(null);
+  assert.equal(calls, before, "no extra publish when nothing to clear");
+});
+
+test("setTimelineFilter coerces iterables and skips bad entries", () => {
+  const s = createMonitorStore();
+  s.setTimelineFilter(new Set(["a", "b", "", null, "c", 42]));
+  assert.deepEqual(s.snapshot().timelineExcluded, ["a", "b", "c"]);
+});
+
+// ── Slice MA6: pinnedEvents ──────────────────────────────────────────
+
+test("pinEvent adds + dedupes by reference", () => {
+  const s = createMonitorStore();
+  const env = { type: "phase_update" };
+  s.pinEvent(env);
+  s.pinEvent(env);
+  assert.equal(s.snapshot().pinnedEvents.length, 1);
+  assert.equal(s.snapshot().pinnedEvents[0], env);
+});
+
+test("unpinEvent removes by reference + no-op for missing", () => {
+  const s = createMonitorStore();
+  const env = { type: "phase_update" };
+  s.pinEvent(env);
+  s.unpinEvent({ type: "phase_update" }); // different ref → no-op
+  assert.equal(s.snapshot().pinnedEvents.length, 1);
+  s.unpinEvent(env);
+  assert.equal(s.snapshot().pinnedEvents.length, 0);
+});
+
+test("togglePinEvent flips membership", () => {
+  const s = createMonitorStore();
+  const env = { type: "x" };
+  s.togglePinEvent(env);
+  assert.equal(s.snapshot().pinnedEvents.length, 1);
+  s.togglePinEvent(env);
+  assert.equal(s.snapshot().pinnedEvents.length, 0);
+});
+
+test("pin actions ignore null / non-object input", () => {
+  const s = createMonitorStore();
+  s.pinEvent(null);
+  s.pinEvent("nope");
+  s.togglePinEvent(undefined);
+  assert.deepEqual(s.snapshot().pinnedEvents, []);
+});
+
+test("pinned events survive being evicted from the events ring", () => {
+  // Small ring → eviction kicks in fast.
+  const s = createMonitorStore({ maxEvents: 3 });
+  const target = { type: "phase_update", ts: 1 };
+  s.pushEvent(target);
+  s.pinEvent(target);
+  // Push enough to evict `target` from the ring.
+  for (let i = 0; i < 5; i++) s.pushEvent({ type: "tool_recorded", ts: i + 100 });
+  assert.equal(s.snapshot().events.length, 3, "ring kept exactly maxEvents");
+  assert.equal(s.snapshot().events.includes(target), false, "target was evicted from ring");
+  assert.equal(s.snapshot().pinnedEvents.includes(target), true, "but still in pinnedEvents");
+});
+
+test("reset() clears timelineExcluded + pinnedEvents", () => {
+  const s = createMonitorStore();
+  s.toggleTimelineScope("phase");
+  s.pinEvent({ type: "x" });
+  s.reset();
+  const snap = s.snapshot();
+  assert.deepEqual(snap.timelineExcluded, []);
+  assert.deepEqual(snap.pinnedEvents, []);
 });

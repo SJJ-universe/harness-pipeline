@@ -51,6 +51,18 @@
     });
   }
 
+  // Slice MA6: scope chip filter. Drops envelopes whose scope is in the
+  // excluded set. Empty/null set = pass everything (default state).
+  function _applyScopeFilter(events, excludedScopes) {
+    if (!Array.isArray(events) || events.length === 0) return events || [];
+    if (!excludedScopes || excludedScopes.length === 0) return events;
+    const set = excludedScopes instanceof Set
+      ? excludedScopes
+      : new Set(excludedScopes);
+    if (set.size === 0) return events;
+    return events.filter((env) => env && !set.has(env.scope));
+  }
+
   function _isSelectedEvent(selectedItem, env) {
     return !!(
       selectedItem
@@ -77,9 +89,11 @@
       }
     }
 
-    function _renderRow(env, isSelected) {
+    function _renderRow(env, isSelected, isPinned) {
       const row = _doc.createElement("div");
-      row.className = "tl-row" + (isSelected ? " is-selected" : "");
+      row.className = "tl-row"
+        + (isSelected ? " is-selected" : "")
+        + (isPinned ? " is-pinned" : "");
       row.setAttribute("role", "button");
       row.setAttribute("tabindex", "0");
       row.setAttribute("data-type", env.type || "");
@@ -101,7 +115,10 @@
 
       const summary = _doc.createElement("span");
       summary.className = "tl-summary";
-      summary.textContent = env.summary || "";
+      // Slice MA6: pin indicator inline at the start of the summary so
+      // pinned rows are still scannable at a glance even when the row's
+      // scope/type filter is matching the user's chip selection.
+      summary.textContent = (isPinned ? "📌 " : "") + (env.summary || "");
       row.appendChild(summary);
 
       row.addEventListener("click", () => _emit(env));
@@ -114,13 +131,66 @@
       return row;
     }
 
+    // Slice MA6: filter chip strip — one chip per known scope. Active
+    // (== visible scope) when chip is NOT in timelineExcluded; inactive
+    // when it is. Click toggles via store.toggleTimelineScope.
+    function _renderChipStrip(snapshot) {
+      const strip = _doc.createElement("div");
+      strip.className = "tl-filter";
+      strip.setAttribute("role", "toolbar");
+      strip.setAttribute("aria-label", "Scope filter");
+      const excluded = new Set((snapshot && snapshot.timelineExcluded) || []);
+      // Show known scopes in stable display order. Other scopes (e.g.
+      // unknown) are not chip-filterable in MA6 — they pass through by
+      // default but the user can still hide them via store API.
+      const KNOWN_SCOPES = [
+        "pipeline", "phase", "tool", "gate", "codex",
+        "subagent", "child", "verification", "artifact",
+        "orchestrator", "server", "context", "ui",
+        "telemetry", "cycle", "global",
+      ];
+      for (const scope of KNOWN_SCOPES) {
+        const chip = _doc.createElement("button");
+        chip.type = "button";
+        chip.className = "tl-chip"
+          + (excluded.has(scope) ? "" : " is-active")
+          + " tl-chip-" + scope;
+        chip.setAttribute("data-scope", scope);
+        chip.setAttribute("aria-pressed", excluded.has(scope) ? "false" : "true");
+        chip.textContent = scope;
+        chip.addEventListener("click", () => {
+          if (typeof store.toggleTimelineScope === "function") {
+            store.toggleTimelineScope(scope);
+          }
+        });
+        strip.appendChild(chip);
+      }
+      return strip;
+    }
+
     function render(snapshot) {
       root.innerHTML = "";
-      const events = (snapshot && snapshot.events) || [];
-      const focus = (snapshot && snapshot.selectedRunId) || null;
-      const filtered = _filterEvents(events, focus);
 
-      if (filtered.length === 0) {
+      // Slice MA6: chip strip is always present — even on the empty
+      // state — so the user can always tweak filters.
+      root.appendChild(_renderChipStrip(snapshot));
+
+      const events = (snapshot && snapshot.events) || [];
+      const pinned = (snapshot && snapshot.pinnedEvents) || [];
+      const focus = (snapshot && snapshot.selectedRunId) || null;
+      const excluded = (snapshot && snapshot.timelineExcluded) || [];
+
+      // Slice MA6: merge pinned events (which survive ring eviction)
+      // with the live events ring, dedup by reference. Pinned events
+      // bypass the runId/scope filters by design — pinning explicitly
+      // says "I want this visible regardless".
+      const pinnedSet = new Set(pinned);
+      const ringSeenSet = new Set(events);
+      const survivors = pinned.filter((env) => env && !ringSeenSet.has(env));
+      const ringFiltered = _applyScopeFilter(_filterEvents(events, focus), excluded);
+      const merged = ringFiltered.concat(survivors);
+
+      if (merged.length === 0) {
         const empty = _doc.createElement("div");
         empty.className = "tl-empty";
         empty.textContent = focus
@@ -130,15 +200,19 @@
         return;
       }
 
-      // newest-first, capped.
-      const display = filtered.slice(-MAX_DISPLAY).reverse();
+      // newest-first by ts, capped.
+      const display = merged
+        .slice()
+        .sort((a, b) => (b.ts || 0) - (a.ts || 0))
+        .slice(0, MAX_DISPLAY);
       const list = _doc.createElement("div");
       list.className = "tl-list";
       list.setAttribute("role", "list");
       list.setAttribute("aria-label", "Recent events");
       const sel = (snapshot && snapshot.selectedItem) || null;
       for (const env of display) {
-        list.appendChild(_renderRow(env, _isSelectedEvent(sel, env)));
+        const isPinned = pinnedSet.has(env);
+        list.appendChild(_renderRow(env, _isSelectedEvent(sel, env), isPinned));
       }
       root.appendChild(list);
     }
@@ -155,10 +229,12 @@
       _render: render,
       _formatTime,
       _filterEvents,
+      _applyScopeFilter,
       _isSelectedEvent,
+      _renderChipStrip,
       MAX_DISPLAY,
     };
   }
 
-  return { create, _formatTime, _filterEvents, _isSelectedEvent, MAX_DISPLAY };
+  return { create, _formatTime, _filterEvents, _applyScopeFilter, _isSelectedEvent, MAX_DISPLAY };
 });

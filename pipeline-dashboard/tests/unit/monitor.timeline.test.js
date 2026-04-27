@@ -10,6 +10,7 @@ const {
   create,
   _formatTime,
   _filterEvents,
+  _applyScopeFilter,
   _isSelectedEvent,
   MAX_DISPLAY,
 } = require("../../public/js/monitor/panels/timeline");
@@ -288,4 +289,99 @@ test("create throws on bad inputs", () => {
     () => create({ root: doc.createElement("div"), store, doc: {} }),
     /no document available/
   );
+});
+
+// ── Slice MA6: scope filter chips ─────────────────────────────────────
+
+test("_applyScopeFilter drops envelopes whose scope is in the excluded set", () => {
+  const events = [
+    { scope: "phase", type: "phase_update" },
+    { scope: "tool",  type: "tool_recorded" },
+    { scope: "global", type: "toast" },
+  ];
+  assert.deepEqual(_applyScopeFilter(events, []), events, "empty excludes → no-op");
+  assert.deepEqual(_applyScopeFilter(events, null), events, "null excludes → no-op");
+  assert.deepEqual(_applyScopeFilter(events, new Set()), events, "empty Set → no-op");
+  const out = _applyScopeFilter(events, ["tool"]);
+  assert.equal(out.length, 2);
+  assert.equal(out.find((e) => e.scope === "tool"), undefined, "tool dropped");
+});
+
+test("chip strip renders one chip per known scope (active by default)", () => {
+  const doc = makeDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  create({ root, store, doc });
+  const filter = root._firstByClass("tl-filter");
+  assert.ok(filter);
+  const chips = root._findAllByClass("tl-chip");
+  assert.ok(chips.length >= 10, "renders at least the major scopes");
+  // All chips active when timelineExcluded is empty.
+  for (const chip of chips) {
+    assert.equal(chip.attributes["aria-pressed"], "true");
+    assert.ok(chip.classList.contains("is-active"));
+  }
+});
+
+test("clicking a chip toggles its scope into store.timelineExcluded", () => {
+  const doc = makeDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  create({ root, store, doc });
+  const phaseChip = root._findAllByClass("tl-chip").find((c) => c.attributes["data-scope"] === "phase");
+  assert.ok(phaseChip);
+  phaseChip._dispatch("click", {});
+  assert.deepEqual(store.snapshot().timelineExcluded, ["phase"]);
+  // Re-render reflects the toggle: the SAME-scope chip is now inactive.
+  const phaseChip2 = root._findAllByClass("tl-chip").find((c) => c.attributes["data-scope"] === "phase");
+  assert.equal(phaseChip2.attributes["aria-pressed"], "false");
+  assert.ok(!phaseChip2.classList.contains("is-active"));
+});
+
+test("excluded scopes drop out of the row list", () => {
+  const doc = makeDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  pushEnv(store, { ts: 1, type: "phase_update", scope: "phase" });
+  pushEnv(store, { ts: 2, type: "tool_recorded", scope: "tool" });
+  pushEnv(store, { ts: 3, type: "toast", scope: "global", runId: undefined });
+  create({ root, store, doc });
+  assert.equal(root._findAllByClass("tl-row").length, 3);
+  store.toggleTimelineScope("tool");
+  const types = root._findAllByClass("tl-row").map((r) => r.attributes["data-type"]);
+  assert.equal(types.length, 2);
+  assert.ok(!types.includes("tool_recorded"));
+});
+
+// ── Slice MA6: pin survival + indicator ──────────────────────────────
+
+test("pinned envelope survives ring eviction and still renders", () => {
+  const doc = makeDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore({ maxEvents: 3 });
+  const target = { type: "phase_update", scope: "phase", runId: "default", ts: 1, summary: "FOCUS", payload: {} };
+  store.pushEvent(target);
+  store.pinEvent(target);
+  // Push enough to evict.
+  for (let i = 0; i < 5; i++) {
+    pushEnv(store, { type: "tool_recorded", scope: "tool", ts: 100 + i });
+  }
+  create({ root, store, doc });
+  const summaries = root._findAllByClass("tl-summary").map((s) => s._textContent);
+  // Pinned summary present (with 📌 prefix).
+  assert.ok(summaries.some((s) => s.includes("FOCUS")));
+});
+
+test("pinned rows get the is-pinned class + 📌 prefix in summary", () => {
+  const doc = makeDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  const env = { type: "phase_update", scope: "phase", ts: 1, summary: "X", payload: {} };
+  store.pushEvent(env);
+  store.pinEvent(env);
+  create({ root, store, doc });
+  const row = root._findAllByClass("tl-row")[0];
+  assert.ok(row.classList.contains("is-pinned"));
+  const summary = row._firstByClass("tl-summary");
+  assert.ok(summary._textContent.startsWith("📌"));
 });

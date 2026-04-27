@@ -11,6 +11,7 @@ const { create, _formatTime, _safeStringify } = require("../../public/js/monitor
 const { createMonitorStore } = require("../../public/js/monitor/store");
 
 function makeStubElement(tag) {
+  const listeners = {};
   const el = {
     tagName: String(tag).toUpperCase(),
     children: [],
@@ -33,8 +34,13 @@ function makeStubElement(tag) {
     setAttribute(k, v) { this.attributes[k] = String(v); },
     removeAttribute(k) { delete this.attributes[k]; },
     hasAttribute(k) { return Object.prototype.hasOwnProperty.call(this.attributes, k); },
-    addEventListener() {},
-    removeEventListener() {},
+    addEventListener(name, fn) { (listeners[name] = listeners[name] || []).push(fn); },
+    removeEventListener(name, fn) {
+      const arr = listeners[name] || [];
+      const i = arr.indexOf(fn);
+      if (i >= 0) arr.splice(i, 1);
+    },
+    _dispatch(name, ev) { for (const fn of (listeners[name] || []).slice()) fn(ev || {}); },
     _firstByClass(cls) {
       for (const c of this.children) {
         if (c.classList && c.classList.contains(cls)) return c;
@@ -156,13 +162,15 @@ test("unknown kinds render the generic JSON dump card", () => {
   const doc = makeDoc();
   const root = doc.createElement("div");
   const store = createMonitorStore();
-  store.selectItem("child", { pid: 101, label: "codex" });
+  // MA6 added "child" + "subagent" renderers — use a kind we explicitly
+  // do NOT have a dedicated renderer for (placeholder for MA7+).
+  store.selectItem("finding", { severity: "high", message: "x" });
   create({ root, store, doc });
   const card = root._firstByClass("ip-card-generic");
   assert.ok(card, "generic card rendered for unknown kind");
-  assert.equal(card._firstByClass("ip-type")._textContent, "kind: child");
+  assert.equal(card._firstByClass("ip-type")._textContent, "kind: finding");
   const pre = card._firstByClass("ip-payload");
-  assert.match(pre._textContent, /"pid": 101/);
+  assert.match(pre._textContent, /"severity": "high"/);
 });
 
 // ── live re-render ────────────────────────────────────────────────────
@@ -217,4 +225,75 @@ test("create throws on bad inputs", () => {
     () => create({ root: doc.createElement("div"), store, doc: {} }),
     /no document available/
   );
+});
+
+// ── Slice MA6: child + subagent kinds + pin button ───────────────────
+
+test("kind:'child' renders the child detail card with pid/label/runId/ageMs", () => {
+  const doc = makeDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  store.selectItem("child", { pid: 101, label: "codex", runId: "default", ageMs: 5000 });
+  create({ root, store, doc });
+  const card = root._firstByClass("ip-card-child");
+  assert.ok(card);
+  assert.equal(card._firstByClass("ip-type")._textContent, "child: codex");
+  assert.equal(card._firstByClass("ip-scope")._textContent, "child");
+  assert.equal(findKvByLabel(card, "pid").dd._textContent, "101");
+  assert.equal(findKvByLabel(card, "label").dd._textContent, "codex");
+  assert.equal(findKvByLabel(card, "runId").dd._textContent, "default");
+  assert.equal(findKvByLabel(card, "ageMs").dd._textContent, "5000");
+});
+
+test("kind:'subagent' renders the subagent detail card", () => {
+  const doc = makeDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  store.selectItem("subagent", {
+    session_id: "s1",
+    agent_id: "agent-1",
+    agent_type: "codex",
+    runId: "default",
+    ts: new Date(2026, 0, 1, 9, 0, 0).getTime(),
+  });
+  create({ root, store, doc });
+  const card = root._firstByClass("ip-card-subagent");
+  assert.ok(card);
+  assert.equal(card._firstByClass("ip-type")._textContent, "subagent: codex");
+  assert.equal(findKvByLabel(card, "session_id").dd._textContent, "s1");
+  assert.equal(findKvByLabel(card, "agent_id").dd._textContent, "agent-1");
+  assert.equal(findKvByLabel(card, "agent_type").dd._textContent, "codex");
+  assert.equal(findKvByLabel(card, "runId").dd._textContent, "default");
+});
+
+test("event card includes a pin button + flips label when pinned", () => {
+  const doc = makeDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  const env = { type: "phase_update", scope: "phase", payload: {} };
+  store.selectItem("event", env);
+  create({ root, store, doc });
+  let pinBtn = root._firstByClass("ip-pin-btn");
+  assert.ok(pinBtn, "pin button rendered for kind:event");
+  assert.equal(pinBtn._textContent, "📌 pin");
+  assert.equal(pinBtn.attributes["aria-pressed"], "false");
+  // Click → store.togglePinEvent → re-render → label flip.
+  pinBtn._dispatch("click", {});
+  assert.equal(store.snapshot().pinnedEvents.length, 1);
+  pinBtn = root._firstByClass("ip-pin-btn");
+  assert.equal(pinBtn._textContent, "✕ unpin");
+  assert.equal(pinBtn.attributes["aria-pressed"], "true");
+  assert.ok(pinBtn.classList.contains("is-pinned"));
+  // Click again → unpins.
+  pinBtn._dispatch("click", {});
+  assert.equal(store.snapshot().pinnedEvents.length, 0);
+});
+
+test("non-event kinds do NOT render a pin button (avoid mis-pinning)", () => {
+  const doc = makeDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  store.selectItem("child", { pid: 101, label: "codex", runId: "X", ageMs: 5 });
+  create({ root, store, doc });
+  assert.equal(root._firstByClass("ip-pin-btn"), null);
 });
