@@ -256,42 +256,20 @@ function gracefulShutdown(reason = "manual") {
 }
 
 // Slice S1 (Phase 3-S, 2026-04-27) — WS upgrade auth gate.
-//
-// Pipeline event WebSocket previously had no origin/loopback/token check;
-// only the terminal WS branch (below) verified credentials. With
-// HARNESS_ALLOW_REMOTE=1 + HARNESS_HOST=0.0.0.0 a remote attacker could
-// open a pipeline WS and read every broadcast (tool calls, findings,
-// checkpoints) without a token. This helper applies one consistent policy
-// for ANY incoming ws connection (terminal or pipeline) — loopback always
-// passes (frictionless local dev), non-loopback requires HARNESS_ALLOW_REMOTE
-// AND a valid ?token=…  AND a trusted Origin header (when present).
-function verifyWsConnection(req) {
-  const remote = req && req.socket ? req.socket.remoteAddress : null;
-  if (isLoopbackAddress(remote)) {
-    return { ok: true };
-  }
-  if (!ALLOW_REMOTE) {
-    return { ok: false, code: 1008, reason: "non-loopback ws disabled" };
-  }
-  let suppliedToken = "";
-  try {
-    const wsUrl = new URL(req.url || "/", `http://${(req.headers && req.headers.host) || "localhost"}`);
-    suppliedToken = wsUrl.searchParams.get("token") || "";
-  } catch (_) { /* malformed URL → no token */ }
-  if (!auth.validateToken(suppliedToken)) {
-    return { ok: false, code: 1008, reason: "missing or invalid harness token" };
-  }
-  const originHeader = req.headers && req.headers.origin;
-  if (originHeader) {
-    let originHost = "";
-    try { originHost = new URL(originHeader).hostname.toLowerCase(); } catch (_) { /* malformed */ }
-    const configuredHost = String(HOST || "").toLowerCase();
-    if (!isLoopbackHost(originHost) && originHost && originHost !== configuredHost) {
-      return { ok: false, code: 1008, reason: "untrusted ws origin" };
-    }
-  }
-  return { ok: true };
-}
+// Slice MA0 (Phase D, 2026-04-27): function body extracted to
+// `src/server/wsAuth.js`. The factory is invoked here with the same
+// runtime values (ALLOW_REMOTE / HOST / auth / loopback helpers) so the
+// behaviour is bit-for-bit identical and the test surface (Phase 3-S
+// `tests/integration/ws-loopback-guard.test.js` source-grep anchors)
+// stays intact.
+const { createWsAuth } = require("./src/server/wsAuth");
+const verifyWsConnection = createWsAuth({
+  allowRemote: ALLOW_REMOTE,
+  host: HOST,
+  auth,
+  isLoopbackAddress,
+  isLoopbackHost,
+});
 
 wss.on("connection", (ws, req) => {
   // Slice S1: gate first — terminal-specific token check below remains as a
@@ -721,6 +699,9 @@ app.use("/api", createServerControlRoutes({
   server,
   CLIENT_GRACE_MS,
   shutdownTimerRef: { get timer() { return shutdownTimer; } },
+  // Slice MA0 (Phase D, 2026-04-27): expose childRegistry to /api/server/info
+  // so operators can see active Codex/Claude children at a glance.
+  childRegistry,
 }));
 app.use("/api", createCodexRoutes({
   codexRunner,

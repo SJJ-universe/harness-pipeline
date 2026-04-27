@@ -178,12 +178,29 @@ test("verifyWsConnection: allowRemote=true: missing Origin header is allowed (no
 
 // ── server.js source-level guard (regression anchor) ───────────────────
 
-test("server.js contains verifyWsConnection helper + uses it in wss.on connection", () => {
+test("server.js wires verifyWsConnection from src/server/wsAuth and uses it in wss.on connection", () => {
+  // Slice MA0 (Phase D): the helper body moved into src/server/wsAuth.js.
+  // server.js now requires the factory and calls it with the same runtime
+  // values, so the source-level anchors moved too.
   const SRC = fs.readFileSync(path.join(__dirname, "../../server.js"), "utf-8");
-  assert.match(SRC, /function verifyWsConnection\s*\(/, "helper present in server.js");
+  assert.match(
+    SRC,
+    /require\(["']\.\/src\/server\/wsAuth["']\)/,
+    "wsAuth factory imported via project-relative path"
+  );
+  assert.match(
+    SRC,
+    /const verifyWsConnection\s*=\s*createWsAuth\(/,
+    "factory invoked at module load"
+  );
   assert.match(SRC, /Slice S1.*WS upgrade auth gate/, "carry the slice tag");
   assert.match(SRC, /const verdict = verifyWsConnection\(req\);/, "verdict consumed in connection handler");
   assert.match(SRC, /ws\.close\(verdict\.code, verdict\.reason\)/, "close on verdict.ok=false");
+
+  // The function definition itself now lives in wsAuth.js — verify there.
+  const WS_AUTH = fs.readFileSync(path.join(__dirname, "../../src/server/wsAuth.js"), "utf-8");
+  assert.match(WS_AUTH, /function verifyWsConnection\s*\(/, "helper body lives in wsAuth.js");
+  assert.match(WS_AUTH, /Slice S1.*WS upgrade auth gate/, "policy tag carried into wsAuth.js");
 });
 
 test("server.js imports isLoopbackHost from auth module (Slice S1 prerequisite)", () => {
