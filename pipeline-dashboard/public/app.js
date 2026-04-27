@@ -1633,123 +1633,16 @@ document.addEventListener("keydown", (e) => {
 
 // Click handlers are now bound dynamically by bindPipelineClicks()
 
-// ── Terminal (xterm.js + node-pty) ──
-let term = null;
-let termWs = null;
-
-async function initTerminal() {
-  if (typeof Terminal === "undefined") {
-    document.getElementById("terminal-container").innerHTML =
-      '<div class="modal-empty">xterm.js를 로드할 수 없습니다. 인터넷 연결을 확인하세요.</div>';
-    return;
-  }
-
-  term = new Terminal({
-    cursorBlink: true,
-    fontSize: 13,
-    fontFamily: "'Cascadia Code', 'Fira Code', monospace",
-    theme: {
-      background: "#0d1117",
-      foreground: "#e6edf3",
-      cursor: "#d4a574",
-      selectionBackground: "#264f78",
-    },
-  });
-
-  const fitAddon = new FitAddon.FitAddon();
-  term.loadAddon(fitAddon);
-  term.open(document.getElementById("terminal-container"));
-  fitAddon.fit();
-
-  term.attachCustomKeyEventHandler((e) => {
-    if (e.type !== "keydown") return true;
-    const ctrl = e.ctrlKey || e.metaKey;
-    if (ctrl && !e.shiftKey && !e.altKey && (e.key === "c" || e.key === "C")) {
-      const sel = term.getSelection();
-      if (sel && sel.length > 0) {
-        navigator.clipboard.writeText(sel).catch(() => {});
-        term.clearSelection();
-        return false;
-      }
-      return true;
-    }
-    if (ctrl && e.shiftKey && (e.key === "C" || e.key === "c")) {
-      const sel = term.getSelection();
-      if (sel && sel.length > 0) {
-        navigator.clipboard.writeText(sel).catch(() => {});
-        term.clearSelection();
-      }
-      return false;
-    }
-    if (ctrl && (e.key === "v" || e.key === "V")) {
-      return false;
-    }
-    return true;
-  });
-
-  // Await token before connecting — prevents 1008 unauthorized on first load
-  const token = await (window.HarnessApi ? window.HarnessApi.getToken() : Promise.resolve(window.HARNESS_TOKEN || ""));
-  const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-  const terminalToken = encodeURIComponent(token || "");
-  termWs = new WebSocket(`${protocol}//${location.host}/terminal?token=${terminalToken}`);
-
-  let promptReady = false;
-  let continueFailed = false;
-
-  termWs.onopen = () => {
-    termWs.send(JSON.stringify({ type: "resize", cols: term.cols, rows: term.rows }));
-  };
-
-  termWs.onmessage = (e) => {
-    const msg = JSON.parse(e.data);
-    if (msg.type === "output") {
-      term.write(msg.data);
-
-      // Detect "No conversation found to continue" → fallback to plain claude
-      if (!continueFailed && msg.data.includes("No conversation found")) {
-        continueFailed = true;
-        setTimeout(() => {
-          if (termWs.readyState === 1) {
-            termWs.send(JSON.stringify({ type: "input", data: "claude\n" }));
-          }
-        }, 300);
-      }
-
-      // Auto-launch claude --continue after first shell prompt appears
-      if (!promptReady && msg.data.includes("$")) {
-        promptReady = true;
-        setTimeout(() => {
-          if (termWs.readyState === 1) {
-            termWs.send(JSON.stringify({ type: "input", data: "claude --continue\n" }));
-          }
-        }, 300);
-      }
-    }
-  };
-
-  termWs.onclose = (ev) => {
-    if (ev.code === 1008) {
-      // Auth failed — token may not have loaded yet, retry once
-      term.write("\r\n\x1b[33m[인증 재시도 중...]\x1b[0m\r\n");
-      setTimeout(() => initTerminal(), 1500);
-      return;
-    }
-    term.write("\r\n\x1b[31m[연결 종료]\x1b[0m\r\n");
-  };
-
-  term.onData((data) => {
-    if (termWs && termWs.readyState === 1) {
-      termWs.send(JSON.stringify({ type: "input", data }));
-    }
-  });
-
-  const resizeObserver = new ResizeObserver(() => {
-    fitAddon.fit();
-    if (termWs && termWs.readyState === 1) {
-      termWs.send(JSON.stringify({ type: "resize", cols: term.cols, rows: term.rows }));
-    }
-  });
-  resizeObserver.observe(document.getElementById("terminal-container"));
+// Slice MB4-c (Phase D Round 2, 2026-04-27): the inline Terminal +
+// initTerminal closure (~120 lines) has been lifted to
+// public/js/terminal-mount.js. App.js holds a single mount handle here
+// so switchTab can lazily mount on first "terminal" tab click.
+let __terminalHandle = null;
+function _ensureTerminalHandle() {
+  if (__terminalHandle) return __terminalHandle;
+  if (typeof window === "undefined" || !window.HarnessTerminalMount) return null;
+  __terminalHandle = window.HarnessTerminalMount.install({});
+  return __terminalHandle;
 }
 
 function switchTab(tab) {
@@ -1757,7 +1650,10 @@ function switchTab(tab) {
   document.querySelectorAll(".tab-content").forEach((c) => c.classList.add("hidden"));
   document.getElementById(`tab-${tab}`).classList.remove("hidden");
   document.getElementById(`tab-btn-${tab}`).classList.add("active");
-  if (tab === "terminal" && !term) initTerminal();
+  if (tab === "terminal") {
+    const h = _ensureTerminalHandle();
+    if (h && !h.isMounted()) h.mount({ containerId: "terminal-container" });
+  }
 }
 
 // ══════════════════════════════════
@@ -1848,103 +1744,46 @@ async function verifyCodex() {
   }
 }
 
-// ── Automated General Pipeline (Claude plan ↔ Codex critique) ──
-
-function openGeneralRun() {
-  // Auto-switch visual template to "default" so the user sees the phases
-  // that will actually run.
-  if (currentTemplateId !== "default") {
-    loadPipelineTemplate("default");
-  }
-  document.getElementById("general-run-overlay").classList.add("visible");
-  setTimeout(() => {
-    const ti = document.getElementById("gr-task-input");
-    if (ti) ti.focus();
-  }, 50);
-}
-
-function closeGeneralRun() {
-  document.getElementById("general-run-overlay").classList.remove("visible");
-}
-
-async function submitGeneralRun() {
-  const task = document.getElementById("gr-task-input").value.trim();
-  const maxIter = parseInt(document.getElementById("gr-max-iter").value, 10) || 3;
-  if (task.length < 3) {
-    alert("작업 설명을 3자 이상 입력하세요");
-    return;
-  }
-  const startBtn = document.getElementById("btn-gr-start");
-  const triggerBtn = document.getElementById("btn-start-general");
-  const abortBtn = document.getElementById("btn-abort-general");
-  if (startBtn) startBtn.disabled = true;
-  if (triggerBtn) triggerBtn.disabled = true;
-  try {
-    const r = await fetch("/api/pipeline/general-run", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ task, maxIterations: maxIter }),
-    });
-    const d = await r.json();
-    if (!r.ok) {
-      alert("시작 실패: " + (d.error || r.status));
-      if (triggerBtn) triggerBtn.disabled = false;
-      return;
-    }
-    closeGeneralRun();
-    if (abortBtn) abortBtn.classList.remove("is-hidden");
-    addLog("phase", `범용 파이프라인 시작 — ${task.slice(0, 60)} (max ${maxIter} iter)`);
-  } catch (err) {
-    alert("요청 실패: " + err.message);
-    if (triggerBtn) triggerBtn.disabled = false;
-  } finally {
-    if (startBtn) startBtn.disabled = false;
-  }
-}
-
-async function abortGeneralRun() {
-  if (!confirm("진행 중인 파이프라인을 중단합니까?")) return;
-  try {
-    await fetch("/api/pipeline/general-abort", { method: "POST" });
-  } catch (_) {}
-}
-
-function closeFinalPlan() {
-  document.getElementById("final-plan-overlay").classList.remove("visible");
-}
-
-function showFinalPlan(data) {
-  const overlay = document.getElementById("final-plan-overlay");
-  const meta = document.getElementById("final-plan-meta");
-  const text = document.getElementById("final-plan-text");
-  const title = document.getElementById("final-plan-title");
-  if (!overlay || !meta || !text) return;
-
-  const verdict = data.verdict || "—";
-  const verdictClass =
-    verdict === "CLEAN" ? "ok" :
-    verdict === "CONCERNS" ? "warn" :
-    verdict === "ERROR" || verdict === "ABORTED" ? "fail" : "";
-  const findings = (data.lastCritique && data.lastCritique.findings) || [];
-  const counts = { critical: 0, high: 0, medium: 0, low: 0, note: 0 };
-  findings.forEach((f) => {
-    const sev = f.severity || "note";
-    if (counts[sev] !== undefined) counts[sev]++;
+// Slice MB4-c (Phase D Round 2, 2026-04-27): the inline general-pipeline
+// modal handlers (~100 lines) have been lifted to
+// public/js/general-pipeline-modal.js. The thin wrappers below preserve
+// the function names + module-scope identity so existing event-bindings
+// + the showFinalPlan handler in handleEvent() continue to work without
+// edit-spread.
+let __gpmHandle = null;
+function _ensureGPMHandle() {
+  if (__gpmHandle) return __gpmHandle;
+  if (typeof window === "undefined" || !window.HarnessGeneralPipelineModal) return null;
+  __gpmHandle = window.HarnessGeneralPipelineModal.install({
+    loadPipelineTemplate: (id) => loadPipelineTemplate(id),
+    getCurrentTemplateId: () => currentTemplateId,
+    addLog: (kind, msg) => addLog(kind, msg),
   });
-
-  title.textContent = "최종 플랜 — 범용 파이프라인";
-  meta.textContent = "";
-  const verdictSpan = Object.assign(document.createElement("span"), { className: verdictClass, textContent: verdict });
-  meta.appendChild(document.createTextNode("판정: "));
-  meta.appendChild(verdictSpan);
-  meta.appendChild(document.createTextNode(
-    ` · 반복: ${data.iterations || 0}` +
-    ` · 소요: ${Math.round((data.durationMs || 0) / 100) / 10}s` +
-    ` · 최종 findings: C${counts.critical}/H${counts.high}/M${counts.medium}/L${counts.low}/N${counts.note}` +
-    (data.reason ? ` · 이유: ${data.reason}` : "")
-  ));
-  text.textContent = data.finalPlan || "(플랜 없음)";
-  overlay.classList.add("visible");
+  return __gpmHandle;
+}
+function openGeneralRun() {
+  const h = _ensureGPMHandle();
+  if (h) h.open();
+}
+function closeGeneralRun() {
+  const h = _ensureGPMHandle();
+  if (h) h.close();
+}
+async function submitGeneralRun() {
+  const h = _ensureGPMHandle();
+  if (h) await h.submit();
+}
+async function abortGeneralRun() {
+  const h = _ensureGPMHandle();
+  if (h) await h.abort();
+}
+function closeFinalPlan() {
+  const h = _ensureGPMHandle();
+  if (h) h.closeFinalPlan();
+}
+function showFinalPlan(data) {
+  const h = _ensureGPMHandle();
+  if (h) h.showFinalPlan(data);
 }
 
 // ── Event Bindings (CSP-safe: no inline onclick) ──

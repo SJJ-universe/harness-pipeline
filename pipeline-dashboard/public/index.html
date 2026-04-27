@@ -394,6 +394,12 @@
        BEFORE app.js so connectWS() finds window.HarnessWsClient at init. -->
   <script src="js/ws-client.js"></script>
   <script src="js/api-client.js"></script>
+  <!-- Slice MB4-c (Phase D Round 2): terminal init + general-pipeline
+       modal handlers extracted out of app.js. Both must load BEFORE
+       app.js so its lazy _ensureXxxHandle() calls find the modules
+       on first invocation. -->
+  <script src="js/terminal-mount.js"></script>
+  <script src="js/general-pipeline-modal.js"></script>
   <script src="app.js"></script>
 
   <!-- Slice MA1+MA2+MA3 (Phase D): opt-in monitor shell.
