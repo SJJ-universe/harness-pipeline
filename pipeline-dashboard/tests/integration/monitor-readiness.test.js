@@ -25,6 +25,9 @@ const { createEventReplayBuffer } = require("../../src/runtime/eventReplayBuffer
 const { createMonitorStore } = require("../../public/js/monitor/store");
 const { normalize } = require("../../public/js/monitor/normalizer");
 const { hydrateMonitorStore, hydrateRunDetail } = require("../../public/js/monitor/hydrate");
+// Slice MC1: layout.mount + UI-driven onSelect → auto-hydrate path
+// (replaces the previous direct-call-to-hydrateRunDetail shortcut).
+const { mount: mountLayout } = require("../../public/js/monitor/layout");
 
 // ── shared test rig ─────────────────────────────────────────────────
 
@@ -34,6 +37,55 @@ function makeStubExecutor(runId, opts = {}) {
     getReplaySnapshot() { return opts.snap || { status: "idle" }; },
     getSubagentSnapshot() { return opts.subagents || []; },
   };
+}
+
+// MC1: Hand-rolled DOM stub matching the layout-test pattern. Layout
+// reaches into root.classList, root.appendChild, root.innerHTML,
+// root.ownerDocument.body, doc.createElement.
+function makeStubElement(tag) {
+  const listeners = {};
+  const el = {
+    tagName: String(tag).toUpperCase(),
+    children: [],
+    attributes: {},
+    classList: {
+      _classes: new Set(),
+      add(c) { this._classes.add(c); },
+      remove(c) { this._classes.delete(c); },
+      contains(c) { return this._classes.has(c); },
+      toString() { return Array.from(this._classes).join(" "); },
+    },
+    _textContent: "",
+    get textContent() { return this._textContent; },
+    set textContent(v) { this._textContent = String(v); this.children = []; },
+    get innerHTML() { return ""; },
+    set innerHTML(v) { if (v !== "") throw new Error("stub: innerHTML must be ''"); this.children = []; },
+    get className() { return this.classList.toString(); },
+    set className(v) { this.classList._classes = new Set(String(v).split(/\s+/).filter(Boolean)); },
+    appendChild(c) { this.children.push(c); c.parentNode = this; return c; },
+    setAttribute(k, v) { this.attributes[k] = String(v); },
+    removeAttribute(k) { delete this.attributes[k]; },
+    hasAttribute(k) { return Object.prototype.hasOwnProperty.call(this.attributes, k); },
+    addEventListener(name, fn) { (listeners[name] = listeners[name] || []).push(fn); },
+    removeEventListener(name, fn) {
+      const arr = listeners[name] || [];
+      const i = arr.indexOf(fn);
+      if (i >= 0) arr.splice(i, 1);
+    },
+  };
+  return el;
+}
+function makeStubDoc() {
+  const body = makeStubElement("body");
+  const doc = { createElement: makeStubElement, body };
+  const original = makeStubElement;
+  // Each created element back-references the doc through ownerDocument.
+  doc.createElement = (tag) => {
+    const el = original(tag);
+    el.ownerDocument = doc;
+    return el;
+  };
+  return doc;
 }
 
 function startServer(opts) {
@@ -123,21 +175,51 @@ test("MB5 readiness flow: opt-in → hydrate → select → filter → pin → i
     assert.ok(hydrated.activeChildren.length >= 2, "active children hydrated");
     assert.ok(hydrated.events.length >= 1, "recentEvents normalised into store");
 
-    // 4. RUN SELECT: switch to session-2. agent-tree's eventual filter
-    //    should reflect the change in selectedRunId.
-    store.selectRun("session-2");
-    assert.equal(store.snapshot().selectedRunId, "session-2");
+    // 4. RUN SELECT via the UI flow (MC1): mount the layout with a
+    //    minimal stub run-tree, then call its onSelect. This proves that
+    //    selectRun + auto-hydrateRunDetail are wired together inside
+    //    layout.js — NOT hand-stitched in the test (which was the
+    //    pre-MC1 gap).
+    const stubDoc = makeStubDoc();
+    let runTreeOnSelect = null;
+    const stubRunTree = {
+      create(opts) { runTreeOnSelect = opts.onSelect; return { destroy() {} }; },
+    };
+    const handle = mountLayout({
+      root: stubDoc.createElement("div"),
+      store, normalize,
+      // Layout calls hydrateMonitorStore on mount — we already hydrated above,
+      // so a no-op shim is fine.
+      hydrate: () => Promise.resolve({ snapshot: store.snapshot(), raw: {} }),
+      runDetailHydrate: ({ runId }) => hydrateRunDetail({ store, runId, fetchImpl }),
+      runDetailTtlMs: 0,
+      panels: { runTree: stubRunTree },
+      bridge: null,
+      doc: stubDoc,
+    });
+    await handle.hydrationPromise;
+    assert.equal(typeof runTreeOnSelect, "function", "run-tree mounted with onSelect");
 
-    // 5. PER-RUN HYDRATE: pull detail for the selected run + verify the
-    //    runDetails cache fills.
-    await hydrateRunDetail({ store, runId: "default", fetchImpl });
+    // Click "default" through the UI surface. selectRun + auto-hydrate
+    // should both fire.
+    runTreeOnSelect("default");
+    // The auto-hydrate fires an HTTP fetch through the in-memory test
+    // server. Wait until store.runDetails.default is populated (with a
+    // generous timeout) so we test the wiring without flake.
+    for (let i = 0; i < 50; i++) {
+      if (store.snapshot().runDetails.default) break;
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    assert.equal(store.snapshot().selectedRunId, "default", "selectRun fired through UI");
     const detail = store.snapshot().runDetails.default;
-    assert.ok(detail, "runDetails.default populated");
+    assert.ok(detail, "runDetails.default populated by AUTO-hydrate (no direct call)");
     assert.equal(detail.run.id, "default");
     assert.ok(Array.isArray(detail.children));
     assert.equal(detail.children.length, 1, "scoped to default");
     assert.equal(detail.children[0].pid, 101);
     assert.equal(detail.subagents.length, 1, "MB2 subagent snapshot flowed through");
+
+    handle.destroy();
 
     // 6. FILTER: hide the "tool" scope. The store's snapshot reflects
     //    the exclusion; the timeline panel renders against this list.

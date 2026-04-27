@@ -629,3 +629,174 @@ test("mount skips hydration cleanly when no hydrate fn is available", async () =
   await handle.hydrationPromise;
   assert.equal(handle._errorBox.hasAttribute("hidden"), true);
 });
+
+// ── MC1: auto-hydrate run detail on selectRun ────────────────────────
+
+test("MC1: runTree.onSelect invokes the runDetail hydrator", async () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  store.upsertRun("default", { status: "active" });
+  store.upsertRun("session-2", { status: "idle" });
+
+  let captured = null;
+  const stubRunTree = {
+    create(opts) { captured = opts; return { destroy() {} }; },
+  };
+  let hydrateCalls = [];
+  const stubRunDetailHydrate = ({ runId }) => {
+    hydrateCalls.push(runId);
+    return Promise.resolve({ snapshot: store.snapshot(), raw: {} });
+  };
+
+  const handle = mount({
+    root, store, normalize,
+    hydrate: () => Promise.resolve({ snapshot: store.snapshot(), raw: {} }),
+    runDetailHydrate: stubRunDetailHydrate,
+    runDetailTtlMs: 0,    // disable TTL for this test so back-to-back clicks both fire
+    panels: { runTree: stubRunTree },
+    doc,
+  });
+  await handle.hydrationPromise;
+
+  // onSelect → store.selectRun + auto-hydrate.
+  captured.onSelect("session-2");
+  // hydrate is async; flush the microtask queue.
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual(hydrateCalls, ["session-2"]);
+  assert.equal(store.snapshot().selectedRunId, "session-2");
+});
+
+test("MC1: in-flight dedupe — same runId clicked twice → only 1 fetch", async () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  store.upsertRun("X", {});
+
+  let captured = null;
+  const stubRunTree = {
+    create(opts) { captured = opts; return { destroy() {} }; },
+  };
+
+  // Slow hydrate so the second call lands while the first is in-flight.
+  let resolveFetch;
+  const slow = () => new Promise((res) => { resolveFetch = res; });
+  let hydrateCalls = 0;
+  const stubRunDetailHydrate = () => {
+    hydrateCalls++;
+    return slow();
+  };
+
+  const handle = mount({
+    root, store, normalize,
+    hydrate: () => Promise.resolve({ snapshot: store.snapshot(), raw: {} }),
+    runDetailHydrate: stubRunDetailHydrate,
+    runDetailTtlMs: 0,
+    panels: { runTree: stubRunTree },
+    doc,
+  });
+  await handle.hydrationPromise;
+
+  captured.onSelect("X");
+  captured.onSelect("X");
+  captured.onSelect("X");
+  // Three clicks, one fetch (still in-flight).
+  assert.equal(hydrateCalls, 1);
+  assert.ok(handle._runDetailInFlight.has("X"));
+
+  // Resolve → in-flight Set drains.
+  resolveFetch({ snapshot: store.snapshot(), raw: {} });
+  await new Promise((r) => setImmediate(r));
+  await new Promise((r) => setImmediate(r));
+  assert.ok(!handle._runDetailInFlight.has("X"));
+});
+
+test("MC1: TTL cache — re-select within TTL → no re-fetch", async () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  store.upsertRun("Y", {});
+
+  let captured = null;
+  const stubRunTree = {
+    create(opts) { captured = opts; return { destroy() {} }; },
+  };
+  let hydrateCalls = 0;
+  const stubRunDetailHydrate = () => {
+    hydrateCalls++;
+    return Promise.resolve({ snapshot: store.snapshot(), raw: {} });
+  };
+
+  const handle = mount({
+    root, store, normalize,
+    hydrate: () => Promise.resolve({ snapshot: store.snapshot(), raw: {} }),
+    runDetailHydrate: stubRunDetailHydrate,
+    runDetailTtlMs: 60_000,    // 1 min — second click is well within
+    panels: { runTree: stubRunTree },
+    doc,
+  });
+  await handle.hydrationPromise;
+
+  captured.onSelect("Y");
+  await new Promise((r) => setImmediate(r));
+  // Second click on the SAME runId — TTL hit, no new fetch.
+  captured.onSelect("Y");
+  await new Promise((r) => setImmediate(r));
+  assert.equal(hydrateCalls, 1, "TTL kicked in for second click");
+});
+
+test("MC1: hydrate failure does NOT block selection or break the panel", async () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  store.upsertRun("Z", {});
+
+  let captured = null;
+  const stubRunTree = {
+    create(opts) { captured = opts; return { destroy() {} }; },
+  };
+  const stubRunDetailHydrate = () => Promise.reject(new Error("404"));
+
+  const handle = mount({
+    root, store, normalize,
+    hydrate: () => Promise.resolve({ snapshot: store.snapshot(), raw: {} }),
+    runDetailHydrate: stubRunDetailHydrate,
+    runDetailTtlMs: 0,
+    panels: { runTree: stubRunTree },
+    doc,
+  });
+  await handle.hydrationPromise;
+
+  assert.doesNotThrow(() => captured.onSelect("Z"));
+  await new Promise((r) => setImmediate(r));
+  // Selection still applied even though hydrate threw.
+  assert.equal(store.snapshot().selectedRunId, "Z");
+  // In-flight is drained.
+  assert.ok(!handle._runDetailInFlight.has("Z"));
+});
+
+test("MC1: bootstrap-time selectedRunId triggers an initial detail fetch", async () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  // Hydrate puts a selection in place; runDetailHydrate then fires for it.
+  let hydrateCalls = [];
+  const stubRunDetailHydrate = ({ runId }) => {
+    hydrateCalls.push(runId);
+    return Promise.resolve({ snapshot: store.snapshot(), raw: {} });
+  };
+  const handle = mount({
+    root, store, normalize,
+    hydrate: () => Promise.resolve().then(() => {
+      store.upsertRun("default", { status: "active" });
+      store.selectRun("default");
+      return { snapshot: store.snapshot(), raw: {} };
+    }),
+    runDetailHydrate: stubRunDetailHydrate,
+    runDetailTtlMs: 0,
+    doc,
+  });
+  await handle.hydrationPromise;
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual(hydrateCalls, ["default"]);
+});

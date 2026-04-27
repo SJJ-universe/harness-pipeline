@@ -1,4 +1,4 @@
-// Slice MA3+MA4+MA5+MA6+MB4-a (Phase D, 2026-04-27) — HarnessMonitorLayout.
+// Slice MA3+MA4+MA5+MA6+MB4-a+MC1 (Phase D, 2026-04-27) — HarnessMonitorLayout.
 //
 // Mounts the monitor shell into a host element, kicks off hydration, and
 // instantiates each panel.
@@ -15,6 +15,10 @@
 //             store, and /api/server/info polls keep server summary +
 //             active children fresh. Without this the store is frozen
 //             at hydration time. Bridge handle returned for destroy().
+//   - MC1   — runTree.onSelect now ALSO calls hydrateRunDetail so
+//             agent-tree + run-summary auto-pick up server-authoritative
+//             findings + subagents + replayMeta. In-flight dedupe (Set)
+//             + TTL cache (default 30s) keep tab-cycling cheap.
 //
 // Default behaviour: completely opt-in. The init script in index.html
 // only invokes mount() when ?monitor=1 is in the URL or
@@ -77,6 +81,20 @@
     return null;
   }
 
+  // Slice MC1: per-run detail hydrator. Same lookup pattern as
+  // _resolveHydrate but reaches for hydrateRunDetail. Tests inject a
+  // direct override; browser falls back to
+  // window.HarnessMonitorHydrate.hydrateRunDetail.
+  function _resolveRunDetailHydrate(override) {
+    if (typeof override === "function") return override;
+    if (typeof globalThis !== "undefined"
+        && globalThis.HarnessMonitorHydrate
+        && typeof globalThis.HarnessMonitorHydrate.hydrateRunDetail === "function") {
+      return globalThis.HarnessMonitorHydrate.hydrateRunDetail;
+    }
+    return null;
+  }
+
   // Slice MB4-a: resolve the legacy bridge factory. Tests pass an
   // explicit override; browser uses window.HarnessMonitorLegacyBridge.
   function _resolveBridge(override) {
@@ -104,6 +122,9 @@
     // Slice MB4-a: optional bridge config — refreshIntervalMs (0 disables
     // the periodic /api/server/info poll, useful in tests).
     bridgeRefreshIntervalMs,
+    // Slice MC1: per-run detail hydrate override (tests) + TTL config.
+    runDetailHydrate,
+    runDetailTtlMs = 30000,
   } = {}) {
     if (!root || typeof root.appendChild !== "function") {
       throw new Error("HarnessMonitorLayout.mount: root must be an element");
@@ -284,6 +305,10 @@
           // own subscription. We don't carry selection state in layout —
           // the store is the single source of truth.
           if (typeof store.selectRun === "function") store.selectRun(runId);
+          // Slice MC1: pull the server-authoritative detail (findings +
+          // children + subagents + replayMeta) so agent-tree + run-
+          // summary light up with real data instead of stale bootstrap.
+          _ensureRunDetailHydrated(runId);
         },
       });
     }
@@ -365,6 +390,32 @@
       }
     }
 
+    // ── Slice MC1: per-run detail auto-hydrator ──
+    //
+    // _ensureRunDetailHydrated(runId) is the bridge between
+    // runTree.onSelect and the server-authoritative detail payload.
+    // Dedupe: same runId already in-flight → skip new fetch.
+    // TTL:    cached < runDetailTtlMs old → skip (avoid tab-cycling
+    //         spam). Default 30s. Set runDetailTtlMs:0 to force every
+    //         click to refetch (tests).
+    // Errors are swallowed so a failed detail fetch never breaks the
+    // selection flow — the agent-tree falls back to events-ring data.
+    const runDetailHydrateFn = _resolveRunDetailHydrate(runDetailHydrate);
+    const _runDetailInFlight = new Set();
+    const _runDetailFetchedAt = new Map();
+    function _ensureRunDetailHydrated(runId) {
+      if (typeof runDetailHydrateFn !== "function") return;
+      if (typeof runId !== "string" || !runId) return;
+      if (_runDetailInFlight.has(runId)) return;
+      const last = _runDetailFetchedAt.get(runId) || 0;
+      if (runDetailTtlMs > 0 && Date.now() - last < runDetailTtlMs) return;
+      _runDetailInFlight.add(runId);
+      Promise.resolve(runDetailHydrateFn({ store, runId, fetchImpl, headers }))
+        .then(() => { _runDetailFetchedAt.set(runId, Date.now()); })
+        .catch(() => { /* swallowed — store left untouched per hydrate contract */ })
+        .then(() => { _runDetailInFlight.delete(runId); });
+    }
+
     // ── Kick off hydration ──
     const hydrateFn = _resolveHydrate(hydrate);
     let hydrationPromise = Promise.resolve();
@@ -375,7 +426,18 @@
         fetchImpl,
         headers,
       })
-        .then(() => clearError("hydrate"))
+        .then(() => {
+          clearError("hydrate");
+          // Slice MC1: kick off detail hydrate for whatever the
+          // bootstrap pre-selected (typically the orchestrator's
+          // default run). Without this, a brand-new tab open shows
+          // empty findings + empty subagents until the user clicks
+          // a run row.
+          try {
+            const sel = store.snapshot && store.snapshot().selectedRunId;
+            if (sel) _ensureRunDetailHydrated(sel);
+          } catch (_) {}
+        })
         .catch((err) => {
           showError(err && err.message ? err.message : String(err), "hydrate");
         });
@@ -422,6 +484,10 @@
       _agentTreeMount: agentTreeMount,
       // MB4-a hooks
       _bridgeHandle: bridgeHandle,
+      // MC1 hooks — tests inspect dedupe/TTL state directly
+      _ensureRunDetailHydrated,
+      _runDetailInFlight,
+      _runDetailFetchedAt,
     };
   }
 
