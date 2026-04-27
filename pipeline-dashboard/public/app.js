@@ -1516,56 +1516,25 @@ function updateVerificationStatus(verification) {
 }
 
 // ── Modal / Stage Popup ──
-function openModal(title, key) {
-  const overlay = document.getElementById("modal-overlay");
-  const titleEl = document.getElementById("modal-title");
-  const body = document.getElementById("modal-body");
-
-  titleEl.textContent = title;
-  const logs = stageLogs[key] || [];
-
-  body.textContent = "";
-
-  // Show phase operational metadata if this is a phase modal
-  if (key.startsWith("phase-") && currentPipelineConfig) {
-    const phaseId = key.replace("phase-", "");
-    const phase = currentPipelineConfig.phases.find(p => p.id === phaseId);
-    if (phase && (phase.agent || phase.allowedTools || phase.exitCriteria)) {
-      const meta = document.createElement("div");
-      meta.className = "modal-phase-meta";
-      const items = [];
-      if (phase.agent) items.push(`Agent: ${phase.agent}`);
-      if (phase.allowedTools) items.push(`Tools: ${phase.allowedTools.join(", ")}`);
-      if (phase.exitCriteria) {
-        items.push(`Exit: ${phase.exitCriteria.map(c => c.message).join("; ")}`);
-      }
-      if (phase.cycle) items.push(`Cycle: max ${phase.maxIterations || 3} iterations → Phase ${phase.linkedCycle || "?"}`);
-      meta.textContent = items.join(" | ");
-      body.appendChild(meta);
-    }
-  }
-
-  if (logs.length === 0) {
-    body.appendChild(Object.assign(document.createElement("div"), { className: "modal-empty", textContent: "이 단계의 로그가 아직 없습니다." }));
-  } else {
-    for (const log of logs) {
-      const entry = document.createElement("div");
-      entry.className = "log-entry";
-      if (typeof log === "object" && log.time) {
-        entry.appendChild(Object.assign(document.createElement("span"), { className: "log-time", textContent: log.time }));
-        entry.appendChild(Object.assign(document.createElement("span"), { className: `log-msg${log.isError ? " error-msg" : ""}`, textContent: log.message }));
-      } else {
-        entry.textContent = String(log);
-      }
-      body.appendChild(entry);
-    }
-  }
-
-  overlay.classList.add("visible");
+//
+// Slice MA7-b (Phase D, 2026-04-27): the open/close logic + stage-log
+// + phase-meta render moved to public/js/stage-modal.js. State
+// (stageLogs map, currentPipelineConfig) stays here; the lifted
+// module accepts both as install args at call time.
+let __stageModal = null;
+function _ensureStageModal() {
+  if (__stageModal) return __stageModal;
+  if (typeof window === "undefined" || !window.HarnessStageModal) return null;
+  __stageModal = window.HarnessStageModal.install({});
+  return __stageModal;
 }
-
+function openModal(title, key) {
+  const m = _ensureStageModal();
+  if (m) m.open(title, key, { stageLogs, currentPipelineConfig });
+}
 function closeModal() {
-  document.getElementById("modal-overlay").classList.remove("visible");
+  const m = _ensureStageModal();
+  if (m) m.close();
 }
 
 // Close on Escape key
