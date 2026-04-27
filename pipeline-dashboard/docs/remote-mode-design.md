@@ -1,5 +1,11 @@
 # Remote/Team Mode Design
 
+> **See also**: [`remote-sandbox-rfc.md`](./remote-sandbox-rfc.md) is the
+> consolidator RFC (Phase D Round MF) that supersedes the high-level
+> design questions in this file with a concrete isolation model,
+> rollout gates, and monitor metadata. This file remains the threat
+> model + required-upgrades quick reference.
+
 ## Current Security Posture
 
 - Default host: `127.0.0.1` (loopback only)

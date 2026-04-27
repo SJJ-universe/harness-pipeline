@@ -67,7 +67,8 @@ The danger gate (`src/policy/dangerGate.js`) blocks before tool execution:
 | Path sandbox on every external file_path entry | **DONE** (Slice S2) |
 | Child-process registry + graceful shutdown | **DONE** (Slice S3-a) |
 | Codex Windows `shell:true` → `cmd.exe /c` wrapper (Node 24 prep) | **DEFERRED** (S3-b — spawn-behaviour change with too wide a regression surface) |
+| Remote sandbox design RFC | **DONE** (Phase D Round MF — see [`remote-sandbox-rfc.md`](./remote-sandbox-rfc.md)) |
 | Vendor CDN assets or strict SRI maintenance | TODO |
-| Signed append-only audit ledger manifests | TODO |
-| Container sandbox for remote / team mode | TODO (`docs/container-sandbox.md`) |
-| Rate limiting (only relevant if remote mode is ever enabled) | TODO |
+| Signed append-only audit ledger manifests | TODO (RFC §4 G8) |
+| Container sandbox for remote / team mode | TODO — implementation RFC pending (RFC §4 G10) |
+| Rate limiting (only relevant if remote mode is ever enabled) | TODO (RFC §2.5) |

@@ -2,7 +2,7 @@
 
 ## Current Score
 
-**97 / 109** (Phase 2.5 multi-run + Phase 3-S security + Phase D MA0~MA7 monitor shell + Phase D Round 2 MB1~MB6 backfill + Phase D Round 2.5 MC1~MC5 live wiring + MA7 UI-3 rewrite readiness + Phase D Round MD readiness automation; MD2 extended Testability cap 10 → 11)
+**98 / 109** (Phase 2.5 multi-run + Phase 3-S security + Phase D MA0~MA7 monitor shell + Phase D Round 2 MB1~MB6 backfill + Phase D Round 2.5 MC1~MC5 live wiring + MA7 UI-3 rewrite readiness + Phase D Round MD readiness automation + Phase D Round ME CI hygiene + Phase D Round MF P4 RFC; MD2 extended Testability cap 10 → 11)
 
 Trajectory:
 - v3.1 hardening — 87
@@ -13,6 +13,8 @@ Trajectory:
 - **Phase D Round 2.5 MC1~MC5** (live wiring correction: auto-hydrate-on-select + bridge run sync + run-summary findings consume + readiness behavior verification + auto-derived doc numbers) — **95**
 - **Phase D MA7 sub-slices a/b/c** (UI-3 rewrite readiness: tool-feed-render extracted + stage-modal extracted + first dispatcher.register extraction proving the pattern for future panel handlers) — **96**
 - **Phase D Round MD MD1~MD3** (readiness signal reconciled to live mode + GitHub Actions CI gate active + scorecard 96→97 update) — **97**
+- **Phase D Round ME ME1~ME2** (CI hygiene: Node 24 forward-compat env var + permissions: contents:read + concurrency cancel-in-progress + actions/checkout v4→v6 + setup-node v4→v6) — **97** (hygiene, no rubric move)
+- **Phase D Round MF MF1~MF2** (P4 Remote Sandbox RFC: 532-line consolidator covering current-state boundary audit + isolation model + monitor metadata + 10 rollout gates G1-G10; cross-links from 4 predecessor docs) — **98**
 
 Target after Phase 3 (D platformization): **102+**.
 Container sandbox + remote-mode hardening required for the multi-tenant tier.
@@ -53,6 +55,16 @@ Total max → **108 points**. Previous score normalisation: pre-MB6 90/100 = ~88
 - MD2 GitHub Actions CI workflow (`.github/workflows/ci.yml`) → +1.0 to "Testability and regression suite" (cap was 10; this scaling moves Testability cap to **11**, bringing total max to **109**, score moves 96 → 97)
 - MD3 scorecard + plan refresh → trust dividend, no rubric move
 - Net effect: **96 → 97** as readiness moved from "script existing" to "PR gate active".
+
+**ME1~ME2 (Phase D Round ME, CI hygiene)**:
+- ME1 permissions + concurrency + Node 24 forward-compat env → trust dividend, no rubric move
+- ME2 actions/checkout v4→v6 + setup-node v4→v6 → trust dividend, no rubric move
+- Net effect: **97 → 97** (hygiene round; the value is in regression-proof CI staying that way through GitHub's June 2026 default flip)
+
+**MF1~MF2 (Phase D Round MF, P4 Remote Sandbox RFC)**:
+- MF1 RFC consolidator (532 lines, all four P4 plan slices in one doc) → +1.0 to "Safety and security boundary" within the existing 15-point cap (was 14/15; the Phase 3-S security work covered the local-mode boundary, but the future trust boundary remained undefined. The RFC closes that gap WITHOUT implementing it — design clarity is itself a security property because it bounds the future surface).
+- MF2 cross-links + scorecard backlog refresh + plan Part H → trust dividend, no rubric move
+- Net effect: **97 → 98** as the future trust boundary moved from "vague platformization plan" to "design RFC with 10 named gates G1-G10". Total cap stays at 109 — no scale extension this round.
 
 ### Rubric scale change (MD2)
 
@@ -119,6 +131,16 @@ Sub-scores per category map approximately to:
 - **MD2** — `.github/workflows/ci.yml` lands the actual PR gate. Every push to master + every pull_request runs: install → 4 test suites → verify:hooks → readiness:check (gate ≥ 14/15) → scorecard:check (gate doc freshness). `npm audit` is informational (continue-on-error). Until this slice, P5 readiness was scripts in `/scripts` — now it's regression protection.
 - **MD3** (this update) — scorecard.md trajectory refreshed to 97; rubric scale extended (Testability cap 10 → 11, total max 108 → 109); plan file updated with Phase D Round MD section. Auto-derived markers refreshed via `npm run scorecard:sync`.
 
+### Phase D Round ME ME1~ME2 (CI hygiene)
+
+- **ME1** — `permissions: contents: read` (least-privilege workflow token), `concurrency` block (cancel in-progress runs on the same ref), and `env.FORCE_JAVASCRIPT_ACTIONS_TO_NODE24='true'` (opt-in to GitHub's 2026-06-02 default flip; surfaces Node 24 incompatibilities NOW). The CI run after this slice confirmed the v4 actions running cleanly under Node 24 (annotation: "actions/checkout@v4, actions/setup-node@v4 ... are being forced to run on Node.js 24").
+- **ME2** — Bumped `actions/checkout@v4 → v6` and `actions/setup-node@v4 → v6` (the latest majors; both ship Node 24 natively). Breaking-change audit: checkout v6 "persists creds to a separate file" — irrelevant for our usage (no submodules / LFS / custom token); setup-node v6 "limit automatic caching to npm" — we already pass `cache: 'npm'` explicitly. The FORCE_JAVASCRIPT_ACTIONS_TO_NODE24 env stays in place as belt-and-suspenders for any future @v4 action that gets added.
+
+### Phase D Round MF MF1~MF2 (P4 Remote Sandbox RFC)
+
+- **MF1** — `docs/remote-sandbox-rfc.md` (532 lines) — design-only consolidator covering all four P4 plan slices (A: boundary audit, B: isolation model, C: monitor metadata, D: rollout gates). Defines a `sandbox_class` taxonomy (`none` / `container-strict` / `vm-strict`) and a `run_origin` field (`local` / `container-local` / `container-remote` / `vm-remote`), both surfaced as additive monitor envelope fields. Specifies 10 rollout gates G1-G10 — none can land code; each must be GREEN before remote mode is exposed.
+- **MF2** (this update) — Cross-links from the four predecessor docs (`remote-mode-design.md`, `container-sandbox.md`, `harness-architecture.md`, `security-model.md`) to the consolidator RFC. Scorecard backlog refreshed (P4 RFC moved from "Next round candidate" to "DONE"). Plan file gets Part H. Score: 97 → 98 reflecting the future-trust-boundary clarity (Safety and security boundary 14 → 15 cap).
+
 ## Operational facts
 
 - Single canonical working tree: `C:\Users\SJ\harness-pipeline-analysis` @ `master`.
@@ -142,16 +164,21 @@ Sub-scores per category map approximately to:
 
 ### Long-horizon (not committed)
 
-- **Phase 3 (D platformization)** — container sandbox + remote-mode hardening + per-user RBAC. Separate product round; conditions in plan §Phase 3 still unmet.
-- **P4 RFC** (from `docs/superpowers/specs/2026-04-27-five-priority-roadmap.md`): remote sandbox design-only RFC. With MD landed, the patterns (DOM-free store / dispatcher / contract-stable run detail / live readiness signal) are settled enough to design remote run origin + sandbox class + UI surface metadata. **Next round candidate.**
+- **P4 implementation RFC** — picks runtime (docker / podman / kata / firecracker), JWT issuer, audit-ledger storage, runner-host control plane. Gated behind G10 of the design RFC. Natural follow-up after this round but no commitment yet.
+- **Phase 3 (D platformization)** — container sandbox + remote-mode hardening + per-user RBAC. Separate product round; conditions in plan §Phase 3 still unmet. The MF design RFC is one prerequisite; multi-tenant authentication remains separate.
+- ~~**P4 RFC**~~ — **DONE in MF1**. See [`docs/remote-sandbox-rfc.md`](./remote-sandbox-rfc.md).
 - ~~**P5 readiness automation**~~ — **DONE in MD2**. `npm run readiness:check` exits non-zero in CI when the live score drops below 14/15; `npm run scorecard:check` blocks merge when AUTO markers are stale.
 
-## What 97 means
+## What 98 means
 
-Single-user local harness with multi-run isolation, hardened external-input boundaries, AND a monitoring-first opt-in console with live data flow + agent observability + per-run detail contract + flow-level readiness rubric + behavior-verified readiness scoring + auto-derived doc trust + dispatcher-driven extraction pattern + **CI-enforced regression protection**. Not yet a multi-tenant platform — the **container sandbox + remote-mode hardening** gap remains the missing 12 points.
+Single-user local harness with multi-run isolation, hardened external-input boundaries, AND a monitoring-first opt-in console with live data flow + agent observability + per-run detail contract + flow-level readiness rubric + behavior-verified readiness scoring + auto-derived doc trust + dispatcher-driven extraction pattern + **CI-enforced regression protection** + **a complete remote-execution design RFC with named rollout gates**. Not yet a multi-tenant platform — the **container sandbox _implementation_ + remote-mode hardening** gap remains the missing 11 points.
 
 The MB1~MB6 + MC1~MC5 + MA7-a/b/c rounds closed the highest-leverage structural debt without bloating the surface. Each lift was behaviour-preserving + locked by tests; the file shrinkage is genuine. server.js dropped 276 lines, app.js dropped 252 lines. Module footprint expanded by 21 small UMD/Node modules, all under test, all CSP-compliant.
 
 The "rewrite readiness" claim is now concrete: any new panel-specific handler can be added by creating a UMD that calls `HarnessEventDispatcher.register` — proven by `subagent-events.js` (MA7-c). React islands are unblocked when needed; the `monitor/store.js` + `monitor/normalizer.js` DOM-free contract is the seam.
 
 The MD round added the missing operational layer: until MD2, every regression-prevention measure in this codebase (1133 tests, the readiness rubric, the scorecard sync) lived inside `npm run` scripts that operators COULD run but weren't required to. With the GitHub Actions workflow active, the same scripts now block merges. The qualitative shift — from "the suite exists" to "the suite gates the branch" — is what the Testability cap extension (10 → 11) captures.
+
+The ME round was small but disciplined: GitHub flips the default JS-action runtime to Node 24 on 2026-06-02 and removes Node 20 entirely on 2026-09-16. ME1 opted in early via `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` and validated under v4 actions; ME2 then bumped checkout + setup-node to v6 (Node 24 native). Plus `permissions: contents:read` (least-privilege) and `concurrency: cancel-in-progress` (kill races between rapid pushes).
+
+The MF round shifts the trust-boundary conversation from "vague future" to "design done, gates named". `docs/remote-sandbox-rfc.md` (532 lines) consolidates run origin + sandbox class + workspace/process/token/fs/network boundaries + UI metadata + 10 rollout gates G1-G10 into a single document. **No code lands until G10 (a follow-up implementation RFC) is approved.** Score 97 → 98 reflects the trust-boundary clarity, not implementation — the design _IS_ the deliverable for this round.

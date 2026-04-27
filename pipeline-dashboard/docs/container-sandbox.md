@@ -1,5 +1,12 @@
 # Container Sandbox Design
 
+> **See also**: [`remote-sandbox-rfc.md`](./remote-sandbox-rfc.md) §2
+> (Phase D Round MF) generalizes this Docker-specific sketch into a
+> runtime-agnostic isolation model with sandbox classes (`none` /
+> `container-strict` / `vm-strict`). The runtime choice (docker vs.
+> podman vs. kata vs. firecracker) deferred to the implementation RFC.
+> This file remains the Docker-specific implementation reference.
+
 ## Purpose
 
 Isolate Claude/Codex runner subprocesses in containers to prevent:

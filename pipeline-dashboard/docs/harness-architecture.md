@@ -59,3 +59,16 @@ Claude hook commands call `hooks/harness-hook.js`, which posts to `/api/hook` wi
 ## Operational diagnostics
 
 Run `pwsh -File scripts/env-check.ps1` for a single-call snapshot: cwd, every known working tree's branch / HEAD / local-vs-remote SHA / fetch refspec / untracked count / sync verdict, plus the six canonical meta-file locations (repo `CLAUDE.md`, repo `.claude/`, workspace `CLAUDE.md`, user plans dir, current Phase plan, user `MEMORY.md`). Read-only — never fetches, pulls, commits, or pushes.
+
+## Future trust boundary (design-only)
+
+[`remote-sandbox-rfc.md`](./remote-sandbox-rfc.md) defines the design for
+moving _workload_ execution off the operator's machine while keeping
+the orchestrator + monitor + auth anchored locally. The RFC introduces
+a `sandbox_class` taxonomy (`none` / `container-strict` / `vm-strict`)
+and a `run_origin` field (`local` / `container-local` /
+`container-remote` / `vm-remote`); both surface as additive monitor
+envelope fields so today's contract-stability gate (Phase D MD)
+remains GREEN. **Design only** — no remote runtime is currently
+implemented. Rollout is gated behind 10 named conditions (G1-G10) in
+RFC §4.
