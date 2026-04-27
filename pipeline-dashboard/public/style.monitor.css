@@ -86,10 +86,180 @@
   font-size: 12px;
 }
 
-/* When the monitor shell is active, push the existing dashboard down so
- * the fixed bar doesn't overlap the header. ~36px is one line of padded
- * cells; future MA4/MA5 panels (left rail, center, etc.) will adjust this
- * via additional shell classes. */
+/* MA3 (initial): the shell pushed body down 36px to make room for the
+ * single horizontal global bar.
+ *
+ * MA4 (now): the shell expands to a 2-row layout (global bar + body row
+ * containing left rail + centre workspace). Rather than push body content
+ * down by the entire shell height (~280px), we keep padding-top at 36px so
+ * the legacy dashboard remains usable BEHIND the shell-body overlay. The
+ * body row is fixed-positioned via the .shell-body styles below; users who
+ * want the legacy view back close the shell entirely with the global bar's
+ * 닫기 button.
+ */
 body.monitor-active {
   padding-top: 36px;
+}
+
+/* ── Slice MA4: shell body (left rail + centre workspace) ── */
+
+.monitor-shell .shell-body {
+  /* Drops below the global bar (fixed top: 36px on the parent shell).
+   * Width spans the parent shell, height fixed for now (MA5/MA6 may make
+   * resizable). Internal scroll per region. */
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  border-top: 1px solid var(--border, #30363d);
+  height: 240px;
+  background: var(--bg, #0d1117);
+}
+
+.monitor-shell .run-rail {
+  border-right: 1px solid var(--border, #30363d);
+  overflow-y: auto;
+  padding: 6px 0;
+  background: var(--bg-card, #161b22);
+}
+
+.monitor-shell .center-workspace {
+  overflow-y: auto;
+  padding: 12px 16px;
+}
+
+/* ── run-tree ── */
+
+.monitor-shell .rt-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.monitor-shell .rt-item {
+  display: grid;
+  grid-template-columns: 10px 1fr;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 12px;
+  border-left: 2px solid transparent;
+}
+
+.monitor-shell .rt-item:hover {
+  background: var(--bg-node, #1c2333);
+}
+
+.monitor-shell .rt-item.is-selected {
+  background: var(--bg-node, #1c2333);
+  border-left-color: var(--codex, #58a6ff);
+}
+
+.monitor-shell .rt-item:focus {
+  outline: 2px solid var(--codex, #58a6ff);
+  outline-offset: -2px;
+}
+
+.monitor-shell .rt-status {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-dim, #8b949e);
+}
+
+.monitor-shell .rt-status.is-active { background: var(--green, #3fb950); }
+.monitor-shell .rt-status.is-paused { background: var(--yellow, #d29922); }
+.monitor-shell .rt-status.is-idle   { background: var(--text-dim, #8b949e); }
+
+.monitor-shell .rt-label {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.monitor-shell .rt-id {
+  font-weight: 600;
+  color: var(--text, #e6edf3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.monitor-shell .rt-meta {
+  color: var(--text-dim, #8b949e);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.monitor-shell .rt-empty {
+  color: var(--text-dim, #8b949e);
+  padding: 16px;
+  font-size: 12px;
+  font-style: italic;
+}
+
+/* ── run-summary ── */
+
+.monitor-shell .rs-card {
+  max-width: 720px;
+}
+
+.monitor-shell .rs-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border, #30363d);
+}
+
+.monitor-shell .rs-id {
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--text, #e6edf3);
+}
+
+.monitor-shell .rs-status {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 12px;
+  background: var(--bg-node, #1c2333);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim, #8b949e);
+}
+
+.monitor-shell .rs-status.is-active { background: var(--green, #3fb950); color: #051b08; }
+.monitor-shell .rs-status.is-paused { background: var(--yellow, #d29922); color: #2d1f04; }
+.monitor-shell .rs-status.is-idle   { background: var(--bg-node, #1c2333); color: var(--text-dim, #8b949e); }
+
+.monitor-shell .rs-meta {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 6px 12px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.monitor-shell .rs-meta dt {
+  color: var(--text-dim, #8b949e);
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+}
+
+.monitor-shell .rs-meta dd {
+  margin: 0;
+  color: var(--text, #e6edf3);
+  font-variant-numeric: tabular-nums;
+}
+
+.monitor-shell .rs-empty {
+  color: var(--text-dim, #8b949e);
+  padding: 24px;
+  text-align: center;
+  font-size: 13px;
+  font-style: italic;
 }

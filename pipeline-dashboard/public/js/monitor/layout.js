@@ -1,9 +1,10 @@
-// Slice MA3 (Phase D, 2026-04-27) — HarnessMonitorLayout.
+// Slice MA3+MA4 (Phase D, 2026-04-27) — HarnessMonitorLayout.
 //
 // Mounts the monitor shell into a host element, kicks off hydration, and
-// instantiates each panel. This slice ships ONLY the global-bar panel;
-// MA4/MA5 will populate the left rail / center workspace / right inspector
-// / bottom dock by registering more entries in the `panels` map.
+// instantiates each panel. MA3 wired the global-bar panel; MA4 adds the
+// shell-body row containing the left run-rail (run-tree) and the centre
+// workspace (run-summary). MA5 will fold the right inspector + bottom
+// dock + tool/event timeline into the same wiring pattern.
 //
 // Default behaviour: completely opt-in. The init script in index.html
 // only invokes mount() when ?monitor=1 is in the URL or
@@ -19,8 +20,13 @@
 //   - normalize   : function from HarnessMonitorNormalizer.normalize.
 //   - fetchImpl   : optional fetch override (defaults to global fetch).
 //   - headers     : optional headers passed to hydrate.
-//   - panels      : { globalBar?: { create({root,store,onClose,doc}) } }
-//                   Defaults to window.HarnessMonitorGlobalBar in browsers.
+//   - panels      : {
+//                     globalBar?:   { create({root,store,onClose,doc}) },
+//                     runTree?:     { create({root,store,onSelect,doc}) },
+//                     runSummary?:  { create({root,store,doc}) },
+//                   }
+//                   Defaults are window.HarnessMonitor{GlobalBar,RunTree,
+//                   RunSummary} in browsers; tests inject stubs.
 //   - hydrate     : optional hydrate fn override (defaults to
 //                   HarnessMonitorHydrate.hydrateMonitorStore).
 //   - doc         : optional document override (test injection).
@@ -96,9 +102,31 @@
     errorBox.setAttribute("hidden", "");
     errorBox.setAttribute("role", "alert");
 
+    // Slice MA4: shell-body row hosts left rail (run-tree) + centre
+    // workspace (run-summary). The two regions are siblings so MA5 can
+    // append a third (right inspector) without restructuring.
+    const shellBody = _doc.createElement("div");
+    shellBody.className = "shell-body";
+    shellBody.setAttribute("role", "region");
+    shellBody.setAttribute("aria-label", "Monitor body");
+
+    const runRail = _doc.createElement("div");
+    runRail.className = "run-rail";
+    runRail.setAttribute("role", "navigation");
+    runRail.setAttribute("aria-label", "Runs");
+
+    const centerWs = _doc.createElement("div");
+    centerWs.className = "center-workspace";
+    centerWs.setAttribute("role", "region");
+    centerWs.setAttribute("aria-label", "Selected run");
+
+    shellBody.appendChild(runRail);
+    shellBody.appendChild(centerWs);
+
     root.innerHTML = "";
     root.appendChild(globalBarRoot);
     root.appendChild(errorBox);
+    root.appendChild(shellBody);
 
     function showError(msg) {
       errorBox.removeAttribute("hidden");
@@ -128,6 +156,33 @@
       });
     }
 
+    // ── Slice MA4: mount the run-tree (left rail) + run-summary (centre) ──
+    let runTreeHandle = null;
+    const RunTree = _resolvePanel(panels, "runTree", "HarnessMonitorRunTree");
+    if (RunTree) {
+      runTreeHandle = RunTree.create({
+        root: runRail,
+        store,
+        doc: _doc,
+        onSelect(runId) {
+          // Wire to the store so the run-summary panel re-renders on its
+          // own subscription. We don't carry selection state in layout —
+          // the store is the single source of truth.
+          if (typeof store.selectRun === "function") store.selectRun(runId);
+        },
+      });
+    }
+
+    let runSummaryHandle = null;
+    const RunSummary = _resolvePanel(panels, "runSummary", "HarnessMonitorRunSummary");
+    if (RunSummary) {
+      runSummaryHandle = RunSummary.create({
+        root: centerWs,
+        store,
+        doc: _doc,
+      });
+    }
+
     // ── Kick off hydration ──
     const hydrateFn = _resolveHydrate(hydrate);
     let hydrationPromise = Promise.resolve();
@@ -148,6 +203,8 @@
       hydrationPromise,
       destroy() {
         try { panelHandle && panelHandle.destroy && panelHandle.destroy(); } catch (_) {}
+        try { runTreeHandle && runTreeHandle.destroy && runTreeHandle.destroy(); } catch (_) {}
+        try { runSummaryHandle && runSummaryHandle.destroy && runSummaryHandle.destroy(); } catch (_) {}
         root.classList.remove("is-active");
         root.classList.remove("monitor-shell");
         if (typeof root.setAttribute === "function") root.setAttribute("hidden", "");
@@ -161,6 +218,9 @@
       _clearError: clearError,
       _errorBox: errorBox,
       _globalBarRoot: globalBarRoot,
+      _runRail: runRail,
+      _centerWs: centerWs,
+      _shellBody: shellBody,
     };
   }
 

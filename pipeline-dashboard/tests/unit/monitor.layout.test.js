@@ -130,6 +130,74 @@ test("mount builds the global-bar + error skeleton", async () => {
   assert.equal(errBoxes[0].hasAttribute("hidden"), true, "error box hidden by default");
 });
 
+// ── MA4: shell body (run-rail + center-workspace) ────────────────────
+
+test("mount builds the shell-body row with run-rail + center-workspace", async () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  const handle = mount({
+    root,
+    store,
+    normalize,
+    hydrate: () => Promise.resolve({ snapshot: store.snapshot(), raw: {} }),
+    doc,
+  });
+  await handle.hydrationPromise;
+  const bodies = root._findAllByClass("shell-body");
+  assert.equal(bodies.length, 1, "exactly one shell-body");
+  const rails = root._findAllByClass("run-rail");
+  const centers = root._findAllByClass("center-workspace");
+  assert.equal(rails.length, 1);
+  assert.equal(centers.length, 1);
+  assert.equal(rails[0].attributes.role, "navigation");
+  assert.equal(centers[0].attributes.role, "region");
+  // Test hooks expose the same elements.
+  assert.equal(handle._runRail, rails[0]);
+  assert.equal(handle._centerWs, centers[0]);
+  assert.equal(handle._shellBody, bodies[0]);
+});
+
+test("mount uses panels.runTree + panels.runSummary overrides", async () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  let runTreeOpts = null;
+  let runSummaryOpts = null;
+  const stubRunTree = {
+    create(opts) { runTreeOpts = opts; return { destroy() { stubRunTree._destroyed = true; } }; },
+  };
+  const stubRunSummary = {
+    create(opts) { runSummaryOpts = opts; return { destroy() { stubRunSummary._destroyed = true; } }; },
+  };
+  const handle = mount({
+    root,
+    store,
+    normalize,
+    hydrate: () => Promise.resolve({ snapshot: store.snapshot(), raw: {} }),
+    doc,
+    panels: { runTree: stubRunTree, runSummary: stubRunSummary },
+  });
+  await handle.hydrationPromise;
+  assert.ok(runTreeOpts, "run-tree.create called");
+  assert.equal(runTreeOpts.store, store);
+  assert.equal(runTreeOpts.doc, doc);
+  assert.equal(typeof runTreeOpts.onSelect, "function");
+  // onSelect routes through store.selectRun.
+  store.upsertRun("xyz", {});
+  runTreeOpts.onSelect("xyz");
+  assert.equal(store.snapshot().selectedRunId, "xyz");
+
+  assert.ok(runSummaryOpts, "run-summary.create called");
+  assert.equal(runSummaryOpts.store, store);
+  assert.equal(runSummaryOpts.doc, doc);
+
+  // destroy fans out to all three panels.
+  handle.destroy();
+  assert.equal(stubRunTree._destroyed, true);
+  assert.equal(stubRunSummary._destroyed, true);
+});
+
 // ── panel injection (via panels override) ─────────────────────────────
 
 test("mount uses the panels.globalBar override when provided", async () => {

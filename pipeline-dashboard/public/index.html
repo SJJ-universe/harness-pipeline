@@ -405,6 +405,11 @@
   <script src="js/monitor/normalizer.js"></script>
   <script src="js/monitor/hydrate.js"></script>
   <script src="js/monitor/panels/global-bar.js"></script>
+  <!-- Slice MA4: left-rail run list + centre-workspace summary panels.
+       Same UMD pattern as global-bar; layout.js looks them up on
+       window.HarnessMonitor{RunTree,RunSummary} when mounting. -->
+  <script src="js/monitor/panels/run-tree.js"></script>
+  <script src="js/monitor/panels/run-summary.js"></script>
   <script src="js/monitor/layout.js"></script>
   <script>
   (function () {

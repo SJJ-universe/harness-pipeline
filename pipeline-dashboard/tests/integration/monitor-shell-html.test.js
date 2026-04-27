@@ -33,16 +33,29 @@ test("index.html declares the monitor-shell-root mount point hidden by default",
 });
 
 test("index.html loads all monitor UMD modules", () => {
+  // MA3 set: store/normalizer/hydrate/global-bar/layout.
+  // MA4 added: panels/run-tree + panels/run-summary.
   const required = [
     "js/monitor/store.js",
     "js/monitor/normalizer.js",
     "js/monitor/hydrate.js",
     "js/monitor/panels/global-bar.js",
+    "js/monitor/panels/run-tree.js",
+    "js/monitor/panels/run-summary.js",
     "js/monitor/layout.js",
   ];
   for (const src of required) {
     assert.match(HTML, new RegExp(`<script src="${src.replace(/\//g, "\\/")}"`), `script tag for ${src}`);
   }
+});
+
+test("MA4 panels load BEFORE layout.js (so layout.js can resolve them)", () => {
+  const runTreeIdx = HTML.indexOf("<script src=\"js/monitor/panels/run-tree.js\"></script>");
+  const runSummaryIdx = HTML.indexOf("<script src=\"js/monitor/panels/run-summary.js\"></script>");
+  const layoutIdx = HTML.indexOf("<script src=\"js/monitor/layout.js\"></script>");
+  assert.ok(runTreeIdx > -1 && runSummaryIdx > -1 && layoutIdx > -1);
+  assert.ok(runTreeIdx < layoutIdx, "run-tree must load before layout");
+  assert.ok(runSummaryIdx < layoutIdx, "run-summary must load before layout");
 });
 
 test("monitor scripts load AFTER app.js so they don't race the legacy mount", () => {
