@@ -8,7 +8,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { hydrateMonitorStore } = require("../../public/js/monitor/hydrate");
+const { hydrateMonitorStore, hydrateRunDetail, RUN_DETAIL_PREFIX } = require("../../public/js/monitor/hydrate");
 const { createMonitorStore } = require("../../public/js/monitor/store");
 const { normalize } = require("../../public/js/monitor/normalizer");
 
@@ -241,4 +241,119 @@ test("hydrateMonitorStore throws if no fetch implementation is available", async
   } finally {
     globalThis.fetch = savedFetch;
   }
+});
+
+// ── Slice MB1: hydrateRunDetail ──────────────────────────────────────
+
+test("RUN_DETAIL_PREFIX export points at /api/monitor/runs/", () => {
+  assert.equal(RUN_DETAIL_PREFIX, "/api/monitor/runs/");
+});
+
+test("hydrateRunDetail GETs the right URL + writes payload to runDetails", async () => {
+  const store = createMonitorStore();
+  const detail = {
+    run: { id: "default", status: "active", templateId: "general" },
+    recentEvents: [{ ts: 1, event: { type: "phase_update" } }],
+    children: [{ pid: 101, label: "codex", runId: "default", ageMs: 100 }],
+    subagents: [],
+    findings: [],
+    findingsOverflow: null,
+    replayMeta: { hasCheckpoint: false, savedAt: null },
+    exportedAt: "2026-04-27T00:00:00Z",
+  };
+  const _fetch = fakeFetch(fakeResponse({ body: detail }));
+  const { snapshot, raw } = await hydrateRunDetail({
+    store, runId: "default", fetchImpl: _fetch,
+  });
+  const call = _fetch.lastCall();
+  assert.equal(call.url, "/api/monitor/runs/default");
+  assert.equal(call.opts.method, "GET");
+  assert.equal(call.opts.headers.Accept, "application/json");
+  assert.deepEqual(snapshot.runDetails.default, detail);
+  assert.equal(raw, detail, "raw payload returned for caller debugging");
+});
+
+test("hydrateRunDetail URL-encodes the runId for safety", async () => {
+  const store = createMonitorStore();
+  const _fetch = fakeFetch(fakeResponse({ body: { run: { id: "x" } } }));
+  await hydrateRunDetail({
+    store, runId: "session/2 with spaces", fetchImpl: _fetch,
+  });
+  // encodeURIComponent: "/" → %2F, " " → %20.
+  assert.equal(_fetch.lastCall().url, "/api/monitor/runs/session%2F2%20with%20spaces");
+});
+
+test("hydrateRunDetail forwards custom headers + custom URL prefix", async () => {
+  const store = createMonitorStore();
+  const _fetch = fakeFetch(fakeResponse({ body: { run: { id: "x" } } }));
+  await hydrateRunDetail({
+    store, runId: "x",
+    fetchImpl: _fetch,
+    headers: { "x-harness-token": "abc" },
+    urlPrefix: "/custom/runs/",
+  });
+  const call = _fetch.lastCall();
+  assert.equal(call.url, "/custom/runs/x");
+  assert.equal(call.opts.headers["x-harness-token"], "abc");
+});
+
+test("hydrateRunDetail on 404 clears the cached detail and throws", async () => {
+  const store = createMonitorStore();
+  // Pre-seed a detail so we can verify it gets cleared.
+  store.setRunDetail("ghost", { run: { id: "ghost", status: "active" } });
+  const _fetch = fakeFetch(fakeResponse({ ok: false, status: 404, body: "gone" }));
+  await assert.rejects(
+    () => hydrateRunDetail({ store, runId: "ghost", fetchImpl: _fetch }),
+    (err) => {
+      assert.equal(err.status, 404);
+      assert.match(err.message, /404/);
+      return true;
+    }
+  );
+  assert.equal(store.snapshot().runDetails.ghost, undefined, "stale detail cleared on 404");
+});
+
+test("hydrateRunDetail rejects on non-2xx (non-404) without touching the store", async () => {
+  const store = createMonitorStore();
+  const _fetch = fakeFetch(fakeResponse({ ok: false, status: 503, body: "down" }));
+  await assert.rejects(
+    () => hydrateRunDetail({ store, runId: "x", fetchImpl: _fetch }),
+    (err) => {
+      assert.equal(err.status, 503);
+      return true;
+    }
+  );
+  assert.deepEqual(store.snapshot().runDetails, {}, "store untouched on 5xx");
+});
+
+test("hydrateRunDetail rejects on missing runId / non-store / no fetch", async () => {
+  await assert.rejects(
+    () => hydrateRunDetail({ store: createMonitorStore() }),
+    /runId.*required/
+  );
+  await assert.rejects(
+    () => hydrateRunDetail({ runId: "x", fetchImpl: fakeFetch(fakeResponse()) }),
+    /must be a HarnessMonitorStore/
+  );
+  // Unset global fetch + omit fetchImpl → should throw.
+  const savedFetch = globalThis.fetch;
+  // eslint-disable-next-line no-global-assign
+  globalThis.fetch = undefined;
+  try {
+    await assert.rejects(
+      () => hydrateRunDetail({ store: createMonitorStore(), runId: "x" }),
+      /no fetch implementation/
+    );
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+test("hydrateRunDetail rejects when payload is not an object", async () => {
+  const store = createMonitorStore();
+  const _fetch = fakeFetch(fakeResponse({ body: "plain text" }));
+  await assert.rejects(
+    () => hydrateRunDetail({ store, runId: "x", fetchImpl: _fetch }),
+    /not an object/
+  );
 });

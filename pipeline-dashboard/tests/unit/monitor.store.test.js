@@ -26,6 +26,8 @@ test("createMonitorStore returns the public action surface", () => {
     // Slice MA6
     "toggleTimelineScope", "setTimelineFilter",
     "pinEvent", "unpinEvent", "togglePinEvent",
+    // Slice MB1
+    "setRunDetail", "clearRunDetail",
   ]) {
     assert.equal(typeof s[fn], "function", fn + " is exposed");
   }
@@ -56,6 +58,8 @@ test("snapshot of a fresh store has the canonical shape", () => {
   // Slice MA6
   assert.deepEqual(snap.timelineExcluded, []);
   assert.deepEqual(snap.pinnedEvents, []);
+  // Slice MB1
+  assert.deepEqual(snap.runDetails, {});
 });
 
 // ── server / activeChildren ─────────────────────────────────────────────
@@ -435,4 +439,67 @@ test("reset() clears timelineExcluded + pinnedEvents", () => {
   const snap = s.snapshot();
   assert.deepEqual(snap.timelineExcluded, []);
   assert.deepEqual(snap.pinnedEvents, []);
+});
+
+// ── Slice MB1: runDetails cache ──────────────────────────────────────
+
+test("setRunDetail stores per-run detail under runId", () => {
+  const s = createMonitorStore();
+  const detail = {
+    run: { id: "default", status: "active" },
+    recentEvents: [], children: [], subagents: [], findings: [],
+  };
+  s.setRunDetail("default", detail);
+  assert.deepEqual(s.snapshot().runDetails, { default: detail });
+});
+
+test("setRunDetail rejects empty / non-string runId or non-object detail", () => {
+  const s = createMonitorStore();
+  s.setRunDetail("", { x: 1 });
+  s.setRunDetail(null, { x: 1 });
+  s.setRunDetail("ok", null);
+  s.setRunDetail("ok", "garbage");
+  assert.deepEqual(s.snapshot().runDetails, {});
+});
+
+test("setRunDetail publishes to subscribers", () => {
+  const s = createMonitorStore();
+  let calls = 0;
+  s.subscribe(() => { calls++; });
+  const before = calls;
+  s.setRunDetail("a", { run: { id: "a" } });
+  assert.equal(calls, before + 1);
+});
+
+test("clearRunDetail(runId) drops just that entry", () => {
+  const s = createMonitorStore();
+  s.setRunDetail("a", { run: { id: "a" } });
+  s.setRunDetail("b", { run: { id: "b" } });
+  s.clearRunDetail("a");
+  assert.deepEqual(Object.keys(s.snapshot().runDetails), ["b"]);
+});
+
+test("clearRunDetail(null) clears every cached detail", () => {
+  const s = createMonitorStore();
+  s.setRunDetail("a", { run: { id: "a" } });
+  s.setRunDetail("b", { run: { id: "b" } });
+  s.clearRunDetail(null);
+  assert.deepEqual(s.snapshot().runDetails, {});
+});
+
+test("clearRunDetail on already-empty / unknown runId is a no-op (no publish)", () => {
+  const s = createMonitorStore();
+  let calls = 0;
+  s.subscribe(() => { calls++; });
+  const before = calls;
+  s.clearRunDetail(null);     // already empty
+  s.clearRunDetail("ghost");  // unknown
+  assert.equal(calls, before, "no extra publish when nothing to clear");
+});
+
+test("reset() clears runDetails", () => {
+  const s = createMonitorStore();
+  s.setRunDetail("a", { run: { id: "a" } });
+  s.reset();
+  assert.deepEqual(s.snapshot().runDetails, {});
 });

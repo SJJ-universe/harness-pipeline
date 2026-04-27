@@ -139,6 +139,121 @@ function createMonitorRoutes({
     }
   });
 
+  // ── Slice MB1 (Phase D Round 2): per-run detail endpoint ───────────
+  //
+  // GET /api/monitor/runs/:runId
+  //
+  // Lazy fetch on tab/click — bootstrap stays summary-only. Returns the
+  // selected run's executor snapshot + scoped recentEvents + scoped
+  // children + (MB2 will fill) subagents + replay metadata.
+  //
+  // Status codes:
+  //   200 — runId is known to the orchestrator
+  //   404 — runId not registered
+  //   503 — orchestrator missing (boot race; route mounted before orch wiring)
+  router.get("/monitor/runs/:runId", (req, res) => {
+    try {
+      if (!pipelineOrchestrator || typeof pipelineOrchestrator.get !== "function") {
+        return res.status(503).json({ error: "orchestrator not available" });
+      }
+      const runId = String(req.params.runId || "");
+      if (!runId) {
+        return res.status(400).json({ error: "runId required" });
+      }
+      const exec = pipelineOrchestrator.get(runId);
+      if (!exec) {
+        return res.status(404).json({ error: "run not found", runId });
+      }
+
+      // Run snapshot (status/template/phase/started + state details).
+      let snap = { status: "idle" };
+      let stateSnap = null;
+      if (typeof exec.getReplaySnapshot === "function") {
+        try { snap = exec.getReplaySnapshot() || { status: "idle" }; } catch (_) {}
+      }
+      if (snap && snap.stateSnapshot && typeof snap.stateSnapshot === "object") {
+        stateSnap = snap.stateSnapshot;
+      }
+
+      const run = {
+        id: runId,
+        status: snap.status || "idle",
+        templateId: snap.templateId || null,
+        phase: snap.phase || null,
+        phaseIdx: typeof snap.phaseIdx === "number" ? snap.phaseIdx : null,
+        startedAt: snap.startedAt || null,
+        savedAt: snap.savedAt || null,
+      };
+
+      // Scoped recentEvents — runId match OR scope:"global" (mirrors AA-2
+      // includeGlobal policy, default true so the dashboard sees system
+      // events for context). Cap independent of bootstrap's recentEventLimit.
+      let recentEvents = [];
+      if (eventReplayBuffer && typeof eventReplayBuffer.snapshot === "function") {
+        try {
+          // The replay buffer's runId+includeGlobal filter already does the
+          // exact split we want; re-use it instead of duplicating logic.
+          const all = eventReplayBuffer.snapshot({ runId, includeGlobal: true });
+          if (Array.isArray(all) && all.length > 0) {
+            const start = Math.max(0, all.length - recentEventLimit);
+            recentEvents = all.slice(start);
+          }
+        } catch (_) { recentEvents = []; }
+      }
+
+      // Scoped children — childRegistry.snapshot() filtered to this run.
+      let children = [];
+      if (childRegistry && typeof childRegistry.snapshot === "function") {
+        try {
+          children = childRegistry.snapshot().filter((c) => c && c.runId === runId);
+        } catch (_) { children = []; }
+      }
+
+      // Findings — straight from PipelineState.snapshot() if available.
+      // Capped at 50 newest so payload stays bounded; the full list is
+      // available via the legacy /api/runs/current export.
+      let findings = [];
+      let findingsOverflow = null;
+      if (stateSnap && Array.isArray(stateSnap.findings)) {
+        const all = stateSnap.findings;
+        findings = all.slice(Math.max(0, all.length - 50));
+        if (stateSnap.findingsOverflow) {
+          findingsOverflow = {
+            count: stateSnap.findingsOverflow.count || 0,
+            bySeverity: stateSnap.findingsOverflow.bySeverity || {},
+          };
+        }
+      }
+
+      // Subagents — MB2 will populate this from the executor's authoritative
+      // subagent state. For MB1 we expose the field but return empty so
+      // the client can already start consuming the contract.
+      let subagents = [];
+      if (typeof exec.getSubagentSnapshot === "function") {
+        try { subagents = exec.getSubagentSnapshot() || []; } catch (_) { subagents = []; }
+      }
+
+      // Replay metadata — does this run have a checkpoint on disk?
+      const replayMeta = {
+        hasCheckpoint: snap.status === "paused" || !!snap.savedAt,
+        savedAt: snap.savedAt || null,
+      };
+
+      res.json({
+        run,
+        recentEvents,
+        children,
+        subagents,
+        findings,
+        findingsOverflow,
+        replayMeta,
+        exportedAt: new Date().toISOString(),
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message || "monitor run detail failed" });
+    }
+  });
+
   return router;
 }
 

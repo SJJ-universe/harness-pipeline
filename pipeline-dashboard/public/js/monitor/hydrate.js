@@ -120,5 +120,80 @@
     return { snapshot: store.snapshot(), raw: payload };
   }
 
-  return { hydrateMonitorStore, DEFAULT_URL };
+  // ── Slice MB1 (Phase D Round 2): per-run detail hydration ──────────
+  //
+  // hydrateRunDetail({ store, runId, fetchImpl, headers, urlPrefix })
+  //   → Promise<{ snapshot, raw }>
+  //
+  //   - store     : HarnessMonitorStore instance (required)
+  //   - runId     : string (required) — the run to fetch
+  //   - fetchImpl : optional fetch override
+  //   - headers   : optional headers
+  //   - urlPrefix : default "/api/monitor/runs/" — caller can swap for tests
+  //
+  // On 200: store.setRunDetail(runId, payload), returns { snapshot, raw }.
+  // On 404: store.clearRunDetail(runId) (the run vanished — drop stale data),
+  //         throws Error with status:404.
+  // On other failures: throws with the HTTP status. Store left untouched.
+  //
+  // Unlike hydrateMonitorStore (which is a one-shot bootstrap), this is
+  // expected to be called many times — every tab switch, every selection
+  // change. Keep its surface narrow.
+  const RUN_DETAIL_PREFIX = "/api/monitor/runs/";
+
+  async function hydrateRunDetail({
+    store,
+    runId,
+    fetchImpl,
+    headers = {},
+    urlPrefix = RUN_DETAIL_PREFIX,
+  } = {}) {
+    if (!store || typeof store.setRunDetail !== "function") {
+      throw new Error("hydrateRunDetail: `store` must be a HarnessMonitorStore instance");
+    }
+    if (typeof runId !== "string" || runId.length === 0) {
+      throw new Error("hydrateRunDetail: `runId` is required");
+    }
+    const _fetch = fetchImpl
+      || (typeof fetch === "function" ? fetch : null);
+    if (typeof _fetch !== "function") {
+      throw new Error("hydrateRunDetail: no fetch implementation available");
+    }
+
+    const url = urlPrefix + encodeURIComponent(runId);
+    const res = await _fetch(url, {
+      method: "GET",
+      headers: { Accept: "application/json", ...headers },
+    });
+    if (!res || typeof res.ok !== "boolean") {
+      throw new Error("hydrateRunDetail: fetch returned no usable Response");
+    }
+    if (res.status === 404) {
+      // Stale runId — drop the cached detail so panels stop showing it.
+      if (typeof store.clearRunDetail === "function") store.clearRunDetail(runId);
+      const err = new Error("hydrateRunDetail: run not found (404)");
+      err.status = 404;
+      throw err;
+    }
+    if (!res.ok) {
+      const text = typeof res.text === "function"
+        ? await res.text().catch(() => "")
+        : "";
+      const err = new Error(
+        `run detail failed: HTTP ${res.status}${text ? ` — ${text}` : ""}`
+      );
+      err.status = res.status;
+      throw err;
+    }
+
+    const payload = typeof res.json === "function" ? await res.json() : null;
+    if (!payload || typeof payload !== "object") {
+      throw new Error("hydrateRunDetail: response is not an object");
+    }
+
+    store.setRunDetail(runId, payload);
+    return { snapshot: store.snapshot(), raw: payload };
+  }
+
+  return { hydrateMonitorStore, hydrateRunDetail, DEFAULT_URL, RUN_DETAIL_PREFIX };
 });

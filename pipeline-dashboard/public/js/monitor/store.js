@@ -59,6 +59,14 @@
       // original entry, but the pinned ref still renders in the timeline
       // and the inspector keeps working).
       pinnedEvents: new Set(),
+      // Slice MB1 (Phase D Round 2): per-run detail cache. Hydrated lazily
+      // when the user selects a run (via hydrateRunDetail). Contract:
+      //   runId → { run, recentEvents, children, subagents, findings,
+      //             findingsOverflow, replayMeta, exportedAt }
+      // The bootstrap payload only carries the run LIST + summary; this
+      // map carries the deeper per-run data so the timeline + inspector +
+      // agent-tree can show live detail without hitting bootstrap again.
+      runDetails: new Map(),
     };
   }
 
@@ -98,6 +106,9 @@
         // Slice MA6: filter + pin slices. Sorted for stable test asserts.
         timelineExcluded: Array.from(state.timelineExcluded).sort(),
         pinnedEvents: Array.from(state.pinnedEvents),
+        // Slice MB1: runDetails map → plain object. Inner detail objects
+        // are shared by reference (same convention as runs map).
+        runDetails: Object.fromEntries(state.runDetails.entries()),
       };
     }
 
@@ -260,6 +271,33 @@
       return snapshot();
     }
 
+    // ── Slice MB1: per-run detail cache ──────────────────────────
+
+    function setRunDetail(runId, detail) {
+      // No-op for bad input — caller (hydrateRunDetail) is responsible
+      // for shape, but we guard so a network glitch can't trash state.
+      if (typeof runId !== "string" || runId.length === 0) return snapshot();
+      if (!detail || typeof detail !== "object") return snapshot();
+      state.runDetails.set(runId, detail);
+      _publish();
+      return snapshot();
+    }
+
+    function clearRunDetail(runId) {
+      // Specific runId clears just that entry; null/undefined clears all
+      // (used on monitor close + tab refresh).
+      if (runId == null) {
+        if (state.runDetails.size === 0) return snapshot();
+        state.runDetails.clear();
+        _publish();
+        return snapshot();
+      }
+      if (typeof runId !== "string" || !state.runDetails.has(runId)) return snapshot();
+      state.runDetails.delete(runId);
+      _publish();
+      return snapshot();
+    }
+
     // Test-only inspection so unit tests don't need to read the snapshot
     // every time. Internals not exposed by the public API.
     function _internal() {
@@ -288,6 +326,9 @@
       pinEvent,
       unpinEvent,
       togglePinEvent,
+      // Slice MB1
+      setRunDetail,
+      clearRunDetail,
       // testing aid
       _internal,
     };
