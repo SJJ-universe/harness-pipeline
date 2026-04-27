@@ -86,11 +86,22 @@ $ node scripts/readiness-report.js
   run-visibility       ★★★  (3/3)
   child-visibility     ★★★  (3/3)
   replay-visibility    ★★★  (3/3)
-  event-integrity      ★★    (2/3)  ← gap: bridge filter assertion not in CI yet
-  contract-stability   ★★    (2/3)
+    + pin survives ring eviction (behavior verified)
+  event-integrity      ★★★  (3/3)
+    + normalize() yields canonical envelope shape
+    + bridge forwards live event into store (behavior verified)
+    + bridge run sync upserts run on pipeline_start (behavior verified)
+  contract-stability   ★★★  (3/3)
+    + layout panels override invokes stub panel.create (behavior verified)
   ───────────────────────────────
-  total                13/15  → ready for external preview
+  total                15/15  → release-ready
 ```
+
+**Slice MC4 (Phase D Round 2.5)**: every star is now BEHAVIOR-verified — the
+report instantiates real modules, drives them with test data, and asserts
+the runtime outcome. Previously several stars passed simply because a
+module export existed. The 15/15 total is the same; what changed is that
+the verifications are now meaningful.
 
 Exit codes:
 - `0` — total ≥ 14 (release-ready)

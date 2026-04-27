@@ -99,32 +99,80 @@ async function scoreReplayVisibility() {
   if (boot.status === 200 && Array.isArray(boot.body && boot.body.recentEvents)) {
     stars.push("monitor/bootstrap.recentEvents present");
   }
-  // Star 3: store exposes pinnedEvents in fresh snapshot.
+  // Star 3 — MC4 BEHAVIOR: pin an event, push more to evict it from the
+  // ring, verify the pinned ref still surfaces. Fail when ring eviction
+  // wipes the pin (regression in MA6 pin-survival semantics).
   try {
     const { createMonitorStore } = require("../public/js/monitor/store");
-    const s = createMonitorStore();
-    if (Array.isArray(s.snapshot().pinnedEvents)) stars.push("store.snapshot.pinnedEvents shape ready");
+    const s = createMonitorStore({ maxEvents: 3 });
+    const target = { type: "phase_update", scope: "phase", payload: {} };
+    s.pushEvent(target);
+    s.pinEvent(target);
+    for (let i = 0; i < 10; i++) {
+      s.pushEvent({ type: "tool_recorded", scope: "tool", payload: { i } });
+    }
+    const snap = s.snapshot();
+    const ringEvicted = !snap.events.includes(target);
+    const pinSurvived = snap.pinnedEvents.includes(target);
+    if (ringEvicted && pinSurvived) {
+      stars.push("pin survives ring eviction (behavior verified)");
+    }
   } catch (_) {}
   return { name: "replay-visibility", stars };
 }
 
 async function scoreEventIntegrity() {
   const stars = [];
-  // Star 1: normalizer module loads + exposes normalize.
+  // Star 1 — MC4 BEHAVIOR: normalize() actually produces the canonical
+  // envelope shape on a representative event. (was: typeof check)
   try {
     const { normalize } = require("../public/js/monitor/normalizer");
-    if (typeof normalize === "function") stars.push("normalize() exported");
+    const env = normalize({ type: "phase_update", data: { runId: "default", phase: "B" } });
+    if (env && env.type === "phase_update" && env.scope === "phase" && env.runId === "default") {
+      stars.push("normalize() yields canonical envelope shape");
+    }
   } catch (_) {}
-  // Star 2: legacy bridge module loads + exposes install.
+  // Star 2 — MC4 BEHAVIOR: bridge actually forwards a tapped event into
+  // the store via real legacy-bridge + real dispatcher. (was: typeof
+  // check)
   try {
-    const lb = require("../public/js/monitor/legacy-bridge");
-    if (typeof lb.install === "function") stars.push("legacy-bridge.install() exported");
+    const dispatcher = require("../public/js/event-dispatcher");
+    const { install } = require("../public/js/monitor/legacy-bridge");
+    const { createMonitorStore } = require("../public/js/monitor/store");
+    const { normalize } = require("../public/js/monitor/normalizer");
+    dispatcher._resetForTests();
+    const store = createMonitorStore();
+    const handle = install({
+      store, normalize, dispatcher,
+      fetchImpl: null, setIntervalFn: () => null,
+    });
+    dispatcher.notifyTaps({ type: "phase_update", data: { runId: "default", phase: "B" } });
+    const forwarded = store.snapshot().events.length === 1
+      && store.snapshot().events[0].type === "phase_update";
+    handle.destroy();
+    if (forwarded) stars.push("bridge forwards live event into store (behavior verified)");
   } catch (_) {}
-  // Star 3: dispatcher tap surface present.
+  // Star 3 — MC4 BEHAVIOR: bridge run sync upserts run-summary on a
+  // pipeline_start event. (was: addTap/notifyTaps export check)
   try {
-    const d = require("../public/js/event-dispatcher");
-    if (typeof d.addTap === "function" && typeof d.notifyTaps === "function") {
-      stars.push("event-dispatcher addTap/notifyTaps present");
+    const dispatcher = require("../public/js/event-dispatcher");
+    const { install } = require("../public/js/monitor/legacy-bridge");
+    const { createMonitorStore } = require("../public/js/monitor/store");
+    const { normalize } = require("../public/js/monitor/normalizer");
+    dispatcher._resetForTests();
+    const store = createMonitorStore();
+    const handle = install({
+      store, normalize, dispatcher,
+      fetchImpl: null, setIntervalFn: () => null,
+    });
+    dispatcher.notifyTaps({
+      type: "pipeline_start",
+      data: { runId: "verify", template: "general", phase: "A" },
+    });
+    const r = store.snapshot().runs.verify;
+    handle.destroy();
+    if (r && r.status === "active" && r.templateId === "general" && r.phase === "A") {
+      stars.push("bridge run sync upserts run on pipeline_start (behavior verified)");
     }
   } catch (_) {}
   return { name: "event-integrity", stars };
@@ -144,11 +192,54 @@ async function scoreContractStability() {
   if (legacy.status === 200 && legacy.body && legacy.body.snapshot && Array.isArray(legacy.body.events)) {
     stars.push("legacy /api/runs/current shape unchanged");
   }
-  // Star 3: layout module exports `mount` + `panels` override hook.
+  // Star 3 — MC4 BEHAVIOR: layout actually invokes a stub panel via the
+  // panels override surface. (was: typeof check on layout.mount)
   try {
-    const layout = require("../public/js/monitor/layout");
-    if (typeof layout.mount === "function") {
-      stars.push("layout.mount exported (panels override surface present)");
+    const { mount } = require("../public/js/monitor/layout");
+    const { createMonitorStore } = require("../public/js/monitor/store");
+    const { normalize } = require("../public/js/monitor/normalizer");
+    const store = createMonitorStore();
+    let stubFired = false;
+    const stub = {
+      create() { stubFired = true; return { destroy() {} }; },
+    };
+    // Minimal DOM stub matching the layout-test pattern.
+    const makeEl = (tag) => {
+      const el = {
+        tagName: String(tag).toUpperCase(),
+        children: [],
+        attributes: {},
+        classList: {
+          _classes: new Set(),
+          add(c) { this._classes.add(c); },
+          remove(c) { this._classes.delete(c); },
+          contains(c) { return this._classes.has(c); },
+          toString() { return Array.from(this._classes).join(" "); },
+        },
+        get className() { return this.classList.toString(); },
+        set className(v) { this.classList._classes = new Set(String(v).split(/\s+/).filter(Boolean)); },
+        appendChild(c) { this.children.push(c); return c; },
+        setAttribute() {}, removeAttribute() {}, hasAttribute() { return false; },
+        addEventListener() {}, removeEventListener() {},
+        get innerHTML() { return ""; },
+        set innerHTML(v) { if (v !== "") throw new Error("innerHTML must be ''"); this.children = []; },
+        get textContent() { return ""; }, set textContent(_) {},
+      };
+      return el;
+    };
+    const doc = { createElement: makeEl, body: makeEl("body") };
+    const root = makeEl("div");
+    root.ownerDocument = doc;
+    const handle = mount({
+      root, store, normalize,
+      hydrate: () => Promise.resolve({ snapshot: store.snapshot(), raw: {} }),
+      panels: { globalBar: stub },
+      bridge: null,
+      doc,
+    });
+    if (handle) handle.destroy();
+    if (stubFired) {
+      stars.push("layout panels override invokes stub panel.create (behavior verified)");
     }
   } catch (_) {}
   return { name: "contract-stability", stars };

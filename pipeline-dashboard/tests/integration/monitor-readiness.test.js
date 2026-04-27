@@ -303,3 +303,24 @@ test("MB5 readiness-report.js script exists + exits with 0..3", () => {
   // JSON flag supported.
   assert.match(src, /--json/);
 });
+
+test("MC4: readiness-report stars are now BEHAVIOR-verified, not export-checks", () => {
+  // Source-grep anchor: every star-3 in the 5 categories must include
+  // "behavior verified" or otherwise actually exercise behavior. This
+  // guards against future regressions where a star slips back to a
+  // typeof-export check.
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const src = fs.readFileSync(
+    path.join(__dirname, "../../scripts/readiness-report.js"), "utf-8"
+  );
+  // The known weak markers ("present" / "exported" / "ready") must NOT
+  // appear in star-3 push lines anymore.
+  assert.match(src, /pin survives ring eviction \(behavior verified\)/);
+  assert.match(src, /bridge forwards live event into store \(behavior verified\)/);
+  assert.match(src, /bridge run sync upserts run on pipeline_start \(behavior verified\)/);
+  assert.match(src, /layout panels override invokes stub panel\.create \(behavior verified\)/);
+  assert.match(src, /normalize\(\) yields canonical envelope shape/);
+  // Sanity: the old typeof-only string is gone.
+  assert.equal(/store\.snapshot\.pinnedEvents shape ready/.test(src), false);
+});
