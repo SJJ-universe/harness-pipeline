@@ -78,7 +78,12 @@ function Get-UntrackedCount {
     if (-not (Test-Path $RepoPath)) { return -1 }
     Push-Location $RepoPath
     try {
-        $entries = & git status --porcelain | Where-Object { $_ -like "??*" }
+        # PowerShell `-like "??*"` is a wildcard match where `?` means
+        # "any single char" — so it matched modified, deleted, AND
+        # untracked lines indiscriminately. git's untracked marker is the
+        # literal two-question-mark prefix `?? `, so use a regex anchor
+        # to count only those entries.
+        $entries = & git status --porcelain | Where-Object { $_ -match '^\?\? ' }
         if ($LASTEXITCODE -ne 0) { return -1 }
         return @($entries).Count
     } finally {
@@ -90,7 +95,15 @@ function Show-RepoSnapshot {
     param([string]$Label, [string]$RepoPath)
     Write-Section ("repo: " + $Label + "  (" + $RepoPath + ")")
     if (-not (Test-Path $RepoPath)) {
-        Write-Kv "exists"      "NO — path missing"
+        Write-Kv "exists" 'NO - path missing'
+        return
+    }
+    # Slice S1 follow-up: a directory whose .git was moved out (e.g. our
+    # archived workspace shell at C:\Users\SJ\workspace) is not an error —
+    # surface it as `archived` and stop instead of letting every git call
+    # spam `fatal: not a git repository`.
+    if (-not (Test-Path (Join-Path $RepoPath '.git'))) {
+        Write-Kv 'status' 'archived (.git absent - see C:\Users\SJ\archive\ for backups)'
         return
     }
     $branch    = Get-GitProp $RepoPath @("branch", "--show-current")
