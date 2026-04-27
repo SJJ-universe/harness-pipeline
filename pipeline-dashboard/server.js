@@ -223,6 +223,16 @@ function gracefulShutdown(reason = "manual") {
   try { sessionWatcher && sessionWatcher.stop && sessionWatcher.stop(); } catch (_) {}
   for (const p of ptyProcesses) { try { p.kill(); } catch (_) {} }
   for (const c of activeCodexChildren) { try { c.kill(); } catch (_) {} }
+  // Slice S3 (Phase 3-S, 2026-04-27): SIGTERM every spawned Codex/Claude
+  // child via the lifecycle registry. childRegistry is declared further
+  // down in this file (line ~590) — by the time gracefulShutdown runs,
+  // module evaluation has already initialised it; we still guard with
+  // typeof to keep the early-exit case (signal during boot) safe.
+  try {
+    if (typeof childRegistry !== "undefined" && childRegistry && childRegistry.killAll) {
+      childRegistry.killAll("SIGTERM");
+    }
+  } catch (_) { /* never let shutdown signal handler throw */ }
   try {
     for (const ws of clients) { try { ws.close(); } catch (_) {} }
   } catch (_) {}
@@ -230,7 +240,19 @@ function gracefulShutdown(reason = "manual") {
   if (process.send) {
     try { process.send({ type: "shutdown" }); } catch (_) {}
   }
-  setTimeout(() => process.exit(0), 400);
+  // S3: 1s grace for SIGTERM → SIGKILL holdouts → process.exit(0).
+  // Old timing was 400ms with no kill follow-through; the extra 600ms
+  // gives Codex/Claude children time to flush stdout + close pipes
+  // before we hard-kill anything still alive. Net shutdown UX cost is
+  // sub-second and avoids zombies on Linux.
+  setTimeout(() => {
+    try {
+      if (typeof childRegistry !== "undefined" && childRegistry && childRegistry.killAll) {
+        childRegistry.killAll("SIGKILL");
+      }
+    } catch (_) {}
+    process.exit(0);
+  }, 1000);
 }
 
 // Slice S1 (Phase 3-S, 2026-04-27) — WS upgrade auth gate.
@@ -587,16 +609,26 @@ const childSemaphore = createChildSemaphore({
   timeoutMs: Number(process.env.HARNESS_CHILD_QUEUE_TIMEOUT_MS || 30000),
   broadcast,
 });
+// Slice S3 (Phase 3-S, 2026-04-27): child-process lifecycle registry.
+// Complements childSemaphore (which limits concurrency) by tracking which
+// processes are still alive at any moment, so gracefulShutdown can
+// SIGTERM → 1s grace → SIGKILL the whole set instead of orphaning Codex
+// critique calls (often 120s+).
+const { createChildRegistry } = require("./src/runtime/childRegistry");
+const childRegistry = createChildRegistry({ broadcast });
+
 const codexRunner = new CodexRunner({
   runRegistry,
   repoRoot: REPO_ROOT,
   broadcast,
   childSemaphore,
+  childRegistry,
 });
 const claudeRunner = new ClaudeRunner({
   runRegistry,
   repoRoot: REPO_ROOT,
   childSemaphore,
+  childRegistry,
 });
 
 // generalRunRef.active is set by pipelineRoutes — see above

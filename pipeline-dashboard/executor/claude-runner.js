@@ -28,6 +28,10 @@ class ClaudeRunner {
     // Slice N (v6): shared child-process semaphore. Optional — when absent
     // the runner behaves as before.
     childSemaphore = null,
+    // Slice S3 (Phase 3-S): lifecycle registry so server.js can killAll()
+    // every active spawn during graceful shutdown. Optional for unit tests
+    // that don't exercise real child processes.
+    childRegistry = null,
   } = {}) {
     this.claudeCommand = claudeCommand;
     this.fallbackCommands = fallbackCommands || [
@@ -38,6 +42,7 @@ class ClaudeRunner {
     this.runRegistry = runRegistry || null;
     this.repoRoot = repoRoot || process.cwd();
     this.childSemaphore = childSemaphore;
+    this.childRegistry = childRegistry;
     this._resolvedSpec = null;
   }
 
@@ -117,6 +122,11 @@ class ClaudeRunner {
         return resolve(f);
       }
 
+      // Slice S3 (Phase 3-S): track this spawn in the lifecycle registry
+      // so graceful shutdown can SIGTERM/SIGKILL it. Unregister fires from
+      // the close/error handlers below — both code paths covered.
+      this.childRegistry?.register(child, { label: "claude", runId });
+
       if (typeof onChild === "function") onChild(child);
 
       const out = [];
@@ -135,6 +145,9 @@ class ClaudeRunner {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
+        // S3: drop registry entry so killAll on shutdown does not
+        // SIGTERM an already-dead reference.
+        this.childRegistry?.unregister(child);
         const f = this._failure(`spawn error (${spec.cmd}): ${err.message}`);
         f._enoent = /ENOENT/i.test(err.message);
         if (runId) this.runRegistry?.complete(runId, f);
@@ -145,6 +158,9 @@ class ClaudeRunner {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
+        // S3: same as the error path — child is gone, registry no longer
+        // needs to track it.
+        this.childRegistry?.unregister(child);
         const stdout = Buffer.concat(out).toString("utf-8");
         const stderr = Buffer.concat(errChunks).toString("utf-8");
         const enoentLike =

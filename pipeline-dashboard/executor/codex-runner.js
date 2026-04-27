@@ -55,6 +55,10 @@ class CodexRunner {
     // Slice N (v6): shared child-process semaphore. Optional for backward
     // compatibility with existing tests that instantiate CodexRunner bare.
     childSemaphore = null,
+    // Slice S3 (Phase 3-S): lifecycle registry — server.js graceful shutdown
+    // calls registry.killAll('SIGTERM') so long-running codex critiques
+    // (often 120s+) get a chance to wind down instead of orphaning.
+    childRegistry = null,
   } = {}) {
     this.codexCommand = codexCommand;
     this.fallbackCommands = fallbackCommands || [
@@ -74,6 +78,7 @@ class CodexRunner {
     this.flushIntervalMs = flushIntervalMs;
     this.flushBytes = flushBytes;
     this.childSemaphore = childSemaphore;
+    this.childRegistry = childRegistry;
     this._resolvedSpec = null;
   }
 
@@ -140,6 +145,11 @@ class CodexRunner {
         if (runId) this.runRegistry?.complete(runId, f);
         return resolve(f);
       }
+
+      // Slice S3 (Phase 3-S): track this codex spawn so server.js graceful
+      // shutdown can SIGTERM/SIGKILL it. Codex calls live up to 120s, so
+      // without this an Electron / dashboard close would orphan them.
+      this.childRegistry?.register(child, { label: "codex", runId });
 
       // Write prompt via stdin and close
       try {
@@ -229,6 +239,8 @@ class CodexRunner {
         settled = true;
         clearTimeout(timer);
         if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
+        // S3: drop registry entry — child is gone, no SIGTERM needed.
+        this.childRegistry?.unregister(child);
         const f = this._failure(`spawn error (${spec.cmd}): ${err.message}`);
         f._enoent = /ENOENT/i.test(err.message);
         if (runId) this.runRegistry?.complete(runId, f);
@@ -240,6 +252,8 @@ class CodexRunner {
         settled = true;
         clearTimeout(timer);
         if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
+        // S3: codex completed normally — registry no longer tracks this child.
+        this.childRegistry?.unregister(child);
         flush(); // final live flush
         const rawStdout = Buffer.concat(out).toString("utf-8");
         const rawStderr = Buffer.concat(errChunks).toString("utf-8");
