@@ -155,10 +155,21 @@ function validateHook(body) {
   return { event, payload };
 }
 
+// Slice S2 (Phase 3-S): triggerId is interpolated into a filename inside
+// CODEX_TRIGGER_DIR (`codex-trigger-${triggerId}-${ts}.md`), so a slug-
+// shaped value is a hard prerequisite — any path-separator, "..", quote
+// or NUL character could escape the sandbox before pathSandbox even sees
+// it. Restrict to the same charset we already accept for skill ids in
+// skill-registry: alphanumerics + `.`, `_`, `-`. 128-char ceiling kept.
+const TRIGGER_ID_RE = /^[a-zA-Z0-9._-]+$/;
+
 function validateCodexTrigger(body) {
   const obj = requireObject(body);
   const triggerId = optionalString(obj.triggerId, "triggerId", 128);
   if (!triggerId) fail("triggerId is required");
+  if (!TRIGGER_ID_RE.test(triggerId)) {
+    fail("triggerId must match /^[a-zA-Z0-9._-]+$/ (no path separators, traversal, or NUL)");
+  }
   return {
     triggerId,
     userInput: optionalString(obj.userInput, "userInput", 50000) || "",

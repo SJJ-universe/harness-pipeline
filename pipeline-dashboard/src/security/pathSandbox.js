@@ -31,6 +31,22 @@ function assertInsideRoot(resolvedPath, root) {
   if (relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative))) {
     return resolvedPath;
   }
+  // Slice S2 (Phase 3-S): Windows-only case-insensitive belt-and-suspenders.
+  // `path.relative` on Win32 is *usually* case-insensitive, but drive
+  // letter casing edge cases ("C:\X" vs "c:\x") and prefix mismatches
+  // (8.3 short names, mixed-case mounts) can still leak through as
+  // bogus "../" results. Re-check with explicit lowercase containment
+  // on Windows so a real-world filesystem with "C:\\Users\\SJ\\harness…"
+  // and a candidate "c:\\users\\sj\\harness…\\file" is treated as the
+  // same path.
+  if (process.platform === "win32") {
+    const candidate = String(resolvedPath).toLowerCase();
+    const baseCi   = String(normalizedRoot).toLowerCase();
+    const sepCi    = path.sep.toLowerCase();
+    if (candidate === baseCi || candidate.startsWith(baseCi + sepCi)) {
+      return resolvedPath;
+    }
+  }
   throw new PathSandboxError(
     `path escapes harness root: ${resolvedPath}`,
     "PATH_OUTSIDE_ROOT"

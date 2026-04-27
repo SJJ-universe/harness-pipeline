@@ -1,5 +1,9 @@
 const fs = require("fs");
 const path = require("path");
+// Slice S2 (Phase 3-S): centralize sandbox containment + symlink-safe
+// realpath checks through the shared pathSandbox module so getSkillContent
+// stays consistent with /api/context/load and the codex trigger writer.
+const { resolveInsideRoot, PathSandboxError } = require("./src/security/pathSandbox");
 
 const SKILLS_DIR = path.join(process.env.HOME || process.env.USERPROFILE, ".claude", "skills");
 const CATEGORIES_FILE = path.join(__dirname, "skill-categories.json");
@@ -103,13 +107,24 @@ function getSkillsForHarness(harnessType) {
 }
 
 function getSkillContent(skillId) {
+  // Slice S2 (Phase 3-S): defense-in-depth. (1) charset gate keeps every
+  // path-significant character ("/", "\\", "..", NUL, quote, etc.) out
+  // before any path concatenation. (2) pathSandbox.resolveInsideRoot adds
+  // symlink-resolved containment relative to SKILLS_DIR — so even if
+  // someone bypasses the regex via a future caller, a `~/.claude/skills/
+  // attacker -> /etc/passwd` symlink cannot read outside the skills dir.
   if (!/^[a-zA-Z0-9._-]+$/.test(String(skillId || ""))) {
     return null;
   }
-  const skillPath = path.join(SKILLS_DIR, skillId, "SKILL.md");
-  const resolved = path.resolve(skillPath);
-  const root = path.resolve(SKILLS_DIR);
-  if (!resolved.startsWith(root + path.sep)) {
+  let skillPath;
+  try {
+    skillPath = resolveInsideRoot(
+      path.join(skillId, "SKILL.md"),
+      SKILLS_DIR,
+      { mustExist: true, purpose: "skillPath" }
+    );
+  } catch (err) {
+    if (err && err instanceof PathSandboxError) return null;
     return null;
   }
   try {
