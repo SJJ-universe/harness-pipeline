@@ -1,10 +1,12 @@
-// Slice MA3+MA4 (Phase D, 2026-04-27) — HarnessMonitorLayout.
+// Slice MA3+MA4+MA5 (Phase D, 2026-04-27) — HarnessMonitorLayout.
 //
 // Mounts the monitor shell into a host element, kicks off hydration, and
-// instantiates each panel. MA3 wired the global-bar panel; MA4 adds the
-// shell-body row containing the left run-rail (run-tree) and the centre
-// workspace (run-summary). MA5 will fold the right inspector + bottom
-// dock + tool/event timeline into the same wiring pattern.
+// instantiates each panel.
+//   - MA3 — global-bar (top) + gb-error
+//   - MA4 — shell-body row: run-rail (left) + center-workspace (centre)
+//   - MA5 — center-workspace splits into cw-summary (top) + cw-timeline
+//           (bottom); shell-body grows a right-inspector column;
+//           shell-dock (raw event log) sits below shell-body.
 //
 // Default behaviour: completely opt-in. The init script in index.html
 // only invokes mount() when ?monitor=1 is in the URL or
@@ -24,9 +26,13 @@
 //                     globalBar?:   { create({root,store,onClose,doc}) },
 //                     runTree?:     { create({root,store,onSelect,doc}) },
 //                     runSummary?:  { create({root,store,doc}) },
+//                     timeline?:    { create({root,store,onSelect,doc}) },  // MA5
+//                     inspector?:   { create({root,store,doc}) },           // MA5
+//                     bottomDock?:  { create({root,store,doc}) },           // MA5
 //                   }
 //                   Defaults are window.HarnessMonitor{GlobalBar,RunTree,
-//                   RunSummary} in browsers; tests inject stubs.
+//                   RunSummary,Timeline,Inspector,BottomDock} in browsers;
+//                   tests inject stubs.
 //   - hydrate     : optional hydrate fn override (defaults to
 //                   HarnessMonitorHydrate.hydrateMonitorStore).
 //   - doc         : optional document override (test injection).
@@ -102,9 +108,10 @@
     errorBox.setAttribute("hidden", "");
     errorBox.setAttribute("role", "alert");
 
-    // Slice MA4: shell-body row hosts left rail (run-tree) + centre
-    // workspace (run-summary). The two regions are siblings so MA5 can
-    // append a third (right inspector) without restructuring.
+    // Slice MA4 + MA5: shell-body row hosts run-rail (left) +
+    // center-workspace (centre, split into cw-summary + cw-timeline by
+    // MA5) + right-inspector (added in MA5). Below shell-body sits
+    // shell-dock (raw event log, full width).
     const shellBody = _doc.createElement("div");
     shellBody.className = "shell-body";
     shellBody.setAttribute("role", "region");
@@ -120,13 +127,47 @@
     centerWs.setAttribute("role", "region");
     centerWs.setAttribute("aria-label", "Selected run");
 
+    // MA5: split the centre workspace into a top summary region + a
+    // bottom timeline region. Existing run-summary tests/mounts still
+    // work because the panel mounts to .cw-summary (a child of the
+    // centre workspace), and any test querying for .center-workspace
+    // still finds it as the parent.
+    const cwSummary = _doc.createElement("div");
+    cwSummary.className = "cw-summary";
+    cwSummary.setAttribute("role", "region");
+    cwSummary.setAttribute("aria-label", "Run summary");
+
+    const cwTimeline = _doc.createElement("div");
+    cwTimeline.className = "cw-timeline";
+    cwTimeline.setAttribute("role", "region");
+    cwTimeline.setAttribute("aria-label", "Event timeline");
+
+    centerWs.appendChild(cwSummary);
+    centerWs.appendChild(cwTimeline);
+
+    // MA5: right inspector — context detail for whatever was last selected
+    // (events from timeline today; child/finding/subagent in MA6).
+    const rightInspector = _doc.createElement("div");
+    rightInspector.className = "right-inspector";
+    rightInspector.setAttribute("role", "complementary");
+    rightInspector.setAttribute("aria-label", "Inspector");
+
     shellBody.appendChild(runRail);
     shellBody.appendChild(centerWs);
+    shellBody.appendChild(rightInspector);
+
+    // MA5: shell-dock row — raw event log under shell-body. Same opt-in
+    // gate as the rest of the shell; visible when the monitor is active.
+    const shellDock = _doc.createElement("div");
+    shellDock.className = "shell-dock";
+    shellDock.setAttribute("role", "region");
+    shellDock.setAttribute("aria-label", "Bottom dock");
 
     root.innerHTML = "";
     root.appendChild(globalBarRoot);
     root.appendChild(errorBox);
     root.appendChild(shellBody);
+    root.appendChild(shellDock);
 
     function showError(msg) {
       errorBox.removeAttribute("hidden");
@@ -177,7 +218,41 @@
     const RunSummary = _resolvePanel(panels, "runSummary", "HarnessMonitorRunSummary");
     if (RunSummary) {
       runSummaryHandle = RunSummary.create({
-        root: centerWs,
+        root: cwSummary,    // MA5: was centerWs; now mounts to cw-summary subregion
+        store,
+        doc: _doc,
+      });
+    }
+
+    // ── Slice MA5: timeline (centre bottom), inspector (right), bottom-dock (below) ──
+    let timelineHandle = null;
+    const Timeline = _resolvePanel(panels, "timeline", "HarnessMonitorTimeline");
+    if (Timeline) {
+      timelineHandle = Timeline.create({
+        root: cwTimeline,
+        store,
+        doc: _doc,
+        onSelect(env) {
+          if (typeof store.selectItem === "function") store.selectItem("event", env);
+        },
+      });
+    }
+
+    let inspectorHandle = null;
+    const Inspector = _resolvePanel(panels, "inspector", "HarnessMonitorInspector");
+    if (Inspector) {
+      inspectorHandle = Inspector.create({
+        root: rightInspector,
+        store,
+        doc: _doc,
+      });
+    }
+
+    let bottomDockHandle = null;
+    const BottomDock = _resolvePanel(panels, "bottomDock", "HarnessMonitorBottomDock");
+    if (BottomDock) {
+      bottomDockHandle = BottomDock.create({
+        root: shellDock,
         store,
         doc: _doc,
       });
@@ -205,6 +280,9 @@
         try { panelHandle && panelHandle.destroy && panelHandle.destroy(); } catch (_) {}
         try { runTreeHandle && runTreeHandle.destroy && runTreeHandle.destroy(); } catch (_) {}
         try { runSummaryHandle && runSummaryHandle.destroy && runSummaryHandle.destroy(); } catch (_) {}
+        try { timelineHandle && timelineHandle.destroy && timelineHandle.destroy(); } catch (_) {}
+        try { inspectorHandle && inspectorHandle.destroy && inspectorHandle.destroy(); } catch (_) {}
+        try { bottomDockHandle && bottomDockHandle.destroy && bottomDockHandle.destroy(); } catch (_) {}
         root.classList.remove("is-active");
         root.classList.remove("monitor-shell");
         if (typeof root.setAttribute === "function") root.setAttribute("hidden", "");
@@ -221,6 +299,11 @@
       _runRail: runRail,
       _centerWs: centerWs,
       _shellBody: shellBody,
+      // MA5 hooks
+      _cwSummary: cwSummary,
+      _cwTimeline: cwTimeline,
+      _rightInspector: rightInspector,
+      _shellDock: shellDock,
     };
   }
 

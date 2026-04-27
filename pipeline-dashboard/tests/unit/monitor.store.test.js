@@ -21,6 +21,8 @@ test("createMonitorStore returns the public action surface", () => {
     "setServerSummary", "setActiveChildren",
     "upsertRun", "removeRun", "selectRun",
     "pushEvent", "bumpCounter", "reset",
+    // Slice MA5
+    "selectItem", "clearSelection",
   ]) {
     assert.equal(typeof s[fn], "function", fn + " is exposed");
   }
@@ -46,6 +48,8 @@ test("snapshot of a fresh store has the canonical shape", () => {
   assert.deepEqual(snap.activeChildren, []);
   assert.deepEqual(snap.events, []);
   assert.deepEqual(snap.counters, {});
+  // Slice MA5
+  assert.equal(snap.selectedItem, null);
 });
 
 // ── server / activeChildren ─────────────────────────────────────────────
@@ -247,4 +251,69 @@ test("two independent stores never leak state into each other", () => {
   b.upsertRun("B1", {});
   assert.deepEqual(a.snapshot().runIds, ["A1"]);
   assert.deepEqual(b.snapshot().runIds, ["B1"]);
+});
+
+// ── Slice MA5: selectItem / clearSelection ───────────────────────────
+
+test("selectItem stores { kind, payload } and publishes", () => {
+  const s = createMonitorStore();
+  let last = null;
+  s.subscribe((snap) => { last = snap.selectedItem; });
+  const env = { type: "phase_update", runId: "default", scope: "phase", payload: {} };
+  s.selectItem("event", env);
+  assert.deepEqual(s.snapshot().selectedItem, { kind: "event", payload: env });
+  assert.deepEqual(last, { kind: "event", payload: env });
+});
+
+test("selectItem with payload=null is allowed (kind-only selections)", () => {
+  const s = createMonitorStore();
+  s.selectItem("nothing", null);
+  assert.deepEqual(s.snapshot().selectedItem, { kind: "nothing", payload: null });
+});
+
+test("selectItem rejects empty / non-string kind (no-op)", () => {
+  const s = createMonitorStore();
+  s.selectItem("", { x: 1 });
+  s.selectItem(null, { x: 1 });
+  s.selectItem(42, { x: 1 });
+  assert.equal(s.snapshot().selectedItem, null);
+});
+
+test("clearSelection drops the selection + publishes", () => {
+  const s = createMonitorStore();
+  let calls = 0;
+  s.subscribe(() => { calls++; });
+  s.selectItem("event", { id: 1 });
+  assert.ok(s.snapshot().selectedItem);
+  const before = calls;
+  s.clearSelection();
+  assert.equal(s.snapshot().selectedItem, null);
+  assert.equal(calls, before + 1, "publishes once on clear");
+});
+
+test("clearSelection on already-null selection is a no-op (no publish)", () => {
+  const s = createMonitorStore();
+  let calls = 0;
+  s.subscribe(() => { calls++; });
+  const before = calls;
+  s.clearSelection();
+  assert.equal(calls, before, "no extra publish when already null");
+});
+
+test("snapshot returns a fresh selectedItem wrapper but preserves payload identity", () => {
+  const s = createMonitorStore();
+  const payload = { tag: "x" };
+  s.selectItem("event", payload);
+  const a = s.snapshot();
+  const b = s.snapshot();
+  assert.notEqual(a.selectedItem, b.selectedItem, "wrapper is a fresh object");
+  assert.equal(a.selectedItem.payload, payload, "payload preserved by reference");
+  assert.equal(b.selectedItem.payload, payload);
+});
+
+test("reset() clears selectedItem along with everything else", () => {
+  const s = createMonitorStore();
+  s.selectItem("event", { a: 1 });
+  s.reset();
+  assert.equal(s.snapshot().selectedItem, null);
 });

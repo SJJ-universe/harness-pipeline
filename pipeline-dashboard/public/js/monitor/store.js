@@ -43,6 +43,11 @@
       activeChildren: [],            // [{ pid, label, runId, ageMs }]
       events: [],                    // bounded ring of normalized envelopes
       counters: {},                  // { critical: 3, warnings: 12, ... }
+      // Slice MA5: generic selection slot for the right inspector.
+      // shape: { kind: string, payload: object | null } | null
+      // Today the only kind producer is the timeline panel ("event") but
+      // future MA6 panels will populate "child"/"finding"/"subagent".
+      selectedItem: null,
     };
   }
 
@@ -74,6 +79,11 @@
         activeChildren: state.activeChildren.slice(),
         events: state.events.slice(),
         counters: { ...state.counters },
+        // Slice MA5: shallow copy of the selection envelope. payload is
+        // shared by reference because envelopes are treated as immutable.
+        selectedItem: state.selectedItem
+          ? { kind: state.selectedItem.kind, payload: state.selectedItem.payload }
+          : null,
       };
     }
 
@@ -154,6 +164,26 @@
       return snapshot();
     }
 
+    // ── Slice MA5: selection ──────────────────────────────────────
+
+    function selectItem(kind, payload) {
+      // Allow null/empty kind to act as a no-op so callers don't have to
+      // pre-validate. Use clearSelection() when intent is to clear.
+      if (typeof kind !== "string" || kind.length === 0) return snapshot();
+      state.selectedItem = { kind, payload: payload == null ? null : payload };
+      _publish();
+      return snapshot();
+    }
+
+    function clearSelection() {
+      // Idempotent — publishing on an already-null selection wastes a
+      // re-render in every subscriber, so guard.
+      if (state.selectedItem === null) return snapshot();
+      state.selectedItem = null;
+      _publish();
+      return snapshot();
+    }
+
     // Test-only inspection so unit tests don't need to read the snapshot
     // every time. Internals not exposed by the public API.
     function _internal() {
@@ -173,6 +203,9 @@
       pushEvent,
       bumpCounter,
       reset,
+      // Slice MA5
+      selectItem,
+      clearSelection,
       // testing aid
       _internal,
     };

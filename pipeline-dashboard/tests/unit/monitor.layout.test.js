@@ -198,6 +198,92 @@ test("mount uses panels.runTree + panels.runSummary overrides", async () => {
   assert.equal(stubRunSummary._destroyed, true);
 });
 
+// ── MA5: cw-summary/cw-timeline split + right-inspector + shell-dock ─
+
+test("MA5: shell skeleton grows the cw-summary/cw-timeline split", async () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  const handle = mount({
+    root,
+    store,
+    normalize,
+    hydrate: () => Promise.resolve({ snapshot: store.snapshot(), raw: {} }),
+    doc,
+  });
+  await handle.hydrationPromise;
+  // Center workspace now contains cw-summary and cw-timeline.
+  assert.equal(root._findAllByClass("cw-summary").length, 1);
+  assert.equal(root._findAllByClass("cw-timeline").length, 1);
+  assert.equal(handle._cwSummary.attributes["aria-label"], "Run summary");
+  assert.equal(handle._cwTimeline.attributes["aria-label"], "Event timeline");
+});
+
+test("MA5: shell skeleton adds right-inspector + shell-dock siblings", async () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  const handle = mount({
+    root,
+    store,
+    normalize,
+    hydrate: () => Promise.resolve({ snapshot: store.snapshot(), raw: {} }),
+    doc,
+  });
+  await handle.hydrationPromise;
+  assert.equal(root._findAllByClass("right-inspector").length, 1);
+  assert.equal(root._findAllByClass("shell-dock").length, 1);
+  // Inspector lives inside shell-body; shell-dock is a sibling under root.
+  assert.equal(handle._rightInspector.attributes["aria-label"], "Inspector");
+  assert.equal(handle._shellDock.attributes["aria-label"], "Bottom dock");
+  assert.equal(handle._shellDock.parentNode, root);
+  assert.equal(handle._rightInspector.parentNode, handle._shellBody);
+});
+
+test("MA5: panel overrides timeline/inspector/bottomDock are honored", async () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  let timelineOpts = null;
+  let inspectorOpts = null;
+  let dockOpts = null;
+  const stubTimeline = {
+    create(opts) { timelineOpts = opts; return { destroy() { stubTimeline._destroyed = true; } }; },
+  };
+  const stubInspector = {
+    create(opts) { inspectorOpts = opts; return { destroy() { stubInspector._destroyed = true; } }; },
+  };
+  const stubDock = {
+    create(opts) { dockOpts = opts; return { destroy() { stubDock._destroyed = true; } }; },
+  };
+  const handle = mount({
+    root,
+    store,
+    normalize,
+    hydrate: () => Promise.resolve({ snapshot: store.snapshot(), raw: {} }),
+    doc,
+    panels: { timeline: stubTimeline, inspector: stubInspector, bottomDock: stubDock },
+  });
+  await handle.hydrationPromise;
+
+  // timeline mounts to cw-timeline + receives onSelect that routes to selectItem.
+  assert.equal(timelineOpts.root, handle._cwTimeline);
+  assert.equal(typeof timelineOpts.onSelect, "function");
+  const env = { type: "phase_update", scope: "phase", payload: {} };
+  timelineOpts.onSelect(env);
+  assert.deepEqual(store.snapshot().selectedItem, { kind: "event", payload: env });
+
+  // inspector mounts to right-inspector.
+  assert.equal(inspectorOpts.root, handle._rightInspector);
+  // bottom-dock mounts to shell-dock.
+  assert.equal(dockOpts.root, handle._shellDock);
+
+  handle.destroy();
+  assert.equal(stubTimeline._destroyed, true);
+  assert.equal(stubInspector._destroyed, true);
+  assert.equal(stubDock._destroyed, true);
+});
+
 // ── panel injection (via panels override) ─────────────────────────────
 
 test("mount uses the panels.globalBar override when provided", async () => {

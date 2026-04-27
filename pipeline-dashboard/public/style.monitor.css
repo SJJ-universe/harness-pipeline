@@ -105,10 +105,11 @@ body.monitor-active {
 
 .monitor-shell .shell-body {
   /* Drops below the global bar (fixed top: 36px on the parent shell).
-   * Width spans the parent shell, height fixed for now (MA5/MA6 may make
-   * resizable). Internal scroll per region. */
+   * MA4 had 2 columns (run-rail + center-workspace); MA5 grew it to 3
+   * (run-rail + center-workspace + right-inspector). Width spans the
+   * parent shell, height fixed for now. Internal scroll per region. */
   display: grid;
-  grid-template-columns: 240px 1fr;
+  grid-template-columns: 240px 1fr 320px;
   border-top: 1px solid var(--border, #30363d);
   height: 240px;
   background: var(--bg, #0d1117);
@@ -121,9 +122,47 @@ body.monitor-active {
   background: var(--bg-card, #161b22);
 }
 
+/* MA5: center-workspace splits into a top summary region (run-summary
+ * panel) and a bottom timeline region (timeline panel). Flex column so
+ * the timeline takes whatever vertical room remains. */
 .monitor-shell .center-workspace {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.monitor-shell .cw-summary {
+  flex: 0 0 auto;
+  max-height: 50%;
   overflow-y: auto;
   padding: 12px 16px;
+  border-bottom: 1px solid var(--border, #30363d);
+}
+
+.monitor-shell .cw-timeline {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 6px 12px;
+}
+
+/* MA5: right-inspector — context detail for selectedItem. */
+.monitor-shell .right-inspector {
+  border-left: 1px solid var(--border, #30363d);
+  overflow-y: auto;
+  padding: 12px 14px;
+  background: var(--bg-card, #161b22);
+}
+
+/* MA5: shell-dock — raw event log under shell-body. */
+.monitor-shell .shell-dock {
+  border-top: 1px solid var(--border, #30363d);
+  height: 180px;
+  overflow-y: auto;
+  padding: 6px 12px;
+  background: var(--bg-card, #161b22);
+  font-family: 'Cascadia Code', 'Consolas', 'Courier New', monospace;
+  font-size: 11px;
+  color: var(--text-dim, #8b949e);
 }
 
 /* ── run-tree ── */
@@ -261,5 +300,237 @@ body.monitor-active {
   padding: 24px;
   text-align: center;
   font-size: 13px;
+  font-style: italic;
+}
+
+/* ── Slice MA5: timeline (centre bottom) ── */
+
+.monitor-shell .tl-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.monitor-shell .tl-row {
+  display: grid;
+  grid-template-columns: 64px 70px 140px 1fr;
+  gap: 8px;
+  align-items: baseline;
+  padding: 4px 8px;
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 3px;
+  border-left: 2px solid transparent;
+}
+
+.monitor-shell .tl-row:hover {
+  background: var(--bg-node, #1c2333);
+}
+
+.monitor-shell .tl-row.is-selected {
+  background: var(--bg-node, #1c2333);
+  border-left-color: var(--codex, #58a6ff);
+}
+
+.monitor-shell .tl-row:focus {
+  outline: 2px solid var(--codex, #58a6ff);
+  outline-offset: -2px;
+}
+
+.monitor-shell .tl-ts {
+  font-family: 'Cascadia Code', 'Consolas', monospace;
+  color: var(--text-dim, #8b949e);
+  font-size: 11px;
+}
+
+.monitor-shell .tl-scope {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--bg-node, #1c2333);
+  color: var(--text-dim, #8b949e);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  text-align: center;
+}
+
+.monitor-shell .tl-scope-pipeline { background: rgba(212, 165, 116, 0.2); color: var(--claude, #d4a574); }
+.monitor-shell .tl-scope-phase    { background: rgba(88, 166, 255, 0.2); color: var(--codex, #58a6ff); }
+.monitor-shell .tl-scope-tool     { background: rgba(63, 185, 80, 0.2);  color: var(--green, #3fb950); }
+.monitor-shell .tl-scope-gate     { background: rgba(248, 81, 73, 0.2);  color: var(--red, #f85149); }
+.monitor-shell .tl-scope-codex    { background: rgba(88, 166, 255, 0.2); color: var(--codex, #58a6ff); }
+.monitor-shell .tl-scope-global   { background: rgba(188, 140, 255, 0.2); color: var(--purple, #bc8cff); }
+
+.monitor-shell .tl-type {
+  color: var(--text, #e6edf3);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.monitor-shell .tl-summary {
+  color: var(--text-dim, #8b949e);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.monitor-shell .tl-empty {
+  color: var(--text-dim, #8b949e);
+  padding: 16px;
+  text-align: center;
+  font-size: 12px;
+  font-style: italic;
+}
+
+/* ── Slice MA5: inspector (right) ── */
+
+.monitor-shell .ip-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.monitor-shell .ip-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border, #30363d);
+}
+
+.monitor-shell .ip-type {
+  font-weight: 700;
+  color: var(--text, #e6edf3);
+  font-size: 13px;
+  font-family: 'Cascadia Code', 'Consolas', monospace;
+}
+
+.monitor-shell .ip-scope {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--bg-node, #1c2333);
+  color: var(--text-dim, #8b949e);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.monitor-shell .ip-meta {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  gap: 4px 10px;
+  margin: 0;
+  font-size: 12px;
+}
+
+.monitor-shell .ip-meta dt {
+  color: var(--text-dim, #8b949e);
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+}
+
+.monitor-shell .ip-meta dd {
+  margin: 0;
+  color: var(--text, #e6edf3);
+  word-break: break-all;
+}
+
+.monitor-shell .ip-payload-header {
+  color: var(--text-dim, #8b949e);
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  margin-bottom: -8px;
+}
+
+.monitor-shell .ip-payload {
+  margin: 0;
+  padding: 8px 10px;
+  background: var(--bg, #0d1117);
+  border: 1px solid var(--border, #30363d);
+  border-radius: 4px;
+  font-family: 'Cascadia Code', 'Consolas', monospace;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text, #e6edf3);
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 140px;
+  overflow-y: auto;
+}
+
+.monitor-shell .ip-empty {
+  color: var(--text-dim, #8b949e);
+  padding: 24px 12px;
+  text-align: center;
+  font-size: 12px;
+  font-style: italic;
+}
+
+/* ── Slice MA5: bottom dock (raw event log) ── */
+
+.monitor-shell .bd-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border, #30363d);
+  margin-bottom: 4px;
+}
+
+.monitor-shell .bd-tab {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim, #8b949e);
+  border-radius: 3px;
+}
+
+.monitor-shell .bd-tab.is-active {
+  background: var(--bg-node, #1c2333);
+  color: var(--text, #e6edf3);
+}
+
+.monitor-shell .bd-count {
+  margin-left: auto;
+  color: var(--text-dim, #8b949e);
+  font-size: 10px;
+}
+
+.monitor-shell .bd-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.monitor-shell .bd-row {
+  display: grid;
+  grid-template-columns: 96px 160px 100px 1fr;
+  gap: 8px;
+  align-items: baseline;
+  padding: 1px 4px;
+  white-space: nowrap;
+}
+
+.monitor-shell .bd-ts    { color: var(--text-dim, #8b949e); }
+.monitor-shell .bd-type  { color: var(--text, #e6edf3); font-weight: 600; }
+.monitor-shell .bd-runId { color: var(--codex, #58a6ff); }
+.monitor-shell .bd-summary {
+  color: var(--text-dim, #8b949e);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.monitor-shell .bd-empty {
+  color: var(--text-dim, #8b949e);
+  padding: 12px;
+  text-align: center;
   font-style: italic;
 }
