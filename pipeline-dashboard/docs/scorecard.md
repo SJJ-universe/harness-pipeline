@@ -68,7 +68,7 @@ Sub-scores per category map approximately to:
 ## Operational facts
 
 - Single canonical working tree: `C:\Users\SJ\harness-pipeline-analysis` @ `master`.
-- Test counts: **878 unit / 189 integration** + legacy + smoke, all green.
+- Test counts: <!-- AUTO:test-counts -->**901 unit / 197 integration**<!-- /AUTO --> + legacy + smoke, all green. _(line auto-derived by `npm run scorecard:sync`; do not hand-edit between markers.)_
 - server.js: 1075 → **799** lines (Phase D MA0 + MB4-b/d, **−276** lines).
 - public/app.js: 2129 → **1975** lines (Phase D MB4-c + earlier AC, **−154** lines).
 - New module footprint: 3 server modules (`wsAuth`, `generalPipelineRunner`, `eventBroadcaster`), 13 client modules under `public/js/monitor/` (store, normalizer, hydrate, legacy-bridge, layout + 8 panels), 2 client modules at `public/js/` root (terminal-mount, general-pipeline-modal). All UMD, all tested.

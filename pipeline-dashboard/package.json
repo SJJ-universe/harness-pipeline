@@ -12,7 +12,10 @@
     "test:smoke": "node tests/run-tests.js tests/smoke",
     "verify:hooks": "node scripts/validate-hook-deployment.js",
     "sri:print": "node scripts/compute-sri.js",
-    "audit:moderate": "npm audit --package-lock-only --audit-level=moderate"
+    "audit:moderate": "npm audit --package-lock-only --audit-level=moderate",
+    "readiness:check": "node scripts/readiness-report.js",
+    "scorecard:sync": "node scripts/sync-scorecard.js",
+    "scorecard:check": "node scripts/sync-scorecard.js --check"
   },
   "keywords": [],
   "author": "",

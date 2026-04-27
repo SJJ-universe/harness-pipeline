@@ -6,7 +6,9 @@ Parent spec: `docs/superpowers/specs/2026-04-27-five-priority-roadmap.md` (P5)
 
 ## 1. Why this exists
 
-The harness has strong unit + integration coverage (878 unit / 186 integration as of MB4-d) — but unit coverage tells you "the code does what it says". It does NOT tell you whether the system is OPERATIONALLY usable for the next wave. This rubric defines that operational view.
+The harness has strong unit + integration coverage (<!-- AUTO:test-counts -->**901 unit / 197 integration**<!-- /AUTO -->) — but unit coverage tells you "the code does what it says". It does NOT tell you whether the system is OPERATIONALLY usable for the next wave. This rubric defines that operational view.
+
+_(test-count line above auto-derived by `npm run scorecard:sync`; do not hand-edit between markers.)_
 
 A passing test count is necessary; a passing readiness check is what tells the team "we are ready to ship Phase D Round 2 / start Phase 3 design / cut a release".
 
@@ -74,7 +76,19 @@ Each category has 0..3 stars. Total 15 stars across the rubric. A category at 0 
 | Event integrity | ★★ | First two stars green; the third needs MB5's flow test to verify the bridge behaviour under filter pressure. |
 | Contract stability | ★★ | First two stars green; the third star ("new panel via override only") is **proven by the existing layout tests**, but no regression test specifically locks it. |
 
-**Total: 13 / 15** stars. A 12+ score means "ready for external preview"; 14+ for a release tag.
+**Total** (auto-derived without spawn — full live verification with spawn often scores higher): <!-- AUTO:readiness-total -->**6 / 15**<!-- /AUTO -->.
+
+Per-category breakdown (auto-derived):
+
+<!-- AUTO:readiness-stars -->  - run-visibility: 0/3
+  - child-visibility: 0/3
+  - replay-visibility: 2/3
+  - event-integrity: 3/3
+  - contract-stability: 1/3<!-- /AUTO -->
+
+A 12+ score means "ready for external preview"; 14+ for a release tag.
+
+_(totals + per-category breakdown above auto-derived by `npm run scorecard:sync`; do not hand-edit between markers.)_
 
 ## 4. How readiness checks run
 
