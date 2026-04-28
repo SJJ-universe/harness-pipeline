@@ -749,6 +749,12 @@ app.use("/api", createServerControlRoutes({
   // Slice MA0 (Phase D, 2026-04-27): expose childRegistry to /api/server/info
   // so operators can see active Codex/Claude children at a glance.
   childRegistry,
+  // Slice R2.5-e (Phase D R2.5, 2026-04-28): expose hookRouter so
+  // /api/server/info.hookStats surfaces remote-hook dispatch counters
+  // (remoteHookSanitized / Rejected / Dispatched / DispatchError).
+  // Operators can see live bridge throughput without grepping the
+  // audit chain.
+  hookRouter,
 }));
 app.use("/api", createCodexRoutes({
   codexRunner,

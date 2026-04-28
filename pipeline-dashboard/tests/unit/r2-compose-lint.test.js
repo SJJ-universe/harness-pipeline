@@ -33,6 +33,8 @@ const MONITOR_SH = path.join(ROOT, "scripts", "r2-monitor-probe.sh");
 const MONITOR_PS1 = path.join(ROOT, "scripts", "r2-monitor-probe.ps1");
 const LIFECYCLE_SH = path.join(ROOT, "scripts", "r2-lifecycle-probe.sh");
 const LIFECYCLE_PS1 = path.join(ROOT, "scripts", "r2-lifecycle-probe.ps1");
+const BRIDGE_SH = path.join(ROOT, "scripts", "r2-5-bridge-probe.sh");
+const BRIDGE_PS1 = path.join(ROOT, "scripts", "r2-5-bridge-probe.ps1");
 
 function readFile(p) {
   return fs.readFileSync(p, "utf-8");
@@ -75,10 +77,11 @@ test("R2-1: .env.r2.example values are all placeholders, never real secrets", ()
     const [, name, value] = m;
     // Allowed: empty, placeholder, or a known-default literal.
     const knownNonSecret = new Set([
-      "HARNESS_REMOTE_MODE",       // "preview"
-      "HARNESS_HOST_IDENTITY",     // "runner-r2-001"
-      "HARNESS_RUN_ID",            // "rr-r2-eval-001"
-      "HARNESS_RUN_JWT",           // "" (script fills)
+      "HARNESS_REMOTE_MODE",          // "preview"
+      "HARNESS_REMOTE_BRIDGE_MODE",   // R2.5-c: "off" / "report" / "dispatch"
+      "HARNESS_HOST_IDENTITY",        // "runner-r2-001"
+      "HARNESS_RUN_ID",               // "rr-r2-eval-001"
+      "HARNESS_RUN_JWT",              // "" (script fills)
     ]);
     if (knownNonSecret.has(name)) continue;
     assert.ok(
@@ -302,6 +305,51 @@ test("R2-5: Dockerfile.runner does NOT pre-create /work/in (operator mounts it r
   // Positive: /work/out IS still pre-created (and chowned).
   assert.match(text, /mkdir\s+-p\s+\/work\/out/,
     "Dockerfile.runner must still pre-create /work/out");
+});
+
+// ── R2.5-e bridge probe ────────────────────────────────────────────
+
+test("R2.5-e: r2-5-bridge-probe.{sh,ps1} both exist", () => {
+  assert.ok(fs.existsSync(BRIDGE_SH), "expected scripts/r2-5-bridge-probe.sh");
+  assert.ok(fs.existsSync(BRIDGE_PS1), "expected scripts/r2-5-bridge-probe.ps1");
+});
+
+test("R2.5-e: bridge probe verifies the four R2.5 audit verbs + monitor 200", () => {
+  // The probe must hit each anchor in turn; their string presence is
+  // the regression guard against someone "simplifying" the script and
+  // dropping coverage.
+  const anchors = [
+    "runner_hook_dispatched",
+    "runner_hook_rejected",
+    "runner_hook_sanitized",
+    "/api/monitor/runs/",
+    "HARNESS_REMOTE_BRIDGE_MODE",
+    "remoteHookDispatched",
+  ];
+  const sh = readFile(BRIDGE_SH);
+  const ps1 = readFile(BRIDGE_PS1);
+  for (const a of anchors) {
+    assert.ok(sh.includes(a), `expected ${a} in r2-5-bridge-probe.sh`);
+    assert.ok(ps1.includes(a), `expected ${a} in r2-5-bridge-probe.ps1`);
+  }
+});
+
+test("R2.5-e: compose passes HARNESS_REMOTE_BRIDGE_MODE through to orchestrator env", () => {
+  // The bridge mode is operator-controlled via env; compose must
+  // forward it to the container and default to "off" when unset.
+  const text = readFile(COMPOSE);
+  assert.match(text, /HARNESS_REMOTE_BRIDGE_MODE:\s*"\$\{HARNESS_REMOTE_BRIDGE_MODE:-off\}"/,
+    "compose must forward HARNESS_REMOTE_BRIDGE_MODE with default :-off");
+});
+
+test("R2.5-e: .env.r2.example documents HARNESS_REMOTE_BRIDGE_MODE", () => {
+  const env = readFile(ENV_EXAMPLE);
+  assert.match(env, /^HARNESS_REMOTE_BRIDGE_MODE=/m,
+    ".env.r2.example must document the bridge-mode knob for operators");
+  // The default suggested value should be "off" — operators upgrade
+  // to report → dispatch deliberately.
+  assert.match(env, /HARNESS_REMOTE_BRIDGE_MODE=off\b/,
+    "default suggested value should be off (safest upgrade path)");
 });
 
 // ── Dockerfile.runner regression guard ────────────────────────────

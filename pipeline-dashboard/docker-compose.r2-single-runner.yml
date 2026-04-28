@@ -50,6 +50,12 @@ services:
       # preview = full subsystem on (HKDF-derived keys, runner registry,
       # routes mounted). off = subsystem dormant; routes 404.
       HARNESS_REMOTE_MODE: "${HARNESS_REMOTE_MODE:-preview}"
+      # Slice R2.5-c: hook execution bridge mode.
+      # off (default) — broadcast-only (R1/R2 behavior).
+      # report — sanitization runs, audit emits sanitized/rejected, NO dispatch.
+      # dispatch — sanitized hooks forwarded to local executor methods
+      #            (Pre/PostToolUse for Read/Grep/Glob, Stop, SubagentStart/Stop).
+      HARNESS_REMOTE_BRIDGE_MODE: "${HARNESS_REMOTE_BRIDGE_MODE:-off}"
       # Bootstrap mapping: orchestrator looks up env var
       # HARNESS_REMOTE_RUNNER_TOKEN_<sanitized-host>. Sanitize: replace
       # any non-alnum with '_'. For HARNESS_HOST_IDENTITY=runner-r2-001

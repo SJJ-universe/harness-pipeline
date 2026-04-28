@@ -13,6 +13,10 @@ function createServerControlRoutes({
   // can surface S3-a's lifecycle work to operators. Optional for
   // backward-compat with legacy bare instantiation.
   childRegistry = null,
+  // Slice R2.5-e (Phase D R2.5, 2026-04-28): hookRouter exposes
+  // remote-hook dispatch counters via getStats() so operators can
+  // observe bridge throughput at a glance. Optional.
+  hookRouter = null,
 }) {
   const router = Router();
 
@@ -50,6 +54,13 @@ function createServerControlRoutes({
         activeChildCount = 0;
       }
     }
+    // Slice R2.5-e: hookRouter stats — never let an observability
+    // path break the info endpoint.
+    let hookStats = {};
+    if (hookRouter && typeof hookRouter.getStats === "function") {
+      try { hookStats = hookRouter.getStats() || {}; }
+      catch (_) { hookStats = {}; }
+    }
     res.json({
       pid: process.pid,
       supervised: !!process.send,
@@ -61,6 +72,12 @@ function createServerControlRoutes({
       // shape: [{ pid, label, runId, ageMs }] (see src/runtime/childRegistry.js).
       activeChildren,
       activeChildCount,
+      // Slice R2.5-e: bridge dispatch counters. Operators can grep this
+      // alongside the audit chain to verify the bridge is doing what
+      // they think it's doing. Shape:
+      //   { total, byEvent: {...}, remoteHooks, remoteHookSanitized,
+      //     remoteHookRejected, remoteHookDispatched, remoteHookDispatchError }
+      hookStats,
     });
   });
 

@@ -18,7 +18,7 @@ const express = require("express");
 const { createServerControlRoutes } = require("../../src/routes/serverControlRoutes");
 const { createChildRegistry } = require("../../src/runtime/childRegistry");
 
-function startApp({ childRegistry, clients = new Set(), CLIENT_GRACE_MS = 1000 } = {}) {
+function startApp({ childRegistry, hookRouter, clients = new Set(), CLIENT_GRACE_MS = 1000 } = {}) {
   const app = express();
   // graceful shutdown is required by the route module but not exercised here.
   const broadcast = () => {};
@@ -32,6 +32,7 @@ function startApp({ childRegistry, clients = new Set(), CLIENT_GRACE_MS = 1000 }
     CLIENT_GRACE_MS,
     shutdownTimerRef,
     childRegistry,
+    hookRouter,
   }));
   const server = http.createServer(app);
   return new Promise((resolve) => {
@@ -160,4 +161,61 @@ test("server.js wires childRegistry into createServerControlRoutes", () => {
   const block = SRC.slice(idx, idx + 600);
   assert.match(block, /childRegistry/, "childRegistry passed in");
   assert.match(block, /Slice MA0/, "Slice MA0 tag attached for traceability");
+});
+
+// ── R2.5-e: hookRouter.getStats() exposed as hookStats ──────────────
+
+test("R2.5-e: GET /api/server/info exposes hookStats from hookRouter.getStats()", async () => {
+  const childRegistry = createChildRegistry();
+  const hookRouter = {
+    getStats: () => ({
+      total: 7,
+      remoteHooks: 3,
+      remoteHookSanitized: 2,
+      remoteHookRejected: 1,
+      remoteHookDispatched: 1,
+      remoteHookDispatchError: 0,
+      byEvent: { PreToolUse: 2, Stop: 1 },
+    }),
+  };
+  const { server, port } = await startApp({ childRegistry, hookRouter });
+  try {
+    const { status, body } = await get(port, "/api/server/info");
+    assert.equal(status, 200);
+    assert.ok(body.hookStats, "hookStats field must be present");
+    assert.equal(body.hookStats.remoteHookDispatched, 1);
+    assert.equal(body.hookStats.remoteHookRejected, 1);
+    assert.equal(body.hookStats.remoteHookSanitized, 2);
+    assert.equal(body.hookStats.total, 7);
+  } finally {
+    server.close();
+  }
+});
+
+test("R2.5-e: hookStats defaults to {} when hookRouter not wired (back-compat)", async () => {
+  const childRegistry = createChildRegistry();
+  const { server, port } = await startApp({ childRegistry });
+  try {
+    const { body } = await get(port, "/api/server/info");
+    assert.deepEqual(body.hookStats, {},
+      "missing hookRouter must not break /api/server/info — empty {} preserves the field");
+  } finally {
+    server.close();
+  }
+});
+
+test("R2.5-e: hookRouter.getStats throwing does NOT break the info endpoint", async () => {
+  const childRegistry = createChildRegistry();
+  const hookRouter = {
+    getStats: () => { throw new Error("router exploded"); },
+  };
+  const { server, port } = await startApp({ childRegistry, hookRouter });
+  try {
+    const { status, body } = await get(port, "/api/server/info");
+    assert.equal(status, 200,
+      "throwing observability path must NEVER take down /api/server/info");
+    assert.deepEqual(body.hookStats, {});
+  } finally {
+    server.close();
+  }
 });
