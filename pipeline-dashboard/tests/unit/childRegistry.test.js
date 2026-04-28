@@ -202,3 +202,103 @@ test("_resetForTests drops every entry without firing broadcasts", () => {
   assert.equal(r.size(), 0);
   assert.equal(events.length, 0);
 });
+
+// ── R1-g remote children projection ────────────────────────────────────
+
+test("R1-g: registerRemote stores synthetic ref + snapshot has remote shape", () => {
+  const events = [];
+  const r = createChildRegistry({ broadcast: (e) => events.push(e) });
+  const ref = r.registerRemote({
+    id: "agent-aaa", label: "claude", runId: "rr-1",
+    hostIdentity: "runner-x", agentType: "claude",
+  });
+  assert.ok(ref, "should return a ref");
+  assert.equal(ref.remote, true);
+  assert.equal(r.size(), 1);
+  const snap = r.snapshot();
+  assert.equal(snap[0].remote, true);
+  assert.equal(snap[0].id, "agent-aaa");
+  assert.equal(snap[0].label, "claude");
+  assert.equal(snap[0].hostIdentity, "runner-x");
+  assert.equal(snap[0].agentType, "claude");
+  assert.equal(snap[0].pid, null);
+  // Broadcast carries the remote keys.
+  const reg = events.find((e) => e.type === "child_registered");
+  assert.equal(reg.data.remote, true);
+  assert.equal(reg.data.id, "agent-aaa");
+});
+
+test("R1-g: registerRemote is idempotent on duplicate id (returns the same ref)", () => {
+  const events = [];
+  const r = createChildRegistry({ broadcast: (e) => events.push(e) });
+  const a = r.registerRemote({ id: "a1", label: "x", runId: "rr-1" });
+  const b = r.registerRemote({ id: "a1", label: "x", runId: "rr-1" });
+  assert.strictEqual(a, b, "same id should yield the same ref");
+  assert.equal(r.size(), 1);
+  const regs = events.filter((e) => e.type === "child_registered");
+  assert.equal(regs.length, 1, "duplicate registerRemote must not double-broadcast");
+});
+
+test("R1-g: registerRemote requires id (returns null on empty/missing)", () => {
+  const r = createChildRegistry();
+  assert.equal(r.registerRemote({ label: "no-id" }), null);
+  assert.equal(r.registerRemote({ id: "", label: "empty" }), null);
+  assert.equal(r.size(), 0);
+});
+
+test("R1-g: unregisterRemoteById removes the entry + emits child_unregistered", () => {
+  const events = [];
+  const r = createChildRegistry({ broadcast: (e) => events.push(e) });
+  r.registerRemote({ id: "a2", label: "claude", runId: "rr-1", hostIdentity: "runner-x" });
+  events.length = 0;
+  assert.equal(r.unregisterRemoteById("a2"), true);
+  assert.equal(r.size(), 0);
+  assert.equal(events.length, 1);
+  assert.equal(events[0].type, "child_unregistered");
+  assert.equal(events[0].data.id, "a2");
+  assert.equal(events[0].data.remote, true);
+});
+
+test("R1-g: unregisterRemoteById returns false on unknown id (idempotent)", () => {
+  const r = createChildRegistry();
+  assert.equal(r.unregisterRemoteById("nope"), false);
+  r.registerRemote({ id: "a3", label: "x", runId: "rr-1" });
+  r.unregisterRemoteById("a3");
+  assert.equal(r.unregisterRemoteById("a3"), false);
+});
+
+test("R1-g: unregister(ref) on a remote child also clears the id index", () => {
+  const r = createChildRegistry();
+  const ref = r.registerRemote({ id: "a4", label: "x", runId: "rr-1" });
+  r.unregister(ref);
+  assert.equal(r.size(), 0);
+  // After id-index cleanup, registerRemote with the same id should succeed
+  // (treated as a fresh entry, not the existing-ref idempotency path).
+  const ref2 = r.registerRemote({ id: "a4", label: "x", runId: "rr-1" });
+  assert.notStrictEqual(ref2, ref);
+  assert.equal(r.size(), 1);
+});
+
+test("R1-g: killAll skips remote children", () => {
+  const r = createChildRegistry();
+  r.register(mkChild(1));
+  r.register(mkChild(2));
+  r.registerRemote({ id: "a5", label: "remote", runId: "rr-1" });
+  // killAll signals only the 2 local children.
+  assert.equal(r.killAll("SIGTERM"), 2);
+  // The remote child stays in the registry — it's not auto-removed.
+  assert.equal(r.size(), 3);
+});
+
+test("R1-g: snapshot mixes local + remote with the right discriminators", () => {
+  const r = createChildRegistry();
+  r.register(mkChild(7), { label: "local-codex", runId: "rr-1" });
+  r.registerRemote({ id: "a6", label: "remote-claude", runId: "rr-1", hostIdentity: "runner-y", agentType: "claude" });
+  const snap = r.snapshot();
+  assert.equal(snap.length, 2);
+  const local = snap.find((s) => s.pid === 7);
+  const remote = snap.find((s) => s.id === "a6");
+  assert.equal(local.remote, undefined, "local entries must not carry remote=true");
+  assert.equal(remote.remote, true);
+  assert.equal(remote.hostIdentity, "runner-y");
+});

@@ -238,6 +238,48 @@ class HookRouter {
     return {};
   }
 
+  /**
+   * Slice R1-g (Phase D R1, 2026-04-28): hook event ingress from a remote
+   * runner. Called by the runner WS handler when a `{type:"hook", event}`
+   * frame arrives. The orchestrator-side semantics are intentionally
+   * minimal in R1:
+   *
+   *   - record stats (`stats.remoteHooks`)
+   *   - tag origin = "container-remote" so downstream consumers can
+   *     distinguish locally-emitted hooks from runner-emitted ones
+   *   - broadcast `runner_hook` so the dashboard can surface it
+   *   - DO NOT execute the local on{Pre,Post,Stop,...} routes — the
+   *     remote runner is the trust boundary; treating its hook frames
+   *     as if they came from a local Codex/Claude would let it drive
+   *     the orchestrator's pipeline executor. R2+ adds a controlled
+   *     bridge with hook-name allowlist + tool-arg validation.
+   *
+   * Caller responsibilities:
+   *
+   *   - runId is already verified via runJWT in runnerWsAuth.js — the
+   *     caller should NEVER trust runId from the frame body itself.
+   *   - hookEvent is whatever the runner emitted; we copy a defensive
+   *     subset rather than persist arbitrary structure.
+   */
+  routeRemote(runId, hookEvent) {
+    if (typeof runId !== "string" || runId.length === 0) return;
+    if (!hookEvent || typeof hookEvent !== "object") return;
+    this.stats.total += 1;
+    this.stats.remoteHooks = (this.stats.remoteHooks || 0) + 1;
+    const event = {
+      hook: typeof hookEvent.hook === "string" ? hookEvent.hook : null,
+      tool: typeof hookEvent.tool === "string" ? hookEvent.tool : null,
+      data: hookEvent.data && typeof hookEvent.data === "object" ? hookEvent.data : {},
+    };
+    this.stats.byEvent[event.hook || "unknown"] = (this.stats.byEvent[event.hook || "unknown"] || 0) + 1;
+    if (typeof this.broadcast === "function") {
+      this.broadcast({
+        type: "runner_hook",
+        data: { runId, origin: "container-remote", event },
+      });
+    }
+  }
+
   getStats() {
     return { ...this.stats };
   }

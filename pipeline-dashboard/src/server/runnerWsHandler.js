@@ -1,6 +1,7 @@
 // Slice R1-e-2 (Phase D R1, 2026-04-28) — runner WS connection lifecycle.
+// Slice R1-g  (Phase D R1, 2026-04-28) — message routing + child projection.
 //
-// Transport-only handler for the R1-e round. Its job is:
+// The handler's job:
 //
 //   1. Acknowledge the upgrade (send a `hello` frame so the runner knows
 //      the orchestrator accepted the JWT).
@@ -8,23 +9,35 @@
 //      `runner_ws_disconnected`, `runner_ws_error`) so a forensic audit can
 //      reconstruct the channel timeline.
 //   3. Track message counts as a coarse health signal.
+//   4. (R1-g) Parse incoming frames + dispatch to childRegistry / hookRouter:
+//        { type: "agent_started", id, label, agentType }
+//          → childRegistry.registerRemote({ id, label, runId, hostIdentity, agentType })
+//        { type: "agent_stopped", id }
+//          → childRegistry.unregisterRemoteById(id)
+//        { type: "hook", event }
+//          → hookRouter.routeRemote(runId, event)
+//      Unknown / malformed frames are dropped + counted.
+//   5. (R1-g) On WS close, auto-unregister every agent the runner started
+//      during this connection. Without this, an unclean disconnect would
+//      leak `remote: true` entries into childRegistry forever.
 //
-// What it does NOT do (intentionally — those are R1-g):
+// What this slice still doesn't do (deferred):
 //
-//   - Parse incoming WS frames as hook events. R1-g wires this into the
-//     `hookRouter.routeRemote(runId, payload)` call path.
-//   - Project agent lifecycle into `childRegistry`. R1-g is the slice that
-//     decides the on-the-wire schema for `agent_started` / `agent_stopped`
-//     and how those map into the registry's snapshot.
-//   - Fan-out remote events into the dashboard's broadcast channel. That
-//     also depends on the R1-g schema.
-//
-// Keeping R1-e transport-only means the runner agent can be exercised end-
-// to-end (handshake → heartbeat → WS connect → hello frame → keepalive)
-// before any business semantics land. This is the "transport-first" review
-// recommendation captured in plan Part J's `J-out-of-scope` table.
+//   - Apply schema validation to the `hook.event` body. routeRemote does
+//     defensive copy + broadcast; R2+ adds an allowlist of accepted hook
+//     names + tool-arg sanitization.
+//   - Stream-back orchestrator-driven control frames. The runner only
+//     reads the hello frame today. R2+ adds run-dispatch and shutdown
+//     control over the same channel.
+//   - Backpressure / flow control. The handler counts messages but does
+//     not enforce any rate limit.
 
 const HELLO_TYPE = "hello";
+
+// Frame types the handler recognises. Anything else is dropped.
+const FRAME_AGENT_STARTED = "agent_started";
+const FRAME_AGENT_STOPPED = "agent_stopped";
+const FRAME_HOOK = "hook";
 
 function _ledgerAudit(ledger, runId, type, data) {
   if (!ledger || typeof ledger.append !== "function") return;
@@ -34,13 +47,23 @@ function _ledgerAudit(ledger, runId, type, data) {
 
 /**
  * @param {object} [opts]
- * @param {EvidenceLedger} [opts.ledger]   Optional. Audit entries are
- *   appended on connect/disconnect/error. When absent the handler
- *   still works — entries are just dropped.
+ * @param {EvidenceLedger} [opts.ledger]
+ *   Optional. Audit entries are appended on connect/disconnect/error +
+ *   on every recognised frame.
+ * @param {object} [opts.childRegistry]
+ *   Optional. R1-g routes `agent_started`/`agent_stopped` frames here.
+ *   When absent the handler accepts the frames but skips the projection.
+ * @param {object} [opts.hookRouter]
+ *   Optional. R1-g routes `hook` frames here via `routeRemote(runId, event)`.
  * @param {function} [opts.now=Date.now]   Override clock (tests).
  * @returns {function(ws, req, verdict)}   The connection callback.
  */
-function createRunnerWsHandler({ ledger = null, now } = {}) {
+function createRunnerWsHandler({
+  ledger = null,
+  childRegistry = null,
+  hookRouter = null,
+  now,
+} = {}) {
   const clock = typeof now === "function" ? now : Date.now;
 
   return function handleRunnerWsConnection(ws, req, verdict) {
@@ -63,19 +86,104 @@ function createRunnerWsHandler({ ledger = null, now } = {}) {
       // record the disconnect. Don't crash the orchestrator's WS server.
     }
 
+    // R1-g: track which agent IDs THIS connection started so we can clean
+    // them up on disconnect. We never trust agent IDs across connections —
+    // a runner reconnecting must re-emit `agent_started` frames.
+    const agentsStartedThisConnection = new Set();
+
     let messagesReceived = 0;
-    ws.on("message", () => {
+    let messagesDropped = 0;
+    let messagesRouted = 0;
+    let lastFrameType = null;
+
+    ws.on("message", (raw) => {
       messagesReceived += 1;
-      // R1-g: parse + route to hookRouter.routeRemote(runId, payload).
-      // For R1-e we drop the body but track the count for the close audit.
+      let frame;
+      try { frame = JSON.parse(raw.toString()); }
+      catch (_) {
+        messagesDropped += 1;
+        return;
+      }
+      if (!frame || typeof frame !== "object" || typeof frame.type !== "string") {
+        messagesDropped += 1;
+        return;
+      }
+      lastFrameType = frame.type;
+
+      switch (frame.type) {
+        case FRAME_AGENT_STARTED: {
+          const id = typeof frame.id === "string" ? frame.id : null;
+          if (!id) { messagesDropped += 1; break; }
+          if (childRegistry && typeof childRegistry.registerRemote === "function") {
+            childRegistry.registerRemote({
+              id,
+              label: typeof frame.label === "string" ? frame.label : null,
+              runId,
+              hostIdentity,
+              agentType: typeof frame.agentType === "string" ? frame.agentType : null,
+            });
+          }
+          agentsStartedThisConnection.add(id);
+          messagesRouted += 1;
+          _ledgerAudit(ledger, runId, "runner_agent_started", {
+            id, hostIdentity,
+            label: frame.label || null, agentType: frame.agentType || null,
+          });
+          break;
+        }
+        case FRAME_AGENT_STOPPED: {
+          const id = typeof frame.id === "string" ? frame.id : null;
+          if (!id) { messagesDropped += 1; break; }
+          if (childRegistry && typeof childRegistry.unregisterRemoteById === "function") {
+            childRegistry.unregisterRemoteById(id);
+          }
+          agentsStartedThisConnection.delete(id);
+          messagesRouted += 1;
+          _ledgerAudit(ledger, runId, "runner_agent_stopped", { id, hostIdentity });
+          break;
+        }
+        case FRAME_HOOK: {
+          const event = frame.event && typeof frame.event === "object" ? frame.event : null;
+          if (!event) { messagesDropped += 1; break; }
+          if (hookRouter && typeof hookRouter.routeRemote === "function") {
+            try { hookRouter.routeRemote(runId, event); }
+            catch (err) {
+              // Don't let a routing failure crash the WS handler.
+              _ledgerAudit(ledger, runId, "runner_hook_route_error", {
+                error: err && err.message ? err.message : String(err),
+              });
+            }
+          }
+          messagesRouted += 1;
+          break;
+        }
+        default:
+          messagesDropped += 1;
+      }
     });
 
     ws.on("close", (code, reasonBuf) => {
+      // R1-g: auto-cleanup any remote children this connection started
+      // but didn't explicitly stop. Without this, a forced WS close (e.g.
+      // operator killed the runner host) would leak entries into the
+      // registry until orchestrator restart.
+      let leaked = 0;
+      if (childRegistry && typeof childRegistry.unregisterRemoteById === "function") {
+        for (const id of agentsStartedThisConnection) {
+          if (childRegistry.unregisterRemoteById(id)) leaked += 1;
+        }
+      }
+      agentsStartedThisConnection.clear();
+
       _ledgerAudit(ledger, runId, "runner_ws_disconnected", {
         hostIdentity,
         code: typeof code === "number" ? code : null,
         reason: reasonBuf ? String(reasonBuf) : "",
         messagesReceived,
+        messagesRouted,
+        messagesDropped,
+        agentsAutoCleared: leaked,
+        lastFrameType,
       });
     });
 
@@ -88,4 +196,10 @@ function createRunnerWsHandler({ ledger = null, now } = {}) {
   };
 }
 
-module.exports = { createRunnerWsHandler, HELLO_TYPE };
+module.exports = {
+  createRunnerWsHandler,
+  HELLO_TYPE,
+  FRAME_AGENT_STARTED,
+  FRAME_AGENT_STOPPED,
+  FRAME_HOOK,
+};

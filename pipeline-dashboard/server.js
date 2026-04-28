@@ -315,8 +315,26 @@ const verifyRunnerWsConnection = createRunnerWsAuth({
   jwtKey: _remoteRunner.jwtKey,
   mode: _remoteRunner.mode,
 });
+// Slice R1-g (Phase D R1, 2026-04-28): pass childRegistry + hookRouter so
+// the handler can project agent_started/stopped frames into childRegistry
+// (visible via /api/server/info.activeChildren + monitor bootstrap) and
+// route hook frames into hookRouter.routeRemote(runId, event).
+//
+// Both childRegistry and hookRouter are declared FURTHER DOWN in this
+// file (lines ~600-615). To avoid the temporal-dead-zone error we'd hit
+// by referencing them up here directly, we wrap them in tiny adapter
+// objects whose methods capture the variables lazily inside their bodies.
+// At handler-call time (which only happens after the WS upgrade arrives,
+// long after server boot), the closures resolve to the live instances.
 const handleRunnerWsConnection = createRunnerWsHandler({
   ledger: evidenceLedger,
+  childRegistry: {
+    registerRemote: (opts) => childRegistry && childRegistry.registerRemote(opts),
+    unregisterRemoteById: (id) => childRegistry && childRegistry.unregisterRemoteById(id),
+  },
+  hookRouter: {
+    routeRemote: (runId, event) => hookRouter && hookRouter.routeRemote(runId, event),
+  },
 });
 
 wss.on("connection", (ws, req) => {
