@@ -750,6 +750,15 @@ app.use("/api", createMonitorRoutes({
   eventReplayBuffer,
   bootTime: BOOT_TIME,
   mode: MODE,
+  // Slice R1-h2 (Phase D R1, 2026-04-28): wire the runner registry so
+  // /api/monitor/bootstrap.runners and /api/monitor/runs/:runId.origin
+  // reflect REAL remote state instead of the local-default placeholder.
+  // R1-h built the registry; R1-a built the contract; R1-h2 closes the
+  // production wiring gap caught by review. The registry is null when
+  // HARNESS_REMOTE_MODE=off (default), in which case _resolveOrigin
+  // / _resolveRunners fall through to the local defaults — matching
+  // the pre-R1-h2 behavior exactly.
+  runnerProvider: _remoteRunner.runnerRegistry,
 }));
 
 // Slice R1-h (Phase D R1, 2026-04-28): /api/runner/handshake, /heartbeat,
