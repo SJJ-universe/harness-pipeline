@@ -23,6 +23,7 @@ Trajectory:
 - **Phase D R2.5 (R2.5-a through R2.5-f)** (controlled remote execution bridge: 5-hook + 3-tool allowlist contract with frozen reject vocabulary + pure sanitizer + async dispatch path with 5-verb audit narrative + runner-claimed run visibility fallback + live end-to-end proof + closeout report at `docs/reports/2026-04-28-r2-5-execution-bridge-eval.md`) — **103/112** (Safety cap extended 17 → 18 — remote hooks now drive the local executor under HARNESS_REMOTE_BRIDGE_MODE=dispatch with allowlist + sanitization + full forensic chain; G4 hook ingress auth lifts from R2's "partial PASS" to R2.5's "full PASS"; r2-5-bridge-probe verifies all anchors live)
 - **Phase D R3-0** (rollout plan + 15 acceptance gates R3-G01..G15 + 5 sub-rounds R3-a..e + Linux host evidence requirement for L2/L3 + per-call approval scope for write-side tools; landed at [`docs/r3-rollout-plan.md`](./r3-rollout-plan.md) before any R3 code) — **103/112** (design dividend, no rubric move; follows the ME1/ME2 precedent — discipline / planning rounds increase the credibility of subsequent slices without moving the rubric. Gates locked before code keeps R3 from entangling multi-runner + Linux host networking + write-tool approval into a single risky push)
 - **Phase D R3-a** (two-network topology — operator-facing bridge + runner-internal bridge, orchestrator dual-homed; closes R2 eval §3 row "Strict mode breaks dashboard host port"; R3-G01 + R3-G02 verified live on Docker Desktop) — **103/112** (operational fix, no rubric move; pre-R3-a strict mode broke `127.0.0.1:4201` from host because the single internal bridge severed NAT. R3-a separates the operator-facing path from runner egress so strict mode can sever runner egress without taking the dashboard with it. r2-eval 4/4 + r2-probe-egress 6/6 + r2-monitor-probe 4/4 all PASS under strict mode now)
+- **Phase D R3-c** (multi-runner pool primitives — registry layer R3-c-1: `selectFreshRunner` + `pruneStaleRunners` + `getAssignment` + handshake collision detection with new `host_in_use` reason and `runner_handshake_collision` audit; runtime layer R3-c-2: `RunnerStaleMonitor` periodic prune loop wired into server.js with single-emit `runner_host_lost` audit row + dedupe-on-recovery + idle-host skip + ledger-failure resilience) — **103/112** (operational primitives, no rubric move; R3-G06 + R3-G07 + R3-G09 + R3-G10 closed at registry/monitor layer; R3-G08 fairness algorithm verified by unit + integration but live deployment evidence requires multi-runner orchestrator-dispatch wiring deferred to R3-d / R3-e)
 
 Target after Phase 3 (D platformization): **103+**.
 Container sandbox + remote-mode hardening required for the multi-tenant tier.
@@ -277,7 +278,7 @@ External review #5 projected score path: 97/110 → 99/110 with these three fixe
 - **R3 — Multi-runner pool + Linux host + per-call approval** — design-only R3-0 plan landed; see [`docs/r3-rollout-plan.md`](./r3-rollout-plan.md). Splits into 5 sub-rounds:
   - ~~**R3-a**~~ — **DONE**. Two-network topology (`harness-r2-operator` + `harness-r2-runner`), orchestrator dual-homed, runner+probe single-homed on internal-eligible bridge. Strict override flips ONLY runner bridge to `internal: true`. R3-G01 (dashboard host port reachable in strict) + R3-G02 (egress isolation preserved) verified live on Docker Desktop: r2-eval 4/4, r2-probe-egress 6/6, r2-monitor-probe 4/4. Pre-R3-a strict mode returned 000 on host curl (R2-4 known-gap §3 row 1); post-R3-a it returns 200.
   - **R3-b** — Linux host nftables L2 + dnsmasq L3 enforcement; **REQUIRES Linux host** (Docker Desktop NOT sufficient — see plan §3 evidence taxonomy: WSL2 NAT + bridge model fails to reproduce real Linux primitives).
-  - **R3-c** — multi-runner pool: scheduling fairness (LEAST_LOADED + FIFO tie-break), stale-runner cleanup, run reassignment-on-loss policy locked as "fail not silent forward", per-runner monitor visibility.
+  - ~~**R3-c**~~ — **DONE (primitives + monitor)**. Registry layer (R3-c-1): `selectFreshRunner` (LEAST_LOADED + FIFO tie-break), `pruneStaleRunners` (observation-only stale list with affectedRuns), `getAssignment` (public surface; surfaces stale claims for fail-not-forward), handshake collision detection with new `host_in_use` reason → routes layer emits `runner_handshake_collision` audit (vs `runner_handshake_rejected` for stale-replay). Runtime layer (R3-c-2): `RunnerStaleMonitor` periodic prune wired into server.js — single-emit `runner_host_lost` audit row when a stale host has stranded runs, dedupe-on-recovery semantic, idle stale hosts skipped (operator housekeeping, not signal), ledger-failure resilient (retried on next tick), `HARNESS_RUNNER_STALE_INTERVAL_MS` env hook for tighter cadence. R3-G06 + R3-G07 + R3-G09 + R3-G10 closed; R3-G08 fairness algo verified by unit + integration, live deployment evidence deferred to R3-d/e (R2.5 single-runner deployments don't trigger host_lost because the WS handler unmarks active-run on disconnect — by design, since R2.5 model treats disconnect as run-end).
   - **R3-d** — graceful shutdown polish: clean WS close 1000 distinguishable from 1006 crash; RunnerAgent state machine learns to differentiate.
   - **R3-e** — per-call approval flow for Bash / Write / Edit; default-deny on timeout (default 30s, configurable); scope = exact `(tool, args-hash)` tuple; approve-the-bridge-not-the-path semantics with `dangerGate.js` as second line.
   - 15 acceptance gates R3-G01..G15 with sub-round mapping + evidence-type requirements + dependency graph. R3 COMPLETE = all GREEN OR R3-G03..G05 explicitly UNVERIFIED ("Linux host unavailable") + others GREEN — honest partial verdict allowed.
@@ -531,9 +532,61 @@ that increase credibility without moving the rubric.
   rubric movement waits for R3-c (multi-runner pool) and R3-e
   (per-call approval) to land qualitatively new properties.
 
+- **R3-c-1** (registry primitives) — Three additive `RunnerRegistry`
+  surfaces:
+  - `selectFreshRunner({ maxConcurrentRunsPerHost = Infinity })`
+    — least-loaded healthy runner with FIFO tie-break by
+    registration order (Map insertion); skips stale (elapsed >
+    heartbeatDropMs) and saturated hosts. Pure read; caller MUST
+    `claimRunForRunner` immediately to avoid double-dispatch.
+  - `pruneStaleRunners()` — observation-only listing of stale
+    hosts + each entry's `affectedRuns` (runIds claimed for that
+    host). Sorted longest-silent-first. Doesn't mutate registry
+    state — caller (R3-c-2 monitor) decides policy.
+  - `getAssignment(runId)` — public surface for the existing
+    `_hostFor` test hook. Returns the bound hostIdentity even
+    when the host is stale (R3-G09 fail-not-forward — orchestrator
+    surface, not registry, decides what to do with stranded runs).
+  - Plus handshake collision detection: replay-while-fresh now
+    returns `host_in_use` (NEW reason); the routes layer translates
+    that into `runner_handshake_collision` audit (NEW ledger entry
+    type). Replay-after-stale stays `bootstrap_consumed` —
+    single-use semantic preserved through staleness; rejoin still
+    requires env rotation.
+
+- **R3-c-2** (runtime monitor) — `src/runtime/runnerStaleMonitor.js`
+  + server.js wiring. Periodic interval (default 30s = registry's
+  `heartbeatDropMs`) calls `pruneStaleRunners` and emits
+  `runner_host_lost` audit rows for stale hosts WITH stranded
+  runs. Single-emit per host-loss event (dedupe set clears on
+  recovery). Idle stale hosts (no claimed runs) are intentionally
+  silent — operator housekeeping, not security signal. Wired into
+  `start()` alongside the existing ledger-cleanup interval; stops
+  via the `server.close` hook so graceful shutdown reaps it.
+  `HARNESS_RUNNER_STALE_INTERVAL_MS` env hook for ops.
+
+  R3 gate coverage at registry/monitor layer:
+  - R3-G06 collision detection ✅ closed
+  - R3-G07 stale-runner cleanup ✅ closed (audit chain emits the
+    forensic anchor)
+  - R3-G08 fairness ✅ algo (LEAST_LOADED + FIFO tie-break);
+    live deployment evidence requires multi-runner orchestrator
+    dispatch wiring deferred to R3-d/e
+  - R3-G09 fail-not-forward ✅ semantic locked at registry layer
+    (`getAssignment` does not auto-forward stale claims)
+  - R3-G10 monitor visibility ✅ closed (3-host real-RunnerRegistry
+    test on `/api/monitor/bootstrap`)
+
+  Live R2.5 single-runner deployment intentionally does NOT trigger
+  `runner_host_lost` because the R2.5 WS handler unmarks active-run
+  on disconnect (R2.5-d), treating disconnect as run-end. The
+  monitor IS running and ticking correctly — verified by integration
+  tests. `runner_host_lost` rows fire when a future multi-runner
+  orchestrator-dispatch flow holds claims past WS disconnect.
+
 ## What 103 means
 
-Single-user local harness with multi-run isolation, hardened external-input boundaries, AND a monitoring-first opt-in console with live data flow + agent observability + per-run detail contract + flow-level readiness rubric + behavior-verified readiness scoring + auto-derived doc trust + dispatcher-driven extraction pattern + CI-enforced regression protection + **a complete remote-execution design RFC** + **a complete implementation RFC with concrete tech decisions for runtime / image / JWT / ledger / control plane / network egress / bootstrap / failure recovery** + **the orchestrator-side primitives of remote mode actually shipped — JWT module + signed audit ledger + runner registry + handshake/heartbeat/hook routes + Dockerfile + server.js wiring + 6th readiness rubric category (remote-isolation, behavior-verified)** + **the runner-host primitives that complete the remote subsystem — WS path-aware demux + connection-lifecycle handler + `RunnerAgent` Node entrypoint + WS message protocol + `childRegistry` remote projection + readiness Star 3 upgraded to live runner→orchestrator round-trip** + **external-review correctness hardening — composite-key remote children with stop-path ownership verify + hook success audit-chain entries + runner-agent env validation that fails fast on bad numeric env** + **R2 single-runner deployment evaluation completed — all MF1 §4.1 gates G1-G9 verified live on the operator's Docker Desktop with repeatable probe scripts; 8 latent bugs surfaced and fixed** + **R2.5 controlled remote execution bridge — sanitized hooks now drive the local executor under an opt-in feature flag, with allowlist (5 hooks × 3 read-only tools), pure sanitizer with prototype-pollution resistance, and a 5-verb audit narrative (routed → rejected | sanitized → dispatched | dispatch_error). G4 hook ingress auth lifted from "partial PASS" to "full PASS"; runner-claimed runs are first-class in `/api/monitor/runs/:runId`**. The next-round work splits into two complementary axes: **R3 multi-runner pool + Linux host** for the layer 2/3 egress enforcement R2-4 left open, and a **per-call approval flow** before opening Bash / Write / Edit through the bridge. **R3-0 (rollout plan) + R3-a (two-network topology, the first concrete code slice) both landed**. R3-0 locked the gates before any code; R3-a closes R2-4's dashboard host port gap (orchestrator dual-homed on operator + runner bridges; strict override flips ONLY the runner bridge to `internal: true`) — verified live with r2-eval 4/4 + r2-probe-egress 6/6 + r2-monitor-probe 4/4. R3-G01 (dashboard reachable in strict) + R3-G02 (egress isolation preserved) are GREEN. Next: R3-c (multi-runner pool) on Docker Desktop, R3-d (graceful shutdown polish) parallelizable, and R3-b (Linux host nftables L2 + dnsmasq L3) when the operator's Linux host is available — Hetzner / DigitalOcean / Vultr small VM or local KVM with Ubuntu 22.04+ / Debian 12+. R3-e (per-call approval for write-side tools) stays last.
+Single-user local harness with multi-run isolation, hardened external-input boundaries, AND a monitoring-first opt-in console with live data flow + agent observability + per-run detail contract + flow-level readiness rubric + behavior-verified readiness scoring + auto-derived doc trust + dispatcher-driven extraction pattern + CI-enforced regression protection + **a complete remote-execution design RFC** + **a complete implementation RFC with concrete tech decisions for runtime / image / JWT / ledger / control plane / network egress / bootstrap / failure recovery** + **the orchestrator-side primitives of remote mode actually shipped — JWT module + signed audit ledger + runner registry + handshake/heartbeat/hook routes + Dockerfile + server.js wiring + 6th readiness rubric category (remote-isolation, behavior-verified)** + **the runner-host primitives that complete the remote subsystem — WS path-aware demux + connection-lifecycle handler + `RunnerAgent` Node entrypoint + WS message protocol + `childRegistry` remote projection + readiness Star 3 upgraded to live runner→orchestrator round-trip** + **external-review correctness hardening — composite-key remote children with stop-path ownership verify + hook success audit-chain entries + runner-agent env validation that fails fast on bad numeric env** + **R2 single-runner deployment evaluation completed — all MF1 §4.1 gates G1-G9 verified live on the operator's Docker Desktop with repeatable probe scripts; 8 latent bugs surfaced and fixed** + **R2.5 controlled remote execution bridge — sanitized hooks now drive the local executor under an opt-in feature flag, with allowlist (5 hooks × 3 read-only tools), pure sanitizer with prototype-pollution resistance, and a 5-verb audit narrative (routed → rejected | sanitized → dispatched | dispatch_error). G4 hook ingress auth lifted from "partial PASS" to "full PASS"; runner-claimed runs are first-class in `/api/monitor/runs/:runId`**. The next-round work splits into two complementary axes: **R3 multi-runner pool + Linux host** for the layer 2/3 egress enforcement R2-4 left open, and a **per-call approval flow** before opening Bash / Write / Edit through the bridge. **R3-0 (plan) + R3-a (two-network topology) + R3-c (multi-runner pool primitives) landed**. R3-0 locked the gates; R3-a closes R2-4's dashboard host port gap (orchestrator dual-homed; strict override flips runner bridge only); R3-c ships the multi-runner pool primitives at registry + monitor layer (`selectFreshRunner` LEAST_LOADED + FIFO tie-break, `pruneStaleRunners` observation, `getAssignment` public surface, handshake collision detection with new `host_in_use` reason and `runner_handshake_collision` audit, `RunnerStaleMonitor` periodic prune wired into server.js with single-emit `runner_host_lost` audit row + dedupe-on-recovery + idle-host skip + ledger-failure resilience). R3-G01 + R3-G02 + R3-G06 + R3-G07 + R3-G09 + R3-G10 are GREEN. R3-G08 fairness algo verified by unit + integration; live deployment evidence deferred to R3-d/e. Next: R3-d (graceful shutdown polish — clean WS close 1000 distinguishable from 1006 crash, RunnerAgent state machine differentiation), then R3-b (Linux host nftables L2 + dnsmasq L3, requires Linux host), then R3-e (per-call approval for write-side tools, last).
 
 The MB1~MB6 + MC1~MC5 + MA7-a/b/c rounds closed the highest-leverage structural debt without bloating the surface. Each lift was behaviour-preserving + locked by tests; the file shrinkage is genuine. server.js dropped 276 lines, app.js dropped 252 lines. Module footprint expanded by 21 small UMD/Node modules, all under test, all CSP-compliant.
 
