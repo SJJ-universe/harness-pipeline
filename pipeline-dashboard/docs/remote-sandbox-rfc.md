@@ -425,7 +425,7 @@ test, or a check this RFC names that gets added later.
 | **G7. Graceful shutdown reaches remote children** | Test: kill orchestrator → remote runner observes orphan signal within 5s → cleans its own children | TODO |
 | **G8. Audit ledger signed** | Hash-chained ledger (existing `evidenceLedger`) extended with HMAC signature over each entry; integration test confirms tampering detected | Extends existing |
 | **G9. Documentation in sync** | `harness-architecture.md` + `security-model.md` + this RFC reference each other. `scorecard:check` (MD2) passes | Extends MD2 |
-| **G10. Implementation RFC approved** | A second RFC ("Remote Sandbox Implementation") with concrete container image, runtime choice (docker / podman / kata / firecracker), and infra prereqs is approved before code starts | TODO — not this round |
+| **G10. Implementation RFC approved** | A second RFC ("Remote Sandbox Implementation") with concrete container image, runtime choice (docker / podman / kata / firecracker), and infra prereqs is approved before code starts | **DRAFT COMPLETE** — see [`remote-sandbox-impl.md`](./remote-sandbox-impl.md) (MG1). Pending operator sign-off before R1 slices begin. |
 
 ### 4.1 Phased rollout
 
@@ -475,26 +475,24 @@ previous phase's gate.**
 
 ---
 
-## 6. Open questions (to be answered in the implementation RFC)
+## 6. Open questions (answered in the implementation RFC)
 
-1. **Runtime choice**: docker, podman, kata, firecracker, or all of
-   the above? Trade-offs:
-   - docker: easiest, widest support, weakest isolation.
-   - podman: rootless, no daemon, similar isolation to docker.
-   - kata / firecracker: VM-grade isolation, slower startup.
-   - This RFC's `sandbox_class` taxonomy already accommodates all of
-     these; the implementation RFC picks one for R1.
-2. **Hook ingress channel**: WS-only (today) or HTTPS POST + WS
-   for replay? Remote workloads might benefit from HTTPS for the
-   one-shot hook events.
-3. **JWT issuer**: orchestrator-self-signed or external (operator's
-   IdP)? Self-signed is simpler for single-tenant; external opens the
-   door to Phase 3.
-4. **Audit ledger storage**: append-only file (today) or SQLite? The
-   signing extension (G8) is independent of storage choice.
+> **Update (Phase D Round MG, 2026-04-28)**: All four open questions are
+> answered in [`remote-sandbox-impl.md`](./remote-sandbox-impl.md). The
+> entries below are kept for context but each now points to the
+> resolution.
 
-These are deliberately not answered here — this RFC defines the
-contract; the implementation RFC commits to specific tech.
+1. **Runtime choice** → **Docker (rootless preferred, daemon fallback)**.
+   See impl RFC §1. VM-grade (kata / firecracker) reserved for `vm-strict`
+   class in Phase R4.
+2. **Hook ingress channel** → **WS primary + HTTPS POST one-shot fallback**.
+   See impl RFC §3. WS reuses existing `verifyWsConnection`; POST exists
+   for partition recovery.
+3. **JWT issuer** → **Orchestrator self-signed (HS256, HARNESS_TOKEN-derived
+   via HKDF)**. See impl RFC §4. External IdP deferred to Phase 3.
+4. **Audit ledger storage** → **Extend existing `evidenceLedger` JSONL +
+   HMAC-SHA256 signature per entry**. See impl RFC §5. SQLite migration
+   is a future option if scale demands.
 
 ---
 
@@ -522,11 +520,12 @@ contract; the implementation RFC commits to specific tech.
 | P4-C: Monitor metadata | §3 | **DONE** |
 | P4-D: Rollout gates | §4 | **DONE** |
 
-All four design slices are now consolidated. The next step is the
-**implementation RFC** (separate document) which picks the runtime,
-the JWT issuer, the audit-ledger storage, and the runner-host control
-plane. That RFC is NOT scheduled for this round — the explicit gate
-G10 above blocks any code from landing first.
+All four design slices are now consolidated. The implementation RFC
+([`remote-sandbox-impl.md`](./remote-sandbox-impl.md), Phase D Round MG)
+commits to the runtime, JWT issuer, audit-ledger storage, runner-host
+control plane, network egress policy, container image, and bootstrap
+sequence — closing G10 pending operator sign-off.
 
 The MF round closes with this document plus cross-links from the
-existing predecessor docs (Slice MF2).
+existing predecessor docs (Slice MF2). The MG round closes with the
+implementation RFC + cross-links + scorecard refresh (Slice MG2).

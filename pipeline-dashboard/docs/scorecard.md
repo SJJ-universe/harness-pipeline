@@ -2,7 +2,7 @@
 
 ## Current Score
 
-**98 / 109** (Phase 2.5 multi-run + Phase 3-S security + Phase D MA0~MA7 monitor shell + Phase D Round 2 MB1~MB6 backfill + Phase D Round 2.5 MC1~MC5 live wiring + MA7 UI-3 rewrite readiness + Phase D Round MD readiness automation + Phase D Round ME CI hygiene + Phase D Round MF P4 RFC; MD2 extended Testability cap 10 → 11)
+**99 / 109** (Phase 2.5 multi-run + Phase 3-S security + Phase D MA0~MA7 monitor shell + Phase D Round 2 MB1~MB6 backfill + Phase D Round 2.5 MC1~MC5 live wiring + MA7 UI-3 rewrite readiness + Phase D Round MD readiness automation + Phase D Round ME CI hygiene + Phase D Round MF P4 design RFC + Phase D Round MG P4 implementation RFC; MD2 extended Testability cap 10 → 11)
 
 Trajectory:
 - v3.1 hardening — 87
@@ -15,6 +15,7 @@ Trajectory:
 - **Phase D Round MD MD1~MD3** (readiness signal reconciled to live mode + GitHub Actions CI gate active + scorecard 96→97 update) — **97**
 - **Phase D Round ME ME1~ME2** (CI hygiene: Node 24 forward-compat env var + permissions: contents:read + concurrency cancel-in-progress + actions/checkout v4→v6 + setup-node v4→v6) — **97** (hygiene, no rubric move)
 - **Phase D Round MF MF1~MF2** (P4 Remote Sandbox RFC: 532-line consolidator covering current-state boundary audit + isolation model + monitor metadata + 10 rollout gates G1-G10; cross-links from 4 predecessor docs) — **98**
+- **Phase D Round MG MG1~MG2** (P4 Implementation RFC: 702-line follow-up answering MF1's 4 open questions — Docker rootless / WS+HTTPS hook ingress / HS256 JWT HKDF-derived / evidenceLedger HMAC extension — plus runner-host control plane + nftables egress + bootstrap handshake; closes MF1 G10 pending sign-off) — **99**
 
 Target after Phase 3 (D platformization): **102+**.
 Container sandbox + remote-mode hardening required for the multi-tenant tier.
@@ -65,6 +66,11 @@ Total max → **108 points**. Previous score normalisation: pre-MB6 90/100 = ~88
 - MF1 RFC consolidator (532 lines, all four P4 plan slices in one doc) → +1.0 to "Safety and security boundary" within the existing 15-point cap (was 14/15; the Phase 3-S security work covered the local-mode boundary, but the future trust boundary remained undefined. The RFC closes that gap WITHOUT implementing it — design clarity is itself a security property because it bounds the future surface).
 - MF2 cross-links + scorecard backlog refresh + plan Part H → trust dividend, no rubric move
 - Net effect: **97 → 98** as the future trust boundary moved from "vague platformization plan" to "design RFC with 10 named gates G1-G10". Total cap stays at 109 — no scale extension this round.
+
+**MG1~MG2 (Phase D Round MG, P4 Implementation RFC)**:
+- MG1 implementation RFC consolidator (702 lines) → +1.0 to "Pipeline orchestration and phase model" within the existing 15-point cap (was 14/15; the Phase 1 orchestrator + Phase 2.5 multi-run work covered the local pipeline phasing, but the rollout phasing for remote (R1 internal preview → R2 single remote runner → R3 multi-runner pool → R4 vm-strict) was specified as a goal in MF1 §4.1 without implementation specifics. MG1 makes each rollout phase concrete enough to audit — what tests must exist, what env must be set, which routes must be added).
+- MG2 cross-links + scorecard 98 → 99 + plan Part I + MF1 §6 open-question status update + G10 row update → trust dividend, no rubric move
+- Net effect: **98 → 99** as the implementation tier of the P4 design moved from "vague follow-up RFC needed" to "concrete decisions backing each rollout phase". Total cap stays at 109.
 
 ### Rubric scale change (MD2)
 
@@ -139,7 +145,12 @@ Sub-scores per category map approximately to:
 ### Phase D Round MF MF1~MF2 (P4 Remote Sandbox RFC)
 
 - **MF1** — `docs/remote-sandbox-rfc.md` (532 lines) — design-only consolidator covering all four P4 plan slices (A: boundary audit, B: isolation model, C: monitor metadata, D: rollout gates). Defines a `sandbox_class` taxonomy (`none` / `container-strict` / `vm-strict`) and a `run_origin` field (`local` / `container-local` / `container-remote` / `vm-remote`), both surfaced as additive monitor envelope fields. Specifies 10 rollout gates G1-G10 — none can land code; each must be GREEN before remote mode is exposed.
-- **MF2** (this update) — Cross-links from the four predecessor docs (`remote-mode-design.md`, `container-sandbox.md`, `harness-architecture.md`, `security-model.md`) to the consolidator RFC. Scorecard backlog refreshed (P4 RFC moved from "Next round candidate" to "DONE"). Plan file gets Part H. Score: 97 → 98 reflecting the future-trust-boundary clarity (Safety and security boundary 14 → 15 cap).
+- **MF2** — Cross-links from the four predecessor docs (`remote-mode-design.md`, `container-sandbox.md`, `harness-architecture.md`, `security-model.md`) to the consolidator RFC. Scorecard backlog refreshed (P4 RFC moved from "Next round candidate" to "DONE"). Plan file gets Part H. Score: 97 → 98 reflecting the future-trust-boundary clarity (Safety and security boundary 14 → 15 within existing cap).
+
+### Phase D Round MG MG1~MG2 (P4 Implementation RFC)
+
+- **MG1** — `docs/remote-sandbox-impl.md` (702 lines) — implementation RFC. Closes MF1 §4 G10 by committing to specific tech for each MF1 §6 open question and specifying everything MF1 left undecided. §1 Docker rootless (daemon fallback) for `container-strict`; §2 `node:24-bookworm-slim` multi-stage image with SBOM; §3 WS primary `/api/runner/events` + HTTPS POST `/api/runner/hook` fallback; §4 HS256 JWT with HKDF-derived key from `HARNESS_TOKEN`; §5 extend existing `evidenceLedger` JSONL + HMAC-SHA256 per entry; §6 env-only runner control plane (heartbeat-driven discovery, no UI in this round); §7 3-layer egress (Docker `--internal` + nftables on bridge + dnsmasq allowlist); §8 3-step bootstrap (bootstrap token → runnerToken → runJWT); §9 10-row failure-mode table extending MF1 §4.2; §10 Phase R1 implementation specifics (G1-G9 verifications + readiness rubric extension to 18 stars).
+- **MG2** (this update) — Cross-links from MF1 RFC (§4 G10 row, §6 open questions, §8 status). Scorecard trajectory + post-table-write delta + headline 98 → 99. Plan file Part I. The "Long-horizon" backlog gets P4 implementation RFC marked DONE in MG1; "P4 implementation slices (R1 internal preview)" promoted to "Next round candidate" pending operator sign-off on MG1.
 
 ## Operational facts
 
@@ -164,14 +175,15 @@ Sub-scores per category map approximately to:
 
 ### Long-horizon (not committed)
 
-- **P4 implementation RFC** — picks runtime (docker / podman / kata / firecracker), JWT issuer, audit-ledger storage, runner-host control plane. Gated behind G10 of the design RFC. Natural follow-up after this round but no commitment yet.
-- **Phase 3 (D platformization)** — container sandbox + remote-mode hardening + per-user RBAC. Separate product round; conditions in plan §Phase 3 still unmet. The MF design RFC is one prerequisite; multi-tenant authentication remains separate.
-- ~~**P4 RFC**~~ — **DONE in MF1**. See [`docs/remote-sandbox-rfc.md`](./remote-sandbox-rfc.md).
+- **P4 R1 implementation slices** — first remote-mode code lands. Required: `harness-runner` Node entrypoint + Dockerfile + 4 new routes (`/api/runner/handshake`, `/api/runner/heartbeat`, `/api/runner/hook`, `/api/runner/events` WS) + `src/security/jwt.js` (HS256 + HKDF) + `evidenceLedger` HMAC extension + envelope `origin` field + G1-G9 integration tests. Gated behind operator sign-off on the MG1 implementation RFC. **Next round candidate.**
+- **Phase 3 (D platformization)** — container sandbox + remote-mode hardening + per-user RBAC. Separate product round; conditions in plan §Phase 3 still unmet. The MF design RFC + MG implementation RFC are two prerequisites; multi-tenant authentication and HA orchestrator remain separate.
+- ~~**P4 design RFC**~~ — **DONE in MF1**. See [`docs/remote-sandbox-rfc.md`](./remote-sandbox-rfc.md).
+- ~~**P4 implementation RFC**~~ — **DONE in MG1**. See [`docs/remote-sandbox-impl.md`](./remote-sandbox-impl.md). Closes MF1 §4 G10.
 - ~~**P5 readiness automation**~~ — **DONE in MD2**. `npm run readiness:check` exits non-zero in CI when the live score drops below 14/15; `npm run scorecard:check` blocks merge when AUTO markers are stale.
 
-## What 98 means
+## What 99 means
 
-Single-user local harness with multi-run isolation, hardened external-input boundaries, AND a monitoring-first opt-in console with live data flow + agent observability + per-run detail contract + flow-level readiness rubric + behavior-verified readiness scoring + auto-derived doc trust + dispatcher-driven extraction pattern + **CI-enforced regression protection** + **a complete remote-execution design RFC with named rollout gates**. Not yet a multi-tenant platform — the **container sandbox _implementation_ + remote-mode hardening** gap remains the missing 11 points.
+Single-user local harness with multi-run isolation, hardened external-input boundaries, AND a monitoring-first opt-in console with live data flow + agent observability + per-run detail contract + flow-level readiness rubric + behavior-verified readiness scoring + auto-derived doc trust + dispatcher-driven extraction pattern + CI-enforced regression protection + **a complete remote-execution design RFC** + **a complete implementation RFC with concrete tech decisions for runtime / image / JWT / ledger / control plane / network egress / bootstrap / failure recovery**. Not yet a multi-tenant platform — the **actual implementation of remote mode (R1 internal preview)** is the missing 10 points.
 
 The MB1~MB6 + MC1~MC5 + MA7-a/b/c rounds closed the highest-leverage structural debt without bloating the surface. Each lift was behaviour-preserving + locked by tests; the file shrinkage is genuine. server.js dropped 276 lines, app.js dropped 252 lines. Module footprint expanded by 21 small UMD/Node modules, all under test, all CSP-compliant.
 
@@ -182,3 +194,5 @@ The MD round added the missing operational layer: until MD2, every regression-pr
 The ME round was small but disciplined: GitHub flips the default JS-action runtime to Node 24 on 2026-06-02 and removes Node 20 entirely on 2026-09-16. ME1 opted in early via `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` and validated under v4 actions; ME2 then bumped checkout + setup-node to v6 (Node 24 native). Plus `permissions: contents:read` (least-privilege) and `concurrency: cancel-in-progress` (kill races between rapid pushes).
 
 The MF round shifts the trust-boundary conversation from "vague future" to "design done, gates named". `docs/remote-sandbox-rfc.md` (532 lines) consolidates run origin + sandbox class + workspace/process/token/fs/network boundaries + UI metadata + 10 rollout gates G1-G10 into a single document. **No code lands until G10 (a follow-up implementation RFC) is approved.** Score 97 → 98 reflects the trust-boundary clarity, not implementation — the design _IS_ the deliverable for this round.
+
+The MG round closes MF1 §4 G10 by committing to specific tech for each of MF1 §6's four open questions. `docs/remote-sandbox-impl.md` (702 lines) chooses **Docker rootless** (with daemon fallback) for `container-strict`, leaving kata/firecracker reserved for `vm-strict` in Phase R4. Hook ingress = **WS primary + HTTPS POST one-shot fallback**. JWT = **HS256, HKDF-derived from `HARNESS_TOKEN`** (separate label from the audit-ledger HMAC key, so neither use can forge the other). Audit ledger = **extend the existing `evidenceLedger` JSONL hash chain with HMAC-SHA256 per entry** (not a switch to SQLite — current scale ~900K rows fits append-only comfortably). Plus the runner-host control plane (env-only, heartbeat-driven discovery), the 3-layer egress policy (Docker `--internal` + nftables on bridge + dnsmasq allowlist on the controlled resolver), the 3-step bootstrap handshake (bootstrap token → runnerToken → runJWT), and the 10-row failure-mode table extending MF1 §4.2. Score 98 → 99 reflects the rollout phasing concreteness — operators can now audit each Phase R1-R4 phase against named criteria.
