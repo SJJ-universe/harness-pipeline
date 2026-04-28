@@ -29,6 +29,8 @@ const DOCKERFILE_ORCH = path.join(ROOT, "Dockerfile.orchestrator");
 const DOCKERFILE_RUNNER = path.join(ROOT, "Dockerfile.runner");
 const PROBE_SH = path.join(ROOT, "scripts", "r2-probe-egress.sh");
 const PROBE_PS1 = path.join(ROOT, "scripts", "r2-probe-egress.ps1");
+const MONITOR_SH = path.join(ROOT, "scripts", "r2-monitor-probe.sh");
+const MONITOR_PS1 = path.join(ROOT, "scripts", "r2-monitor-probe.ps1");
 
 function readFile(p) {
   return fs.readFileSync(p, "utf-8");
@@ -234,6 +236,31 @@ test("R2-4: r2-probe-egress.{sh,ps1} both exist + cover the same six targets", (
   for (const t of targets) {
     assert.ok(sh.includes(t), `expected ${t} in r2-probe-egress.sh`);
     assert.ok(ps1.includes(t), `expected ${t} in r2-probe-egress.ps1`);
+  }
+});
+
+// ── R2-3 monitor probe scripts ────────────────────────────────────
+
+test("R2-3: r2-monitor-probe.{sh,ps1} both exist", () => {
+  assert.ok(fs.existsSync(MONITOR_SH), "expected scripts/r2-monitor-probe.sh");
+  assert.ok(fs.existsSync(MONITOR_PS1), "expected scripts/r2-monitor-probe.ps1");
+});
+
+test("R2-3: monitor probe targets the four documented anchors (G5 + R1-k2)", () => {
+  // Each anchor is a runtime endpoint or ledger key the script must
+  // hit. The anchors come from MG1 §3 (envelope `origin`) + MF1 §3.2
+  // (bootstrap.runners[] / activeChildren[]) + R1-k2 (audit chain).
+  const anchors = [
+    "/api/monitor/bootstrap",
+    "/api/monitor/runs/default",
+    "runner_hook_routed",
+    "activeChildren",
+  ];
+  const sh = readFile(MONITOR_SH);
+  const ps1 = readFile(MONITOR_PS1);
+  for (const a of anchors) {
+    assert.ok(sh.includes(a), `expected ${a} in r2-monitor-probe.sh`);
+    assert.ok(ps1.includes(a), `expected ${a} in r2-monitor-probe.ps1`);
   }
 });
 
