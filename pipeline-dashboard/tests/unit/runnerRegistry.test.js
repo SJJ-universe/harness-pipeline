@@ -111,6 +111,30 @@ test("R1-d: heartbeat rejects expired runnerToken", () => {
   assert.equal(r.reason, "token_expired");
 });
 
+test("R1-d: heartbeat refreshes sliding TTL — repeated heartbeats keep token alive past original TTL", () => {
+  // The sliding window MUST anchor on lastSeen, not issuedAt. Otherwise a
+  // long-lived runner with continuous heartbeats would still expire after
+  // exactly runnerTokenTtlMs from handshake — defeating the whole point of
+  // a "sliding" window. Regression guard for an early bug where heartbeat
+  // refreshed lastSeen but expiry compared against the original issuedAt.
+  let clock = 1000;
+  const reg = makeReg({ now: () => clock, runnerTokenTtlMs: 60_000 });
+  const h = reg.handshake({ hostIdentity: "runner-a/3", bootstrapToken: "bootstrap-aaa" });
+  // 30s in — within TTL. Heartbeat refreshes lastSeen → 31_000.
+  clock += 30_000;
+  assert.equal(reg.heartbeat({ hostIdentity: "runner-a/3", runnerToken: h.runnerToken }).ok, true);
+  // 40s after that — past the original 60s window from handshake, but the
+  // previous heartbeat reset the clock. Should still succeed.
+  clock += 40_000;
+  assert.equal(reg.heartbeat({ hostIdentity: "runner-a/3", runnerToken: h.runnerToken }).ok, true);
+  // Now go silent for > TTL — token expires.
+  clock += 60_001;
+  assert.equal(
+    reg.heartbeat({ hostIdentity: "runner-a/3", runnerToken: h.runnerToken }).reason,
+    "token_expired",
+  );
+});
+
 test("R1-d: heartbeat token-format mismatch (non-hex / wrong length) → token_invalid", () => {
   const reg = makeReg();
   reg.handshake({ hostIdentity: "runner-a/3", bootstrapToken: "bootstrap-aaa" });
@@ -130,6 +154,33 @@ test("R1-d: claimRunForRunner binds runId → host", () => {
 test("R1-d: claimRunForRunner rejects unknown host", () => {
   const reg = makeReg();
   assert.equal(reg.claimRunForRunner("rr-1", "unknown/1"), false);
+});
+
+test("R1-d: claimRunForRunner is idempotent for the same (runId, host) — no double-count", () => {
+  // Repeated dispatch / retry loops must not inflate activeRuns. This is
+  // important for orchestrator retry on transient errors and for replay-
+  // driven reassertion after a hook router reconnect.
+  const reg = makeReg();
+  reg.handshake({ hostIdentity: "runner-a/3", bootstrapToken: "bootstrap-aaa" });
+  assert.equal(reg.claimRunForRunner("rr-1", "runner-a/3"), true);
+  assert.equal(reg.claimRunForRunner("rr-1", "runner-a/3"), true);
+  assert.equal(reg.listRunners()[0].activeRuns, 1);
+});
+
+test("R1-d: claimRunForRunner reassigns runId to a new host (decrement old, increment new)", () => {
+  // Failover / local-fallback path: a run originally dispatched to host-a
+  // gets reassigned to host-b. The previous host's activeRuns must drop,
+  // otherwise stale hosts accumulate phantom runs and `listRunners` /
+  // `originForRun` go out of sync with reality.
+  const reg = makeReg({ tokens: { "host-a": "ba", "host-b": "bb" } });
+  reg.handshake({ hostIdentity: "host-a", bootstrapToken: "ba" });
+  reg.handshake({ hostIdentity: "host-b", bootstrapToken: "bb" });
+  reg.claimRunForRunner("rr-1", "host-a");
+  reg.claimRunForRunner("rr-1", "host-b");
+  const byHost = Object.fromEntries(reg.listRunners().map(r => [r.hostIdentity, r.activeRuns]));
+  assert.equal(byHost["host-a"], 0);
+  assert.equal(byHost["host-b"], 1);
+  assert.equal(reg._hostFor("rr-1"), "host-b");
 });
 
 test("R1-d: releaseRun decrements activeRuns + unbinds", () => {

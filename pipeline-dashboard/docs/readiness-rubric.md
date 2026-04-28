@@ -6,7 +6,7 @@ Parent spec: `docs/superpowers/specs/2026-04-27-five-priority-roadmap.md` (P5)
 
 ## 1. Why this exists
 
-The harness has strong unit + integration coverage (<!-- AUTO:test-counts -->**1001 unit / 218 integration**<!-- /AUTO -->) — but unit coverage tells you "the code does what it says". It does NOT tell you whether the system is OPERATIONALLY usable for the next wave. This rubric defines that operational view.
+The harness has strong unit + integration coverage (<!-- AUTO:test-counts -->**1004 unit / 218 integration**<!-- /AUTO -->) — but unit coverage tells you "the code does what it says". It does NOT tell you whether the system is OPERATIONALLY usable for the next wave. This rubric defines that operational view.
 
 _(test-count line above auto-derived by `npm run scorecard:sync`; do not hand-edit between markers.)_
 

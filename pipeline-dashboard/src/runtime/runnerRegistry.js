@@ -148,7 +148,12 @@ class RunnerRegistry {
       return { ok: false, reason: "token_invalid" };
     }
     const now = this._now();
-    if (now - r.issuedAt > this._runnerTokenTtlMs) {
+    // Sliding window: anchor expiry on lastSeen, not issuedAt. As long as
+    // heartbeats arrive faster than runnerTokenTtlMs the token stays alive;
+    // a runner that goes silent for longer than the TTL must re-handshake.
+    // (issuedAt is preserved for audit / observability — it's the *anchor*
+    // of the original handshake, not a hard expiry deadline.)
+    if (now - r.lastSeen > this._runnerTokenTtlMs) {
       return { ok: false, reason: "token_expired" };
     }
     r.lastSeen = now;
@@ -159,12 +164,35 @@ class RunnerRegistry {
 
   /**
    * Bind a runId to a hostIdentity so subsequent `originForRun(runId)`
-   * lookups know the runner. Called by the orchestrator at the moment
-   * a run is dispatched.
+   * lookups know the runner. Called by the orchestrator when a run is
+   * dispatched.
+   *
+   * Idempotency + reassignment invariants:
+   *
+   *   - Re-claiming the same (runId, hostIdentity) pair is a no-op for
+   *     activeRuns. Protects against orchestrator retry loops, double
+   *     dispatch, or replay-driven reassertion.
+   *   - Claiming an already-bound runId for a *different* host transfers
+   *     the run: the previous host's activeRuns is decremented and the
+   *     new host's is incremented. Protects against failover / local-
+   *     fallback paths leaking phantom activeRuns into stale hosts.
+   *
+   * These invariants are tested directly in
+   * tests/unit/runnerRegistry.test.js — keep them in sync.
    */
   claimRunForRunner(runId, hostIdentity) {
     if (typeof runId !== "string" || runId.length === 0) return false;
     if (!this._runners.has(hostIdentity)) return false;
+    const previousHost = this._runAssignments.get(runId);
+    if (previousHost === hostIdentity) {
+      // Idempotent re-claim — no count change.
+      return true;
+    }
+    if (previousHost) {
+      // Transfer: decrement the previous host's activeRuns first.
+      const oldR = this._runners.get(previousHost);
+      if (oldR && oldR.activeRuns > 0) oldR.activeRuns -= 1;
+    }
     this._runAssignments.set(runId, hostIdentity);
     const r = this._runners.get(hostIdentity);
     r.activeRuns += 1;
