@@ -1,0 +1,76 @@
+# Slice R2-4 (Phase D R2 deployment evaluation, 2026-04-28)
+#
+# Compose override that flips the runner network to `internal: true`,
+# severing the default Docker NAT path to outside the docker bridge.
+#
+# **Trade-off observed during R2-4**: `internal: true` ALSO breaks the
+# host's `127.0.0.1:4201:4201` port mapping — Docker's internal bridges
+# refuse the NAT in both directions. As a result, an operator running
+# under this override CANNOT reach the dashboard via `curl http://127.0.0.1:4201`.
+# Workarounds for future R3+:
+#
+#   1. Connect orchestrator to TWO networks: an external bridge for the
+#      host port mapping, and the internal one for runner traffic.
+#   2. Switch to a separate "dashboard" service that proxies into the
+#      internal-only orchestrator.
+#   3. Use a sidecar reverse-proxy on the same host network.
+#
+# For R2-4 the broken host port is INTENTIONAL evidence — anything that
+# tries to reach the orchestrator from outside the strict bridge is
+# blocked, including the host. r2-eval.sh's `GET /api/health` from the
+# host therefore reports 000 under strict mode; that's expected. Use
+# `docker exec harness-orchestrator-r2 ...` for operator access while
+# strict is on.
+# Pairs with the base file:
+#
+#   docker compose \
+#     -f docker-compose.r2-single-runner.yml \
+#     -f docker-compose.r2-strict.override.yml \
+#     up -d orchestrator runner probe
+#
+# The probe service is the alpine sidecar from the base compose. Because
+# `internal: true` only blocks egress to the host's default gateway —
+# inter-container traffic on the same network is unaffected — the probe
+# can still reach `orchestrator` over Docker DNS, and the runner can
+# still reach the orchestrator. What WILL fail:
+#
+#   wget http://169.254.169.254       (cloud-metadata IP, no route)
+#   wget http://10.0.0.1              (RFC1918 peer outside bridge)
+#   wget http://172.16.0.1            (RFC1918 peer outside bridge)
+#   wget http://192.168.1.1           (RFC1918 peer outside bridge)
+#   wget http://www.google.com        (no DNS, no public route)
+#
+# This is MG1 §7 layer 1 ONLY (Docker's `--internal` bridge). Layers 2
+# (nftables on the bridge) and 3 (dnsmasq controlled resolver) are not
+# exercised here — they're R3 follow-up work.
+
+services:
+  # The base file already declares the harness-r2 network. We override
+  # its driver_opts to enforce internal-only routing for the strict
+  # evaluation. The network name stays the same so service references
+  # don't break.
+  orchestrator:
+    networks:
+      - harness-r2
+
+  runner:
+    networks:
+      - harness-r2
+
+  # Force the probe sidecar to actually start (default profile gating
+  # in the base file means `up` skips it). Strict mode without the probe
+  # has no observable evidence — the probe is the whole point.
+  probe:
+    profiles: []  # empty profiles = always start
+    networks:
+      - harness-r2
+
+networks:
+  harness-r2:
+    name: harness-r2-network
+    driver: bridge
+    # The single behavior change vs. the base file. Default Docker
+    # bridges have a NAT-out hook on the host's iptables that lets
+    # containers reach `0.0.0.0/0`. `internal: true` strips that hook —
+    # the bridge becomes a private LAN with no upstream gateway.
+    internal: true

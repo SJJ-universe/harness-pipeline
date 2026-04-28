@@ -24,8 +24,11 @@ const path = require("node:path");
 const ROOT = path.resolve(__dirname, "..", "..");
 const ENV_EXAMPLE = path.join(ROOT, ".env.r2.example");
 const COMPOSE = path.join(ROOT, "docker-compose.r2-single-runner.yml");
+const COMPOSE_STRICT = path.join(ROOT, "docker-compose.r2-strict.override.yml");
 const DOCKERFILE_ORCH = path.join(ROOT, "Dockerfile.orchestrator");
 const DOCKERFILE_RUNNER = path.join(ROOT, "Dockerfile.runner");
+const PROBE_SH = path.join(ROOT, "scripts", "r2-probe-egress.sh");
+const PROBE_PS1 = path.join(ROOT, "scripts", "r2-probe-egress.ps1");
 
 function readFile(p) {
   return fs.readFileSync(p, "utf-8");
@@ -191,6 +194,47 @@ test("R2-1: compose passes HARNESS_ALLOW_REMOTE=\"1\" to orchestrator", () => {
   // actually sees.
   const text = readFile(COMPOSE);
   assert.match(text, /HARNESS_ALLOW_REMOTE:\s*"1"/);
+});
+
+// ── R2-4 strict override + probe scripts ──────────────────────────
+
+test("R2-4: strict override exists and flips harness-r2 to internal:true", () => {
+  assert.ok(fs.existsSync(COMPOSE_STRICT),
+    "expected docker-compose.r2-strict.override.yml");
+  const text = readFile(COMPOSE_STRICT);
+  // The single behavioural change vs. the base file: `internal: true`
+  // on the harness-r2 network. Without it the override is a no-op.
+  assert.match(text, /networks:[\s\S]*?harness-r2:[\s\S]*?internal:\s*true/m,
+    "strict override must set internal: true on harness-r2");
+});
+
+test("R2-4: strict override forces probe profile to active", () => {
+  // The base file gates the probe behind profiles:["probe"], so the
+  // default `up` skips it. Strict mode without the probe has no
+  // observable evidence, so the override resets profiles to []
+  // (always start).
+  const text = readFile(COMPOSE_STRICT);
+  assert.match(text, /probe:\s*\n\s*profiles:\s*\[\]/m,
+    "strict override must clear the probe profile gate (profiles: [])");
+});
+
+test("R2-4: r2-probe-egress.{sh,ps1} both exist + cover the same six targets", () => {
+  assert.ok(fs.existsSync(PROBE_SH), "expected scripts/r2-probe-egress.sh");
+  assert.ok(fs.existsSync(PROBE_PS1), "expected scripts/r2-probe-egress.ps1");
+  const targets = [
+    "169.254.169.254",
+    "10.0.0.1",
+    "172.16.0.1",
+    "192.168.1.1",
+    "www.google.com",
+    "orchestrator:4201",
+  ];
+  const sh = readFile(PROBE_SH);
+  const ps1 = readFile(PROBE_PS1);
+  for (const t of targets) {
+    assert.ok(sh.includes(t), `expected ${t} in r2-probe-egress.sh`);
+    assert.ok(ps1.includes(t), `expected ${t} in r2-probe-egress.ps1`);
+  }
 });
 
 // ── Dockerfile.runner regression guard ────────────────────────────
