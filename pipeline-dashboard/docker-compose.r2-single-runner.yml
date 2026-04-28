@@ -1,6 +1,28 @@
 # Slice R2-1 (Phase D R2 deployment evaluation, 2026-04-28)
+# Updated: Slice R3-a (Phase D R3, 2026-04-28) — two-network topology.
 #
 # Single-runner evaluation harness. NOT for production.
+#
+# Network topology (R3-a):
+#
+#   harness-r2-operator   non-internal bridge, host port mapping path.
+#                         Orchestrator only — runner and probe are NOT
+#                         attached. Dashboard reachability via host
+#                         loopback (127.0.0.1:4201) routes through this
+#                         bridge.
+#   harness-r2-runner     internal-eligible bridge, intra-container
+#                         traffic. Orchestrator + runner + probe attach.
+#                         R3 strict override flips ONLY this bridge to
+#                         internal:true so runner egress is severed
+#                         while the dashboard host port survives.
+#
+# Why two networks (R3-a, closes R2-4 dashboard host port gap):
+# Docker's `internal: true` breaks the host port NAT in both directions.
+# Pre-R3-a, strict mode (R2-4) made `curl http://127.0.0.1:4201` from
+# the host return 000 because there was a single bridge and that bridge
+# was internal. R3-a separates the operator-facing dashboard path from
+# the runner-facing intra-bridge path, so strict mode can sever runner
+# egress without taking the dashboard with it.
 #
 # What this brings up:
 #
@@ -9,16 +31,22 @@
 #                    0.0.0.0:4201 inside the container; the host's port
 #                    publishing pins it to loopback. HARNESS_TOKEN gates
 #                    the dashboard surface; runner subsystem (preview)
-#                    has its own Bearer-based auth.
+#                    has its own Bearer-based auth. **Dual-homed**:
+#                    attached to both bridges so the dashboard reaches
+#                    the host AND the runner reaches the orchestrator.
 #   runner         — Node 24 container running harness-runner. Connects
 #                    to orchestrator via Docker DNS (http://orchestrator).
-#                    /work/in is the (operator-supplied) read-only mount
-#                    point; /work/out is tmpfs (no persistence, nothing
-#                    written by the runner survives container restart).
-#   probe          — alpine:3.20 sidecar in the same network. Profiled —
-#                    only spins up when invoked with --profile probe.
-#                    Used by R2-4 strict probes (169.254 / RFC1918 /
-#                    public host blocking checks).
+#                    Attached ONLY to harness-r2-runner — never to the
+#                    operator bridge. /work/in is the (operator-supplied)
+#                    read-only mount point; /work/out is tmpfs (no
+#                    persistence, nothing written by the runner survives
+#                    container restart).
+#   probe          — alpine:3.20 sidecar on the runner-internal network
+#                    (NOT the operator network — the probe tests
+#                    runner-bridge isolation, so it must sit where the
+#                    runner sits). Profiled — only spins up when invoked
+#                    with --profile probe. Used by R2-4 / R3-a strict
+#                    probes (169.254 / RFC1918 / public host blocking).
 #
 # Lifecycle (manual; this is NOT in CI):
 #
@@ -76,7 +104,11 @@ services:
       retries: 8
       start_period: 6s
     networks:
-      - harness-r2
+      # R3-a: dual-homed. Operator bridge (host port path) + runner
+      # bridge (intra-container talk to runner/probe). Strict override
+      # flips ONLY harness-r2-runner to internal:true.
+      - harness-r2-operator
+      - harness-r2-runner
     volumes:
       # Persist the evidence ledger + run registry across container
       # restarts so audit chains survive an orchestrator bounce.
@@ -109,7 +141,9 @@ services:
       orchestrator:
         condition: service_healthy
     networks:
-      - harness-r2
+      # R3-a: runner-internal bridge ONLY. Never the operator bridge —
+      # runner attached to operator would defeat egress isolation.
+      - harness-r2-runner
     tmpfs:
       # MG1 §2.1: /work/out is tmpfs, sized + noexec. R2-5 verifies.
       - /work/out:rw,noexec,size=64m
@@ -132,19 +166,35 @@ services:
     profiles: ["probe"]
     command: ["sleep", "infinity"]
     networks:
-      - harness-r2
+      # R3-a: probe sits where the runner sits, on the same internal-
+      # eligible bridge. Tests run from the probe verify what a
+      # workload would see, not what the orchestrator sees.
+      - harness-r2-runner
     cap_drop: ["ALL"]
     security_opt:
       - "no-new-privileges:true"
     restart: "no"
 
 networks:
-  harness-r2:
-    name: harness-r2-network
+  # R3-a: operator-facing bridge — non-internal. Host port mapping
+  # (127.0.0.1:4201:4201 on the orchestrator) routes through here.
+  # NOT touched by the strict override; dashboard reachability survives
+  # strict mode.
+  harness-r2-operator:
+    name: harness-r2-operator-network
     driver: bridge
-    # R2-1 baseline — open egress (default Docker behavior). R2-4 will
-    # introduce a strict variant via override file or new compose with
-    # internal: true + nftables sidecar + dnsmasq controlled resolver.
+
+  # R3-a: runner-internal bridge — eligible for `internal: true` via
+  # the strict override. Orchestrator + runner + probe all attach;
+  # intra-container traffic is unaffected by the internal flag (Docker
+  # only severs the host-gateway NAT, not container-to-container).
+  harness-r2-runner:
+    name: harness-r2-runner-network
+    driver: bridge
+    # R2-1 baseline — open egress (default Docker behavior). R2-4 +
+    # R3-a strict variants via the override file flip this to
+    # `internal: true`. R3-b will add nftables sidecar + dnsmasq
+    # controlled resolver on a real Linux host.
 
 volumes:
   r2-evidence:

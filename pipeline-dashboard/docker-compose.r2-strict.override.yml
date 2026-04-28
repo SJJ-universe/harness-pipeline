@@ -1,26 +1,31 @@
 # Slice R2-4 (Phase D R2 deployment evaluation, 2026-04-28)
+# Updated: Slice R3-a (Phase D R3, 2026-04-28) — two-network topology.
 #
-# Compose override that flips the runner network to `internal: true`,
-# severing the default Docker NAT path to outside the docker bridge.
+# Compose override that flips the **runner-internal** network to
+# `internal: true`, severing the runner / probe egress to outside the
+# Docker bridge while leaving the operator-facing bridge open so the
+# host can still reach the dashboard.
 #
-# **Trade-off observed during R2-4**: `internal: true` ALSO breaks the
-# host's `127.0.0.1:4201:4201` port mapping — Docker's internal bridges
-# refuse the NAT in both directions. As a result, an operator running
-# under this override CANNOT reach the dashboard via `curl http://127.0.0.1:4201`.
-# Workarounds for future R3+:
+# **R2-4 vs R3-a behaviour change** (closes R2-4 known-gap §3 row
+# "Strict mode breaks dashboard host port"):
 #
-#   1. Connect orchestrator to TWO networks: an external bridge for the
-#      host port mapping, and the internal one for runner traffic.
-#   2. Switch to a separate "dashboard" service that proxies into the
-#      internal-only orchestrator.
-#   3. Use a sidecar reverse-proxy on the same host network.
+#   In R2-4 there was a single bridge `harness-r2`. Setting it to
+#   `internal: true` ALSO broke `127.0.0.1:4201:4201` because Docker's
+#   host-port NAT runs on the same hook the `--internal` flag strips
+#   off. Operators couldn't reach the dashboard from the host while
+#   strict was on.
 #
-# For R2-4 the broken host port is INTENTIONAL evidence — anything that
-# tries to reach the orchestrator from outside the strict bridge is
-# blocked, including the host. r2-eval.sh's `GET /api/health` from the
-# host therefore reports 000 under strict mode; that's expected. Use
-# `docker exec harness-orchestrator-r2 ...` for operator access while
-# strict is on.
+#   R3-a splits the topology in two:
+#     - harness-r2-operator (non-internal, declared in the base file)
+#       — host port mapping path. NOT touched by this override.
+#     - harness-r2-runner   (internal:true HERE)
+#       — runner + probe egress. Severed from host gateway.
+#
+#   Orchestrator dual-homes on both, so:
+#     host → 127.0.0.1:4201 → orchestrator (via operator bridge) — WORKS.
+#     orchestrator ⇄ runner / probe (via runner bridge)         — WORKS.
+#     runner / probe → host gateway / RFC1918 / public           — BLOCKED.
+#
 # Pairs with the base file:
 #
 #   docker compose \
@@ -28,11 +33,12 @@
 #     -f docker-compose.r2-strict.override.yml \
 #     up -d orchestrator runner probe
 #
-# The probe service is the alpine sidecar from the base compose. Because
-# `internal: true` only blocks egress to the host's default gateway —
-# inter-container traffic on the same network is unaffected — the probe
-# can still reach `orchestrator` over Docker DNS, and the runner can
-# still reach the orchestrator. What WILL fail:
+# The probe service is the alpine sidecar from the base compose. With
+# `internal: true` only on harness-r2-runner, inter-container traffic
+# on the same network is unaffected — the probe can still reach
+# `orchestrator` over Docker DNS through the runner bridge, and the
+# runner can still reach the orchestrator. What WILL fail (verified
+# live by scripts/r2-probe-egress.{sh,ps1}, expected 6/6 PASS):
 #
 #   wget http://169.254.169.254       (cloud-metadata IP, no route)
 #   wget http://10.0.0.1              (RFC1918 peer outside bridge)
@@ -42,35 +48,43 @@
 #
 # This is MG1 §7 layer 1 ONLY (Docker's `--internal` bridge). Layers 2
 # (nftables on the bridge) and 3 (dnsmasq controlled resolver) are not
-# exercised here — they're R3 follow-up work.
+# exercised here — they're R3-b follow-up work and require a real
+# Linux host (Docker Desktop's WSL2 backend doesn't expose the bridge
+# interface to the host nftables namespace cleanly enough to be
+# evidence — see docs/r3-rollout-plan.md §3 evidence taxonomy).
 
 services:
-  # The base file already declares the harness-r2 network. We override
-  # its driver_opts to enforce internal-only routing for the strict
-  # evaluation. The network name stays the same so service references
-  # don't break.
+  # R3-a: orchestrator stays on BOTH networks. Re-declared here for
+  # clarity; compose merges service-level `networks:` with the base
+  # file (REPLACE semantics, so re-listing is required).
   orchestrator:
     networks:
-      - harness-r2
+      - harness-r2-operator
+      - harness-r2-runner
 
   runner:
     networks:
-      - harness-r2
+      - harness-r2-runner
 
   # Force the probe sidecar to actually start (default profile gating
-  # in the base file means `up` skips it). Strict mode without the probe
-  # has no observable evidence — the probe is the whole point.
+  # in the base file means `up` skips it). Strict mode without the
+  # probe has no observable evidence — the probe is the whole point.
   probe:
     profiles: []  # empty profiles = always start
     networks:
-      - harness-r2
+      - harness-r2-runner
 
 networks:
-  harness-r2:
-    name: harness-r2-network
+  # R3-a: only the runner-internal bridge becomes internal. The
+  # operator bridge (declared in the base file) stays normal so the
+  # dashboard host port (127.0.0.1:4201) survives strict mode.
+  harness-r2-runner:
+    name: harness-r2-runner-network
     driver: bridge
-    # The single behavior change vs. the base file. Default Docker
+    # The single behaviour change vs. the base file. Default Docker
     # bridges have a NAT-out hook on the host's iptables that lets
     # containers reach `0.0.0.0/0`. `internal: true` strips that hook —
-    # the bridge becomes a private LAN with no upstream gateway.
+    # the bridge becomes a private LAN with no upstream gateway. The
+    # operator bridge keeps its NAT hook so the host port mapping
+    # works.
     internal: true

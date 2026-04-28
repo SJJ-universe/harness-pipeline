@@ -203,16 +203,23 @@ test("R2-1: compose passes HARNESS_ALLOW_REMOTE=\"1\" to orchestrator", () => {
   assert.match(text, /HARNESS_ALLOW_REMOTE:\s*"1"/);
 });
 
-// ── R2-4 strict override + probe scripts ──────────────────────────
+// ── R2-4 strict override + probe scripts (rebased on R3-a topology) ─
 
-test("R2-4: strict override exists and flips harness-r2 to internal:true", () => {
+test("R2-4 / R3-a: strict override exists and flips harness-r2-runner to internal:true", () => {
   assert.ok(fs.existsSync(COMPOSE_STRICT),
     "expected docker-compose.r2-strict.override.yml");
   const text = readFile(COMPOSE_STRICT);
-  // The single behavioural change vs. the base file: `internal: true`
-  // on the harness-r2 network. Without it the override is a no-op.
-  assert.match(text, /networks:[\s\S]*?harness-r2:[\s\S]*?internal:\s*true/m,
-    "strict override must set internal: true on harness-r2");
+  // R3-a renamed the single bridge `harness-r2` to two bridges: the
+  // operator-facing one (NOT internal) and the runner-internal one
+  // (which becomes internal:true here). The single behavioural change
+  // vs. the base file is internal:true on harness-r2-runner ONLY.
+  assert.match(text, /networks:[\s\S]*?harness-r2-runner:[\s\S]*?internal:\s*true/m,
+    "strict override must set internal: true on harness-r2-runner");
+  // Negative regression: the OLD single-network name `harness-r2:` (without
+  // the `-runner` suffix) must not appear with internal:true — that was
+  // the R2-4 topology that broke the dashboard host port.
+  assert.doesNotMatch(text, /^\s{2}harness-r2:\s*\n[\s\S]{0,200}internal:\s*true/m,
+    "old single-bridge name harness-r2 should not be the internal target — use harness-r2-runner");
 });
 
 test("R2-4: strict override forces probe profile to active", () => {
@@ -350,6 +357,92 @@ test("R2.5-e: .env.r2.example documents HARNESS_REMOTE_BRIDGE_MODE", () => {
   // to report → dispatch deliberately.
   assert.match(env, /HARNESS_REMOTE_BRIDGE_MODE=off\b/,
     "default suggested value should be off (safest upgrade path)");
+});
+
+// ── R3-a two-network topology (closes R2-4 dashboard host port gap) ─
+
+test("R3-a: base compose declares two networks (operator + runner) with explicit names", () => {
+  const text = readFile(COMPOSE);
+  // Operator-facing bridge — host port mapping path. Non-internal.
+  assert.match(text, /^\s{2}harness-r2-operator:/m,
+    "expected harness-r2-operator network in base compose");
+  assert.match(
+    text,
+    /harness-r2-operator:[\s\S]*?name:\s*harness-r2-operator-network/,
+    "harness-r2-operator must have explicit name harness-r2-operator-network",
+  );
+  // Runner-internal bridge — internal-eligible (strict override flips it).
+  assert.match(text, /^\s{2}harness-r2-runner:/m,
+    "expected harness-r2-runner network in base compose");
+  assert.match(
+    text,
+    /harness-r2-runner:[\s\S]*?name:\s*harness-r2-runner-network/,
+    "harness-r2-runner must have explicit name harness-r2-runner-network",
+  );
+  // Negative regression: the old single-bridge declaration `harness-r2:`
+  // (no -operator / -runner suffix) must no longer appear at the top
+  // level networks block.
+  assert.doesNotMatch(text, /\nnetworks:\s*\n\s{2}harness-r2:\s*\n/,
+    "old single-bridge name harness-r2 should be removed from base compose");
+});
+
+test("R3-a: orchestrator dual-homed on operator + runner networks", () => {
+  const text = readFile(COMPOSE);
+  // Find the orchestrator service block.
+  const orchBlock = text.match(
+    /^\s{2}orchestrator:[\s\S]*?(?=\n\s{2}[a-z][a-z0-9_-]*:\s*\n|\nnetworks:|\nvolumes:|\Z)/m,
+  );
+  assert.ok(orchBlock, "expected orchestrator service block");
+  assert.match(orchBlock[0], /networks:[\s\S]*?-\s*harness-r2-operator/,
+    "orchestrator must attach to harness-r2-operator (host port path)");
+  assert.match(orchBlock[0], /networks:[\s\S]*?-\s*harness-r2-runner/,
+    "orchestrator must attach to harness-r2-runner (intra-bridge with runner)");
+});
+
+test("R3-a: runner attached ONLY to harness-r2-runner (not operator)", () => {
+  const text = readFile(COMPOSE);
+  const runnerBlock = text.match(
+    /^\s{2}runner:[\s\S]*?(?=\n\s{2}[a-z][a-z0-9_-]*:\s*\n|\nnetworks:|\nvolumes:|\Z)/m,
+  );
+  assert.ok(runnerBlock, "expected runner service block");
+  assert.match(runnerBlock[0], /networks:[\s\S]*?-\s*harness-r2-runner/,
+    "runner must attach to harness-r2-runner");
+  assert.doesNotMatch(runnerBlock[0], /networks:[\s\S]*?-\s*harness-r2-operator/,
+    "runner must NOT attach to operator bridge — egress isolation gone if it does");
+});
+
+test("R3-a: probe attached ONLY to harness-r2-runner (probe tests runner-bridge isolation)", () => {
+  const text = readFile(COMPOSE);
+  const probeBlock = text.match(
+    /^\s{2}probe:[\s\S]*?(?=\n\s{2}[a-z][a-z0-9_-]*:\s*\n|\nnetworks:|\nvolumes:|\Z)/m,
+  );
+  assert.ok(probeBlock, "expected probe service block");
+  assert.match(probeBlock[0], /networks:[\s\S]*?-\s*harness-r2-runner/,
+    "probe must attach to harness-r2-runner (where the runner sits)");
+  assert.doesNotMatch(probeBlock[0], /networks:[\s\S]*?-\s*harness-r2-operator/,
+    "probe must NOT attach to operator bridge — probe is supposed to test what the runner sees");
+});
+
+test("R3-a: strict override does NOT mark harness-r2-operator as internal", () => {
+  // The whole point of R3-a: operator bridge stays open so the host port
+  // mapping survives strict mode. If the override accidentally flips
+  // operator to internal:true, the dashboard becomes unreachable from
+  // the host again — same regression R3-a is supposed to close.
+  const text = readFile(COMPOSE_STRICT);
+  // If the override declares the operator network at all, it must NOT
+  // set internal:true on it. The simplest implementation just doesn't
+  // declare the operator network at top level — but if a future
+  // refactor adds a declaration (e.g. labels, custom IPAM), this guard
+  // still holds.
+  if (/^\s{2}harness-r2-operator:/m.test(text)) {
+    const operBlock = text.match(
+      /^\s{2}harness-r2-operator:[\s\S]*?(?=\n\s{2}[a-z][a-z0-9_-]*:\s*\n|\Z)/m,
+    );
+    if (operBlock) {
+      assert.doesNotMatch(operBlock[0], /internal:\s*true/,
+        "operator bridge must stay non-internal — dashboard host port survives strict mode");
+    }
+  }
 });
 
 // ── Dockerfile.runner regression guard ────────────────────────────
