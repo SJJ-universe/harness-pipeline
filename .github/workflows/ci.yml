@@ -116,11 +116,13 @@ jobs:
         run: npm run audit:moderate
         continue-on-error: true
 
-      # Live readiness check — exits 0 only when total ≥ 14/15. The
-      # script spawns its own throwaway harness on port 5099, runs the
-      # http endpoint checks alongside the in-process behavior checks,
-      # then prints the human-readable star table.
-      - name: Readiness gate (live, ≥ 14/15)
+      # Live readiness check — exits 0 only when total ≥ 17/18 (post
+      # Slice R1-i, was ≥ 14/15). The script spawns its own throwaway
+      # harness on port 5099, runs the http endpoint checks alongside
+      # the in-process behavior checks, then prints the human-readable
+      # star table. R1-i added the remote-isolation category and scaled
+      # thresholds proportionally.
+      - name: Readiness gate (live, ≥ 17/18)
         run: npm run readiness:check
 
       # Doc freshness gate — fails with a clear "STALE: ..." message

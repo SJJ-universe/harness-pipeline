@@ -1,14 +1,17 @@
 #!/usr/bin/env node
 //
 // Slice MB5 (Phase D Round 2, 2026-04-27) — readiness-report.
+// Slice R1-i (Phase D R1, 2026-04-28) — extended to 18 stars.
 //
 // One-shot operator check that scores the harness against
-// docs/readiness-rubric.md. Exit code maps to release-readiness:
+// docs/readiness-rubric.md. Exit code maps to release-readiness.
+// Thresholds scaled proportionally when remote-isolation joined the
+// rubric:
 //
-//   0 — total ≥ 14 (release-ready)
-//   1 — total ≥ 10 (preview-ready)
-//   2 — total ≥ 6  (internal-only)
-//   3 — total < 6  (blocking — do not ship)
+//   0 — total ≥ 17 (release-ready)        was ≥14/15
+//   1 — total ≥ 12 (preview-ready)        was ≥10/15
+//   2 — total ≥ 7  (internal-only)        was ≥6/15
+//   3 — total < 7  (blocking — do not ship)
 //
 // Usage:
 //   node scripts/readiness-report.js                # human-readable
@@ -245,6 +248,87 @@ async function scoreContractStability() {
   return { name: "contract-stability", stars };
 }
 
+// ── remote-isolation (Slice R1-i) ───────────────────────────────────
+//
+// Closes the rubric gap left by Phase D R1: a new 6th category with
+// three stars, each verified by behavior (per MD3 standard), not by
+// module-export sniffing. All three run in-process — no spawned-server
+// dependency — so this category gives a stable signal even in
+// sandboxed environments that can't bind a port.
+
+async function scoreRemoteIsolation() {
+  const stars = [];
+
+  // Star 1 — fail-closed by default. setupRemoteRunner with empty env
+  // returns mode="off" + null registry, so server.js will mount the
+  // runner routes in the 404-everything posture. This is the workspace
+  // boundary closed-by-default that MG1 §10.1 promises.
+  try {
+    const { setupRemoteRunner } = require("../src/server/remoteRunnerSetup");
+    const off = setupRemoteRunner({ env: {} });
+    if (
+      off.mode === "off" &&
+      off.runnerRegistry === null &&
+      off.jwtKey === null &&
+      off.ledgerKey === null
+    ) {
+      stars.push("HARNESS_REMOTE_MODE default = off (fail-closed, behavior verified)");
+    }
+  } catch (_) {}
+
+  // Star 2 — token model + domain separation. HKDF derives BOTH a JWT
+  // signing key and an audit-ledger signing key from the same IKM, but
+  // with different `info` labels. Compromising one must not compromise
+  // the other.
+  try {
+    const { setupRemoteRunner } = require("../src/server/remoteRunnerSetup");
+    const live = setupRemoteRunner({
+      env: { HARNESS_REMOTE_MODE: "preview", HARNESS_TOKEN: "readiness-probe-ikm" },
+    });
+    const ok =
+      live.runnerRegistry &&
+      Buffer.isBuffer(live.jwtKey) && live.jwtKey.length === 32 &&
+      Buffer.isBuffer(live.ledgerKey) && live.ledgerKey.length === 32 &&
+      live.jwtKey.toString("hex") !== live.ledgerKey.toString("hex");
+    if (ok) {
+      stars.push("HKDF JWT + ledger keys derive with domain separation (behavior verified)");
+    }
+  } catch (_) {}
+
+  // Star 3 — audit chain HMAC end-to-end. Build a temp ledger with the
+  // derived signing key, append two entries, verifyChain() must report
+  // valid:true AND every appended entry must carry sigVer:1 + sig.
+  // Catches a regression where signing is configured but not actually
+  // applied to writes (R1-c invariant).
+  try {
+    const fs = require("node:fs");
+    const os = require("node:os");
+    const path2 = require("node:path");
+    const { EvidenceLedger } = require("../src/runtime/evidenceLedger");
+    const { setupRemoteRunner } = require("../src/server/remoteRunnerSetup");
+    const live = setupRemoteRunner({
+      env: { HARNESS_REMOTE_MODE: "preview", HARNESS_TOKEN: "readiness-probe-ledger" },
+    });
+    const dir = fs.mkdtempSync(path2.join(os.tmpdir(), "readiness-ledger-"));
+    try {
+      const ledger = new EvidenceLedger({ rootDir: dir, signingKey: live.ledgerKey });
+      ledger.append("readiness-probe", { type: "auth_attempt", data: { who: "probe" } });
+      ledger.append("readiness-probe", { type: "auth_ok",      data: { who: "probe" } });
+      const v = ledger.verifyChain("readiness-probe");
+      const entries = ledger.read("readiness-probe");
+      const allSigned = entries.length === 2 &&
+        entries.every((e) => e.sigVer === 1 && typeof e.sig === "string");
+      if (v.valid && allSigned) {
+        stars.push("ledger HMAC chain verifies after signed appends (behavior verified)");
+      }
+    } finally {
+      try { fs.rmSync(dir, { recursive: true, force: true }); } catch (_) {}
+    }
+  } catch (_) {}
+
+  return { name: "remote-isolation", stars };
+}
+
 // ── server boot helper ──────────────────────────────────────────────
 
 function bootHarness() {
@@ -300,15 +384,19 @@ async function main() {
       await scoreReplayVisibility(),
       await scoreEventIntegrity(),
       await scoreContractStability(),
+      await scoreRemoteIsolation(),
     ];
 
     const total = categories.reduce((acc, c) => acc + c.stars.length, 0);
     const max = categories.length * 3;
 
+    // Slice R1-i: thresholds scaled from /15 → /18 proportionally.
+    // 14/15 ≈ 93% → 17/18 ≈ 94% (nearest int that preserves the
+    // "near-perfect" semantics of the release-ready gate).
     let exit = 3;
-    if (total >= 14) exit = 0;
-    else if (total >= 10) exit = 1;
-    else if (total >= 6) exit = 2;
+    if (total >= 17) exit = 0;
+    else if (total >= 12) exit = 1;
+    else if (total >= 7) exit = 2;
 
     if (json) {
       process.stdout.write(JSON.stringify({

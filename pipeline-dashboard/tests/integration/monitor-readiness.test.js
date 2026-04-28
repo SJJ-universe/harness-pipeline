@@ -271,20 +271,21 @@ test("MB5 readiness flow: opt-in → hydrate → select → filter → pin → i
 
 // ── readiness rubric anchor ──────────────────────────────────────────
 
-test("MB5 readiness rubric exists in repo + claims the right total", () => {
+test("MB5 + R1-i readiness rubric exists in repo + claims the right total", () => {
   const fs = require("node:fs");
   const path = require("node:path");
   const rubricPath = path.join(__dirname, "../../docs/readiness-rubric.md");
   assert.ok(fs.existsSync(rubricPath), "readiness-rubric.md present");
   const text = fs.readFileSync(rubricPath, "utf-8");
-  // Five categories at 0..3 stars = 15 max.
-  assert.match(text, /Total 15 stars/);
-  // Exit code map documented.
-  assert.match(text, /total ≥ 14.*release-ready/);
-  // Five top-level categories.
+  // R1-i (Phase D R1, 2026-04-28): rubric grew from 5×3=15 → 6×3=18 stars
+  // when the remote-isolation category landed.
+  assert.match(text, /Total 18 stars/);
+  // Exit code map documented (post-R1-i thresholds).
+  assert.match(text, /total ≥ 17.*release-ready/);
+  // All six top-level categories.
   for (const cat of [
     "Run visibility", "Child visibility", "Replay visibility",
-    "Event integrity", "Contract stability",
+    "Event integrity", "Contract stability", "Remote isolation",
   ]) {
     assert.match(text, new RegExp(cat));
   }
@@ -304,8 +305,8 @@ test("MB5 readiness-report.js script exists + exits with 0..3", () => {
   assert.match(src, /--json/);
 });
 
-test("MC4: readiness-report stars are now BEHAVIOR-verified, not export-checks", () => {
-  // Source-grep anchor: every star-3 in the 5 categories must include
+test("MC4 + R1-i: readiness-report stars are BEHAVIOR-verified, not export-checks", () => {
+  // Source-grep anchor: every star-3 in the 6 categories must include
   // "behavior verified" or otherwise actually exercise behavior. This
   // guards against future regressions where a star slips back to a
   // typeof-export check.
@@ -321,6 +322,10 @@ test("MC4: readiness-report stars are now BEHAVIOR-verified, not export-checks",
   assert.match(src, /bridge run sync upserts run on pipeline_start \(behavior verified\)/);
   assert.match(src, /layout panels override invokes stub panel\.create \(behavior verified\)/);
   assert.match(src, /normalize\(\) yields canonical envelope shape/);
+  // R1-i remote-isolation: all three stars are in-process behavior checks.
+  assert.match(src, /HARNESS_REMOTE_MODE default = off \(fail-closed, behavior verified\)/);
+  assert.match(src, /HKDF JWT \+ ledger keys derive with domain separation \(behavior verified\)/);
+  assert.match(src, /ledger HMAC chain verifies after signed appends \(behavior verified\)/);
   // Sanity: the old typeof-only string is gone.
   assert.equal(/store\.snapshot\.pinnedEvents shape ready/.test(src), false);
 });

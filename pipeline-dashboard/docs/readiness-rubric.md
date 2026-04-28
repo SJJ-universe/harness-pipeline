@@ -12,9 +12,11 @@ _(test-count line above auto-derived by `npm run scorecard:sync`; do not hand-ed
 
 A passing test count is necessary; a passing readiness check is what tells the team "we are ready to ship Phase D Round 2 / start Phase 3 design / cut a release".
 
-## 2. The five readiness categories
+## 2. The six readiness categories
 
-Each category has 0..3 stars. Total 15 stars across the rubric. A category at 0 stars means **blocking** — the release can't go out. 1 star is acceptable for an internal preview. 2+ stars is required for an external release.
+Each category has 0..3 stars. Total 18 stars across the rubric. A category at 0 stars means **blocking** — the release can't go out. 1 star is acceptable for an internal preview. 2+ stars is required for an external release.
+
+> Slice R1-i (Phase D R1, 2026-04-28) added the **remote-isolation** category, lifting the cap from 15 to 18 stars and re-scaling the gate thresholds proportionally.
 
 ### 2.1 Run visibility
 
@@ -66,6 +68,18 @@ Each category has 0..3 stars. Total 15 stars across the rubric. A category at 0 
 | ★★ | The legacy `/api/server/info` and `/api/runs/current` shapes are unchanged from before Phase D — additive contracts only (MB1 was additive). |
 | ★★★ | A new monitor panel can be added by registering a `panels.X` override in `HarnessMonitorLayout.mount` without modifying any other module. |
 
+### 2.6 Remote isolation
+
+**Question**: When the operator opts into the remote-runner subsystem, does the trust boundary actually hold?
+
+| Stars | Criterion |
+| --- | --- |
+| ★ | `HARNESS_REMOTE_MODE` defaults to `"off"` (workspace-boundary closed). `setupRemoteRunner({ env: {} })` returns `mode="off"`, `runnerRegistry=null`, both keys `null`; `createRunnerRoutes(mode="off")` 404s every route. |
+| ★★ | Token model with HKDF domain separation. The JWT signing key (`info="runner-jwt"`) and the audit-ledger signing key (`info="audit-ledger"`) derive from the same `HARNESS_TOKEN` IKM but produce two independent 32-byte keys. Compromising one must not compromise the other. |
+| ★★★ | Audit chain HMAC end-to-end. After a signing key is configured, every `EvidenceLedger.append` writes `sigVer:1 + sig` and `verifyChain(runId)` returns `valid:true`. R1-c invariant: signing config that doesn't actually sign writes is a regression. |
+
+> The full agent flow (handshake → heartbeat sliding TTL → JWT-authenticated WS hook → graceful release) is exercised by the integration suite (`tests/integration/runner-server-wiring.test.js`, `runner-routes.test.js`). The readiness rubric verifies the three structural invariants above; the suite verifies the choreography.
+
 ## 3. Current readiness (auto-derived, live mode)
 
 The numbers below come from `npm run scorecard:sync` running
@@ -75,7 +89,7 @@ and exercises the http endpoints alongside the in-process module
 checks. This is the canonical signal; the rest of this document and
 the doc-sync test suite agree that "readiness" means "live readiness".
 
-**Total** (live, server-spawned): <!-- AUTO:readiness-total -->**15 / 15**<!-- /AUTO -->.
+**Total** (live, server-spawned): <!-- AUTO:readiness-total -->**18 / 18**<!-- /AUTO -->.
 
 Per-category breakdown (live):
 
@@ -83,9 +97,10 @@ Per-category breakdown (live):
   - child-visibility: 3/3
   - replay-visibility: 3/3
   - event-integrity: 3/3
-  - contract-stability: 3/3<!-- /AUTO -->
+  - contract-stability: 3/3
+  - remote-isolation: 3/3<!-- /AUTO -->
 
-A 12+ score means "ready for external preview"; 14+ for a release tag.
+A 12+ score means "ready for external preview"; 17+ for a release tag.
 
 _(totals + per-category breakdown above auto-derived by `npm run scorecard:sync`; do not hand-edit between markers.)_
 
@@ -93,8 +108,8 @@ _(totals + per-category breakdown above auto-derived by `npm run scorecard:sync`
 
 | Mode | Command | What it scores | When to use |
 | --- | --- | --- | --- |
-| **Live** (default) | `npm run readiness:check` <br> `npm run scorecard:sync` | All 5 categories × 3 stars (15 max). HTTP checks plus in-process behavior. | Local dev, CI, release gating. |
-| **Static** | `node scripts/readiness-report.js --no-spawn` <br> `node scripts/sync-scorecard.js --no-spawn` | Only stars verifiable without a server (currently 6/15: replay-visibility 2/3 + event-integrity 3/3 + contract-stability 1/3). | Sandboxed runners that cannot bind a port. |
+| **Live** (default) | `npm run readiness:check` <br> `npm run scorecard:sync` | All 6 categories × 3 stars (18 max). HTTP checks plus in-process behavior. | Local dev, CI, release gating. |
+| **Static** | `node scripts/readiness-report.js --no-spawn` <br> `node scripts/sync-scorecard.js --no-spawn` | Only stars verifiable without a server (currently 9/18: replay-visibility 2/3 + event-integrity 3/3 + contract-stability 1/3 + remote-isolation 3/3). | Sandboxed runners that cannot bind a port. |
 
 The static score is **honest, not artificially low** — it tells you
 exactly how many readiness criteria you can verify when you can't boot
@@ -112,6 +127,7 @@ Each entry below records when a category last hit its third star.
 | Replay visibility | MA6 + AA-2 | Pinned events survive ring eviction; `snapshot({runId, includeGlobal})` |
 | Event integrity | MC4 | Bridge forward + run-sync verifications upgraded to behavior checks |
 | Contract stability | MC4 | Layout panels-override checked by stub-panel behavior, not just type-check |
+| Remote isolation | R1-i | Default off + HKDF domain separation + signed audit chain (all 3 stars behavior-verified, in-process) |
 
 ## 4. How readiness checks run
 
@@ -130,26 +146,34 @@ $ node scripts/readiness-report.js
     + bridge run sync upserts run on pipeline_start (behavior verified)
   contract-stability   ★★★  (3/3)
     + layout panels override invokes stub panel.create (behavior verified)
+  remote-isolation     ★★★  (3/3)
+    + HARNESS_REMOTE_MODE default = off (fail-closed, behavior verified)
+    + HKDF JWT + ledger keys derive with domain separation (behavior verified)
+    + ledger HMAC chain verifies after signed appends (behavior verified)
   ───────────────────────────────
-  total                15/15  → release-ready
+  total                18/18  → release-ready
 ```
 
 **Slice MC4 (Phase D Round 2.5)**: every star is now BEHAVIOR-verified — the
 report instantiates real modules, drives them with test data, and asserts
 the runtime outcome. Previously several stars passed simply because a
-module export existed. The 15/15 total is the same; what changed is that
-the verifications are now meaningful.
+module export existed.
 
-Exit codes:
-- `0` — total ≥ 14 (release-ready)
-- `1` — total ≥ 10 (preview-ready)
-- `2` — total ≥ 6  (internal-only)
-- `3` — total < 6  (blocking — do not ship)
+**Slice R1-i (Phase D R1)**: a sixth category, **remote-isolation**, joins
+the rubric with three in-process behavior checks (default fail-closed,
+HKDF domain separation, audit-chain HMAC round-trip). The cap rises from
+15 to 18 stars and the gate thresholds re-scale proportionally.
+
+Exit codes (post-R1-i):
+- `0` — total ≥ 17 (release-ready)
+- `1` — total ≥ 12 (preview-ready)
+- `2` — total ≥ 7  (internal-only)
+- `3` — total < 7  (blocking — do not ship)
 
 The `--json` flag produces machine-readable output for PR gates.
 
 The `--no-spawn` flag skips the server boot. Use it when the runner
-cannot bind a port — the resulting score (currently 6/15) only counts
+cannot bind a port — the resulting score (currently 9/18) only counts
 the in-process behavior checks. CI runs in live mode by default.
 
 ## 5. Out of scope

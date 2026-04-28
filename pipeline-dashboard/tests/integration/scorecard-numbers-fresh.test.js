@@ -48,12 +48,12 @@ test("MC5: readiness-rubric.md has the AUTO:test-counts marker", () => {
   assert.match(inner, /^\*\*\d+ unit \/ \d+ integration\*\*$/);
 });
 
-test("MC5: readiness-rubric.md has the AUTO:readiness-total marker", () => {
+test("MC5 + R1-i: readiness-rubric.md has the AUTO:readiness-total marker", () => {
   const text = readDoc(RUBRIC);
   const inner = findMarkerContent(text, "readiness-total");
   assert.ok(inner !== null, "AUTO:readiness-total marker present");
-  // Format: "**N / 15**"
-  assert.match(inner, /^\*\*\d+ \/ 15\*\*$/);
+  // R1-i (Phase D R1, 2026-04-28): rubric grew from /15 → /18.
+  assert.match(inner, /^\*\*\d+ \/ 18\*\*$/);
 });
 
 test("MC5: readiness-rubric.md has the AUTO:readiness-stars marker", () => {
