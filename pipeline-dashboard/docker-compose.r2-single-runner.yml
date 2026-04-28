@@ -1,0 +1,143 @@
+# Slice R2-1 (Phase D R2 deployment evaluation, 2026-04-28)
+#
+# Single-runner evaluation harness. NOT for production.
+#
+# What this brings up:
+#
+#   orchestrator   — Node 24 container running server.js, dashboard at
+#                    http://127.0.0.1:4201 (loopback only). Listens on
+#                    0.0.0.0:4201 inside the container; the host's port
+#                    publishing pins it to loopback. HARNESS_TOKEN gates
+#                    the dashboard surface; runner subsystem (preview)
+#                    has its own Bearer-based auth.
+#   runner         — Node 24 container running harness-runner. Connects
+#                    to orchestrator via Docker DNS (http://orchestrator).
+#                    /work/in is the (operator-supplied) read-only mount
+#                    point; /work/out is tmpfs (no persistence, nothing
+#                    written by the runner survives container restart).
+#   probe          — alpine:3.20 sidecar in the same network. Profiled —
+#                    only spins up when invoked with --profile probe.
+#                    Used by R2-4 strict probes (169.254 / RFC1918 /
+#                    public host blocking checks).
+#
+# Lifecycle (manual; this is NOT in CI):
+#
+#   1. Copy .env.r2.example → .env.r2 and fill in real values.
+#   2. ./scripts/r2-up.sh  (Linux/WSL/Git Bash)
+#      pwsh -File scripts/r2-up.ps1  (Windows native)
+#   3. Inspect logs / poke endpoints.
+#   4. ./scripts/r2-eval.sh  (runs the smoke check)
+#   5. ./scripts/r2-down.sh
+#
+# The orchestrator binds dashboard on 127.0.0.1:4201 (host loopback only).
+# An operator who wants to view the dashboard runs:
+#
+#   curl http://127.0.0.1:4201/api/health
+#
+# from the same host. Cross-LAN access is blocked at the docker port
+# publish layer.
+
+services:
+  orchestrator:
+    container_name: harness-orchestrator-r2
+    build:
+      context: .
+      dockerfile: Dockerfile.orchestrator
+    environment:
+      # HKDF IKM. derives jwtKey + ledgerKey with domain separation
+      # (info=runner-jwt vs info=audit-ledger).
+      HARNESS_TOKEN: "${HARNESS_TOKEN:?HARNESS_TOKEN is required — copy .env.r2.example to .env.r2 and fill it in}"
+      # preview = full subsystem on (HKDF-derived keys, runner registry,
+      # routes mounted). off = subsystem dormant; routes 404.
+      HARNESS_REMOTE_MODE: "${HARNESS_REMOTE_MODE:-preview}"
+      # Bootstrap mapping: orchestrator looks up env var
+      # HARNESS_REMOTE_RUNNER_TOKEN_<sanitized-host>. Sanitize: replace
+      # any non-alnum with '_'. For HARNESS_HOST_IDENTITY=runner-r2-001
+      # the env var is HARNESS_REMOTE_RUNNER_TOKEN_runner_r2_001.
+      HARNESS_REMOTE_RUNNER_TOKEN_runner_r2_001: "${RUNNER_BOOTSTRAP_TOKEN:?RUNNER_BOOTSTRAP_TOKEN is required}"
+      PORT: "4201"
+      HARNESS_ALLOW_REMOTE: "true"
+    ports:
+      # Loopback-only publish — the only way for the host to reach the
+      # dashboard is via 127.0.0.1:4201. Cross-LAN blocked.
+      - "127.0.0.1:4201:4201"
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:4201/api/health',{timeout:2000},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 8
+      start_period: 6s
+    networks:
+      - harness-r2
+    volumes:
+      # Persist the evidence ledger + run registry across container
+      # restarts so audit chains survive an orchestrator bounce.
+      # /app/runs is the rootDir for both RunRegistry and EvidenceLedger;
+      # see server.js (`runsDir = path.join(REPO_ROOT, "runs")`).
+      - r2-evidence:/app/runs
+    restart: "no"  # eval harness — no auto-restart
+    cap_drop: ["ALL"]
+    security_opt:
+      - "no-new-privileges:true"
+
+  runner:
+    container_name: harness-runner-r2
+    build:
+      context: .
+      dockerfile: Dockerfile.runner
+    environment:
+      HARNESS_HOST_IDENTITY: "${HARNESS_HOST_IDENTITY:-runner-r2-001}"
+      HARNESS_BOOTSTRAP_TOKEN: "${RUNNER_BOOTSTRAP_TOKEN:?RUNNER_BOOTSTRAP_TOKEN is required}"
+      # Docker DNS resolves "orchestrator" to the orchestrator service IP.
+      HARNESS_ORCHESTRATOR_URL: "http://orchestrator:4201"
+      HARNESS_RUN_ID: "${HARNESS_RUN_ID:-rr-r2-eval-001}"
+      # Pre-issued by scripts/r2-up.{sh,ps1}; written into .env.r2.
+      HARNESS_RUN_JWT: "${HARNESS_RUN_JWT:?HARNESS_RUN_JWT is required (run scripts/r2-up to issue)}"
+      HARNESS_SANDBOX_CLASS: "container-strict"
+      # Slow heartbeat for eval — keeps logs readable. Real deployments
+      # would tighten this.
+      HARNESS_HEARTBEAT_INTERVAL_MS: "5000"
+    depends_on:
+      orchestrator:
+        condition: service_healthy
+    networks:
+      - harness-r2
+    tmpfs:
+      # MG1 §2.1: /work/out is tmpfs, sized + noexec. R2-5 verifies.
+      - /work/out:rw,noexec,size=64m
+    # /work/in is read-only mount placeholder — operator supplies on
+    # demand. R1 doesn't run user code so this is empty for the eval.
+    read_only: false  # /tmp + /work/out tmpfs need write
+    cap_drop: ["ALL"]
+    security_opt:
+      - "no-new-privileges:true"
+    restart: "no"
+
+  # R2-4 probe sidecar. Profiled — `docker compose up` does NOT start it
+  # by default. To activate:
+  #   docker compose -f docker-compose.r2-single-runner.yml --profile probe up -d probe
+  # Then exec into it for network reachability tests:
+  #   docker exec -it harness-probe-r2 sh
+  probe:
+    container_name: harness-probe-r2
+    image: alpine:3.20
+    profiles: ["probe"]
+    command: ["sleep", "infinity"]
+    networks:
+      - harness-r2
+    cap_drop: ["ALL"]
+    security_opt:
+      - "no-new-privileges:true"
+    restart: "no"
+
+networks:
+  harness-r2:
+    name: harness-r2-network
+    driver: bridge
+    # R2-1 baseline — open egress (default Docker behavior). R2-4 will
+    # introduce a strict variant via override file or new compose with
+    # internal: true + nftables sidecar + dnsmasq controlled resolver.
+
+volumes:
+  r2-evidence:
+    name: harness-r2-evidence

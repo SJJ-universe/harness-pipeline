@@ -265,6 +265,72 @@ test("requireStateChangingToken: POST with correct token => next()", () => {
   });
 });
 
+// ── R2-1 runner-route exemption ─────────────────────────────────────
+
+test("R2-1: requireStateChangingToken exempts /runner/* paths (Bearer auth lives there)", () => {
+  // Runner routes (handshake / heartbeat / hook) have their own
+  // Bearer-token auth (bootstrap → runnerToken → runJWT). They must NOT
+  // also require the dashboard's x-harness-token because remote runner
+  // hosts will never have it. Verify each runner sub-path passes
+  // without x-harness-token.
+  withCleanEnv(() => {
+    process.env.HARNESS_TOKEN = "tok-runner-exempt";
+    try {
+      const a = createAuthMiddleware({ repoRoot: mkTmpRoot() });
+      for (const path of ["/runner/handshake", "/runner/heartbeat", "/runner/hook"]) {
+        const ctx = makeReqRes();
+        ctx.req.method = "POST";
+        ctx.req.path = path; // Express strips the mount prefix /api
+        // Deliberately omit x-harness-token.
+        let nextCalled = false;
+        a.requireStateChangingToken(ctx.req, ctx.res, () => { nextCalled = true; });
+        assert.equal(nextCalled, true,
+          `expected ${path} to pass without x-harness-token (Bearer auth lives in the route)`);
+      }
+    } finally { delete process.env.HARNESS_TOKEN; }
+  });
+});
+
+test("R2-1: requireStateChangingToken still enforces token on non-runner /api/* paths", () => {
+  // Negative regression: only /runner/* is exempt. Other state-changing
+  // paths (templates, executor, codex, etc.) must still 401 without the
+  // dashboard token.
+  withCleanEnv(() => {
+    process.env.HARNESS_TOKEN = "tok-still-enforced";
+    try {
+      const a = createAuthMiddleware({ repoRoot: mkTmpRoot() });
+      for (const path of ["/templates", "/executor/start", "/codex/run", "/runs/current"]) {
+        const ctx = makeReqRes();
+        ctx.req.method = "POST";
+        ctx.req.path = path;
+        let nextCalled = false;
+        a.requireStateChangingToken(ctx.req, ctx.res, () => { nextCalled = true; });
+        assert.equal(nextCalled, false,
+          `expected ${path} to be rejected without x-harness-token`);
+        assert.equal(ctx.status, 401);
+      }
+    } finally { delete process.env.HARNESS_TOKEN; }
+  });
+});
+
+test("R2-1: requireStateChangingToken exemption is path-startsWith, not substring", () => {
+  // Defensive: "/runner-evil" should NOT match "/runner/" prefix even
+  // though it contains the substring "runner".
+  withCleanEnv(() => {
+    process.env.HARNESS_TOKEN = "tok-prefix";
+    try {
+      const a = createAuthMiddleware({ repoRoot: mkTmpRoot() });
+      const ctx = makeReqRes();
+      ctx.req.method = "POST";
+      ctx.req.path = "/runner-impersonator";  // attacker-named route
+      let nextCalled = false;
+      a.requireStateChangingToken(ctx.req, ctx.res, () => { nextCalled = true; });
+      assert.equal(nextCalled, false, "non-runner-prefix paths must NOT bypass auth");
+      assert.equal(ctx.status, 401);
+    } finally { delete process.env.HARNESS_TOKEN; }
+  });
+});
+
 test("requireStateChangingToken: PUT/PATCH/DELETE all enforced", () => {
   withCleanEnv(() => {
     process.env.HARNESS_TOKEN = "tok-2";

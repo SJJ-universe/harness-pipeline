@@ -24,6 +24,9 @@ coverage/
 !.env.example
 !.env.sample
 !.env.template
+# Slice R2-1 (Phase D R2, 2026-04-28): R2 deployment evaluation env
+# template. The filled-in copy (.env.r2) stays ignored.
+!.env.r2.example
 dist/
 build/
 .DS_Store

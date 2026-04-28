@@ -1,0 +1,97 @@
+# Slice R2-1 (Phase D R2 deployment evaluation, 2026-04-28) — orchestrator
+# container image. Companion to Dockerfile.runner.
+#
+# Multi-stage build modelled on Dockerfile.runner (R1-f). The same security
+# posture applies — non-root user, --ignore-scripts during deps install,
+# minimal runtime surface. Different from the runner image:
+#
+#   - includes the full orchestrator surface (server.js, executor/, src/,
+#     public/, hooks/, pipeline-templates.json) — the runner image
+#     deliberately excludes all of this.
+#   - exposes :4201 for the dashboard + runner WS upgrade endpoint.
+#   - HOST defaults to 0.0.0.0 inside the container so docker port
+#     mapping can reach it. The auth middleware is still active
+#     (HARNESS_TOKEN-gated). Operators are expected to publish ports as
+#     `127.0.0.1:4201:4201` so only the host loopback can reach the
+#     dashboard.
+#
+# Build:
+#   docker build -t harness-orchestrator:dev -f Dockerfile.orchestrator .
+#
+# Run (manual; the docker-compose.r2-single-runner.yml file wraps this):
+#   docker run --rm -it \
+#     -e HARNESS_TOKEN=<token> \
+#     -e HARNESS_REMOTE_MODE=preview \
+#     -p 127.0.0.1:4201:4201 \
+#     harness-orchestrator:dev
+
+# ── deps stage ─────────────────────────────────────────────────────
+FROM node:24-bookworm-slim AS deps
+
+WORKDIR /app
+
+# Layer-cache: copy lockfile separately so package source changes don't
+# bust the deps cache.
+COPY package.json package-lock.json ./
+
+RUN npm ci --omit=dev --ignore-scripts
+
+# ── runtime stage ──────────────────────────────────────────────────
+FROM node:24-bookworm-slim AS runtime
+
+# Non-root account. UID 10100 to keep clear visual separation from the
+# runner's UID 10001 — if both images mount a shared volume by accident,
+# we want the file owners to differentiate at a glance.
+RUN groupadd --system --gid 10100 harness \
+  && useradd --system --uid 10100 --gid 10100 \
+       --home-dir /app --no-create-home --shell /usr/sbin/nologin \
+       harness
+
+WORKDIR /app
+
+COPY --from=deps /app/node_modules /app/node_modules
+
+# Orchestrator surface. Every module the server boots into needs to be
+# present; the runner image excludes all of this on purpose.
+COPY server.js              ./server.js
+COPY session-watcher.js     ./session-watcher.js
+COPY codex-triggers.js      ./codex-triggers.js
+COPY context-loader.js      ./context-loader.js
+COPY pipeline-templates.json ./pipeline-templates.json
+COPY executor               ./executor
+COPY src                    ./src
+COPY public                 ./public
+COPY hooks                  ./hooks
+COPY contracts              ./contracts
+COPY policies               ./policies
+COPY fixtures               ./fixtures
+
+# Writable workspaces for the orchestrator. Both directories must exist
+# AND be writable by the non-root user before the orchestrator boots —
+# the Node code does mkdirSync(..., {recursive:true}) which fails on
+# /app because /app itself is root-owned in node:24-bookworm-slim.
+#   /app/.harness  — local auth token; recreated on first boot if absent
+#   /app/runs      — RunRegistry + EvidenceLedger (audit chain) root
+# In compose, /app/runs is mounted as a named volume so the audit chain
+# survives container restarts. /app/.harness can be ephemeral.
+RUN mkdir -p /app/.harness /app/runs \
+  && chown -R harness:harness /app/.harness /app/runs
+
+USER harness
+
+ENV NODE_ENV=production
+ENV PORT=4201
+# 0.0.0.0 binding inside the container; the host should publish the port
+# as 127.0.0.1:4201:4201 so only the host loopback can reach the
+# dashboard. Auth middleware enforces HARNESS_TOKEN regardless.
+ENV HARNESS_ALLOW_REMOTE=true
+
+EXPOSE 4201
+
+# HEALTHCHECK probes the auth-free /api/health endpoint. The runner uses
+# this same endpoint via its handshake URL build, so a healthcheck pass
+# implies the runner can reach the orchestrator over the docker network.
+HEALTHCHECK --interval=10s --timeout=3s --start-period=8s --retries=3 \
+    CMD node -e "require('http').get('http://127.0.0.1:4201/api/health',{timeout:2000},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
+
+ENTRYPOINT ["node", "/app/server.js"]

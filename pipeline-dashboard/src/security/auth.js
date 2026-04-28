@@ -99,6 +99,15 @@ function createAuthMiddleware({ repoRoot, host = "127.0.0.1", allowRemote = fals
 
   function requireStateChangingToken(req, res, next) {
     if (!["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) return next();
+    // Slice R2-1 (Phase D R2, 2026-04-28) — exempt the runner subsystem.
+    // /api/runner/* routes have their own Bearer-token auth (single-use
+    // bootstrap → 24h sliding-TTL runnerToken → per-run runJWT, see
+    // MG1 §4 + §8.1). They MUST NOT also require the dashboard's
+    // x-harness-token because remote runner hosts will never have it
+    // (the dashboard token is operator-only). When mounted under
+    // app.use("/api", mw), Express strips the mount prefix, so
+    // req.path for /api/runner/handshake is "/runner/handshake".
+    if (req.path && req.path.startsWith("/runner/")) return next();
     const supplied = req.headers["x-harness-token"];
     if (!safeEqual(supplied, token)) {
       return res.status(401).json({ error: "missing or invalid harness token" });
