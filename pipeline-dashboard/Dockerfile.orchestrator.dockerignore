@@ -1,0 +1,52 @@
+# Slice R2-1 (Phase D R2 deployment evaluation, 2026-04-28)
+#
+# BuildKit's per-Dockerfile dockerignore: when this file exists,
+# `docker build -f Dockerfile.orchestrator` uses THIS file instead of
+# the project-wide .dockerignore (which is tuned for the runner image
+# and excludes orchestrator code on purpose).
+#
+# Keep this list narrow — only exclude what's clearly never useful in
+# the orchestrator runtime image. Everything else flows through.
+
+# Build artifacts / VCS / editor noise
+.git
+.github
+.gitignore
+.editorconfig
+.vscode
+.idea
+*.log
+*.tgz
+*.tar.gz
+
+# Tests + benchmarks (never in runtime image — the dashboard doesn't
+# run them at boot)
+tests
+test
+coverage
+.nyc_output
+
+# Docs + plans (operator reads these on the host, not in the container)
+docs
+plan-*.md
+*.md
+
+# R2 evaluation harness artifacts (not orchestrator runtime code)
+.env.r2
+.env.r2.example
+docker-compose.r2-single-runner.yml
+Dockerfile.runner
+Dockerfile.runner.dockerignore
+Dockerfile.orchestrator.dockerignore
+
+# SBOM build output
+sbom.cyclonedx.json
+
+# Dependencies re-installed in the deps stage
+node_modules
+
+# Local development noise
+.harness
+runs
+.uv-cache
+.cache

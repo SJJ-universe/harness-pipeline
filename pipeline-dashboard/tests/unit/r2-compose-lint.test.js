@@ -157,15 +157,40 @@ test("R2-1: Dockerfile.orchestrator creates writable /app/runs + /app/.harness",
   // would fail on root-owned /app.
   const text = readFile(DOCKERFILE_ORCH);
   assert.match(text, /mkdir\s+-p\s+\/app\/\.harness\s+\/app\/runs/);
+  // chown covers the writable workspaces. /app/dashboard is included so
+  // any boot-time tooling can write its own scratch state too.
   assert.match(text, /chown\s+-R\s+harness:harness\s+\/app\/\.harness\s+\/app\/runs/);
 });
 
-test("R2-1: Dockerfile.orchestrator uses HARNESS_ALLOW_REMOTE=true (binds 0.0.0.0)", () => {
+test("R2-1: Dockerfile.orchestrator places server.js under /app/dashboard (REPO_ROOT = /app)", () => {
+  // server.js does `REPO_ROOT = path.resolve(__dirname, "..")`. If we put
+  // server.js at /app/server.js, REPO_ROOT resolves to / and the runs
+  // dir becomes /runs (unwritable). Putting server.js at /app/dashboard
+  // gives REPO_ROOT = /app + runsDir = /app/runs which matches the
+  // mkdir + chown above.
+  const text = readFile(DOCKERFILE_ORCH);
+  assert.match(text, /WORKDIR\s+\/app\/dashboard/,
+    "WORKDIR must be /app/dashboard so REPO_ROOT resolves to /app");
+  assert.match(text, /ENTRYPOINT\s+\["node",\s*"\/app\/dashboard\/server\.js"\]/,
+    "ENTRYPOINT must point at /app/dashboard/server.js");
+});
+
+test("R2-1: Dockerfile.orchestrator uses HARNESS_ALLOW_REMOTE=1 (binds 0.0.0.0)", () => {
   // The container can only be reached via the docker port mapping. The
   // mapping is loopback-pinned (verified above), so 0.0.0.0 inside the
   // container is safe.
+  // server.js does `ALLOW_REMOTE = process.env.HARNESS_ALLOW_REMOTE === "1"`
+  // exactly — the literal string "1" is required (not "true" / on / yes).
   const text = readFile(DOCKERFILE_ORCH);
-  assert.match(text, /ENV\s+HARNESS_ALLOW_REMOTE=true/);
+  assert.match(text, /ENV\s+HARNESS_ALLOW_REMOTE=1\b/);
+});
+
+test("R2-1: compose passes HARNESS_ALLOW_REMOTE=\"1\" to orchestrator", () => {
+  // Same rationale as the Dockerfile assertion. Compose env values
+  // override Dockerfile ENV, so this is the value the running process
+  // actually sees.
+  const text = readFile(COMPOSE);
+  assert.match(text, /HARNESS_ALLOW_REMOTE:\s*"1"/);
 });
 
 // ── Dockerfile.runner regression guard ────────────────────────────

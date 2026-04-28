@@ -47,9 +47,24 @@ RUN groupadd --system --gid 10100 harness \
        --home-dir /app --no-create-home --shell /usr/sbin/nologin \
        harness
 
-WORKDIR /app
+# Layout:
+#   /app                     — REPO_ROOT (server.js does
+#                              `path.resolve(__dirname, "..")`)
+#   /app/dashboard           — orchestrator code (server.js + deps)
+#   /app/.harness            — auth token (recreated at boot if absent)
+#   /app/runs                — RunRegistry + EvidenceLedger root
+#                              (`runsDir = path.join(REPO_ROOT, "runs")`)
+#                              MUST be writable by harness; mounted as a
+#                              named volume in compose so the audit chain
+#                              survives container restarts.
+#
+# We deliberately put server.js in /app/dashboard (NOT in /app) so that
+# the existing `path.resolve(__dirname, "..")` resolves to /app and not
+# to /. This matches the host repo layout where server.js lives in
+# pipeline-dashboard/ and the parent directory is REPO_ROOT.
+WORKDIR /app/dashboard
 
-COPY --from=deps /app/node_modules /app/node_modules
+COPY --from=deps /app/node_modules ./node_modules
 
 # Orchestrator surface. Every module the server boots into needs to be
 # present; the runner image excludes all of this on purpose.
@@ -57,6 +72,7 @@ COPY server.js              ./server.js
 COPY session-watcher.js     ./session-watcher.js
 COPY codex-triggers.js      ./codex-triggers.js
 COPY context-loader.js      ./context-loader.js
+COPY skill-registry.js      ./skill-registry.js
 COPY pipeline-templates.json ./pipeline-templates.json
 COPY executor               ./executor
 COPY src                    ./src
@@ -66,16 +82,11 @@ COPY contracts              ./contracts
 COPY policies               ./policies
 COPY fixtures               ./fixtures
 
-# Writable workspaces for the orchestrator. Both directories must exist
-# AND be writable by the non-root user before the orchestrator boots —
-# the Node code does mkdirSync(..., {recursive:true}) which fails on
-# /app because /app itself is root-owned in node:24-bookworm-slim.
-#   /app/.harness  — local auth token; recreated on first boot if absent
-#   /app/runs      — RunRegistry + EvidenceLedger (audit chain) root
-# In compose, /app/runs is mounted as a named volume so the audit chain
-# survives container restarts. /app/.harness can be ephemeral.
+# Writable workspaces at REPO_ROOT (= /app). Must be created + chowned
+# BEFORE the USER drop because /app itself is root-owned in
+# node:24-bookworm-slim and a non-root mkdirSync would fail.
 RUN mkdir -p /app/.harness /app/runs \
-  && chown -R harness:harness /app/.harness /app/runs
+  && chown -R harness:harness /app/.harness /app/runs /app/dashboard
 
 USER harness
 
@@ -84,7 +95,8 @@ ENV PORT=4201
 # 0.0.0.0 binding inside the container; the host should publish the port
 # as 127.0.0.1:4201:4201 so only the host loopback can reach the
 # dashboard. Auth middleware enforces HARNESS_TOKEN regardless.
-ENV HARNESS_ALLOW_REMOTE=true
+# server.js compares HARNESS_ALLOW_REMOTE === "1" exactly — be literal.
+ENV HARNESS_ALLOW_REMOTE=1
 
 EXPOSE 4201
 
@@ -94,4 +106,4 @@ EXPOSE 4201
 HEALTHCHECK --interval=10s --timeout=3s --start-period=8s --retries=3 \
     CMD node -e "require('http').get('http://127.0.0.1:4201/api/health',{timeout:2000},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
 
-ENTRYPOINT ["node", "/app/server.js"]
+ENTRYPOINT ["node", "/app/dashboard/server.js"]

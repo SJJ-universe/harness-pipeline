@@ -17,6 +17,15 @@
 
 set -euo pipefail
 
+# Wrap `docker exec` so MSYS / Git-Bash doesn't rewrite container-side
+# absolute paths (e.g. /app/runs/...) into `C:/Program Files/Git/...`.
+# Setting MSYS_NO_PATHCONV globally would also break `curl` (it returns
+# "client returned ERROR on write" with exit 23), so we scope it to the
+# docker calls that need it.
+docker_exec() {
+  MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' docker exec "$@"
+}
+
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_FILE="$REPO_ROOT/.env.r2"
 
@@ -47,9 +56,12 @@ report() {
 
 echo "[r2-eval] running smoke checks against the R2 single-runner harness…"
 
-# 1. Orchestrator HTTP health.
-http_status=$(curl -fsS -o /dev/null -w '%{http_code}' \
-  --max-time 5 http://127.0.0.1:4201/api/health 2>/dev/null || echo "000")
+# 1. Orchestrator HTTP health. Avoid the `... || echo "000"` pattern —
+# under Git-Bash `set -e`, both branches can run and concatenate.
+http_status="000"
+if out=$(curl -fsS -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:4201/api/health 2>/dev/null); then
+  http_status="$out"
+fi
 if [[ "$http_status" == "200" ]]; then
   report PASS "GET /api/health → 200"
 else
@@ -80,13 +92,13 @@ ws_ledger="/app/runs/${HARNESS_RUN_ID}/ledger.jsonl"
 saw_handshake=false
 saw_ws=false
 while [[ $(date +%s) -lt $deadline ]]; do
-  if ! $saw_handshake && docker exec "$ORCH" test -f "$handshake_ledger" 2>/dev/null; then
-    if docker exec "$ORCH" cat "$handshake_ledger" 2>/dev/null | grep -q '"type":"runner_handshake_ok"'; then
+  if ! $saw_handshake && docker_exec "$ORCH" test -f "$handshake_ledger" 2>/dev/null; then
+    if docker_exec "$ORCH" cat "$handshake_ledger" 2>/dev/null | grep -q '"type":"runner_handshake_ok"'; then
       saw_handshake=true
     fi
   fi
-  if ! $saw_ws && docker exec "$ORCH" test -f "$ws_ledger" 2>/dev/null; then
-    if docker exec "$ORCH" cat "$ws_ledger" 2>/dev/null | grep -q '"type":"runner_ws_connected"'; then
+  if ! $saw_ws && docker_exec "$ORCH" test -f "$ws_ledger" 2>/dev/null; then
+    if docker_exec "$ORCH" cat "$ws_ledger" 2>/dev/null | grep -q '"type":"runner_ws_connected"'; then
       saw_ws=true
     fi
   fi

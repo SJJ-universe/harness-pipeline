@@ -13,6 +13,23 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_FILE="$REPO_ROOT/docker-compose.r2-single-runner.yml"
+ENV_FILE="$REPO_ROOT/.env.r2"
+
+# Compose still validates `${VAR:?msg}` references on `down`, so we have
+# to populate them. If .env.r2 has been deleted (operator pruned it
+# already), fall back to dummy values just to satisfy interpolation —
+# the values aren't actually used at down-time.
+if [[ -f "$ENV_FILE" ]]; then
+  set -a
+  # shellcheck disable=SC1090
+  source "$ENV_FILE"
+  set +a
+fi
+export HARNESS_TOKEN="${HARNESS_TOKEN:-down-only-noop}"
+export RUNNER_BOOTSTRAP_TOKEN="${RUNNER_BOOTSTRAP_TOKEN:-down-only-noop}"
+export HARNESS_RUN_JWT="${HARNESS_RUN_JWT:-down-only-noop}"
+export HARNESS_HOST_IDENTITY="${HARNESS_HOST_IDENTITY:-runner-r2-001}"
+export HARNESS_RUN_ID="${HARNESS_RUN_ID:-rr-r2-eval-001}"
 
 CLEAN_VOLUMES=false
 for arg in "$@"; do

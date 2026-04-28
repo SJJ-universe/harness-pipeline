@@ -56,7 +56,9 @@ services:
       # the env var is HARNESS_REMOTE_RUNNER_TOKEN_runner_r2_001.
       HARNESS_REMOTE_RUNNER_TOKEN_runner_r2_001: "${RUNNER_BOOTSTRAP_TOKEN:?RUNNER_BOOTSTRAP_TOKEN is required}"
       PORT: "4201"
-      HARNESS_ALLOW_REMOTE: "true"
+      # server.js: ALLOW_REMOTE = HARNESS_ALLOW_REMOTE === "1". Must be
+      # the literal string "1" — "true" / true / yes / on do NOT work.
+      HARNESS_ALLOW_REMOTE: "1"
     ports:
       # Loopback-only publish — the only way for the host to reach the
       # dashboard is via 127.0.0.1:4201. Cross-LAN blocked.

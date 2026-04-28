@@ -6,6 +6,33 @@ $ErrorActionPreference = 'Stop'
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
 $ComposeFile = Join-Path $RepoRoot 'docker-compose.r2-single-runner.yml'
+$EnvFile = Join-Path $RepoRoot '.env.r2'
+
+# Compose still validates ${VAR:?msg} references on `down`, so we have
+# to populate them. Fall back to dummy values if .env.r2 is gone — they
+# are not actually used at teardown time.
+if (Test-Path $EnvFile) {
+    Get-Content $EnvFile | ForEach-Object {
+        $line = $_.Trim()
+        if ($line -eq '' -or $line.StartsWith('#')) { return }
+        if ($line -match '^([A-Z][A-Z0-9_]*)=(.*)$') {
+            $name = $Matches[1]
+            $value = $Matches[2]
+            if ($value -match '^"(.*)"$') { $value = $Matches[1] }
+            [Environment]::SetEnvironmentVariable($name, $value, 'Process')
+        }
+    }
+}
+foreach ($pair in @(
+    @('HARNESS_TOKEN','down-only-noop'),
+    @('RUNNER_BOOTSTRAP_TOKEN','down-only-noop'),
+    @('HARNESS_RUN_JWT','down-only-noop'),
+    @('HARNESS_HOST_IDENTITY','runner-r2-001'),
+    @('HARNESS_RUN_ID','rr-r2-eval-001'))) {
+    if (-not [Environment]::GetEnvironmentVariable($pair[0], 'Process')) {
+        [Environment]::SetEnvironmentVariable($pair[0], $pair[1], 'Process')
+    }
+}
 
 $CleanVolumes = $false
 foreach ($arg in $args) {

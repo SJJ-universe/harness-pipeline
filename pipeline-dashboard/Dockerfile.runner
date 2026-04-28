@@ -57,7 +57,8 @@ COPY --from=deps /app/node_modules /app/node_modules
 # at large) is intentionally excluded — the runner host should never carry
 # orchestrator code.
 COPY runner ./runner
-COPY src/security/jwt.js ./src/security/jwt.js
+COPY src/security/jwt.js          ./src/security/jwt.js
+COPY src/runner/runnerAgent.js    ./src/runner/runnerAgent.js
 COPY src/runtime/evidenceLedger.js ./src/runtime/evidenceLedger.js
 
 USER 10001:10001
