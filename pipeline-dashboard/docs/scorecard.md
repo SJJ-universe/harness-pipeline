@@ -2,7 +2,7 @@
 
 ## Current Score
 
-**102 / 111** (Phase 2.5 multi-run + Phase 3-S security + Phase D MA0~MA7 monitor shell + Phase D Round 2 MB1~MB6 backfill + Phase D Round 2.5 MC1~MC5 live wiring + MA7 UI-3 rewrite readiness + Phase D Round MD readiness automation + Phase D Round ME CI hygiene + Phase D Round MF P4 design RFC + Phase D Round MG P4 implementation RFC + **Phase D R1 a~i + e + g + g+ — full remote runner subsystem** + **Phase D R1-k1/k2/k3 — external review correctness round** + **Phase D R2 — single-runner deployment evaluation (live verified)**; MD2 extended Testability cap 10 → 11; R1-j extended Safety cap 15 → 16; R2 extends Safety cap 16 → 17 — deployment-verified containment, not design-only)
+**103 / 112** (Phase 2.5 multi-run + Phase 3-S security + Phase D MA0~MA7 monitor shell + Phase D Round 2 MB1~MB6 backfill + Phase D Round 2.5 MC1~MC5 live wiring + MA7 UI-3 rewrite readiness + Phase D Round MD readiness automation + Phase D Round ME CI hygiene + Phase D Round MF P4 design RFC + Phase D Round MG P4 implementation RFC + **Phase D R1 a~i + e + g + g+ — full remote runner subsystem** + **Phase D R1-k1/k2/k3 — external review correctness round** + **Phase D R2 — single-runner deployment evaluation (live verified)** + **Phase D R2.5 — controlled remote execution bridge with allowlist + sanitization + full audit narrative**; MD2 extended Testability cap 10 → 11; R1-j extended Safety cap 15 → 16; R2 extended Safety cap 16 → 17; R2.5 extends Safety cap 17 → 18 — controlled execution bridge for remote hooks, allowlist-only, opt-in via HARNESS_REMOTE_BRIDGE_MODE)
 
 Trajectory:
 - v3.1 hardening — 87
@@ -20,6 +20,7 @@ Trajectory:
 - **Phase D R1 e/g/g+** (paired runner-side: `createRunnerWsAuth` path-aware demux + `createRunnerWsHandler` connection lifecycle + `RunnerAgent` Node entrypoint state machine + WS message protocol covering `agent_started`/`agent_stopped`/`hook` + `childRegistry` remote projection + readiness Star 3 upgraded from in-process HMAC check to live runner-agent → orchestrator round-trip) — **100** (within Safety cap, completes the runner-side primitives that R1-j shipped on the orchestrator side)
 - **Phase D R1-k1/k2/k3** (external review correctness round: composite-key remote children with stop-path ownership verify + hook success audit chain entries + runner-agent env validation with sane minimums) — **101** (fills Pipeline orchestration 14 → 15 by closing the cross-run id collision, audit-chain forensic gap, and config-failure spin-loop hazards that R1-e+g exposed)
 - **Phase D R2 (R2-0 through R2-6)** (single-runner deployment evaluation: stability preflight + Docker compose harness + 4 live probe scripts + 8 latent bugs found and fixed during real `docker compose up` + go/no-go closeout report at `docs/reports/2026-04-28-r2-single-runner-eval.md`) — **102/111** (Safety cap extended 16 → 17 — strict-mode containment is now deployment-verified, not just design-verified; G1-G9 from MF1 §4.1 all PASS on the operator's Docker Desktop with repeatable evidence anchors)
+- **Phase D R2.5 (R2.5-a through R2.5-f)** (controlled remote execution bridge: 5-hook + 3-tool allowlist contract with frozen reject vocabulary + pure sanitizer + async dispatch path with 5-verb audit narrative + runner-claimed run visibility fallback + live end-to-end proof + closeout report at `docs/reports/2026-04-28-r2-5-execution-bridge-eval.md`) — **103/112** (Safety cap extended 17 → 18 — remote hooks now drive the local executor under HARNESS_REMOTE_BRIDGE_MODE=dispatch with allowlist + sanitization + full forensic chain; G4 hook ingress auth lifts from R2's "partial PASS" to R2.5's "full PASS"; r2-5-bridge-probe verifies all anchors live)
 
 Target after Phase 3 (D platformization): **103+**.
 Container sandbox + remote-mode hardening required for the multi-tenant tier.
@@ -269,9 +270,9 @@ External review #5 projected score path: 97/110 → 99/110 with these three fixe
 
 ### Long-horizon (not committed)
 
-- **R2.5 — Remote execution bridge** — move remote hooks from broadcast-only to controlled dispatch: allowlist of accepted hook names + per-tool argument validation + wiring from `routeRemote` into a sanitized subset of the local executor's on{Pre,Post,Stop,SubagentStart,SubagentStop}Tool paths. Closes the rest of G4 (hook ingress auth) and unlocks "remote runner runs user code" semantics. **Next round candidate**; do NOT skip ahead to R3 multi-runner before R2.5 lands.
+- ~~**R2.5 — Remote execution bridge**~~ — **DONE**. See [`docs/reports/2026-04-28-r2-5-execution-bridge-eval.md`](./reports/2026-04-28-r2-5-execution-bridge-eval.md). 5-hook + 3-tool allowlist + pure sanitizer + async controlled dispatch + 5-verb audit narrative + live end-to-end probe (5/5 PASS). G4 hook ingress auth lifted from "partial PASS" (R2) to "full PASS" (R2.5).
 - ~~**R2 — Single remote runner deployment evaluation**~~ — **DONE**. See [`docs/reports/2026-04-28-r2-single-runner-eval.md`](./reports/2026-04-28-r2-single-runner-eval.md). All MF1 §4.1 gates G1-G9 verified live on the operator's Docker Desktop with repeatable probe scripts (`scripts/r2-{eval,probe-egress,monitor-probe,lifecycle-probe}.{sh,ps1}`).
-- **R3 — Multi-runner pool + Linux host** — two-network topology so the dashboard stays reachable while strict mode is on; Linux host so MG1 §7 layers 2 (nftables on the bridge) + 3 (dnsmasq controlled resolver) can be exercised; WS close 1000 used by orchestrator on graceful shutdown. R2-4 re-run with the full 3-layer egress stack. Should NOT precede R2.5.
+- **R3 — Multi-runner pool + Linux host** — two-network topology so the dashboard stays reachable while strict mode is on; Linux host so MG1 §7 layers 2 (nftables on the bridge) + 3 (dnsmasq controlled resolver) can be exercised; per-call approval flow for write-side tools (Bash / Write / Edit) so R2.5's read-only allowlist can be safely expanded; WS close 1000 used by orchestrator on graceful shutdown. R2-4 re-run with the full 3-layer egress stack. **Next round candidate.**
 - **R1-stability follow-up** — flaky `evidenceLedger` TTL test causing intermittent marker drift in `sync-scorecard`. Pattern observed 4× during R1 round (commits `deb417c`, `b8e3434`, `c97fb5b`, and partial drift during R1-k3 sync). Root cause: the TTL test races between scheduled timer fire and assertion. Fix: jitter-tolerant assertion + retry logic in `sync-scorecard.js` (extract count 2× consecutively, max 3 attempts). Lower priority than R2 — current pattern is "next push fixes it" with no operational impact.
 - **Phase 3 (D platformization)** — container sandbox + remote-mode hardening + per-user RBAC. Separate product round; conditions in plan §Phase 3 still unmet. The MF design RFC + MG implementation RFC are two prerequisites; multi-tenant authentication and HA orchestrator remain separate.
 - ~~**P4 design RFC**~~ — **DONE in MF1**. See [`docs/remote-sandbox-rfc.md`](./remote-sandbox-rfc.md).
@@ -296,6 +297,30 @@ to capture the qualitative shift from "design-verified" to
 | --- | ---: | ---: |
 | Safety and security boundary | 16 | **17** |
 | **Total** | 110 | **111** |
+
+### Rubric scale change (R2.5)
+
+R2 verified that the remote runner subsystem deploys safely. R2.5
+adds a different qualitative axis: hooks emitted by the remote
+runner can now drive the local executor — but only through an
+allowlist + sanitization + full audit narrative, gated behind
+`HARNESS_REMOTE_BRIDGE_MODE`. The Safety cap extends 17 → 18 to
+capture this "controlled execution bridge" property, distinct from
+"deployment-verified containment."
+
+| Area | Pre-R2.5 max | Post-R2.5 max |
+| --- | ---: | ---: |
+| Safety and security boundary | 17 | **18** |
+| **Total** | 111 | **112** |
+
+The remaining 9 points sit in:
+
+- R3 multi-runner pool + Linux host (~3 points: layer 2 + 3 egress
+  enforcement, two-network dashboard topology, WS close 1000 path).
+- Per-call approval flow for write-side tools (~3 points: opening
+  Bash / Write / Edit through a separate decision channel).
+- Phase 3 multi-tenant orchestrator (~3 points: per-user RBAC,
+  audit log retention, runner-pool scheduling).
 
 ## Phase D R2 progress (single-runner deployment evaluation)
 
@@ -345,14 +370,81 @@ that the unit + integration suites alone could not catch (see report
   backoff → orchestrator restart → runner re-handshake on
   heartbeat-401 (R1-e-3 path verified live, not just in unit tests
   with mocked fetch).
-- **R2-6 — Closeout report** (this slice): GO verdict for R2.5.
-  See `docs/reports/2026-04-28-r2-single-runner-eval.md`. Scorecard
+- **R2-6 — Closeout report**: GO verdict for R2.5. See
+  `docs/reports/2026-04-28-r2-single-runner-eval.md`. Scorecard
   refreshed to 102/111 with Safety cap extended 16 → 17 (deployment-
   verified containment).
 
-## What 102 means
+## Phase D R2.5 progress (controlled remote execution bridge)
 
-Single-user local harness with multi-run isolation, hardened external-input boundaries, AND a monitoring-first opt-in console with live data flow + agent observability + per-run detail contract + flow-level readiness rubric + behavior-verified readiness scoring + auto-derived doc trust + dispatcher-driven extraction pattern + CI-enforced regression protection + **a complete remote-execution design RFC** + **a complete implementation RFC with concrete tech decisions for runtime / image / JWT / ledger / control plane / network egress / bootstrap / failure recovery** + **the orchestrator-side primitives of remote mode actually shipped — JWT module + signed audit ledger + runner registry + handshake/heartbeat/hook routes + Dockerfile + server.js wiring + 6th readiness rubric category (remote-isolation, behavior-verified)** + **the runner-host primitives that complete the remote subsystem — WS path-aware demux + connection-lifecycle handler + `RunnerAgent` Node entrypoint + WS message protocol + `childRegistry` remote projection + readiness Star 3 upgraded to live runner→orchestrator round-trip** + **external-review correctness hardening — composite-key remote children with stop-path ownership verify + hook success audit-chain entries + runner-agent env validation that fails fast on bad numeric env** + **R2 single-runner deployment evaluation completed — all MF1 §4.1 gates G1-G9 verified live on the operator's Docker Desktop with repeatable probe scripts; 8 latent bugs surfaced and fixed; explicit GO verdict for R2.5 remote execution bridge**. The remote-execution bridge (controlled hook dispatch with allowlist + tool-arg validation) is the missing immediate work; **multi-runner pool + Linux-host nftables / dnsmasq + container sandbox deployment in production** is the further missing ~9 points.
+R2.5 lifts the remote runner subsystem from "report-only" (R1/R2)
+to "controlled dispatch" — sanitized hooks now reach the local
+executor under an explicit feature flag, with full audit-chain
+narrative for every accepted, rejected, and dispatched frame.
+
+- **R2.5-a — Bridge contract**:
+  `src/runtime/remoteHookBridgeContract.js` pins the wire format
+  with `Object.freeze`'d constants (5 allowed hooks, 3 read-only
+  tools, per-hook payload schemas with required-keys + response
+  byte cap, executor method bindings, 5-verb audit vocabulary,
+  8-reason frozen reject vocabulary). Operator-facing
+  [`docs/remote-hook-bridge-contract.md`](./remote-hook-bridge-contract.md)
+  documents the contract with off→report→dispatch promotion path.
+  20 paranoid lint tests catch unintended widening (adding a
+  banned hook name or write-side tool fails the build).
+- **R2.5-b — Sanitization layer**:
+  `src/runtime/remoteHookSanitizer.js` is a pure function
+  `sanitizeRemoteHook(rawEvent) → {ok, sanitized | reason}` that
+  defensive-copies only allowlist keys (drops everything else
+  including `__proto__` for prototype-pollution resistance),
+  enforces required-keys, JSON-roundtrips PostToolUse responses
+  to break caller aliasing. `routeRemote` becomes async + returns
+  a structured verdict; the WS handler emits `runner_hook_routed`
+  → `runner_hook_rejected | _sanitized` audit verbs based on the
+  verdict shape.
+- **R2.5-c — Controlled execution bridge**:
+  `HookRouter.routeRemote` extended with bridgeMode awareness
+  (off / report / dispatch). When dispatch mode + sanitization
+  passes, calls `executor.method(...args)` per the contract's
+  `EXECUTOR_DISPATCH` mapping; result lands in `verdict.dispatched`
+  for the WS handler to emit `runner_hook_dispatched | _dispatch_error`
+  with method + error fields. `_resolveExecutorByRunId(runId)`
+  uses orchestrator.getOrCreateRun (lazy promotion of runner-claimed
+  runId to pipeline run) → orchestrator.get → singleton executor
+  fallback. Tests: 14 routeRemote (mode + dispatch + reject + stats)
+  + 3 WS handler audit-verb cases.
+- **R2.5-d — Run visibility**:
+  `RunnerRegistry._activeRunIds` Map<runId, {hostIdentity, since}>
+  + `markRunActive` / `unmarkRunActive` / `getActiveRunMeta` /
+  `listActiveRuns`. WS handler marks on connect, unmarks on close
+  (best-effort; throws caught). `monitorRoutes` falls back to
+  `runnerProvider.getActiveRunMeta(runId)` when
+  `pipelineOrchestrator.get(runId)` returns null — runner-claimed
+  run gets a 200 response with placeholder shape (`run.status:
+  "runner-claimed"`, origin synthesized from runner metadata,
+  children filtered to runId). Closes R2 closeout report's known-
+  gap §3.
+- **R2.5-e — Live end-to-end proof**:
+  `scripts/r2-5-bridge-probe.{sh,ps1}` brings up the harness with
+  `HARNESS_REMOTE_BRIDGE_MODE=dispatch`, injects one valid
+  PreToolUse Read + one rejected PreToolUse Bash from the runner
+  container, verifies all five anchors live (5/5 PASS):
+  `runner_hook_dispatched method=onPreTool`,
+  `runner_hook_rejected reason=tool_not_allowed`,
+  `runner_hook_sanitized` (precondition for dispatch),
+  `hookStats.remoteHookDispatched ≥ 1`,
+  `/api/monitor/runs/<verdict.runId>` returns 200. G4 hook ingress
+  auth lifts from R2's "partial PASS" to R2.5's "full PASS".
+  `/api/server/info` exposes `hookStats` for at-a-glance bridge
+  throughput observation.
+- **R2.5-f — Closeout report** (this slice): GO verdict for R3.
+  See `docs/reports/2026-04-28-r2-5-execution-bridge-eval.md`.
+  Scorecard refreshed to 103/112 with Safety cap extended 17 → 18
+  (controlled execution bridge).
+
+## What 103 means
+
+Single-user local harness with multi-run isolation, hardened external-input boundaries, AND a monitoring-first opt-in console with live data flow + agent observability + per-run detail contract + flow-level readiness rubric + behavior-verified readiness scoring + auto-derived doc trust + dispatcher-driven extraction pattern + CI-enforced regression protection + **a complete remote-execution design RFC** + **a complete implementation RFC with concrete tech decisions for runtime / image / JWT / ledger / control plane / network egress / bootstrap / failure recovery** + **the orchestrator-side primitives of remote mode actually shipped — JWT module + signed audit ledger + runner registry + handshake/heartbeat/hook routes + Dockerfile + server.js wiring + 6th readiness rubric category (remote-isolation, behavior-verified)** + **the runner-host primitives that complete the remote subsystem — WS path-aware demux + connection-lifecycle handler + `RunnerAgent` Node entrypoint + WS message protocol + `childRegistry` remote projection + readiness Star 3 upgraded to live runner→orchestrator round-trip** + **external-review correctness hardening — composite-key remote children with stop-path ownership verify + hook success audit-chain entries + runner-agent env validation that fails fast on bad numeric env** + **R2 single-runner deployment evaluation completed — all MF1 §4.1 gates G1-G9 verified live on the operator's Docker Desktop with repeatable probe scripts; 8 latent bugs surfaced and fixed** + **R2.5 controlled remote execution bridge — sanitized hooks now drive the local executor under an opt-in feature flag, with allowlist (5 hooks × 3 read-only tools), pure sanitizer with prototype-pollution resistance, and a 5-verb audit narrative (routed → rejected | sanitized → dispatched | dispatch_error). G4 hook ingress auth lifted from "partial PASS" to "full PASS"; runner-claimed runs are first-class in `/api/monitor/runs/:runId`**. The next-round work splits into two complementary axes: **R3 multi-runner pool + Linux host** for the layer 2/3 egress enforcement R2-4 left open, and a **per-call approval flow** before opening Bash / Write / Edit through the bridge.
 
 The MB1~MB6 + MC1~MC5 + MA7-a/b/c rounds closed the highest-leverage structural debt without bloating the surface. Each lift was behaviour-preserving + locked by tests; the file shrinkage is genuine. server.js dropped 276 lines, app.js dropped 252 lines. Module footprint expanded by 21 small UMD/Node modules, all under test, all CSP-compliant.
 
