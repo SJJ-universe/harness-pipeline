@@ -30,6 +30,56 @@
 
 const { Router } = require("express");
 
+// ── Slice R1-a (Phase D Round MH, 2026-04-28) — local-mode origin defaults.
+//
+// MF1 §3.2 specifies that `/api/monitor/runs/:runId` always returns an
+// `origin` field — local runs get the default values below. This makes the
+// field non-optional at the API level even though it's optional in the
+// event envelope (where local events omit `origin` to keep the envelope
+// byte-identical to pre-R1).
+//
+// `runnerProvider`, when wired in a future R1-d slice, returns the real
+// origin for runs assigned to remote runners. R1-a ships the local default
+// only; the override path is null-safe so the route works either way.
+
+const LOCAL_ORIGIN_DEFAULTS = Object.freeze({
+  runOrigin: "local",
+  sandboxClass: "none",
+  hostIdentity: "local",
+  isolationStatus: "healthy",
+});
+
+function _resolveOrigin(runId, runnerProvider) {
+  if (runnerProvider && typeof runnerProvider.originForRun === "function") {
+    try {
+      const o = runnerProvider.originForRun(runId);
+      if (o && typeof o === "object") {
+        return {
+          runOrigin: typeof o.runOrigin === "string" ? o.runOrigin : LOCAL_ORIGIN_DEFAULTS.runOrigin,
+          sandboxClass: typeof o.sandboxClass === "string" ? o.sandboxClass : LOCAL_ORIGIN_DEFAULTS.sandboxClass,
+          hostIdentity: typeof o.hostIdentity === "string" ? o.hostIdentity : LOCAL_ORIGIN_DEFAULTS.hostIdentity,
+          isolationStatus: typeof o.isolationStatus === "string" ? o.isolationStatus : LOCAL_ORIGIN_DEFAULTS.isolationStatus,
+        };
+      }
+    } catch (_) {
+      // Provider failure must not break the response — fall through to default.
+    }
+  }
+  return Object.assign({}, LOCAL_ORIGIN_DEFAULTS);
+}
+
+function _resolveRunners(runnerProvider) {
+  if (runnerProvider && typeof runnerProvider.listRunners === "function") {
+    try {
+      const r = runnerProvider.listRunners();
+      if (Array.isArray(r)) return r;
+    } catch (_) {
+      // Same null-safe policy as origin resolution.
+    }
+  }
+  return [];
+}
+
 function createMonitorRoutes({
   pipelineOrchestrator = null,
   childRegistry = null,
@@ -41,6 +91,15 @@ function createMonitorRoutes({
   // is enough to repopulate a freshly-loaded timeline panel without
   // sending the whole ring on every reconnect.
   recentEventLimit = 100,
+  // Slice R1-a: optional provider for remote-runner metadata. When null
+  // (today's local-only deployment) every run reports the local-mode
+  // default origin and `runners: []` in the bootstrap response. The
+  // provider contract:
+  //   listRunners()         → Array<{ hostIdentity, sandboxClass,
+  //                                    health, activeRuns, lastSeen }>
+  //   originForRun(runId)   → { runOrigin, sandboxClass, hostIdentity,
+  //                              isolationStatus } | null
+  runnerProvider = null,
 } = {}) {
   const router = Router();
 
@@ -125,6 +184,13 @@ function createMonitorRoutes({
         }
       }
 
+      // Slice R1-a: additive `runners` field. Empty array when no runner
+      // provider is wired (today's deployment) or when the provider
+      // returns nothing — never omitted, so the client always knows the
+      // shape (matches the same "always-present, defaults for local"
+      // policy as the per-run `origin` field).
+      const runners = _resolveRunners(runnerProvider);
+
       res.json({
         server,
         runs,
@@ -132,6 +198,7 @@ function createMonitorRoutes({
         activeChildren,
         activeChildCount,
         recentEvents,
+        runners,
         exportedAt: new Date().toISOString(),
       });
     } catch (err) {
@@ -239,6 +306,13 @@ function createMonitorRoutes({
         savedAt: snap.savedAt || null,
       };
 
+      // Slice R1-a: `origin` field always present. Local runs return the
+      // hardcoded local defaults; future remote runs route through
+      // runnerProvider.originForRun(runId). MF1 §3.2 says: "This makes
+      // the field non-optional at the API level even though it's optional
+      // in the event envelope — the client always knows the shape."
+      const origin = _resolveOrigin(runId, runnerProvider);
+
       res.json({
         run,
         recentEvents,
@@ -247,6 +321,7 @@ function createMonitorRoutes({
         findings,
         findingsOverflow,
         replayMeta,
+        origin,
         exportedAt: new Date().toISOString(),
       });
     } catch (err) {

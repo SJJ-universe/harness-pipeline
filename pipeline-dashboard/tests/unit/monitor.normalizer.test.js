@@ -190,3 +190,117 @@ test("scopeOf returns the same value as the SCOPE_BY_TYPE table", () => {
   }
   assert.equal(scopeOf("absent"), "unknown");
 });
+
+// ── Slice R1-a (Phase D Round MH, 2026-04-28): envelope `origin` field ─
+//
+// MF1 §3.1: optional top-level `origin` carrying remote-execution metadata.
+// Must be omitted when absent (preserves byte-identical local-mode shape)
+// and hoisted from event.data.origin when present (raw event path) or
+// carried from event.origin (already-envelope path).
+
+test("R1-a: normalize omits `origin` when input has none (local default)", () => {
+  const env = normalize({ type: "phase_update", data: { runId: "A", phase: "B" } });
+  assert.equal(env.type, "phase_update");
+  assert.equal(env.runId, "A");
+  // Hard assertion: NO `origin` key on the envelope. byte-identical to today.
+  assert.equal(Object.prototype.hasOwnProperty.call(env, "origin"), false,
+    "local-mode events MUST NOT add an origin key — MF1 §3.4 invariant 1");
+});
+
+test("R1-a: normalize hoists `origin` from event.data.origin (raw remote event)", () => {
+  const env = normalize({
+    type: "phase_update",
+    data: {
+      runId: "A",
+      phase: "B",
+      origin: {
+        runOrigin: "container-remote",
+        sandboxClass: "container-strict",
+        hostIdentity: "runner-pool-a/3",
+        isolationStatus: "healthy",
+      },
+    },
+  });
+  assert.ok(env.origin, "origin field present");
+  assert.equal(env.origin.runOrigin, "container-remote");
+  assert.equal(env.origin.sandboxClass, "container-strict");
+  assert.equal(env.origin.hostIdentity, "runner-pool-a/3");
+  assert.equal(env.origin.isolationStatus, "healthy");
+});
+
+test("R1-a: normalize carries `origin` on already-envelope idempotent path", () => {
+  const input = {
+    type: "phase_update",
+    runId: "A",
+    ts: 1700000000000,
+    scope: "phase",
+    summary: "phase_update B",
+    payload: { phase: "B" },
+    origin: {
+      runOrigin: "container-local",
+      sandboxClass: "container-strict",
+      hostIdentity: "local-runner-1",
+      isolationStatus: "healthy",
+    },
+  };
+  const env = normalize(input);
+  assert.ok(env.origin);
+  assert.equal(env.origin.runOrigin, "container-local");
+  assert.equal(env.origin.sandboxClass, "container-strict");
+  assert.equal(env.origin.hostIdentity, "local-runner-1");
+});
+
+test("R1-a: normalize accepts partial `origin` and copies only known string keys", () => {
+  // Partial origin (only some fields): we still copy the present ones and
+  // attach the field. Future schema additions go through this gate explicitly.
+  const env = normalize({
+    type: "phase_update",
+    data: { runId: "A", origin: { runOrigin: "container-remote", sandboxClass: 42 } },
+  });
+  assert.ok(env.origin, "partial origin still attached");
+  assert.equal(env.origin.runOrigin, "container-remote");
+  // Non-string sandboxClass is dropped by the strict validator.
+  assert.equal(Object.prototype.hasOwnProperty.call(env.origin, "sandboxClass"), false);
+});
+
+test("R1-a: normalize ignores non-object `origin` (defensive: attacker-supplied)", () => {
+  const env = normalize({
+    type: "phase_update",
+    data: { runId: "A", origin: "container-remote" },  // wrong type
+  });
+  assert.equal(Object.prototype.hasOwnProperty.call(env, "origin"), false,
+    "non-object origin is silently dropped");
+});
+
+test("R1-a: normalize prefers event.origin over event.data.origin (envelope-shape input)", () => {
+  // When the input has both top-level origin AND data.origin, the top-level
+  // wins — it's the canonical envelope shape; data.origin is the raw-event
+  // shape. The idempotent path takes top-level first.
+  const env = normalize({
+    type: "phase_update",
+    scope: "phase",
+    runId: "A",
+    payload: { phase: "B" },
+    origin: { runOrigin: "container-remote", sandboxClass: "container-strict",
+              hostIdentity: "h-top", isolationStatus: "healthy" },
+    data: { origin: { runOrigin: "vm-remote", sandboxClass: "vm-strict",
+                       hostIdentity: "h-data", isolationStatus: "lost" } },
+  });
+  assert.equal(env.origin.runOrigin, "container-remote",
+    "top-level origin wins over data.origin on the envelope path");
+  assert.equal(env.origin.hostIdentity, "h-top");
+});
+
+test("R1-a: normalizeAll preserves `origin` per-element (mixed local + remote)", () => {
+  const out = normalizeAll([
+    { type: "phase_update", data: { runId: "A", phase: "B" } },             // local
+    { type: "phase_update", data: { runId: "B", phase: "C", origin: {
+        runOrigin: "container-remote", sandboxClass: "container-strict",
+        hostIdentity: "h-2", isolationStatus: "healthy" } } },              // remote
+  ]);
+  assert.equal(out.length, 2);
+  assert.equal(Object.prototype.hasOwnProperty.call(out[0], "origin"), false,
+    "local element keeps no origin");
+  assert.ok(out[1].origin && out[1].origin.runOrigin === "container-remote",
+    "remote element keeps its origin");
+});

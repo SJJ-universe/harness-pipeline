@@ -290,6 +290,125 @@ test("/api/monitor/runs/:runId returns subagents:[] when executor lacks the meth
   }
 });
 
+// ── Slice R1-a (Phase D Round MH): per-run `origin` field ─────────────
+
+test("R1-a: /api/monitor/runs/:runId returns local-mode `origin` defaults", async () => {
+  // Today's deployment: no runnerProvider → every run is local. The route
+  // must still always include the field so clients know the canonical shape.
+  const pipelineOrchestrator = new PipelineOrchestrator({
+    createExecutor: (runId) => makeStubExecutor(runId, { snap: { status: "active" } }),
+  });
+  const { server, port } = await startApp({
+    pipelineOrchestrator,
+    childRegistry: createChildRegistry(),
+    eventReplayBuffer: createEventReplayBuffer(),
+  });
+  try {
+    const { status, body } = await get(port, "/api/monitor/runs/default");
+    assert.equal(status, 200);
+    assert.ok(body.origin, "origin field always present (MF1 §3.2)");
+    assert.equal(body.origin.runOrigin, "local");
+    assert.equal(body.origin.sandboxClass, "none");
+    assert.equal(body.origin.hostIdentity, "local");
+    assert.equal(body.origin.isolationStatus, "healthy");
+  } finally {
+    server.close();
+  }
+});
+
+test("R1-a: /api/monitor/runs/:runId surfaces remote `origin` from runnerProvider", async () => {
+  const runnerProvider = {
+    originForRun(runId) {
+      if (runId === "remote-run-1") {
+        return {
+          runOrigin: "container-remote",
+          sandboxClass: "container-strict",
+          hostIdentity: "runner-pool-a/3",
+          isolationStatus: "healthy",
+        };
+      }
+      return null;
+    },
+  };
+  const pipelineOrchestrator = new PipelineOrchestrator({
+    maxConcurrent: 5,
+    createExecutor: (runId) => makeStubExecutor(runId, { snap: { status: "active" } }),
+  });
+  pipelineOrchestrator.getOrCreateRun("remote-run-1");
+  const { server, port } = await startApp({
+    pipelineOrchestrator,
+    childRegistry: createChildRegistry(),
+    eventReplayBuffer: createEventReplayBuffer(),
+    runnerProvider,
+  });
+  try {
+    const r1 = await get(port, "/api/monitor/runs/remote-run-1");
+    assert.equal(r1.body.origin.runOrigin, "container-remote");
+    assert.equal(r1.body.origin.sandboxClass, "container-strict");
+    assert.equal(r1.body.origin.hostIdentity, "runner-pool-a/3");
+    // Other run still gets local defaults (provider returned null).
+    const r0 = await get(port, "/api/monitor/runs/default");
+    assert.equal(r0.body.origin.runOrigin, "local");
+    assert.equal(r0.body.origin.sandboxClass, "none");
+  } finally {
+    server.close();
+  }
+});
+
+test("R1-a: /api/monitor/runs/:runId survives a runnerProvider that throws", async () => {
+  // Same null-safe policy as bootstrap. Provider failure must not break
+  // the per-run detail response — fall through to local defaults.
+  const angryProvider = {
+    originForRun() { throw new Error("provider blew up"); },
+  };
+  const pipelineOrchestrator = new PipelineOrchestrator({
+    createExecutor: (runId) => makeStubExecutor(runId, { snap: { status: "idle" } }),
+  });
+  const { server, port } = await startApp({
+    pipelineOrchestrator,
+    childRegistry: createChildRegistry(),
+    eventReplayBuffer: createEventReplayBuffer(),
+    runnerProvider: angryProvider,
+  });
+  try {
+    const { status, body } = await get(port, "/api/monitor/runs/default");
+    assert.equal(status, 200, "provider throw must not 500 the per-run detail");
+    assert.equal(body.origin.runOrigin, "local",
+      "fallback to local defaults when provider throws");
+  } finally {
+    server.close();
+  }
+});
+
+test("R1-a: /api/monitor/runs/:runId fills missing origin sub-fields with local defaults", async () => {
+  // Provider returns a partial origin (e.g. an early-stage runner that
+  // only knows runOrigin but not sandboxClass yet). Fill the missing
+  // fields with the local defaults so the client always sees the full shape.
+  const partialProvider = {
+    originForRun() {
+      return { runOrigin: "container-remote" };  // sandboxClass / hostIdentity / isolationStatus missing
+    },
+  };
+  const pipelineOrchestrator = new PipelineOrchestrator({
+    createExecutor: (runId) => makeStubExecutor(runId, { snap: { status: "idle" } }),
+  });
+  const { server, port } = await startApp({
+    pipelineOrchestrator,
+    childRegistry: createChildRegistry(),
+    eventReplayBuffer: createEventReplayBuffer(),
+    runnerProvider: partialProvider,
+  });
+  try {
+    const { body } = await get(port, "/api/monitor/runs/default");
+    assert.equal(body.origin.runOrigin, "container-remote");
+    assert.equal(body.origin.sandboxClass, "none");
+    assert.equal(body.origin.hostIdentity, "local");
+    assert.equal(body.origin.isolationStatus, "healthy");
+  } finally {
+    server.close();
+  }
+});
+
 // ── source-level wiring anchor ────────────────────────────────────────
 
 test("monitorRoutes.js exposes the GET /monitor/runs/:runId route", () => {
@@ -301,4 +420,8 @@ test("monitorRoutes.js exposes the GET /monitor/runs/:runId route", () => {
   // Anchor: the route declaration string + Slice MB1 traceability comment.
   assert.match(SRC, /router\.get\("\/monitor\/runs\/:runId"/);
   assert.match(SRC, /Slice MB1/);
+  // Slice R1-a anchors: origin defaults + runnerProvider knob.
+  assert.match(SRC, /LOCAL_ORIGIN_DEFAULTS/);
+  assert.match(SRC, /runnerProvider/);
+  assert.match(SRC, /Slice R1-a/);
 });

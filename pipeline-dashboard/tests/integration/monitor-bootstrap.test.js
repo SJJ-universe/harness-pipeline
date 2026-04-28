@@ -234,6 +234,79 @@ test("/api/monitor/bootstrap survives a childRegistry that throws", async () => 
   }
 });
 
+// ── Slice R1-a (Phase D Round MH): bootstrap exposes `runners` field ──
+
+test("R1-a: /api/monitor/bootstrap returns runners:[] when no runner provider wired", async () => {
+  // Today's deployment: no runnerProvider, so runners must be an empty
+  // array (NOT undefined). Clients always know the shape.
+  const { server, port } = await startApp({
+    pipelineOrchestrator: new PipelineOrchestrator({
+      createExecutor: (runId) => makeStubExecutor(runId),
+    }),
+    childRegistry: createChildRegistry(),
+    eventReplayBuffer: createEventReplayBuffer(),
+  });
+  try {
+    const { body } = await get(port, "/api/monitor/bootstrap");
+    assert.ok(Array.isArray(body.runners), "runners is always an array");
+    assert.equal(body.runners.length, 0, "no runners configured → empty array");
+  } finally {
+    server.close();
+  }
+});
+
+test("R1-a: /api/monitor/bootstrap surfaces runners from runnerProvider when wired", async () => {
+  const runnerProvider = {
+    listRunners() {
+      return [
+        { hostIdentity: "runner-pool-a/3", sandboxClass: "container-strict",
+          health: "healthy", activeRuns: 2, lastSeen: "2026-04-28T01:00:00.000Z" },
+        { hostIdentity: "runner-pool-b/1", sandboxClass: "vm-strict",
+          health: "degraded", activeRuns: 0, lastSeen: "2026-04-28T00:59:30.000Z" },
+      ];
+    },
+  };
+  const { server, port } = await startApp({
+    pipelineOrchestrator: new PipelineOrchestrator({
+      createExecutor: (runId) => makeStubExecutor(runId),
+    }),
+    childRegistry: createChildRegistry(),
+    eventReplayBuffer: createEventReplayBuffer(),
+    runnerProvider,
+  });
+  try {
+    const { body } = await get(port, "/api/monitor/bootstrap");
+    assert.equal(body.runners.length, 2);
+    assert.equal(body.runners[0].hostIdentity, "runner-pool-a/3");
+    assert.equal(body.runners[0].sandboxClass, "container-strict");
+    assert.equal(body.runners[1].health, "degraded");
+  } finally {
+    server.close();
+  }
+});
+
+test("R1-a: /api/monitor/bootstrap survives a runnerProvider that throws", async () => {
+  // Same null-safe policy as the childRegistry-throws test above.
+  const angryProvider = {
+    listRunners() { throw new Error("provider blew up"); },
+  };
+  const { server, port } = await startApp({
+    pipelineOrchestrator: new PipelineOrchestrator({
+      createExecutor: (runId) => makeStubExecutor(runId),
+    }),
+    childRegistry: createChildRegistry(),
+    eventReplayBuffer: createEventReplayBuffer(),
+    runnerProvider: angryProvider,
+  });
+  try {
+    const { status, body } = await get(port, "/api/monitor/bootstrap");
+    assert.equal(status, 200, "provider throw must not 500 the bootstrap");
+    assert.deepEqual(body.runners, [], "fallback to empty array on provider error");
+  } finally {
+    server.close();
+  }
+});
+
 // ── source-level wiring anchor ────────────────────────────────────────
 
 test("server.js wires monitor routes after the orchestrator", () => {

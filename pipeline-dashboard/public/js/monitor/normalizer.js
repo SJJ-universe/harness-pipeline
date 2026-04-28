@@ -124,6 +124,46 @@
     return type;
   }
 
+  // ── Slice R1-a (Phase D Round MH, 2026-04-28): envelope `origin` field ─
+  //
+  // MF1 §3.1 reserved an OPTIONAL top-level `origin` field on the canonical
+  // envelope to carry remote-execution metadata:
+  //
+  //   origin: {
+  //     runOrigin: "local" | "container-local" | "container-remote" | "vm-remote",
+  //     sandboxClass: "none" | "container-strict" | "vm-strict",
+  //     hostIdentity: string,
+  //     isolationStatus: "healthy" | "degraded" | "lost",
+  //   }
+  //
+  // R1-a wires the field as a pass-through:
+  //   - input has `event.origin` (already-envelope path)        → carry it
+  //   - input has `event.data.origin` (raw event from remote)   → hoist it
+  //   - neither (today's local broadcasts)                       → omit field entirely
+  //
+  // The omit-when-absent policy preserves MF1 §3.4 invariant 1: a local-mode
+  // event's normalized envelope is byte-identical to today (no `origin` key).
+  // Only when a remote runner emits an event with `data.origin` does the
+  // envelope grow the field.
+  //
+  // Validation is intentionally minimal: we accept any shape and let the
+  // server contract (monitorRoutes.js /api/monitor/runs/:runId default-fill)
+  // be the source of truth for the canonical local-mode shape.
+
+  function _hoistOrigin(source) {
+    if (!source || typeof source !== "object") return undefined;
+    if (!source.origin || typeof source.origin !== "object") return undefined;
+    const o = source.origin;
+    // Shallow copy with only known keys. Extra keys silently dropped to keep
+    // future schema additions explicit (additive via this list).
+    const out = {};
+    if (typeof o.runOrigin === "string") out.runOrigin = o.runOrigin;
+    if (typeof o.sandboxClass === "string") out.sandboxClass = o.sandboxClass;
+    if (typeof o.hostIdentity === "string") out.hostIdentity = o.hostIdentity;
+    if (typeof o.isolationStatus === "string") out.isolationStatus = o.isolationStatus;
+    return Object.keys(out).length > 0 ? out : undefined;
+  }
+
   /**
    * Normalize one broadcast event into the canonical envelope.
    *
@@ -138,7 +178,7 @@
     if (!event || typeof event !== "object") return null;
     // Idempotency: if it already looks like an envelope, return a copy.
     if (typeof event.type === "string" && Object.prototype.hasOwnProperty.call(event, "scope")) {
-      return {
+      const env = {
         type: event.type,
         runId: event.runId == null ? null : event.runId,
         ts: event.ts || Date.now(),
@@ -146,6 +186,10 @@
         summary: event.summary || _summaryOf(event.type, event.payload || event.data || {}),
         payload: event.payload || {},
       };
+      // R1-a: carry forward `origin` when present; omit otherwise.
+      const origin = _hoistOrigin(event) || _hoistOrigin(event.payload || event.data);
+      if (origin) env.origin = origin;
+      return env;
     }
     if (typeof event.type !== "string") return null;
     const data = event.data && typeof event.data === "object" ? event.data : {};
@@ -154,7 +198,7 @@
     const runId = isGlobal
       ? (runIdFromData == null ? null : runIdFromData)
       : (runIdFromData == null ? null : runIdFromData);
-    return {
+    const env = {
       type: event.type,
       runId,
       ts: data.at || data.ts || Date.now(),
@@ -162,6 +206,11 @@
       summary: _summaryOf(event.type, data),
       payload: data,
     };
+    // R1-a: hoist `origin` from event.data (or top-level if remote runner
+    // emits the envelope shape directly); omit when absent.
+    const origin = _hoistOrigin(event) || _hoistOrigin(data);
+    if (origin) env.origin = origin;
+    return env;
   }
 
   /**
