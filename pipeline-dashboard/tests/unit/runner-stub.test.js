@@ -1,42 +1,58 @@
-// Slice R1-f (Phase D R1, 2026-04-28) — harness-runner stub entrypoint test.
+// Slice R1-f (Phase D R1, 2026-04-28) — harness-runner entrypoint test.
 //
-// The R1-f runner/index.js is a placeholder until R1-e ships the real
-// agent. We assert it exits with the documented EX_CONFIG (78) code,
-// not a generic 1, so:
+// HISTORY: this file used to assert the R1-f stub's EX_CONFIG (78) exit.
+// R1-e-3 replaced the stub with the real agent (`src/runner/runnerAgent.js`
+// + `runner/index.js`), so the contract under test changed:
 //
-//   - Container orchestrators / CI gates can distinguish "stub" (78)
-//     from "broken" (anything else).
-//   - The stderr message points operators at R1-e if they wonder why
-//     starting the container does nothing.
+//   - Missing required env → exit 2 + stderr lists the missing keys
+//     (was: exit 78 stub message).
+//
+// The agent's transport behavior (handshake / heartbeat / WS) lives
+// behind the dependency injection seam in src/runner/runnerAgent.js
+// and is exercised by tests/unit/runnerAgent.test.js + the integration
+// suite. This file just locks the entrypoint's env-validation contract.
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
-test("R1-f: runner/index.js exits with EX_CONFIG (78)", () => {
-  const result = spawnSync(
-    process.execPath,
-    [path.resolve(__dirname, "../../runner/index.js")],
-  );
-  assert.equal(result.status, 78, `expected exit 78, got ${result.status} (signal=${result.signal})`);
+const ENTRYPOINT = path.resolve(__dirname, "../../runner/index.js");
+
+function spawnEntry(env = {}) {
+  return spawnSync(process.execPath, [ENTRYPOINT], {
+    env: { ...process.env, ...env },
+  });
+}
+
+test("R1-e-3: missing env → exit 2 with explanatory stderr", () => {
+  // Spawn with no harness env — every required key missing.
+  // Note: pass an empty env-like object that explicitly clears the
+  // required keys so the parent shell's settings can't accidentally
+  // satisfy them.
+  const result = spawnSync(process.execPath, [ENTRYPOINT], {
+    env: {
+      // Keep PATH so node resolves; everything else stripped.
+      PATH: process.env.PATH || "",
+      HARNESS_BOOTSTRAP_TOKEN: "",
+      HARNESS_HOST_IDENTITY: "",
+      HARNESS_ORCHESTRATOR_URL: "",
+      HARNESS_RUN_ID: "",
+      HARNESS_RUN_JWT: "",
+    },
+  });
+  assert.equal(result.status, 2, `expected exit 2, got ${result.status} (signal=${result.signal})`);
+  const stderr = result.stderr.toString();
+  assert.match(stderr, /missing required env/);
+  // The error message should list at least one missing key by env name.
+  assert.match(stderr, /HARNESS_/);
 });
 
-test("R1-f: runner/index.js stderr message references R1-e", () => {
-  const result = spawnSync(
-    process.execPath,
-    [path.resolve(__dirname, "../../runner/index.js")],
-  );
-  // Operators searching the logs for the Phase D slice should land on R1-e.
-  assert.match(result.stderr.toString(), /R1-e/i);
-});
-
-test("R1-f: runner/index.js stub never writes to stdout (silent on stdout)", () => {
-  // Anything written to stdout would be picked up by orchestrator log
-  // collectors as runner-emitted data — the stub has no data to emit.
-  const result = spawnSync(
-    process.execPath,
-    [path.resolve(__dirname, "../../runner/index.js")],
-  );
-  assert.equal(result.stdout.toString(), "");
+test("R1-e-3: entrypoint exit code is NOT 78 (the legacy stub code)", () => {
+  // Reserved for a future "downgrade to stub" — production runs must
+  // never report 78. Exit 2 (env error) is the typical no-config case.
+  const result = spawnSync(process.execPath, [ENTRYPOINT], {
+    env: { PATH: process.env.PATH || "" },
+  });
+  assert.notEqual(result.status, 78);
 });
