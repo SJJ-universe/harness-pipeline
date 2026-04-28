@@ -24,16 +24,16 @@ slices. **No code lands until then.**
 
 ### What this RFC adds on top of MF1
 
-| Topic | MF1 status | MG1 commitment |
+| Topic | MF1 status | MG1 commitment (post-MG3 fix) |
 |---|---|---|
-| Runtime | "docker, podman, kata, firecracker — pick one" | **docker (rootless preferred, daemon fallback)** |
+| Runtime | "docker, podman, kata, firecracker — pick one" | **two-tier**: Tier 1 (R1 preview) docker rootless allowed; Tier 2 (R2+ strict) docker daemon required. See §1.2 |
 | Hook ingress channel | "WS-only or HTTPS POST + WS" | **WS primary + HTTPS POST one-shot fallback** |
 | JWT issuer | "orchestrator-self-signed vs. external IdP" | **orchestrator-self-signed (HS256, HARNESS_TOKEN-derived)** |
-| Audit ledger storage | "append-only file vs. SQLite" | **extend existing `evidenceLedger` JSONL + HMAC signature** |
-| Runner-host control plane | (not specified) | **env-only initial, heartbeat-driven discovery** |
-| Network egress | "default = orchestrator only" | **nftables/iptables on runner host + dnsmasq allowlist** |
+| Audit ledger storage | "append-only file vs. SQLite" | **extend existing `evidenceLedger` JSONL + HMAC signature**; `kid` retained-verify-key model deferred to R2 (§5.5.1) |
+| Runner-host control plane | (not specified) | **env-only initial; handshake (bootstrap one-shot) + heartbeat (runnerToken recurring)** |
+| Network egress | "default = orchestrator only" | **3-layer (Tier 2): Docker `--internal` + nftables on bridge + dnsmasq allowlist**. Tier 1 (R1 preview) uses L1 only |
 | Container image | (not specified) | **`node:24-bookworm-slim` + multi-stage build + SBOM** |
-| Bootstrap sequence | (not specified) | **3-step handshake with bootstrap token → per-run JWT** |
+| Bootstrap sequence | (not specified) | **3-step**: bootstrap (one-shot, handshake) → runnerToken (recurring, heartbeat) → runJWT (per-run, hooks) |
 | Failure recovery | "MF1 §4.2 5 rows" | **expanded with concrete detection + remediation** |
 
 ### Prerequisites — what must be DONE before this RFC's slices can ship
@@ -73,27 +73,50 @@ slices. **No code lands until then.**
 
 | Runtime | Isolation | Startup | Ops complexity | Notes |
 |---|:---:|:---:|:---:|---|
-| **Docker (rootless)** | Strong | ~500ms | Low | Default choice. Same userspace as Docker daemon, but no daemon root. |
-| Docker (daemon) | Strong | ~500ms | Low | Fallback if rootless unavailable on runner host. |
-| Podman | Strong | ~500ms | Low | Drop-in replacement; daemonless. Future migration path. |
-| containerd directly | Strong | ~400ms | Medium | Skip Docker layer; harder to debug. |
+| **Docker (rootless)** | Strong (no host net) | ~500ms | Low | **Tier 1 default** (R1 preview). Same userspace as the daemon, no daemon root. Cannot enforce host-bridge nftables (§7.0) — adequate for loopback-only preview. |
+| **Docker (daemon)** | Strong (host net + bridge) | ~500ms | Low | **Tier 2 required** (R2+ strict). Root daemon enables host-bridge + nftables enforcement. |
+| Podman | Strong | ~500ms | Low | Drop-in replacement for either tier; daemonless rootless or root-daemon mode both possible. Future migration path. |
+| containerd directly | Strong | ~400ms | Medium | Skip Docker layer; harder to debug. Not chosen. |
 | Kata Containers | VM-grade | ~2s | High | Reserved for `sandbox_class: vm-strict` (Phase R4). |
 | Firecracker | VM-grade | ~150ms | High | Reserved for `vm-strict`; AWS-style microVM. |
 
-### 1.2 Decision
+### 1.2 Decision (two-tier)
 
-**Docker (rootless preferred, daemon fallback) for `sandbox_class: container-strict`.**
+The runtime decision is **phase-tiered** because different rollout
+phases have different egress-isolation requirements, and rootless
+docker cannot enforce the full §7 3-layer egress model.
 
-Rationale:
-- Operators most likely to have docker installed already.
-- Rootless mode (`docker context create rootless`) drops the largest
-  privilege escalation vector without changing the API.
-- Daemon mode is the fallback because rootless still has gaps on
-  older kernels (< 5.13). The runner host startup script probes for
-  rootless support and falls back automatically.
-- Migration path to podman is trivial — the `docker` binary is
-  symlinked to `podman` on hosts that prefer it. Both honour the same
-  CLI surface for our use cases.
+| Tier | Used by | Runtime | Egress enforcement |
+|---|---|---|---|
+| **Tier 1 — preview** | Phase R1 (`run_origin: container-local`) | Docker rootless **allowed** (recommended); daemon also OK | §7 Layer 1 only (Docker `--network` flag is enough since R1 is loopback-only — runner host = orchestrator host, no real network egress to gate) |
+| **Tier 2 — strict** | Phase R2+ (`run_origin: container-remote`, `sandbox_class: container-strict`) | Docker daemon **required** (rootless rejected at startup) | §7 all three layers (L1 `--internal` bridge + L2 nftables on bridge interface + L3 dnsmasq allowlist). L2/L3 need root because they touch host networking. |
+
+Why not "rootless everywhere":
+- Rootless docker creates networks via slirp4netns / RootlessKit. These
+  give the container its own network namespace but the orchestrator
+  cannot attach nftables rules to a host-owned bridge interface that
+  doesn't exist in rootless mode (the network lives in the user
+  namespace, not the host).
+- For R1's preview purpose — "validate the isolation model on the
+  operator's own machine" — the loopback-only network already gives
+  the egress property we want (the workload can only reach the
+  orchestrator, which is the only thing on `127.0.0.1`).
+- For R2+'s "actual remote" — we need root-controlled bridge + nftables
+  to ENFORCE the egress, not rely on lack-of-route.
+
+Tier 1 → Tier 2 migration path:
+- The runner host's startup script (`harness-runner --probe`) detects
+  the active tier from `HARNESS_REMOTE_MODE`. `preview` accepts
+  rootless; `on` requires daemon (else exits non-zero with a
+  remediation hint).
+- An operator can run `docker context create rootless-runner` for R1
+  experiments and switch to daemon for R2 without changing the
+  Dockerfile or harness-runner code — only the runtime context
+  changes.
+
+Migration to podman is trivial in either tier — the `docker` binary
+is symlinked to `podman` on hosts that prefer it. Both honour the
+same CLI surface for our use cases.
 
 ### 1.3 Version pin
 
@@ -386,11 +409,49 @@ This is added to readiness gate G8 (MF1 §4):
 
 - Signing key: HKDF derivative of `HARNESS_TOKEN` (info =
   `"audit-ledger"`). Same machinery as JWT key but different label.
-- Rotating `HARNESS_TOKEN` invalidates ALL old signatures. This is
-  acceptable: the ledger is read-only history, and tamper-detection
-  is per-chain (the hash chain still works without the signature).
-  The signature is the EXTRA layer that an attacker who can write
-  files can't forge.
+- **R1 model — single live key**: Rotating `HARNESS_TOKEN` invalidates
+  ALL old signatures. This is acceptable for R1 because the ledger is
+  read-only history, tamper-detection is still per-chain (the hash
+  chain works without the signature), and the signature is an EXTRA
+  layer that an attacker who can write files can't forge.
+
+#### 5.5.1 Forensic limitation + R2 backlog (kid + retained verify keys)
+
+The R1 single-live-key model has a known forensic weakness: once
+`HARNESS_TOKEN` rotates, **historical entries can no longer be
+verified by signature** — only their hash chain is left to detect
+tampering. For audit / compliance use cases that need durable
+verifiability of past entries, R2 introduces:
+
+- **`kid` field on every signed entry**. References which key
+  generated the signature. Format: `"v1"`, `"v2"`, ... or a short
+  hash of the key's HKDF input. Added alongside `sig` and `sigVer`.
+- **Retained verify-key store**. Orchestrator keeps a `kid → key`
+  map for past keys (verify-only — never used for new signatures).
+  Storage: `.harness/audit-keys.json` (mode 0o600, gitignored).
+- **Operator-controlled retention policy**. Default: retain past
+  keys for 90 days. After that, entries signed with retired keys
+  are still readable + their hash chain still verifiable, but the
+  signature column reads `kid:expired` (intentionally — purging
+  past keys is the operator's compliance choice).
+- **Key rotation procedure**:
+  1. Operator runs `harness-keys rotate` (new R2 utility).
+  2. Old key moves to retained map under its `kid`.
+  3. New key is derived (HKDF with bumped `info` salt or new IKM).
+  4. New entries sign with new `kid`.
+  5. `verifyChain(runId)` walks entries, looks up each entry's
+     `kid` in the retained map, and verifies against the matching
+     key.
+
+Why defer to R2:
+- R1's purpose is "validate the isolation model on the operator's
+  own machine". Rotation is rare during R1 because there's only one
+  operator and `HARNESS_TOKEN` lifetime ≈ install lifetime.
+- The forensic gap matters in shared / multi-operator / compliance
+  contexts — those are R2+ scenarios.
+- Adding `kid` to the entry shape now (sigVer:1 with empty kid =
+  R1 default key) makes the R1 → R2 migration zero-schema-change:
+  R1 entries get `kid: "r1-default"` retroactively when R2 lands.
 
 ---
 
@@ -419,16 +480,34 @@ HARNESS_RUNNER_IMAGE=ghcr.io/SJJ-universe/harness-runner:<sha>
 
 ### 6.3 Heartbeat-driven discovery
 
-1. Each runner host's `harness-runner-control` process POSTs to
-   `/api/runner/heartbeat` every 5s.
-2. The POST is authenticated by the bootstrap token (NOT the JWT —
-   JWTs are per-run, heartbeats are pre-run).
-3. Orchestrator records `{ hostIdentity, lastSeen, capabilities }`.
+The flow is **handshake (one-time) + heartbeat (recurring)**, with the
+auth token swapping after step 1:
+
+1. **Handshake (one-time)**. The runner host's `harness-runner-control`
+   process POSTs once to `/api/runner/handshake` with the **bootstrap
+   token** in `Authorization: Bearer`. Orchestrator validates the
+   bootstrap (must match `HARNESS_REMOTE_RUNNER_TOKEN_<host>` env),
+   records `{ hostIdentity, capabilities }`, and returns a freshly-
+   issued **runnerToken**. The bootstrap is now consumed — re-presenting
+   it after this point is rejected with 401 + audit log entry.
+2. **Heartbeat (every 5s)**. Subsequent POSTs to `/api/runner/heartbeat`
+   are authenticated by the **runnerToken** issued in step 1, NOT the
+   bootstrap. This makes the auth tier explicit: bootstrap = handshake-
+   only, runnerToken = recurring auth, runJWT = per-run hook ingress.
+3. Orchestrator records `{ lastSeen }` on every heartbeat and refreshes
+   the runnerToken's expiry (24h sliding window).
 4. When a new run starts and the operator selects a runner, the
    orchestrator picks the least-loaded host with `lastSeen` within
    15s.
 5. Hosts whose `lastSeen` exceeds 30s are marked `unhealthy` and
-   dropped from selection.
+   dropped from selection. They must re-handshake (using a freshly-
+   provisioned bootstrap) to rejoin — the expired runnerToken alone
+   cannot revive them.
+
+**Why this matters**: a leaked bootstrap has a narrow blast radius —
+a single registration window. After consumption it's dead. Subsequent
+runner-host compromise needs to leak a runnerToken, which rotates on
+every heartbeat. See §8 for the full token taxonomy.
 
 ### 6.4 Why no UI in this round
 
@@ -445,6 +524,27 @@ HARNESS_RUNNER_IMAGE=ghcr.io/SJJ-universe/harness-runner:<sha>
 
 ## 7. Network egress
 
+### 7.0 Tier mapping (cross-ref §1.2)
+
+The egress policy described below is **Tier 2 (strict)** — the full
+3-layer model required for `run_origin: container-remote`. **Tier 1
+(preview)** runs in R1 use only Layer 1 because rootless docker cannot
+attach nftables to a host-owned bridge (the bridge lives in the user
+namespace), AND R1's loopback-only topology already constrains egress
+to the orchestrator by routing.
+
+| Layer | Tier 1 (R1 preview) | Tier 2 (R2+ strict) |
+|---|:---:|:---:|
+| L1 — `--network=harness-egress-only --internal` | ✅ enforced | ✅ enforced |
+| L2 — nftables on bridge interface | ❌ skipped (rootless can't) | ✅ enforced |
+| L3 — dnsmasq allowlist on controlled resolver | ❌ skipped (no separate resolver in R1) | ✅ enforced |
+
+R1 verification (G3) tests against L1 only. R2's G3-strict adds L2/L3
+verification. The `harness-runner --probe` script refuses to start in
+`HARNESS_REMOTE_MODE=on` (Tier 2) if it cannot create the host bridge
+or load the nftables ruleset — operators see the failure at runner
+startup, not at first egress test.
+
 ### 7.1 Layer 1: Container network policy
 
 Each container starts with:
@@ -455,7 +555,9 @@ docker run --network=harness-egress-only ...
 Where `harness-egress-only` is a Docker network created at runner-host
 startup with:
 - `--internal` (no implicit gateway to host network).
-- A custom bridge with iptables rules attached to the bridge interface.
+- A custom bridge with iptables rules attached to the bridge interface
+  (Tier 2 only; Tier 1 omits the host-side iptables rules and relies
+  on `--internal` + loopback topology).
 
 ### 7.2 Layer 2: iptables/nftables on runner host
 
@@ -579,6 +681,7 @@ R1's purpose: validate the isolation model on `container-local`
 
 ### 10.1 What R1 must ship
 
+**Code + image:**
 - `harness-runner` Node entrypoint (small; ~300 LOC).
 - Dockerfile + multi-stage build script (`scripts/build-runner.sh`).
 - Updated `docker-compose.dev.yml` for local-only testing.
@@ -590,9 +693,38 @@ R1's purpose: validate the isolation model on `container-local`
 - Extended `src/runtime/childRegistry.js` to include remote children.
 - New monitor envelope: `origin` field (MF1 §3.1, all four sub-fields).
 - Extended `monitor-runs-detail.test.js`: G5 verification.
-- New tests: G1 (workspace), G2 (JWT), G3 (egress, against a stub
-  external host), G4 (hook auth), G7 (graceful shutdown), G8 (signed
-  ledger).
+- New tests: G1 (workspace), G2 (JWT), G3-tier1 (egress L1 against a
+  stub external host — L2/L3 deferred to R2's G3-strict), G4 (hook
+  auth), G7 (graceful shutdown), G8 (signed ledger).
+
+**Automation + docs (must ship in the SAME round, not as a follow-up):**
+
+- Updated `scripts/readiness-report.js` with the new `remote-isolation`
+  category (§10.4 spec). Behavior-verified per MC4 — each star
+  instantiates the relevant module / route stub and asserts the
+  outcome. Without this, the live readiness signal stays at 15/15 and
+  hides any R1 regression.
+- `scripts/sync-scorecard.js` verified to handle the rubric extension
+  (15 → 18 stars) without code change. If the marker format needs
+  bumping, this round owns the bump.
+- `docs/readiness-rubric.md` updated with the new category section and
+  star ledger entry. Auto-derived markers (`<!-- AUTO:readiness-* -->`)
+  refresh on `npm run scorecard:sync` post-merge.
+- `docs/scorecard.md` gets the new R1 trajectory entry, the post-table
+  delta paragraph, and an updated "What N means" prose.
+- `.github/workflows/ci.yml` audit: confirm the existing readiness gate
+  (≥ 14/15) still applies after the rubric grows to 18; if the gate
+  threshold needs to scale, this round bumps it (e.g. ≥ 16/18).
+- Cross-link from `docs/harness-architecture.md` "Future trust
+  boundary" section to the R1 implementation status (no longer
+  design-only).
+
+The reason these are one-shot with the code: regression protection
+only works if the gates and the docs grow with the surface they
+protect. R1 ships code that adds new failure modes; if the readiness
+rubric doesn't grow with it, MD2's CI gate becomes a false sense of
+security ("15/15 release-ready" while a remote-isolation regression
+silently lands).
 
 ### 10.2 What R1 does NOT ship
 
@@ -601,6 +733,14 @@ R1's purpose: validate the isolation model on `container-local`
 - Cosign image verification (G6+ extension).
 - Runner pool UI (Phase 3).
 - Cross-runner load balancing (Phase R3).
+- **Tier 2 strict egress (L2 nftables + L3 dnsmasq)** — R1 enforces
+  Layer 1 only because rootless docker can't attach nftables to a
+  host bridge (§7.0). G3-strict landing in R2.
+- **Audit `kid` + retained verify-key store** — R1 ships single-live-
+  key model. The `kid` field is reserved on the entry shape so the
+  R1 → R2 migration is zero-schema-change (§5.5.1).
+- **`HARNESS_RUNNER_BYPASS=1`** — intentionally never supported; egress
+  bypass is a deliberate, observable nft-rule edit by ops.
 
 ### 10.3 Required env
 
@@ -648,6 +788,11 @@ These are NOT decided in this RFC but flagged for future consideration:
 6. **Backup of audit ledger**: signed JSONL is replicable to S3 /
    azblob, but the policy (frequency, retention) is operator concern.
    Defer documentation until first compliance use case.
+7. **Audit `kid` + retained verify-key store (R2)**: §5.5.1 spells
+   out the design; the implementation is part of the R2 work that
+   adds Tier 2 strict egress. Without this, rotating `HARNESS_TOKEN`
+   wipes signature-verifiability of historical entries — acceptable
+   for R1, blocking for compliance use cases in R2+.
 
 ---
 
