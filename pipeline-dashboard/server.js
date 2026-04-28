@@ -53,6 +53,10 @@ const { createVersionInfo } = require("./src/runtime/version");
 const { RunRegistry } = require("./src/runtime/runRegistry");
 const { EvidenceLedger } = require("./src/runtime/evidenceLedger");
 const { createApp } = require("./src/server/createApp");
+// Slice R1-h (Phase D R1, 2026-04-28): bring up the remote-runner subsystem
+// (RunnerRegistry + JWT key + ledger signing key) from HARNESS_REMOTE_MODE
+// + HARNESS_TOKEN. Returns null/disabled shape when mode="off" (default).
+const { setupRemoteRunner } = require("./src/server/remoteRunnerSetup");
 
 const APP_ROOT = __dirname;
 const REPO_ROOT = path.resolve(__dirname, "..");
@@ -64,7 +68,23 @@ const MODE = ALLOW_REMOTE ? "remote" : "local";
 const auth = createAuthMiddleware({ repoRoot: REPO_ROOT, host: HOST, allowRemote: ALLOW_REMOTE });
 const runsDir = path.join(REPO_ROOT, "runs");
 const runRegistry = new RunRegistry({ rootDir: runsDir });
-const evidenceLedger = new EvidenceLedger({ rootDir: runsDir });
+// Slice R1-h: derive HARNESS_REMOTE_MODE + the two HKDF keys *before* the
+// evidence ledger is constructed so the ledger can be configured with its
+// signing key in one go (instead of mutating a half-built instance).
+const _remoteRunner = setupRemoteRunner();
+if (_remoteRunner.mode !== "off" && _remoteRunner.error === "token_missing") {
+  console.warn(
+    "[remote-runner] HARNESS_REMOTE_MODE=" + _remoteRunner.mode +
+    " but HARNESS_TOKEN is missing — runner routes will 503.",
+  );
+}
+const evidenceLedger = new EvidenceLedger({
+  rootDir: runsDir,
+  // R1-c + R1-h: when remote mode is preview/on AND HARNESS_TOKEN is set,
+  // sign every appended entry. Existing unsigned entries in the JSONL files
+  // continue to verify (verifyChain accepts the legacy shape).
+  signingKey: _remoteRunner.ledgerKey,
+});
 // Slice J (v5): indexRenderer injects a per-request nonce into every
 // <script> and <link rel="stylesheet"> tag in index.html, and sets the
 // Content-Security-Policy (or Content-Security-Policy-Report-Only) header
@@ -192,6 +212,11 @@ const { createRunsRoutes } = require("./src/routes/runsRoutes");
 // future monitoring console — consolidates server summary, orchestrator
 // run list, active children, and recent replay events into one response.
 const { createMonitorRoutes } = require("./src/routes/monitorRoutes");
+// Slice R1-h (Phase D R1, 2026-04-28): three-step handshake routes for
+// remote runners — /api/runner/handshake, /heartbeat, /hook. All routes
+// 404 when HARNESS_REMOTE_MODE === "off" (default), so this is dead-code
+// in single-orchestrator deployments. Feature flag locked at boot.
+const { createRunnerRoutes } = require("./src/routes/runnerRoutes");
 
 app.use("/api", createHealthRoutes({ pty }));
 
@@ -725,6 +750,23 @@ app.use("/api", createMonitorRoutes({
   eventReplayBuffer,
   bootTime: BOOT_TIME,
   mode: MODE,
+}));
+
+// Slice R1-h (Phase D R1, 2026-04-28): /api/runner/handshake, /heartbeat,
+// /hook. The router itself enforces feature-flag gating — when mode="off"
+// (default for single-orchestrator deployments) every route returns 404,
+// so this mount is harmless dead code in the local-only path. We pass the
+// shared evidenceLedger so handshake/heartbeat/hook decisions land in the
+// same audit chain that signed-key signing covers (R1-c). hookRouter is
+// intentionally NOT wired here — that's R1-e's job (WS path is primary,
+// /hook is partition-recovery fallback). For now the route accepts a
+// valid runJWT and acknowledges, but the body is dropped.
+app.use("/api", createRunnerRoutes({
+  runnerRegistry: _remoteRunner.runnerRegistry,
+  jwtKey: _remoteRunner.jwtKey,
+  mode: _remoteRunner.mode,
+  ledger: evidenceLedger,
+  hookRouter: null,
 }));
 
 // MB4-b (Phase D Round 2, 2026-04-27): the ~270 lines of
