@@ -308,6 +308,36 @@ class RunnerAgent {
 
 // ── env adapter for runner/index.js ─────────────────────────────────
 
+// R1-k3: per-field validators. A bad numeric env var (NaN / 0 / negative
+// / non-integer) used to fall through Number(...) and produce broken
+// timer cadences (immediate retry loops on heartbeat, backoff that
+// effectively disables itself). Now we fail fast in the same config-
+// error path required env missing uses, so a misconfigured runner host
+// never starts in a state where it can quietly DDoS the orchestrator.
+//
+// Minimums are chosen to flag obviously broken values, NOT to enforce a
+// specific operational policy. Operators can still pick any value above
+// the minimum; the floor exists to catch typos, off-by-one units (e.g.,
+// "5" intended as "5000"), and copy-paste accidents.
+const _ENV_NUMERIC_MIN_MS = Object.freeze({
+  HARNESS_HEARTBEAT_INTERVAL_MS: 1_000,   // sub-second heartbeats spam the orch
+  HARNESS_RECONNECT_BASE_MS:     100,     // base must allow fast recovery
+  HARNESS_RECONNECT_MAX_MS:      1_000,   // cap below 1s defeats backoff
+});
+
+function _parsePositiveIntegerEnv(name, raw) {
+  const min = _ENV_NUMERIC_MIN_MS[name];
+  // Number("") is 0, Number(undefined) is NaN — but the caller only
+  // dispatches here when the env var was set to a non-empty string.
+  const n = Number(raw);
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < min) {
+    throw new Error(
+      `invalid ${name}: must be a finite integer ≥ ${min}ms (got ${JSON.stringify(raw)})`,
+    );
+  }
+  return n;
+}
+
 function configFromEnv(env = process.env) {
   const required = {
     bootstrapToken: env.HARNESS_BOOTSTRAP_TOKEN,
@@ -325,9 +355,23 @@ function configFromEnv(env = process.env) {
   }
   const optional = {};
   if (env.HARNESS_SANDBOX_CLASS) optional.sandboxClass = env.HARNESS_SANDBOX_CLASS;
-  if (env.HARNESS_HEARTBEAT_INTERVAL_MS) optional.heartbeatIntervalMs = Number(env.HARNESS_HEARTBEAT_INTERVAL_MS);
-  if (env.HARNESS_RECONNECT_BASE_MS) optional.reconnectBaseMs = Number(env.HARNESS_RECONNECT_BASE_MS);
-  if (env.HARNESS_RECONNECT_MAX_MS) optional.reconnectMaxMs = Number(env.HARNESS_RECONNECT_MAX_MS);
+  // R1-k3: each numeric env var goes through validation so a bad value
+  // throws *here* (config error path), not at the first timer fire.
+  if (env.HARNESS_HEARTBEAT_INTERVAL_MS) {
+    optional.heartbeatIntervalMs = _parsePositiveIntegerEnv(
+      "HARNESS_HEARTBEAT_INTERVAL_MS", env.HARNESS_HEARTBEAT_INTERVAL_MS,
+    );
+  }
+  if (env.HARNESS_RECONNECT_BASE_MS) {
+    optional.reconnectBaseMs = _parsePositiveIntegerEnv(
+      "HARNESS_RECONNECT_BASE_MS", env.HARNESS_RECONNECT_BASE_MS,
+    );
+  }
+  if (env.HARNESS_RECONNECT_MAX_MS) {
+    optional.reconnectMaxMs = _parsePositiveIntegerEnv(
+      "HARNESS_RECONNECT_MAX_MS", env.HARNESS_RECONNECT_MAX_MS,
+    );
+  }
   return { ...required, ...optional };
 }
 

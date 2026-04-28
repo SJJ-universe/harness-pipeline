@@ -369,3 +369,103 @@ test("R1-e-3: configFromEnv lists all missing required env in one error", () => 
     }
   }
 });
+
+// ── R1-k3: numeric env validation ──────────────────────────────────
+
+const MIN_REQUIRED_ENV = Object.freeze({
+  HARNESS_BOOTSTRAP_TOKEN: "boot",
+  HARNESS_HOST_IDENTITY: "host-a",
+  HARNESS_ORCHESTRATOR_URL: "http://x",
+  HARNESS_RUN_ID: "rr-1",
+  HARNESS_RUN_JWT: "j.w.t",
+});
+
+function expectInvalidEnv(env, /** @type {RegExp} */ pattern) {
+  try {
+    configFromEnv(env);
+    assert.fail("should have thrown");
+  } catch (err) {
+    assert.match(err.message, pattern);
+  }
+}
+
+test("R1-k3: configFromEnv throws on non-numeric heartbeat interval ('abc')", () => {
+  expectInvalidEnv(
+    { ...MIN_REQUIRED_ENV, HARNESS_HEARTBEAT_INTERVAL_MS: "abc" },
+    /invalid HARNESS_HEARTBEAT_INTERVAL_MS/,
+  );
+});
+
+test("R1-k3: configFromEnv throws on zero heartbeat interval ('0')", () => {
+  expectInvalidEnv(
+    { ...MIN_REQUIRED_ENV, HARNESS_HEARTBEAT_INTERVAL_MS: "0" },
+    /invalid HARNESS_HEARTBEAT_INTERVAL_MS/,
+  );
+});
+
+test("R1-k3: configFromEnv throws on negative heartbeat interval ('-100')", () => {
+  expectInvalidEnv(
+    { ...MIN_REQUIRED_ENV, HARNESS_HEARTBEAT_INTERVAL_MS: "-100" },
+    /invalid HARNESS_HEARTBEAT_INTERVAL_MS/,
+  );
+});
+
+test("R1-k3: configFromEnv throws on fractional heartbeat interval ('1.5')", () => {
+  // Even if the value is positive and finite, the timer logic is
+  // integer-aligned. Reject fractional values to keep the contract clean.
+  expectInvalidEnv(
+    { ...MIN_REQUIRED_ENV, HARNESS_HEARTBEAT_INTERVAL_MS: "1.5" },
+    /invalid HARNESS_HEARTBEAT_INTERVAL_MS/,
+  );
+});
+
+test("R1-k3: configFromEnv throws on heartbeat below minimum (sub-second is wasteful)", () => {
+  expectInvalidEnv(
+    { ...MIN_REQUIRED_ENV, HARNESS_HEARTBEAT_INTERVAL_MS: "100" },
+    /HARNESS_HEARTBEAT_INTERVAL_MS.*≥ 1000ms/,
+  );
+});
+
+test("R1-k3: configFromEnv accepts heartbeat at exactly the minimum (1000ms)", () => {
+  const cfg = configFromEnv({
+    ...MIN_REQUIRED_ENV, HARNESS_HEARTBEAT_INTERVAL_MS: "1000",
+  });
+  assert.equal(cfg.heartbeatIntervalMs, 1000);
+});
+
+test("R1-k3: configFromEnv throws on bad HARNESS_RECONNECT_BASE_MS", () => {
+  expectInvalidEnv(
+    { ...MIN_REQUIRED_ENV, HARNESS_RECONNECT_BASE_MS: "NaN" },
+    /invalid HARNESS_RECONNECT_BASE_MS/,
+  );
+});
+
+test("R1-k3: configFromEnv throws on bad HARNESS_RECONNECT_MAX_MS", () => {
+  expectInvalidEnv(
+    { ...MIN_REQUIRED_ENV, HARNESS_RECONNECT_MAX_MS: "0" },
+    /invalid HARNESS_RECONNECT_MAX_MS/,
+  );
+});
+
+test("R1-k3: configFromEnv error message names the offending env var + got value", () => {
+  try {
+    configFromEnv({ ...MIN_REQUIRED_ENV, HARNESS_RECONNECT_BASE_MS: "bogus" });
+    assert.fail("should have thrown");
+  } catch (err) {
+    // Operator should be able to grep the error and find both the var
+    // name and what they typed wrong.
+    assert.match(err.message, /HARNESS_RECONNECT_BASE_MS/);
+    assert.match(err.message, /bogus/);
+  }
+});
+
+test("R1-k3: configFromEnv leaves defaults intact when numeric env vars are absent", () => {
+  // Critical regression: the validator must not change the "no env =
+  // use defaults" path. The runner_agent constructor still applies the
+  // built-in defaults (5_000 / 1_000 / 30_000) when configFromEnv
+  // returns no override.
+  const cfg = configFromEnv(MIN_REQUIRED_ENV);
+  assert.equal(cfg.heartbeatIntervalMs, undefined);
+  assert.equal(cfg.reconnectBaseMs, undefined);
+  assert.equal(cfg.reconnectMaxMs, undefined);
+});
