@@ -228,12 +228,12 @@ test("R1-g: registerRemote stores synthetic ref + snapshot has remote shape", ()
   assert.equal(reg.data.id, "agent-aaa");
 });
 
-test("R1-g: registerRemote is idempotent on duplicate id (returns the same ref)", () => {
+test("R1-g/R1-k1: registerRemote is idempotent on the {runId, hostIdentity, id} triple", () => {
   const events = [];
   const r = createChildRegistry({ broadcast: (e) => events.push(e) });
-  const a = r.registerRemote({ id: "a1", label: "x", runId: "rr-1" });
-  const b = r.registerRemote({ id: "a1", label: "x", runId: "rr-1" });
-  assert.strictEqual(a, b, "same id should yield the same ref");
+  const a = r.registerRemote({ id: "a1", label: "x", runId: "rr-1", hostIdentity: "runner-x" });
+  const b = r.registerRemote({ id: "a1", label: "x", runId: "rr-1", hostIdentity: "runner-x" });
+  assert.strictEqual(a, b, "same triple should yield the same ref");
   assert.equal(r.size(), 1);
   const regs = events.filter((e) => e.type === "child_registered");
   assert.equal(regs.length, 1, "duplicate registerRemote must not double-broadcast");
@@ -246,12 +246,12 @@ test("R1-g: registerRemote requires id (returns null on empty/missing)", () => {
   assert.equal(r.size(), 0);
 });
 
-test("R1-g: unregisterRemoteById removes the entry + emits child_unregistered", () => {
+test("R1-g/R1-k1: unregisterRemote removes the entry when the triple matches", () => {
   const events = [];
   const r = createChildRegistry({ broadcast: (e) => events.push(e) });
   r.registerRemote({ id: "a2", label: "claude", runId: "rr-1", hostIdentity: "runner-x" });
   events.length = 0;
-  assert.equal(r.unregisterRemoteById("a2"), true);
+  assert.equal(r.unregisterRemote({ id: "a2", runId: "rr-1", hostIdentity: "runner-x" }), true);
   assert.equal(r.size(), 0);
   assert.equal(events.length, 1);
   assert.equal(events[0].type, "child_unregistered");
@@ -259,23 +259,85 @@ test("R1-g: unregisterRemoteById removes the entry + emits child_unregistered", 
   assert.equal(events[0].data.remote, true);
 });
 
-test("R1-g: unregisterRemoteById returns false on unknown id (idempotent)", () => {
+test("R1-g/R1-k1: unregisterRemote returns false on unknown triple (idempotent)", () => {
   const r = createChildRegistry();
-  assert.equal(r.unregisterRemoteById("nope"), false);
-  r.registerRemote({ id: "a3", label: "x", runId: "rr-1" });
-  r.unregisterRemoteById("a3");
-  assert.equal(r.unregisterRemoteById("a3"), false);
+  assert.equal(r.unregisterRemote({ id: "nope", runId: "rr-1", hostIdentity: "runner-x" }), false);
+  r.registerRemote({ id: "a3", label: "x", runId: "rr-1", hostIdentity: "runner-x" });
+  r.unregisterRemote({ id: "a3", runId: "rr-1", hostIdentity: "runner-x" });
+  assert.equal(r.unregisterRemote({ id: "a3", runId: "rr-1", hostIdentity: "runner-x" }), false);
 });
 
-test("R1-g: unregister(ref) on a remote child also clears the id index", () => {
+test("R1-g/R1-k1: unregister(ref) on a remote child also clears the composite-key index", () => {
   const r = createChildRegistry();
-  const ref = r.registerRemote({ id: "a4", label: "x", runId: "rr-1" });
+  const ref = r.registerRemote({ id: "a4", label: "x", runId: "rr-1", hostIdentity: "runner-x" });
   r.unregister(ref);
   assert.equal(r.size(), 0);
-  // After id-index cleanup, registerRemote with the same id should succeed
+  // After cleanup, registerRemote with the same triple should succeed
   // (treated as a fresh entry, not the existing-ref idempotency path).
-  const ref2 = r.registerRemote({ id: "a4", label: "x", runId: "rr-1" });
+  const ref2 = r.registerRemote({ id: "a4", label: "x", runId: "rr-1", hostIdentity: "runner-x" });
   assert.notStrictEqual(ref2, ref);
+  assert.equal(r.size(), 1);
+});
+
+// ── R1-k1 namespace + ownership-verify regressions ─────────────────────
+
+test("R1-k1: same id under different runIds creates two distinct entries (no collision)", () => {
+  const events = [];
+  const r = createChildRegistry({ broadcast: (e) => events.push(e) });
+  const a = r.registerRemote({ id: "claude-aaa", label: "x", runId: "rr-1", hostIdentity: "runner-x" });
+  const b = r.registerRemote({ id: "claude-aaa", label: "x", runId: "rr-2", hostIdentity: "runner-x" });
+  assert.notStrictEqual(a, b, "different runIds must not collapse into one ref");
+  assert.equal(r.size(), 2, "both entries should coexist");
+  // Both runs surface in the snapshot; the id label collides but the
+  // runId disambiguates downstream consumers.
+  const runs = r.snapshot().map((s) => s.runId).sort();
+  assert.deepEqual(runs, ["rr-1", "rr-2"]);
+});
+
+test("R1-k1: same id under different hostIdentities creates two distinct entries", () => {
+  const r = createChildRegistry();
+  const a = r.registerRemote({ id: "claude-aaa", label: "x", runId: "rr-1", hostIdentity: "runner-x" });
+  const b = r.registerRemote({ id: "claude-aaa", label: "x", runId: "rr-1", hostIdentity: "runner-y" });
+  assert.notStrictEqual(a, b);
+  assert.equal(r.size(), 2);
+});
+
+test("R1-k1: unregisterRemote with WRONG runId is a no-op (ownership verify)", () => {
+  const r = createChildRegistry();
+  r.registerRemote({ id: "claude-aaa", label: "x", runId: "rr-1", hostIdentity: "runner-x" });
+  // Wrong runId — even if hostIdentity + id match, the registry must refuse.
+  const removed = r.unregisterRemote({ id: "claude-aaa", runId: "rr-EVIL", hostIdentity: "runner-x" });
+  assert.equal(removed, false, "mismatched runId must not be allowed to remove");
+  assert.equal(r.size(), 1, "the original entry must survive");
+});
+
+test("R1-k1: unregisterRemote with WRONG hostIdentity is a no-op (ownership verify)", () => {
+  const r = createChildRegistry();
+  r.registerRemote({ id: "claude-aaa", label: "x", runId: "rr-1", hostIdentity: "runner-x" });
+  const removed = r.unregisterRemote({ id: "claude-aaa", runId: "rr-1", hostIdentity: "runner-EVIL" });
+  assert.equal(removed, false);
+  assert.equal(r.size(), 1);
+});
+
+test("R1-k1: stop in run A cannot remove an entry registered in run B", () => {
+  // The original collision scenario: two runs registered the same agent id;
+  // a stop frame from run A must not clobber run B's projection.
+  const r = createChildRegistry();
+  r.registerRemote({ id: "shared", label: "x", runId: "rr-A", hostIdentity: "runner-x" });
+  r.registerRemote({ id: "shared", label: "x", runId: "rr-B", hostIdentity: "runner-x" });
+  r.unregisterRemote({ id: "shared", runId: "rr-A", hostIdentity: "runner-x" });
+  // Only run A's entry should be gone.
+  assert.equal(r.size(), 1);
+  const survivor = r.snapshot()[0];
+  assert.equal(survivor.runId, "rr-B");
+  assert.equal(survivor.id, "shared");
+});
+
+test("R1-k1: missing id on unregisterRemote returns false (defensive)", () => {
+  const r = createChildRegistry();
+  r.registerRemote({ id: "claude-aaa", label: "x", runId: "rr-1", hostIdentity: "runner-x" });
+  assert.equal(r.unregisterRemote({ runId: "rr-1", hostIdentity: "runner-x" }), false);
+  assert.equal(r.unregisterRemote({ id: "", runId: "rr-1", hostIdentity: "runner-x" }), false);
   assert.equal(r.size(), 1);
 });
 

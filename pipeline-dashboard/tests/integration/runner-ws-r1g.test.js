@@ -257,6 +257,75 @@ test("R1-g E2E: runner cannot smuggle hooks under another runId (trust boundary)
   }
 });
 
+// ── R1-k1: cross-run id namespace ─────────────────────────────────
+//
+// Two runs from two DIFFERENT runner hosts pick the same agent id —
+// pre-R1-k1 the bare-id key would collapse both projections into one
+// entry and one agent_stopped would clobber both. Single-host across
+// two runs can't be exercised via integration test (bootstrap is
+// single-use per hostIdentity by design — see runnerRegistry §8.1.1);
+// the unit suite covers the in-process registry semantics regardless.
+
+test("R1-k1 E2E: two hosts running different runs may share an agent id without colliding", async () => {
+  const orch = await startOrchestrator({
+    bootstrapMap: { "runner-A": "boot-A", "runner-B": "boot-B" },
+  });
+  const a1 = await startAgent(orch, "rr-A", { hostIdentity: "runner-A", bootstrap: "boot-A" });
+  const a2 = await startAgent(orch, "rr-B", { hostIdentity: "runner-B", bootstrap: "boot-B" });
+  try {
+    a1.ws.send(JSON.stringify({ type: "agent_started", id: "claude-aaa", label: "x" }));
+    a2.ws.send(JSON.stringify({ type: "agent_started", id: "claude-aaa", label: "x" }));
+    const both = await waitFor(() => orch.childRegistry.size() === 2, { timeoutMs: 1500 });
+    assert.equal(both, true, "both projections must coexist (no id collision)");
+    const collisionsByRun = orch.childRegistry.snapshot()
+      .filter((s) => s.id === "claude-aaa")
+      .map((s) => s.runId)
+      .sort();
+    assert.deepEqual(collisionsByRun, ["rr-A", "rr-B"]);
+    // Stop on host A: only A's projection should be removed.
+    a1.ws.send(JSON.stringify({ type: "agent_stopped", id: "claude-aaa" }));
+    const oneLeft = await waitFor(() => orch.childRegistry.size() === 1, { timeoutMs: 1500 });
+    assert.equal(oneLeft, true, "stop in rr-A must not touch rr-B");
+    const survivor = orch.childRegistry.snapshot()[0];
+    assert.equal(survivor.runId, "rr-B");
+    assert.equal(survivor.id, "claude-aaa");
+    assert.equal(survivor.hostIdentity, "runner-B");
+  } finally {
+    await a1.stop();
+    await a2.stop();
+    await orch.close();
+  }
+});
+
+test("R1-k1 E2E: forced WS close on host A only auto-clears that connection's children", async () => {
+  // Verifies the auto-cleanup path is also scoped — when one connection
+  // dies abruptly, the other host's projections must survive.
+  const orch = await startOrchestrator({
+    bootstrapMap: { "runner-A": "boot-A", "runner-B": "boot-B" },
+  });
+  const a1 = await startAgent(orch, "rr-A", { hostIdentity: "runner-A", bootstrap: "boot-A" });
+  const a2 = await startAgent(orch, "rr-B", { hostIdentity: "runner-B", bootstrap: "boot-B" });
+  try {
+    a1.ws.send(JSON.stringify({ type: "agent_started", id: "claude-aaa", label: "x" }));
+    a2.ws.send(JSON.stringify({ type: "agent_started", id: "claude-aaa", label: "x" }));
+    a2.ws.send(JSON.stringify({ type: "agent_started", id: "extra-bbb", label: "x" }));
+    await waitFor(() => orch.childRegistry.size() === 3);
+    // Force-close only host A's connection — host B's WS stays open.
+    a1.ws.close(1000, "test bye");
+    // After auto-cleanup: only host A's claude-aaa is gone (1 entry cleared).
+    const settled = await waitFor(() => orch.childRegistry.size() === 2, { timeoutMs: 1500 });
+    assert.equal(settled, true);
+    const ids = orch.childRegistry.snapshot()
+      .map((s) => `${s.runId}:${s.id}`)
+      .sort();
+    assert.deepEqual(ids, ["rr-B:claude-aaa", "rr-B:extra-bbb"]);
+  } finally {
+    await a1.stop();
+    await a2.stop();
+    await orch.close();
+  }
+});
+
 test("R1-g E2E: ledger captures every routed frame in chain", async () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "r1g-ledger-"));
   const orch = await startOrchestrator({

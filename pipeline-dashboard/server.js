@@ -330,7 +330,7 @@ const handleRunnerWsConnection = createRunnerWsHandler({
   ledger: evidenceLedger,
   childRegistry: {
     registerRemote: (opts) => childRegistry && childRegistry.registerRemote(opts),
-    unregisterRemoteById: (id) => childRegistry && childRegistry.unregisterRemoteById(id),
+    unregisterRemote: (opts) => childRegistry && childRegistry.unregisterRemote(opts),
   },
   hookRouter: {
     routeRemote: (runId, event) => hookRouter && hookRouter.routeRemote(runId, event),

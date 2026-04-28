@@ -1,5 +1,9 @@
 // Slice R1-e-2 (Phase D R1, 2026-04-28) — runner WS connection lifecycle.
 // Slice R1-g  (Phase D R1, 2026-04-28) — message routing + child projection.
+// Slice R1-k1 (Phase D R1, 2026-04-28) — agent_stopped + close auto-cleanup
+//   call unregisterRemote with the {id, runId, hostIdentity} triple.
+//   runId + hostIdentity come from the JWT verdict, so a runner cannot
+//   smuggle a stop frame for another run's child id.
 //
 // The handler's job:
 //
@@ -13,7 +17,7 @@
 //        { type: "agent_started", id, label, agentType }
 //          → childRegistry.registerRemote({ id, label, runId, hostIdentity, agentType })
 //        { type: "agent_stopped", id }
-//          → childRegistry.unregisterRemoteById(id)
+//          → childRegistry.unregisterRemote({ id, runId, hostIdentity })  (R1-k1)
 //        { type: "hook", event }
 //          → hookRouter.routeRemote(runId, event)
 //      Unknown / malformed frames are dropped + counted.
@@ -52,6 +56,8 @@ function _ledgerAudit(ledger, runId, type, data) {
  *   on every recognised frame.
  * @param {object} [opts.childRegistry]
  *   Optional. R1-g routes `agent_started`/`agent_stopped` frames here.
+ *   R1-k1: must implement `registerRemote({id, label, runId, hostIdentity,
+ *   agentType})` and `unregisterRemote({id, runId, hostIdentity})`.
  *   When absent the handler accepts the frames but skips the projection.
  * @param {object} [opts.hookRouter]
  *   Optional. R1-g routes `hook` frames here via `routeRemote(runId, event)`.
@@ -134,8 +140,12 @@ function createRunnerWsHandler({
         case FRAME_AGENT_STOPPED: {
           const id = typeof frame.id === "string" ? frame.id : null;
           if (!id) { messagesDropped += 1; break; }
-          if (childRegistry && typeof childRegistry.unregisterRemoteById === "function") {
-            childRegistry.unregisterRemoteById(id);
+          // R1-k1: pass the verdict's runId + hostIdentity. If the runner
+          // tries to stop a child registered under a different scope, the
+          // registry returns false and nothing happens — the trust
+          // boundary is enforced inside the registry, not just here.
+          if (childRegistry && typeof childRegistry.unregisterRemote === "function") {
+            childRegistry.unregisterRemote({ id, runId, hostIdentity });
           }
           agentsStartedThisConnection.delete(id);
           messagesRouted += 1;
@@ -167,10 +177,13 @@ function createRunnerWsHandler({
       // but didn't explicitly stop. Without this, a forced WS close (e.g.
       // operator killed the runner host) would leak entries into the
       // registry until orchestrator restart.
+      // R1-k1: cleanup uses the same {runId, hostIdentity} tuple the
+      // start frame used. The auto-cleanup is therefore scoped — it only
+      // touches entries this exact connection is responsible for.
       let leaked = 0;
-      if (childRegistry && typeof childRegistry.unregisterRemoteById === "function") {
+      if (childRegistry && typeof childRegistry.unregisterRemote === "function") {
         for (const id of agentsStartedThisConnection) {
-          if (childRegistry.unregisterRemoteById(id)) leaked += 1;
+          if (childRegistry.unregisterRemote({ id, runId, hostIdentity })) leaked += 1;
         }
       }
       agentsStartedThisConnection.clear();

@@ -37,7 +37,10 @@ function makeMocks() {
   const childCalls = [];
   const childRegistry = {
     registerRemote: (opts) => { childCalls.push({ op: "register", ...opts }); return { ref: opts.id }; },
-    unregisterRemoteById: (id) => { childCalls.push({ op: "unregister", id }); return true; },
+    // R1-k1: unregisterRemote takes the {id, runId, hostIdentity} triple.
+    // The mock records the full args so tests can lock the trust boundary
+    // (id matches frame, runId/hostIdentity match the JWT verdict).
+    unregisterRemote: (opts) => { childCalls.push({ op: "unregister", ...opts }); return true; },
   };
   const hookCalls = [];
   const hookRouter = {
@@ -101,9 +104,9 @@ test("R1-g: agent_started without id is dropped", () => {
   assert.equal(mocks.childCalls.filter((c) => c.op === "register").length, 0);
 });
 
-// ── agent_stopped → unregisterRemoteById ──────────────────────────
+// ── agent_stopped → unregisterRemote ──────────────────────────────
 
-test("R1-g: agent_stopped frame → childRegistry.unregisterRemoteById", () => {
+test("R1-g/R1-k1: agent_stopped frame → childRegistry.unregisterRemote with verdict scope", () => {
   const mocks = makeMocks();
   const handle = createRunnerWsHandler({ ...mocks });
   const ws = new MockWs();
@@ -113,6 +116,32 @@ test("R1-g: agent_stopped frame → childRegistry.unregisterRemoteById", () => {
   ws.emit("message", JSON.stringify({ type: FRAME_AGENT_STOPPED, id: "agent-bbb" }));
   const unreg = mocks.childCalls.find((c) => c.op === "unregister" && c.id === "agent-bbb");
   assert.ok(unreg);
+  // R1-k1: the runId + hostIdentity passed to unregisterRemote come from
+  // the JWT verdict, NOT from the frame body.
+  assert.equal(unreg.runId, "rr-1");
+  assert.equal(unreg.hostIdentity, "runner-x");
+});
+
+test("R1-k1: agent_stopped frame body cannot override the verdict's runId/hostIdentity scope", () => {
+  // The frame body could try to smuggle a stop for another run by
+  // including extra fields. The handler must NEVER pass those values to
+  // unregisterRemote — only verdict.runId / verdict.hostIdentity get
+  // through.
+  const mocks = makeMocks();
+  const handle = createRunnerWsHandler({ ...mocks });
+  const ws = new MockWs();
+  handle(ws, {}, VERDICT);
+  ws.emit("message", JSON.stringify({
+    type: FRAME_AGENT_STOPPED,
+    id: "agent-ccc",
+    runId: "rr-EVIL",                 // attacker-controlled
+    hostIdentity: "runner-EVIL",      // attacker-controlled
+  }));
+  const unreg = mocks.childCalls.find((c) => c.op === "unregister");
+  assert.ok(unreg);
+  assert.equal(unreg.id, "agent-ccc");
+  assert.equal(unreg.runId, "rr-1", "verdict.runId is authoritative");
+  assert.equal(unreg.hostIdentity, "runner-x", "verdict.hostIdentity is authoritative");
 });
 
 // ── hook → hookRouter.routeRemote ─────────────────────────────────
@@ -186,7 +215,7 @@ test("R1-g: unknown frame type is dropped + counted", () => {
 
 // ── auto-cleanup on close ─────────────────────────────────────────
 
-test("R1-g: close auto-unregisters every agent started in this connection", () => {
+test("R1-g/R1-k1: close auto-unregisters every agent started in this connection (scoped)", () => {
   const mocks = makeMocks();
   const handle = createRunnerWsHandler({ ...mocks });
   const ws = new MockWs();
@@ -200,6 +229,13 @@ test("R1-g: close auto-unregisters every agent started in this connection", () =
   const unreg = mocks.childCalls.filter((c) => c.op === "unregister");
   // a2 from explicit stop, a1 + a3 from auto-cleanup = 3 total.
   assert.equal(unreg.length, 3);
+  // R1-k1: every auto-cleanup call carries the verdict's runId +
+  // hostIdentity, so the registry only removes children belonging to
+  // this exact (run, host) pair.
+  for (const u of unreg) {
+    assert.equal(u.runId, "rr-1");
+    assert.equal(u.hostIdentity, "runner-x");
+  }
   const closed = mocks.ledgerCalls.find((e) => e.type === "runner_ws_disconnected");
   // a1 + a3 = 2 auto-cleared.
   assert.equal(closed.data.agentsAutoCleared, 2);
