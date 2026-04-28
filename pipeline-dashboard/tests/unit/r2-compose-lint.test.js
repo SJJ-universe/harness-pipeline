@@ -31,6 +31,8 @@ const PROBE_SH = path.join(ROOT, "scripts", "r2-probe-egress.sh");
 const PROBE_PS1 = path.join(ROOT, "scripts", "r2-probe-egress.ps1");
 const MONITOR_SH = path.join(ROOT, "scripts", "r2-monitor-probe.sh");
 const MONITOR_PS1 = path.join(ROOT, "scripts", "r2-monitor-probe.ps1");
+const LIFECYCLE_SH = path.join(ROOT, "scripts", "r2-lifecycle-probe.sh");
+const LIFECYCLE_PS1 = path.join(ROOT, "scripts", "r2-lifecycle-probe.ps1");
 
 function readFile(p) {
   return fs.readFileSync(p, "utf-8");
@@ -262,6 +264,44 @@ test("R2-3: monitor probe targets the four documented anchors (G5 + R1-k2)", () 
     assert.ok(sh.includes(a), `expected ${a} in r2-monitor-probe.sh`);
     assert.ok(ps1.includes(a), `expected ${a} in r2-monitor-probe.ps1`);
   }
+});
+
+// ── R2-5 lifecycle probe ──────────────────────────────────────────
+
+test("R2-5: r2-lifecycle-probe.{sh,ps1} both exist", () => {
+  assert.ok(fs.existsSync(LIFECYCLE_SH), "expected scripts/r2-lifecycle-probe.sh");
+  assert.ok(fs.existsSync(LIFECYCLE_PS1), "expected scripts/r2-lifecycle-probe.ps1");
+});
+
+test("R2-5: lifecycle probe checks /work/out tmpfs+noexec, sequential cycles, bounce reconnect", () => {
+  const checks = [
+    "/work/out",
+    "tmpfs",
+    "noexec",
+    "agent_started",
+    "agent_stopped",
+    "ws open",
+  ];
+  const sh = readFile(LIFECYCLE_SH);
+  const ps1 = readFile(LIFECYCLE_PS1);
+  for (const c of checks) {
+    assert.ok(sh.includes(c), `expected ${c} in r2-lifecycle-probe.sh`);
+    assert.ok(ps1.includes(c), `expected ${c} in r2-lifecycle-probe.ps1`);
+  }
+});
+
+test("R2-5: Dockerfile.runner does NOT pre-create /work/in (operator mounts it ro)", () => {
+  // Pre-fix, /work/in was created in the image and chowned to harness,
+  // making it a writable scratch directory by default. R2-5 evidence
+  // requires the path to be either absent (no operator mount yet) or
+  // read-only (operator mount), never writable. We assert /work/in is
+  // not in the mkdir line.
+  const text = readFile(DOCKERFILE_RUNNER);
+  assert.doesNotMatch(text, /mkdir\s+-p[^\n]*\/work\/in/,
+    "Dockerfile.runner must NOT pre-create /work/in (writable by default)");
+  // Positive: /work/out IS still pre-created (and chowned).
+  assert.match(text, /mkdir\s+-p\s+\/work\/out/,
+    "Dockerfile.runner must still pre-create /work/out");
 });
 
 // ── Dockerfile.runner regression guard ────────────────────────────

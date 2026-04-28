@@ -45,9 +45,14 @@ RUN npm ci --omit=dev --ignore-scripts
 # ── runtime stage ──────────────────────────────────────────────────
 FROM node:24-bookworm-slim AS runtime
 
-# Create runner workspace. Caller is expected to mount /work/in (ro) and
-# /work/out (tmpfs) at `docker run`.
-RUN mkdir -p /work/in /work/out && chown -R 10001:10001 /work
+# Create runner workspace. /work/out is a tmpfs at runtime (compose
+# mounts it `noexec, size=64m`). /work/in is left ABSENT here — when
+# the operator mounts an input directory, docker creates the mountpoint
+# implicitly. Leaving it out of the image means a misconfigured runner
+# (no input mount) does not silently expose a writable scratch
+# directory under /work/in. This matches MG1 §2.1's "ro input only"
+# posture: there is no in-container fallback for the input path.
+RUN mkdir -p /work/out && chown -R 10001:10001 /work
 
 WORKDIR /app
 
