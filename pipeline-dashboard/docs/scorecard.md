@@ -192,7 +192,7 @@ live behind the `HARNESS_REMOTE_MODE` feature flag (default off).
 - **R1-i** — `scripts/readiness-report.js` adds 6th category `remote-isolation` (3 stars, all in-process behavior checks): default fail-closed + HKDF JWT/ledger domain separation + audit chain HMAC round-trip. Rubric cap 5×3=15 → 6×3=18, gate thresholds re-scaled (release 14 → 17, preview 10 → 12, internal 6 → 7). CI workflow label updated. `docs/readiness-rubric.md` §2.6 documents the 3 stars.
 - **R1-j** (this update) — Scorecard trajectory 99 → 100 + post-table-write delta + plan Part J. Safety cap extended 15 → 16 with rationale. Backlog refreshed. The "Long-horizon" backlog gets "P4 R1 implementation slices" partially struck — the orchestrator-side primitives are DONE but R1-e + R1-g are pending.
 
-**Test counts grew from 936 unit / 197 integration (pre-R1) to <!-- AUTO:test-counts -->**1085 unit / 247 integration**<!-- /AUTO --> after R1-i landed.** The R1 round added approximately +89 unit + +29 integration = +118 tests, all green.
+**Test counts grew from 936 unit / 197 integration (pre-R1) to <!-- AUTO:test-counts -->**1086 unit / 247 integration**<!-- /AUTO --> after R1-i landed.** The R1 round added approximately +89 unit + +29 integration = +118 tests, all green.
 
 **Deferred to a paired R1-e + R1-g round**:
 - R1-e — WS `/api/runner/events` upgrade gate using a path-aware demux (NOT reusing `verifyWsConnection`, which is dashboard/terminal-focused) + `harness-runner` Node entrypoint (~300 LOC, replaces R1-f's stub) that handshakes, heartbeats, opens the WS, and emits hooks.
@@ -201,7 +201,7 @@ live behind the `HARNESS_REMOTE_MODE` feature flag (default off).
 ## Operational facts
 
 - Single canonical working tree: `C:\Users\SJ\harness-pipeline-analysis` @ `master`.
-- Test counts: <!-- AUTO:test-counts -->**1085 unit / 247 integration**<!-- /AUTO --> + legacy + smoke, all green. _(line auto-derived by `npm run scorecard:sync`; do not hand-edit between markers.)_
+- Test counts: <!-- AUTO:test-counts -->**1086 unit / 247 integration**<!-- /AUTO --> + legacy + smoke, all green. _(line auto-derived by `npm run scorecard:sync`; do not hand-edit between markers.)_
 - server.js: 1075 → **799** lines (Phase D MA0 + MB4-b/d, **−276** lines).
 - public/app.js: 2129 → **1877** lines (Phase D MB4-c + MA7-a/b/c + earlier AC, **−252** lines).
 - New module footprint: 3 server modules (`wsAuth`, `generalPipelineRunner`, `eventBroadcaster`), 13 client modules under `public/js/monitor/` (store, normalizer, hydrate, legacy-bridge, layout + 8 panels), 4 client modules at `public/js/` root (terminal-mount, general-pipeline-modal, tool-feed-render, stage-modal), 1 client module under `public/js/event-handlers/` (subagent-events — first dispatcher-driven extraction). All UMD, all tested.
