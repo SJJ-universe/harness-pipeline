@@ -302,7 +302,37 @@ const verifyWsConnection = createWsAuth({
   isLoopbackHost,
 });
 
+// Slice R1-e-2 (Phase D R1, 2026-04-28) — path-aware demux for runner WS.
+//
+// `/api/runner/events` upgrades use a fundamentally different auth model
+// than dashboard/terminal upgrades (per-run JWT instead of harness token,
+// no loopback exception, etc.). Stuffing both policies into one
+// `verifyWsConnection` would either weaken the dashboard gate or break the
+// runner flow — see runnerWsAuth.js header for the rationale.
+const { createRunnerWsAuth, isRunnerWsPath } = require("./src/server/runnerWsAuth");
+const { createRunnerWsHandler } = require("./src/server/runnerWsHandler");
+const verifyRunnerWsConnection = createRunnerWsAuth({
+  jwtKey: _remoteRunner.jwtKey,
+  mode: _remoteRunner.mode,
+});
+const handleRunnerWsConnection = createRunnerWsHandler({
+  ledger: evidenceLedger,
+});
+
 wss.on("connection", (ws, req) => {
+  // Slice R1-e-2: runner path uses runJWT auth, NOT the dashboard token.
+  // Demux first so misconfigured runners can't accidentally bypass the
+  // dashboard's loopback gate by hitting /api/runner/events.
+  if (isRunnerWsPath(req.url)) {
+    const runnerVerdict = verifyRunnerWsConnection(req);
+    if (!runnerVerdict.ok) {
+      try { ws.close(runnerVerdict.code, runnerVerdict.reason); } catch (_) {}
+      return;
+    }
+    handleRunnerWsConnection(ws, req, runnerVerdict);
+    return;
+  }
+
   // Slice S1: gate first — terminal-specific token check below remains as a
   // belt-and-suspenders second layer for the /terminal subpath.
   const verdict = verifyWsConnection(req);
