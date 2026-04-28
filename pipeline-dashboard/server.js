@@ -85,6 +85,25 @@ const evidenceLedger = new EvidenceLedger({
   // continue to verify (verifyChain accepts the legacy shape).
   signingKey: _remoteRunner.ledgerKey,
 });
+
+// Slice R3-c-2 (Phase D R3, 2026-04-28): periodic stale-runner monitor.
+// Tied to the runnerRegistry lifecycle — only constructed when remote mode
+// is preview/on AND a registry exists. Single-emit semantics + dedupe-on-
+// recovery keep the audit chain quiet outside of actual host-loss events.
+// Idle stale hosts (no claimed runs) are intentionally NOT audited; only
+// hosts with stranded runs surface as `runner_host_lost` rows.
+const { RunnerStaleMonitor } = require("./src/runtime/runnerStaleMonitor");
+const _runnerStaleMonitor = _remoteRunner.runnerRegistry
+  ? new RunnerStaleMonitor({
+      registry: _remoteRunner.runnerRegistry,
+      ledger: evidenceLedger,
+      // intervalMs default = 30000ms = RunnerRegistry.heartbeatDropMs.
+      // Operators can tighten this via HARNESS_RUNNER_STALE_INTERVAL_MS
+      // for faster signal in deployments where a runner host failure
+      // must be reflected in the chain quickly.
+      intervalMs: Number(process.env.HARNESS_RUNNER_STALE_INTERVAL_MS) || 30000,
+    })
+  : null;
 // Slice J (v5): indexRenderer injects a per-request nonce into every
 // <script> and <link rel="stylesheet"> tag in index.html, and sets the
 // Content-Security-Policy (or Content-Security-Policy-Report-Only) header
@@ -895,9 +914,18 @@ function start(port = PORT, host = HOST) {
   _ledgerCleanupInterval = setInterval(() => {
     try { evidenceLedger.cleanup(); } catch (_) {}
   }, 6 * 3600 * 1000);
+  // Slice R3-c-2: start the periodic stale-runner monitor (only when
+  // remote mode is preview/on). Mirrors the ledger-cleanup pattern
+  // — start at boot, tear down via server.close hook below.
+  if (_runnerStaleMonitor) {
+    try { _runnerStaleMonitor.start(); } catch (_) {}
+  }
   server.once("close", () => {
     try { sessionWatcher.stop(); } catch (_) {}
     if (_ledgerCleanupInterval) clearInterval(_ledgerCleanupInterval);
+    if (_runnerStaleMonitor) {
+      try { _runnerStaleMonitor.stop(); } catch (_) {}
+    }
   });
   return server.listen(port, host, () => {
     console.log(`Pipeline Dashboard: http://${host}:${port}`);
