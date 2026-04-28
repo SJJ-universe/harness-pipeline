@@ -295,34 +295,139 @@ async function scoreRemoteIsolation() {
     }
   } catch (_) {}
 
-  // Star 3 — audit chain HMAC end-to-end. Build a temp ledger with the
-  // derived signing key, append two entries, verifyChain() must report
-  // valid:true AND every appended entry must carry sigVer:1 + sig.
-  // Catches a regression where signing is configured but not actually
-  // applied to writes (R1-c invariant).
+  // Star 3 (R1-g upgrade) — LIVE end-to-end runner round-trip. The
+  // previous in-process HMAC-chain check is subsumed by this: the
+  // round-trip exercises the full stack (http + WS demux + handler +
+  // RunnerAgent + childRegistry + ledger), and the ledger chain still
+  // gets verified at the end. The signal is qualitatively stronger —
+  // a regression in ANY of:
+  //
+  //   server.js's path-aware demux + runnerProvider wiring,
+  //   runnerWsAuth's JWT verification,
+  //   runnerWsHandler's frame routing,
+  //   childRegistry.registerRemote,
+  //   ledger HMAC chain
+  //
+  // makes this star drop. The previous (HMAC-only) check could pass
+  // with broken WS routing or broken childRegistry — bug recommended
+  // by review (R1-h2) noted exactly this gap.
+  //
+  // Implementation: in-process orchestrator + agent. No spawned-server
+  // dependency, so the check still works under --no-spawn mode.
   try {
     const fs = require("node:fs");
     const os = require("node:os");
     const path2 = require("node:path");
-    const { EvidenceLedger } = require("../src/runtime/evidenceLedger");
+    const http = require("node:http");
+    const express = require("express");
+    const { WebSocketServer, WebSocket } = require("ws");
+    const { createRunnerRoutes } = require("../src/routes/runnerRoutes");
+    const { createRunnerWsAuth, isRunnerWsPath } = require("../src/server/runnerWsAuth");
+    const { createRunnerWsHandler } = require("../src/server/runnerWsHandler");
     const { setupRemoteRunner } = require("../src/server/remoteRunnerSetup");
-    const live = setupRemoteRunner({
-      env: { HARNESS_REMOTE_MODE: "preview", HARNESS_TOKEN: "readiness-probe-ledger" },
+    const { EvidenceLedger } = require("../src/runtime/evidenceLedger");
+    const { createChildRegistry } = require("../src/runtime/childRegistry");
+    const { RunnerAgent } = require("../src/runner/runnerAgent");
+    const jwtMod = require("../src/security/jwt");
+
+    const setup = setupRemoteRunner({
+      env: { HARNESS_REMOTE_MODE: "preview", HARNESS_TOKEN: "readiness-probe-e2e" },
     });
-    const dir = fs.mkdtempSync(path2.join(os.tmpdir(), "readiness-ledger-"));
-    try {
-      const ledger = new EvidenceLedger({ rootDir: dir, signingKey: live.ledgerKey });
-      ledger.append("readiness-probe", { type: "auth_attempt", data: { who: "probe" } });
-      ledger.append("readiness-probe", { type: "auth_ok",      data: { who: "probe" } });
-      const v = ledger.verifyChain("readiness-probe");
-      const entries = ledger.read("readiness-probe");
-      const allSigned = entries.length === 2 &&
-        entries.every((e) => e.sigVer === 1 && typeof e.sig === "string");
-      if (v.valid && allSigned) {
-        stars.push("ledger HMAC chain verifies after signed appends (behavior verified)");
+    setup.runnerRegistry._bootstrapTokenFor = (h) => h === "probe-host" ? "boot-aaa" : null;
+
+    const dir = fs.mkdtempSync(path2.join(os.tmpdir(), "readiness-e2e-"));
+    const QUIET = { log: () => {}, warn: () => {}, error: () => {} };
+
+    const ok = await new Promise(async (resolve) => {
+      const ledger = new EvidenceLedger({ rootDir: dir, signingKey: setup.ledgerKey });
+      const childRegistry = createChildRegistry();
+      const app = express();
+      app.use(express.json());
+      app.use("/api", createRunnerRoutes({
+        runnerRegistry: setup.runnerRegistry,
+        jwtKey: setup.jwtKey,
+        mode: "preview",
+        ledger,
+      }));
+      const server = http.createServer(app);
+      const wss = new WebSocketServer({ server });
+      const verifyRunner = createRunnerWsAuth({ jwtKey: setup.jwtKey, mode: "preview" });
+      const handleRunner = createRunnerWsHandler({ ledger, childRegistry });
+      wss.on("connection", (ws, req) => {
+        if (isRunnerWsPath(req.url)) {
+          const verdict = verifyRunner(req);
+          if (!verdict.ok) { try { ws.close(verdict.code, verdict.reason); } catch (_) {} return; }
+          handleRunner(ws, req, verdict);
+        } else {
+          try { ws.close(1008, "non-runner"); } catch (_) {}
+        }
+      });
+
+      const runId = "rr-readiness-probe";
+      const runJwt = jwtMod.issue({
+        runId,
+        key: setup.jwtKey,
+        runDurationMs: 30_000,
+        harness: { runOrigin: "container-remote", sandboxClass: "container-strict", hostIdentity: "probe-host" },
+      });
+
+      let agent = null;
+      const cleanup = async () => {
+        try { await agent?.stop(); } catch (_) {}
+        await new Promise((r) => wss.close(() => server.close(() => r())));
+        try { fs.rmSync(dir, { recursive: true, force: true }); } catch (_) {}
+      };
+
+      const timeoutId = setTimeout(async () => { await cleanup(); resolve(false); }, 3000);
+
+      try {
+        await new Promise((r) => server.listen(0, "127.0.0.1", r));
+        const port = server.address().port;
+        agent = new RunnerAgent(
+          {
+            bootstrapToken: "boot-aaa",
+            hostIdentity: "probe-host",
+            orchestratorUrl: `http://127.0.0.1:${port}`,
+            runId,
+            runJwt,
+            heartbeatIntervalMs: 60_000,
+          },
+          { WebSocketCtor: WebSocket, logger: QUIET },
+        );
+        await agent.start();
+        // Wait for hello frame.
+        const helloDeadline = Date.now() + 1500;
+        while (!agent.helloReceived && Date.now() < helloDeadline) {
+          await new Promise((r) => setTimeout(r, 20));
+        }
+        if (!agent.helloReceived) { clearTimeout(timeoutId); await cleanup(); resolve(false); return; }
+
+        // Drive an agent_started → child registers as remote with the right host.
+        agent.ws.send(JSON.stringify({ type: "agent_started", id: "probe-agent", label: "probe", agentType: "claude" }));
+        const projDeadline = Date.now() + 1000;
+        while (childRegistry.size() < 1 && Date.now() < projDeadline) {
+          await new Promise((r) => setTimeout(r, 20));
+        }
+        const snap = childRegistry.snapshot();
+        const child = snap.find((c) => c.id === "probe-agent");
+        const childOk = !!child && child.remote === true && child.runId === runId && child.hostIdentity === "probe-host";
+
+        // Audit chain verifies under HMAC.
+        const sysVerify = ledger.verifyChain("system").valid;
+        const runVerify = ledger.verifyChain(runId).valid;
+
+        clearTimeout(timeoutId);
+        await cleanup();
+        resolve(childOk && sysVerify && runVerify && setup.runnerRegistry.listRunners().length === 1);
+      } catch (_) {
+        clearTimeout(timeoutId);
+        await cleanup();
+        resolve(false);
       }
-    } finally {
-      try { fs.rmSync(dir, { recursive: true, force: true }); } catch (_) {}
+    });
+
+    if (ok) {
+      stars.push("live runner agent → orchestrator round-trip projects remote child + ledger chain verifies (behavior verified)");
     }
   } catch (_) {}
 

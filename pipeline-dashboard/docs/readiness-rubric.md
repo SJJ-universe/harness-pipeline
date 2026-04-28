@@ -76,9 +76,9 @@ Each category has 0..3 stars. Total 18 stars across the rubric. A category at 0 
 | --- | --- |
 | ★ | `HARNESS_REMOTE_MODE` defaults to `"off"` (workspace-boundary closed). `setupRemoteRunner({ env: {} })` returns `mode="off"`, `runnerRegistry=null`, both keys `null`; `createRunnerRoutes(mode="off")` 404s every route. |
 | ★★ | Token model with HKDF domain separation. The JWT signing key (`info="runner-jwt"`) and the audit-ledger signing key (`info="audit-ledger"`) derive from the same `HARNESS_TOKEN` IKM but produce two independent 32-byte keys. Compromising one must not compromise the other. |
-| ★★★ | Audit chain HMAC end-to-end. After a signing key is configured, every `EvidenceLedger.append` writes `sigVer:1 + sig` and `verifyChain(runId)` returns `valid:true`. R1-c invariant: signing config that doesn't actually sign writes is a regression. |
+| ★★★ | **Live end-to-end round-trip** (R1-g upgrade). An in-process orchestrator + RunnerAgent: handshake → WS hello → `agent_started` frame → orchestrator's `childRegistry` shows the remote child with the right `runId` + `hostIdentity` + `remote:true` flag, AND the audit chain still verifies under HMAC. Subsumes the previous "audit chain only" check — a regression in path-aware demux, JWT verify, WS frame routing, child projection, OR ledger signing makes this star drop. |
 
-> The full agent flow (handshake → heartbeat sliding TTL → JWT-authenticated WS hook → graceful release) is exercised by the integration suite (`tests/integration/runner-server-wiring.test.js`, `runner-routes.test.js`). The readiness rubric verifies the three structural invariants above; the suite verifies the choreography.
+> The full agent flow (handshake → heartbeat sliding TTL → JWT-authenticated WS hook → graceful release) is exercised by the integration suite (`tests/integration/runner-server-wiring.test.js`, `runner-routes.test.js`, `runner-ws-r1g.test.js`). The readiness rubric verifies these three invariants live; the suite covers the broader choreography.
 
 ## 3. Current readiness (auto-derived, live mode)
 
@@ -127,7 +127,7 @@ Each entry below records when a category last hit its third star.
 | Replay visibility | MA6 + AA-2 | Pinned events survive ring eviction; `snapshot({runId, includeGlobal})` |
 | Event integrity | MC4 | Bridge forward + run-sync verifications upgraded to behavior checks |
 | Contract stability | MC4 | Layout panels-override checked by stub-panel behavior, not just type-check |
-| Remote isolation | R1-i | Default off + HKDF domain separation + signed audit chain (all 3 stars behavior-verified, in-process) |
+| Remote isolation | R1-i → R1-g | Default off + HKDF domain separation + (R1-g) **live agent → orchestrator round-trip** projecting remote child + chain verify |
 
 ## 4. How readiness checks run
 
@@ -149,7 +149,7 @@ $ node scripts/readiness-report.js
   remote-isolation     ★★★  (3/3)
     + HARNESS_REMOTE_MODE default = off (fail-closed, behavior verified)
     + HKDF JWT + ledger keys derive with domain separation (behavior verified)
-    + ledger HMAC chain verifies after signed appends (behavior verified)
+    + live runner agent → orchestrator round-trip projects remote child + ledger chain verifies (behavior verified)
   ───────────────────────────────
   total                18/18  → release-ready
 ```
@@ -163,6 +163,14 @@ module export existed.
 the rubric with three in-process behavior checks (default fail-closed,
 HKDF domain separation, audit-chain HMAC round-trip). The cap rises from
 15 to 18 stars and the gate thresholds re-scale proportionally.
+
+**Slice R1-g (Phase D R1)**: Star 3 of remote-isolation upgrades from the
+in-process audit-chain-only check to a LIVE end-to-end round-trip. The
+new check spins up an in-process orchestrator + connects a RunnerAgent +
+drives an `agent_started` frame, then asserts the remote child appears
+in `childRegistry.snapshot()` with the right metadata AND the audit
+chain still verifies. Catches a much wider regression surface: WS demux,
+JWT verify, frame routing, child projection, ledger HMAC.
 
 Exit codes (post-R1-i):
 - `0` — total ≥ 17 (release-ready)
