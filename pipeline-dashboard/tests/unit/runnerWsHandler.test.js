@@ -173,6 +173,86 @@ test("R1-g: hook frame WITHOUT event is dropped (no routeRemote call)", () => {
 
 // ── R1-k2: hook success audit entry ───────────────────────────────
 
+// ── R2.5-b: structured verdict + new audit verbs ──────────────────
+
+test("R2.5-b: when routeRemote returns sanitized, handler emits runner_hook_sanitized", () => {
+  const mocks = makeMocks();
+  // Mock returns the R2.5-b verdict shape: sanitized, no reject.
+  mocks.hookRouter.routeRemote = () => ({
+    broadcast: true,
+    rejected: null,
+    sanitized: { hook: "PreToolUse", tool: "Read", _data: {} },
+    dispatched: null,
+  });
+  const handle = createRunnerWsHandler({ ...mocks });
+  const ws = new MockWs();
+  handle(ws, {}, VERDICT);
+  ws.emit("message", JSON.stringify({
+    type: FRAME_HOOK,
+    event: { hook: "PreToolUse", tool: "Read" },
+  }));
+  // R1-k2 entry still fires (broadcast happened).
+  const routed = mocks.ledgerCalls.find((e) => e.type === "runner_hook_routed");
+  assert.ok(routed, "runner_hook_routed must still fire (R1-k2 backward compat)");
+  // R2.5-b sanitized entry fires.
+  const sanitized = mocks.ledgerCalls.find((e) => e.type === "runner_hook_sanitized");
+  assert.ok(sanitized, "runner_hook_sanitized must fire when verdict.sanitized is set");
+  assert.equal(sanitized.runId, "rr-1");
+  assert.equal(sanitized.data.hook, "PreToolUse");
+  assert.equal(sanitized.data.tool, "Read");
+  // No rejected.
+  const rejected = mocks.ledgerCalls.find((e) => e.type === "runner_hook_rejected");
+  assert.equal(rejected, undefined, "rejected must NOT fire on a clean sanitization");
+});
+
+test("R2.5-b: when routeRemote returns rejected, handler emits runner_hook_rejected with reason", () => {
+  const mocks = makeMocks();
+  mocks.hookRouter.routeRemote = () => ({
+    broadcast: true,
+    rejected: { reason: "tool_not_allowed" },
+    sanitized: null,
+    dispatched: null,
+  });
+  const handle = createRunnerWsHandler({ ...mocks });
+  const ws = new MockWs();
+  handle(ws, {}, VERDICT);
+  ws.emit("message", JSON.stringify({
+    type: FRAME_HOOK,
+    event: { hook: "PreToolUse", tool: "Bash" },
+  }));
+  // R1-k2 entry still fires (broadcast still happens).
+  const routed = mocks.ledgerCalls.find((e) => e.type === "runner_hook_routed");
+  assert.ok(routed, "runner_hook_routed must still fire on rejected frames (operator visibility)");
+  // R2.5-b rejected entry fires with reason.
+  const rejected = mocks.ledgerCalls.find((e) => e.type === "runner_hook_rejected");
+  assert.ok(rejected, "runner_hook_rejected must fire when verdict.rejected is set");
+  assert.equal(rejected.data.reason, "tool_not_allowed");
+  assert.equal(rejected.data.hook, "PreToolUse");
+  assert.equal(rejected.data.tool, "Bash");
+  // No sanitized.
+  const sanitized = mocks.ledgerCalls.find((e) => e.type === "runner_hook_sanitized");
+  assert.equal(sanitized, undefined, "sanitized must NOT fire on a rejected frame");
+});
+
+test("R2.5-b: backward compat — handler tolerates routeRemote that returns nothing", () => {
+  // Old mocks (pre-R2.5-b) return undefined. Handler should still
+  // emit runner_hook_routed but skip the new verbs gracefully.
+  const mocks = makeMocks();
+  mocks.hookRouter.routeRemote = () => {};  // return undefined
+  const handle = createRunnerWsHandler({ ...mocks });
+  const ws = new MockWs();
+  handle(ws, {}, VERDICT);
+  ws.emit("message", JSON.stringify({
+    type: FRAME_HOOK,
+    event: { hook: "PreToolUse", tool: "Read" },
+  }));
+  const routed = mocks.ledgerCalls.find((e) => e.type === "runner_hook_routed");
+  assert.ok(routed);
+  // Neither sanitized nor rejected — verdict was undefined.
+  assert.equal(mocks.ledgerCalls.find((e) => e.type === "runner_hook_sanitized"), undefined);
+  assert.equal(mocks.ledgerCalls.find((e) => e.type === "runner_hook_rejected"), undefined);
+});
+
 test("R1-k2: every successfully routed hook frame appends runner_hook_routed", () => {
   const mocks = makeMocks();
   const handle = createRunnerWsHandler({ ...mocks });

@@ -162,18 +162,35 @@ function createRunnerWsHandler({
           if (!event) { messagesDropped += 1; break; }
           if (hookRouter && typeof hookRouter.routeRemote === "function") {
             try {
-              hookRouter.routeRemote(runId, event);
-              // R1-k2: record successful routing on the audit chain so a
-              // forensic auditor can reconstruct exactly which hooks
-              // crossed the remote trust boundary. We persist only the
-              // hook name + tool; the full event.data is too large /
-              // potentially sensitive for the persistent ledger and is
-              // already broadcast on the bus for live consumers.
+              const verdict = hookRouter.routeRemote(runId, event);
+              const hookName = typeof event.hook === "string" ? event.hook : null;
+              const tool = typeof event.tool === "string" ? event.tool : null;
+              // R1-k2: every accepted frame produces runner_hook_routed
+              // (broadcast happened). Preserved for backward compat.
               _ledgerAudit(ledger, runId, "runner_hook_routed", {
-                hostIdentity,
-                hook: typeof event.hook === "string" ? event.hook : null,
-                tool: typeof event.tool === "string" ? event.tool : null,
+                hostIdentity, hook: hookName, tool,
               });
+              // R2.5-b: emit the validation outcome on the audit chain
+              // so an operator can reconstruct exactly which hooks were
+              // accepted, rejected, or sanitized for downstream dispatch.
+              // verdict is the structured return from routeRemote — old
+              // callers that ignored the return still work; this branch
+              // only fires when verdict has the new shape.
+              if (verdict && typeof verdict === "object") {
+                if (verdict.rejected) {
+                  _ledgerAudit(ledger, runId, "runner_hook_rejected", {
+                    hostIdentity, hook: hookName, tool,
+                    reason: verdict.rejected.reason,
+                  });
+                } else if (verdict.sanitized) {
+                  _ledgerAudit(ledger, runId, "runner_hook_sanitized", {
+                    hostIdentity, hook: hookName, tool,
+                  });
+                  // R2.5-c (next slice) fires runner_hook_dispatched /
+                  // runner_hook_dispatch_error here when bridge mode is
+                  // "dispatch". For R2.5-b that's a no-op.
+                }
+              }
             }
             catch (err) {
               // Don't let a routing failure crash the WS handler.

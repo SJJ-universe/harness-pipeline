@@ -7,6 +7,7 @@
 const fs = require("fs");
 const path = require("path");
 const { alarmForUsage, extractContextUsage } = require("../src/runtime/contextUsage");
+const { sanitizeRemoteHook } = require("../src/runtime/remoteHookSanitizer");
 
 class HookRouter {
   constructor({ broadcast, sessionWatcher, runRegistry, fixturesDir }) {
@@ -261,9 +262,48 @@ class HookRouter {
    *   - hookEvent is whatever the runner emitted; we copy a defensive
    *     subset rather than persist arbitrary structure.
    */
+  /**
+   * Slice R1-g: report-only fan-out for hook frames the WS handler
+   *   accepted under a verified runJWT. NEVER drives the local
+   *   executor — runners are across the trust boundary.
+   *
+   * Slice R1-k2: emits runner_hook_routed on every accepted frame so
+   *   the audit chain can attest to what crossed the boundary (verdict
+   *   runId is authoritative; frame body runId is ignored).
+   *
+   * Slice R2.5-b: extended to (a) sanitize against the bridge contract
+   *   in `src/runtime/remoteHookBridgeContract.js`, and (b) return a
+   *   structured result so the caller can emit fine-grained audit verbs
+   *   (rejected / sanitized / dispatched / dispatch_error).
+   *
+   *   Backward compat: callers that ignored the return value (R1-k2
+   *   integration test, etc.) keep working — broadcast still happens
+   *   on every runId+event call as before. The result is an opt-in
+   *   for callers that want to drive the audit chain.
+   *
+   * Slice R2.5-c (next): when bridgeMode === "dispatch", the sanitized
+   *   payload is forwarded to the local executor's mapped method.
+   *   This slice (R2.5-b) populates `result.sanitized` but leaves
+   *   `result.dispatched` as null.
+   *
+   * @param {string} runId  Verdict runId (NEVER trust frame body).
+   * @param {object} hookEvent  The runner's event payload.
+   * @returns {{
+   *   broadcast: boolean,                       // routeRemote happened
+   *   rejected: null | {reason: string},        // sanitization verdict
+   *   sanitized: null | object,                 // post-sanitizer payload
+   *   dispatched: null | {ok: boolean, error?}, // R2.5-c only; null here
+   * }}
+   */
   routeRemote(runId, hookEvent) {
-    if (typeof runId !== "string" || runId.length === 0) return;
-    if (!hookEvent || typeof hookEvent !== "object") return;
+    const result = {
+      broadcast: false,
+      rejected: null,
+      sanitized: null,
+      dispatched: null,
+    };
+    if (typeof runId !== "string" || runId.length === 0) return result;
+    if (!hookEvent || typeof hookEvent !== "object") return result;
     this.stats.total += 1;
     this.stats.remoteHooks = (this.stats.remoteHooks || 0) + 1;
     const event = {
@@ -278,6 +318,22 @@ class HookRouter {
         data: { runId, origin: "container-remote", event },
       });
     }
+    result.broadcast = true;
+
+    // R2.5-b: sanitize against the bridge contract. The result lands
+    // in `result` for the caller to emit audit verbs. Note we run the
+    // sanitizer AFTER broadcast — even rejected frames are visible to
+    // dashboard subscribers (they need to see the inbound traffic
+    // even when validation will refuse to dispatch it).
+    const verdict = sanitizeRemoteHook(hookEvent);
+    if (!verdict.ok) {
+      result.rejected = { reason: verdict.reason };
+      this.stats.remoteHookRejected = (this.stats.remoteHookRejected || 0) + 1;
+    } else {
+      result.sanitized = verdict.sanitized;
+      this.stats.remoteHookSanitized = (this.stats.remoteHookSanitized || 0) + 1;
+    }
+    return result;
   }
 
   getStats() {
