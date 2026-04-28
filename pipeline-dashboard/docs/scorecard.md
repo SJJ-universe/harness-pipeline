@@ -2,7 +2,7 @@
 
 ## Current Score
 
-**99 / 109** (Phase 2.5 multi-run + Phase 3-S security + Phase D MA0~MA7 monitor shell + Phase D Round 2 MB1~MB6 backfill + Phase D Round 2.5 MC1~MC5 live wiring + MA7 UI-3 rewrite readiness + Phase D Round MD readiness automation + Phase D Round ME CI hygiene + Phase D Round MF P4 design RFC + Phase D Round MG P4 implementation RFC; MD2 extended Testability cap 10 → 11)
+**100 / 110** (Phase 2.5 multi-run + Phase 3-S security + Phase D MA0~MA7 monitor shell + Phase D Round 2 MB1~MB6 backfill + Phase D Round 2.5 MC1~MC5 live wiring + MA7 UI-3 rewrite readiness + Phase D Round MD readiness automation + Phase D Round ME CI hygiene + Phase D Round MF P4 design RFC + Phase D Round MG P4 implementation RFC + **Phase D R1 a/b/c/d/d-boost/f/h/i — orchestrator-side remote runner subsystem**; MD2 extended Testability cap 10 → 11; R1-j extends Safety cap 15 → 16)
 
 Trajectory:
 - v3.1 hardening — 87
@@ -16,8 +16,9 @@ Trajectory:
 - **Phase D Round ME ME1~ME2** (CI hygiene: Node 24 forward-compat env var + permissions: contents:read + concurrency cancel-in-progress + actions/checkout v4→v6 + setup-node v4→v6) — **97** (hygiene, no rubric move)
 - **Phase D Round MF MF1~MF2** (P4 Remote Sandbox RFC: 532-line consolidator covering current-state boundary audit + isolation model + monitor metadata + 10 rollout gates G1-G10; cross-links from 4 predecessor docs) — **98**
 - **Phase D Round MG MG1~MG2** (P4 Implementation RFC: 702-line follow-up answering MF1's 4 open questions — Docker rootless / WS+HTTPS hook ingress / HS256 JWT HKDF-derived / evidenceLedger HMAC extension — plus runner-host control plane + nftables egress + bootstrap handshake; closes MF1 G10 pending sign-off) — **99**
+- **Phase D R1 a/b/c/d/d-boost/f/h/i/j** (orchestrator-side remote runner subsystem: envelope `origin` field + HS256 JWT (HKDF-derived) + HMAC-signed audit chain + RunnerRegistry + 3 HTTP routes + Dockerfile + SBOM + server.js wiring + readiness rubric extension to 18 stars + this scorecard refresh; runner-host agent + WS `/api/runner/events` deferred to R1-e + R1-g paired round) — **100**
 
-Target after Phase 3 (D platformization): **102+**.
+Target after Phase 3 (D platformization): **103+**.
 Container sandbox + remote-mode hardening required for the multi-tenant tier.
 
 ## Rubric scale change (MB6)
@@ -71,6 +72,29 @@ Total max → **108 points**. Previous score normalisation: pre-MB6 90/100 = ~88
 - MG1 implementation RFC consolidator (702 lines) → +1.0 to "Pipeline orchestration and phase model" within the existing 15-point cap (was 14/15; the Phase 1 orchestrator + Phase 2.5 multi-run work covered the local pipeline phasing, but the rollout phasing for remote (R1 internal preview → R2 single remote runner → R3 multi-runner pool → R4 vm-strict) was specified as a goal in MF1 §4.1 without implementation specifics. MG1 makes each rollout phase concrete enough to audit — what tests must exist, what env must be set, which routes must be added).
 - MG2 cross-links + scorecard 98 → 99 + plan Part I + MF1 §6 open-question status update + G10 row update → trust dividend, no rubric move
 - Net effect: **98 → 99** as the implementation tier of the P4 design moved from "vague follow-up RFC needed" to "concrete decisions backing each rollout phase". Total cap stays at 109.
+
+**R1-a~R1-i + R1-d boost (Phase D R1, orchestrator-side implementation)**:
+- R1-a envelope `origin` field (additive monitor metadata) + R1-b `src/security/jwt.js` (HS256 + HKDF, 27 unit tests) + R1-c `evidenceLedger` HMAC + `verifyChain` (13 new unit tests) + R1-d `RunnerRegistry` + 3 HTTP routes (`/handshake`, `/heartbeat`, `/hook`) + R1-d boost (sliding TTL anchored on lastSeen + idempotent/reassign-safe claim) + R1-f Dockerfile.runner (multi-stage, non-root UID 10001, `--ignore-scripts`) + scripts/build-runner.{sh,ps1} + SBOM tooling + R1-h `src/server/remoteRunnerSetup.js` + server.js wiring (G1/G3-tier1/G7-adj integration tests) + R1-i readiness rubric extension to 18 stars (6th category: remote-isolation, all 3 stars behavior-verified)
+- → +1.0 to "Safety and security boundary" — cap extended from 15 → **16** to capture the qualitative shift from "remote design RFC complete" (MF1+MG1, +2 to fill 13 → 15) to "orchestrator-side primitives deployed" (HKDF-derived keys with domain separation, HMAC-signed audit chain that `verifyChain` validates round-trip, single-use bootstrap → 24h sliding-TTL runnerToken → per-run runJWT taxonomy, default-off feature flag that fails closed). The cap was at 15 because there was no implementation; R1 makes the trust-boundary primitives runnable on the orchestrator side.
+- R1-j (this update) — scorecard 99 → 100 + plan Part J + cross-link refresh → trust dividend, no rubric move
+- Net effect: **99 → 100** as the orchestrator-side R1 implementation lands. Total cap moves 109 → 110. Remaining R1 work (R1-e WS `/api/runner/events` + harness-runner Node entrypoint; R1-g childRegistry remote children) is deferred to a paired follow-up round so the WS path-aware demux design can be evaluated against `verifyWsConnection`'s dashboard-focused auth gate.
+
+### Rubric scale change (R1-j)
+
+The original 15-point cap on "Safety and security boundary" assumed
+"local-mode hardening + future-trust-boundary RFC". With R1-a through
+R1-i shipping the actual code that backs the design — JWT module, signed
+ledger, runner registry, runner routes, Dockerfile, server wiring — the
+cap of 15 is too tight. R1-j extends it to **16** to capture the
+qualitative shift from "remote-mode designed" to "remote-mode primitives
+shipped (orchestrator side)". The remaining R1-e + R1-g work (runner-host
+agent + WS upgrade) won't move the cap further; that's "deployment
+completeness" within the same conceptual ceiling.
+
+| Area | Pre-R1-j max | Post-R1-j max |
+| --- | ---: | ---: |
+| Safety and security boundary | 15 | **16** |
+| **Total** | 109 | **110** |
 
 ### Rubric scale change (MD2)
 
@@ -152,6 +176,28 @@ Sub-scores per category map approximately to:
 - **MG1** — `docs/remote-sandbox-impl.md` (702 lines) — implementation RFC. Closes MF1 §4 G10 by committing to specific tech for each MF1 §6 open question and specifying everything MF1 left undecided. §1 Docker rootless (daemon fallback) for `container-strict`; §2 `node:24-bookworm-slim` multi-stage image with SBOM; §3 WS primary `/api/runner/events` + HTTPS POST `/api/runner/hook` fallback; §4 HS256 JWT with HKDF-derived key from `HARNESS_TOKEN`; §5 extend existing `evidenceLedger` JSONL + HMAC-SHA256 per entry; §6 env-only runner control plane (heartbeat-driven discovery, no UI in this round); §7 3-layer egress (Docker `--internal` + nftables on bridge + dnsmasq allowlist); §8 3-step bootstrap (bootstrap token → runnerToken → runJWT); §9 10-row failure-mode table extending MF1 §4.2; §10 Phase R1 implementation specifics (G1-G9 verifications + readiness rubric extension to 18 stars).
 - **MG2** (this update) — Cross-links from MF1 RFC (§4 G10 row, §6 open questions, §8 status). Scorecard trajectory + post-table-write delta + headline 98 → 99. Plan file Part I. The "Long-horizon" backlog gets P4 implementation RFC marked DONE in MG1; "P4 implementation slices (R1 internal preview)" promoted to "Next round candidate" pending operator sign-off on MG1.
 
+### Phase D R1 (R1-a~R1-i + R1-d boost + R1-j) — orchestrator-side remote runner subsystem
+
+This is the FIRST CODE that backs the MF1 + MG1 design RFCs. Not a
+documentation round — the modules listed below are real, tested, and
+live behind the `HARNESS_REMOTE_MODE` feature flag (default off).
+
+- **R1-a** — Monitor envelope `origin` field. `src/routes/monitorRoutes.js` returns `{ runOrigin, sandboxClass, hostIdentity, isolationStatus }` on bootstrap + per-run detail. `public/js/monitor/normalizer.js` hoists matching keys from raw event payloads. Backwards-compat invariant: omit when absent so legacy clients see no shape change. Tests: 7 normalizer + 3 bootstrap + 4 run-detail.
+- **R1-b** — `src/security/jwt.js` (~210 lines). `deriveJwtKey(ikm, opts)` HKDF-SHA256 with default `salt="harness-jwt-v1"`, `info="runner-jwt"`. `issue({runId, key, runDurationMs, harness})` produces an HS256 token; `verify({token, runId, key})` returns one of 6 frozen reason codes (STRUCTURE / PAYLOAD_PARSE / SIGNATURE / EXPIRED / AUD_MISMATCH / SUB_MISMATCH). Alg-confusion immune (header.alg ignored on verify). 27 unit tests.
+- **R1-c** — `evidenceLedger` HMAC extension. Append-only JSONL hash chain now optionally signs each entry with `sig` + `sigVer:1` when a `signingKey` is configured (Buffer or string). `verifyChain(runId)` walks the chain, validates each link's `previousHash`, `dataHash`, `eventHash`, and signature. 13 new unit tests, 6 existing tests preserved.
+- **R1-d** — `src/runtime/runnerRegistry.js` (in-memory state owner; ~210 lines) + `src/routes/runnerRoutes.js` (3 HTTP routes; ~155 lines). `/handshake` reads bootstrap from `Authorization: Bearer`, returns 32-byte hex runnerToken. `/heartbeat` accepts runnerToken, refreshes lastSeen. `/hook` accepts runJWT, delegates to `hookRouter.routeRemote(runId, payload)` if wired. Single-use bootstrap (replay → `bootstrap_consumed`). Health derivation by `lastSeen` freshness (healthy / degraded / unhealthy / lost). 18 unit + 14 integration tests.
+- **R1-d boost** — Caught by code review before R1-e: heartbeat sliding TTL must anchor on `lastSeen`, not `issuedAt`, otherwise long-lived runners with continuous heartbeats expire after exactly `runnerTokenTtlMs` from handshake. Plus `claimRunForRunner` non-idempotent (double-counted retries) and not reassign-safe (phantom counts on previous host). 3 regression tests.
+- **R1-f** — `Dockerfile.runner` (multi-stage, `node:24-bookworm-slim`, `npm ci --omit=dev --ignore-scripts`, non-root UID 10001:10001, `WORKDIR /work`, ENV NODE_ENV=production), `.dockerignore` (no orchestrator code in build context), `runner/index.js` (stub entrypoint exits with EX_CONFIG/78 — R1-e replaces with full agent), `scripts/build-runner.{sh,ps1}` (build + CycloneDX 1.5 SBOM via `npm sbom`). 13 lint + stub-exit tests.
+- **R1-h** — `src/server/remoteRunnerSetup.js` reads `HARNESS_REMOTE_MODE` + `HARNESS_TOKEN`, derives `jwtKey` (HKDF info=`"runner-jwt"`) and `ledgerKey` (HKDF info=`"audit-ledger"`) from same IKM with domain separation, constructs `RunnerRegistry`. Empty env → mode=off + null registry + null keys; `preview/on` without token → degraded with `error: "token_missing"`; full env → full subsystem. server.js wires both into `EvidenceLedger` (gets signing key) and `createRunnerRoutes` (gets registry + jwtKey + ledger). 8 unit + 8 integration tests covering G1 (default closed), G3-tier1 (preview round-trip), G7-adj (claim/release).
+- **R1-i** — `scripts/readiness-report.js` adds 6th category `remote-isolation` (3 stars, all in-process behavior checks): default fail-closed + HKDF JWT/ledger domain separation + audit chain HMAC round-trip. Rubric cap 5×3=15 → 6×3=18, gate thresholds re-scaled (release 14 → 17, preview 10 → 12, internal 6 → 7). CI workflow label updated. `docs/readiness-rubric.md` §2.6 documents the 3 stars.
+- **R1-j** (this update) — Scorecard trajectory 99 → 100 + post-table-write delta + plan Part J. Safety cap extended 15 → 16 with rationale. Backlog refreshed. The "Long-horizon" backlog gets "P4 R1 implementation slices" partially struck — the orchestrator-side primitives are DONE but R1-e + R1-g are pending.
+
+**Test counts grew from 936 unit / 197 integration (pre-R1) to <!-- AUTO:test-counts -->**1025 unit / 226 integration**<!-- /AUTO --> after R1-i landed.** The R1 round added approximately +89 unit + +29 integration = +118 tests, all green.
+
+**Deferred to a paired R1-e + R1-g round**:
+- R1-e — WS `/api/runner/events` upgrade gate using a path-aware demux (NOT reusing `verifyWsConnection`, which is dashboard/terminal-focused) + `harness-runner` Node entrypoint (~300 LOC, replaces R1-f's stub) that handshakes, heartbeats, opens the WS, and emits hooks.
+- R1-g — `childRegistry` extension for remote children (driven by R1-e's WS-side stream of agent lifecycle events). Pairing with R1-e because the actual data source is the runner-side stream; doing R1-g first would lock in a placeholder contract.
+
 ## Operational facts
 
 - Single canonical working tree: `C:\Users\SJ\harness-pipeline-analysis` @ `master`.
@@ -175,15 +221,16 @@ Sub-scores per category map approximately to:
 
 ### Long-horizon (not committed)
 
-- **P4 R1 implementation slices** — first remote-mode code lands. Required: `harness-runner` Node entrypoint + Dockerfile + 4 new routes (`/api/runner/handshake`, `/api/runner/heartbeat`, `/api/runner/hook`, `/api/runner/events` WS) + `src/security/jwt.js` (HS256 + HKDF) + `evidenceLedger` HMAC extension + envelope `origin` field + G1-G9 integration tests. Gated behind operator sign-off on the MG1 implementation RFC. **Next round candidate.**
+- **P4 R1-e + R1-g (paired)** — runner-host agent + WS `/api/runner/events`. R1-e adds path-aware demux for the `/api/runner/events` upgrade so dashboard/terminal WS auth (`verifyWsConnection`) and runner WS auth (runJWT) live behind separate seams. The `harness-runner` Node entrypoint handshakes, heartbeats, opens the WS, and emits hooks. R1-g extends `childRegistry` to track remote children driven by R1-e's WS stream. **Next round candidate.**
 - **Phase 3 (D platformization)** — container sandbox + remote-mode hardening + per-user RBAC. Separate product round; conditions in plan §Phase 3 still unmet. The MF design RFC + MG implementation RFC are two prerequisites; multi-tenant authentication and HA orchestrator remain separate.
 - ~~**P4 design RFC**~~ — **DONE in MF1**. See [`docs/remote-sandbox-rfc.md`](./remote-sandbox-rfc.md).
 - ~~**P4 implementation RFC**~~ — **DONE in MG1**. See [`docs/remote-sandbox-impl.md`](./remote-sandbox-impl.md). Closes MF1 §4 G10.
-- ~~**P5 readiness automation**~~ — **DONE in MD2**. `npm run readiness:check` exits non-zero in CI when the live score drops below 14/15; `npm run scorecard:check` blocks merge when AUTO markers are stale.
+- ~~**P5 readiness automation**~~ — **DONE in MD2 + R1-i**. `npm run readiness:check` exits non-zero in CI when the live score drops below 17/18 (was 14/15 pre R1-i); `npm run scorecard:check` blocks merge when AUTO markers are stale. R1-i added the 6th category (remote-isolation, 3 stars, all behavior-verified).
+- ~~**P4 R1 orchestrator-side implementation**~~ — **DONE in R1-a~R1-i + R1-d boost**. Envelope origin field, JWT module, signed audit ledger, runner registry, 3 HTTP routes, Dockerfile, server.js wiring, readiness rubric extension. Runner-host agent + WS `/api/runner/events` deferred to the R1-e + R1-g paired follow-up.
 
-## What 99 means
+## What 100 means
 
-Single-user local harness with multi-run isolation, hardened external-input boundaries, AND a monitoring-first opt-in console with live data flow + agent observability + per-run detail contract + flow-level readiness rubric + behavior-verified readiness scoring + auto-derived doc trust + dispatcher-driven extraction pattern + CI-enforced regression protection + **a complete remote-execution design RFC** + **a complete implementation RFC with concrete tech decisions for runtime / image / JWT / ledger / control plane / network egress / bootstrap / failure recovery**. Not yet a multi-tenant platform — the **actual implementation of remote mode (R1 internal preview)** is the missing 10 points.
+Single-user local harness with multi-run isolation, hardened external-input boundaries, AND a monitoring-first opt-in console with live data flow + agent observability + per-run detail contract + flow-level readiness rubric + behavior-verified readiness scoring + auto-derived doc trust + dispatcher-driven extraction pattern + CI-enforced regression protection + **a complete remote-execution design RFC** + **a complete implementation RFC with concrete tech decisions for runtime / image / JWT / ledger / control plane / network egress / bootstrap / failure recovery** + **the orchestrator-side primitives of remote mode actually shipped — JWT module + signed audit ledger + runner registry + handshake/heartbeat/hook routes + Dockerfile + server.js wiring + 6th readiness rubric category (remote-isolation, behavior-verified)**. Not yet a multi-tenant platform — the **runner-host agent + WS upgrade for hook ingress (R1-e + R1-g paired round)** is the missing immediate work; **container sandbox deployment + multi-tenant orchestrator** is the further missing 10 points.
 
 The MB1~MB6 + MC1~MC5 + MA7-a/b/c rounds closed the highest-leverage structural debt without bloating the surface. Each lift was behaviour-preserving + locked by tests; the file shrinkage is genuine. server.js dropped 276 lines, app.js dropped 252 lines. Module footprint expanded by 21 small UMD/Node modules, all under test, all CSP-compliant.
 
@@ -196,3 +243,5 @@ The ME round was small but disciplined: GitHub flips the default JS-action runti
 The MF round shifts the trust-boundary conversation from "vague future" to "design done, gates named". `docs/remote-sandbox-rfc.md` (532 lines) consolidates run origin + sandbox class + workspace/process/token/fs/network boundaries + UI metadata + 10 rollout gates G1-G10 into a single document. **No code lands until G10 (a follow-up implementation RFC) is approved.** Score 97 → 98 reflects the trust-boundary clarity, not implementation — the design _IS_ the deliverable for this round.
 
 The MG round closes MF1 §4 G10 by committing to specific tech for each of MF1 §6's four open questions. `docs/remote-sandbox-impl.md` (702 lines) chooses **Docker rootless** (with daemon fallback) for `container-strict`, leaving kata/firecracker reserved for `vm-strict` in Phase R4. Hook ingress = **WS primary + HTTPS POST one-shot fallback**. JWT = **HS256, HKDF-derived from `HARNESS_TOKEN`** (separate label from the audit-ledger HMAC key, so neither use can forge the other). Audit ledger = **extend the existing `evidenceLedger` JSONL hash chain with HMAC-SHA256 per entry** (not a switch to SQLite — current scale ~900K rows fits append-only comfortably). Plus the runner-host control plane (env-only, heartbeat-driven discovery), the 3-layer egress policy (Docker `--internal` + nftables on bridge + dnsmasq allowlist on the controlled resolver), the 3-step bootstrap handshake (bootstrap token → runnerToken → runJWT), and the 10-row failure-mode table extending MF1 §4.2. Score 98 → 99 reflects the rollout phasing concreteness — operators can now audit each Phase R1-R4 phase against named criteria.
+
+The R1 round (a/b/c/d/d-boost/f/h/i/j) ships the first code that backs the design. Every primitive that MG1 §1-§5 specifies — HKDF key derivation, HS256 JWT issue/verify with alg-confusion immunity, HMAC-signed audit ledger entries with `verifyChain` round-trip, single-use bootstrap → 24h sliding-TTL runnerToken → per-run runJWT taxonomy, `RunnerRegistry` with idempotent claim + reassign-safe transfer, default-off feature flag — is now real, tested code under `src/security/`, `src/runtime/`, `src/routes/`, and `src/server/`. The Dockerfile ships at `pipeline-dashboard/Dockerfile.runner` (multi-stage, non-root UID 10001, `--ignore-scripts` build layer) with companion build script + CycloneDX 1.5 SBOM tooling. The readiness rubric grew from 5×3=15 to 6×3=18 stars with the new remote-isolation category (3 stars, all in-process behavior-verified). Test counts moved 936/197 → 1025/226 across the round (+89 unit, +29 integration). Score 99 → 100 reflects the orchestrator-side primitives actually being deployable, not just designed. The runner-host agent + WS `/api/runner/events` upgrade are deliberately deferred to a paired R1-e + R1-g round so the path-aware demux design can stand independent of `verifyWsConnection`'s dashboard-focused auth gate.
