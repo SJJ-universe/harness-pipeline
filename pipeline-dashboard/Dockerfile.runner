@@ -1,0 +1,70 @@
+# Slice R1-f (Phase D R1, 2026-04-28) — harness-runner container image.
+#
+# Multi-stage build per MG1 §2.
+#
+#   deps stage:    install --omit=dev for runtime-only deps cache layer.
+#                  --ignore-scripts so a malicious postinstall hook in a
+#                  transitive dep can't run during build.
+#   runtime stage: minimal image. Only the runner code, jwt.js, and
+#                  evidenceLedger.js make it in — no orchestrator code, no
+#                  tests, no docs, no public/ assets.
+#
+# Security posture (matches MG1 §2 + RFC §10.1):
+#
+#   - non-root user (UID 10001:10001)
+#   - read-only /work/in expected at runtime (operator-supplied mount)
+#   - tmpfs /work/out expected at runtime (256 MiB cap, set via
+#     `docker run --tmpfs /work/out:size=256m,noexec`)
+#   - no shell tools added on top of node:24-bookworm-slim
+#   - HEALTHCHECK intentionally omitted in R1-f. R1-e adds it once the
+#     entrypoint is wired (probes /healthz on the agent's local listener).
+#
+# Build:
+#
+#   ./scripts/build-runner.sh                 # builds + emits SBOM
+#   ./scripts/build-runner.sh --no-sbom       # build only
+#
+#   Or on Windows:
+#
+#   pwsh -File scripts/build-runner.ps1
+#
+# The runner entrypoint in this slice is a stub (R1-f) that exits with code
+# 78 (EX_CONFIG / "config required"). R1-e replaces it with the full agent.
+
+# ── deps stage ─────────────────────────────────────────────────────
+FROM node:24-bookworm-slim AS deps
+
+WORKDIR /app
+
+# Layer-cache: copy lockfile separately so package source changes don't
+# bust the deps cache.
+COPY package.json package-lock.json ./
+
+RUN npm ci --omit=dev --ignore-scripts
+
+# ── runtime stage ──────────────────────────────────────────────────
+FROM node:24-bookworm-slim AS runtime
+
+# Create runner workspace. Caller is expected to mount /work/in (ro) and
+# /work/out (tmpfs) at `docker run`.
+RUN mkdir -p /work/in /work/out && chown -R 10001:10001 /work
+
+WORKDIR /app
+
+COPY --from=deps /app/node_modules /app/node_modules
+
+# Runner-specific surface only. Orchestrator (server.js, executor/, src/
+# at large) is intentionally excluded — the runner host should never carry
+# orchestrator code.
+COPY runner ./runner
+COPY src/security/jwt.js ./src/security/jwt.js
+COPY src/runtime/evidenceLedger.js ./src/runtime/evidenceLedger.js
+
+USER 10001:10001
+
+# Container-startup directory for any runner-emitted artifacts.
+WORKDIR /work
+
+ENV NODE_ENV=production
+
+ENTRYPOINT ["node", "/app/runner/index.js"]

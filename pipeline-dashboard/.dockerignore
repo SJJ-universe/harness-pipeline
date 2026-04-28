@@ -1,0 +1,47 @@
+# Slice R1-f (Phase D R1) — keep the runner image build context tight.
+#
+# Only what the Dockerfile.runner explicitly COPYs should make it through.
+# Everything else is excluded so a stray addition to the working tree
+# doesn't accidentally bloat the image or leak orchestrator-side code.
+
+# Build artifacts / VCS / editor noise
+.git
+.github
+.gitignore
+.editorconfig
+.vscode
+.idea
+*.log
+*.tgz
+*.tar.gz
+
+# Tests + benchmarks (never in runtime image)
+tests
+test
+coverage
+.nyc_output
+
+# Docs + plans + design (never in runtime image)
+docs
+plan-*.md
+*.md
+
+# Public web UI (orchestrator-only)
+public
+
+# Orchestrator code paths — explicitly excluded so a future `COPY .` mistake
+# can't pull them in.
+server.js
+executor
+src/routes
+src/server
+src/runtime/childRegistry.js
+src/runtime/childSemaphore.js
+src/runtime/eventReplayBuffer.js
+src/runtime/fileConflictDetector.js
+src/runtime/runnerRegistry.js
+src/runtime/sessionWatcher.js
+
+# Build output artifacts
+sbom.cyclonedx.json
+node_modules
