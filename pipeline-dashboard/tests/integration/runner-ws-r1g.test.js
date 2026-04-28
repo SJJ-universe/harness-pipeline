@@ -326,7 +326,7 @@ test("R1-k1 E2E: forced WS close on host A only auto-clears that connection's ch
   }
 });
 
-test("R1-g E2E: ledger captures every routed frame in chain", async () => {
+test("R1-g/R1-k2 E2E: ledger captures every routed frame in chain (incl. hook success)", async () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "r1g-ledger-"));
   const orch = await startOrchestrator({
     bootstrapMap: { "runner-r1g": "boot-r1g" },
@@ -335,11 +335,25 @@ test("R1-g E2E: ledger captures every routed frame in chain", async () => {
   const agent = await startAgent(orch, "rr-audit");
   try {
     agent.ws.send(JSON.stringify({ type: "agent_started", id: "a-aaa", label: "claude" }));
+    agent.ws.send(JSON.stringify({
+      type: "hook",
+      event: { hook: "PreToolUse", tool: "Read", data: { file: "secret.env" } },
+    }));
+    agent.ws.send(JSON.stringify({
+      type: "hook",
+      event: { hook: "Stop", tool: null, data: {} },
+    }));
     agent.ws.send(JSON.stringify({ type: "agent_stopped", id: "a-aaa" }));
 
     await waitFor(() => orch.childRegistry.size() === 0);
-    // Give the ledger a tick to flush.
-    await new Promise((r) => setTimeout(r, 50));
+    // Wait for both routed-hook ledger entries to land.
+    await waitFor(() => {
+      try {
+        const file = path.join(tmp, "rr-audit", "ledger.jsonl");
+        const lines = fs.readFileSync(file, "utf-8").trim().split("\n").map(JSON.parse);
+        return lines.filter((l) => l.type === "runner_hook_routed").length >= 2;
+      } catch (_) { return false; }
+    }, { timeoutMs: 1500 });
 
     const file = path.join(tmp, "rr-audit", "ledger.jsonl");
     const lines = fs.readFileSync(file, "utf-8").trim().split("\n").map(JSON.parse);
@@ -347,7 +361,17 @@ test("R1-g E2E: ledger captures every routed frame in chain", async () => {
     assert.ok(types.includes("runner_ws_connected"));
     assert.ok(types.includes("runner_agent_started"));
     assert.ok(types.includes("runner_agent_stopped"));
-    // Chain still verifies under HMAC.
+    // R1-k2: every successful hook crosses the audit chain too.
+    const routed = lines.filter((l) => l.type === "runner_hook_routed");
+    assert.equal(routed.length, 2, "expected one runner_hook_routed per accepted hook");
+    assert.equal(routed[0].data.hook, "PreToolUse");
+    assert.equal(routed[0].data.tool, "Read");
+    // R1-k2: payload data must NOT be persisted to the chain.
+    assert.equal(routed[0].data.data, undefined);
+    assert.equal(routed[0].data.file, undefined);
+    assert.equal(routed[1].data.hook, "Stop");
+    assert.equal(routed[1].data.tool, null);
+    // Chain still verifies under HMAC after the additional entries.
     assert.equal(orch.ledger.verifyChain("rr-audit").valid, true);
   } finally {
     await agent.stop();

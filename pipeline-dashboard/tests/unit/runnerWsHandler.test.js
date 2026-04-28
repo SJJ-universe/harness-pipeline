@@ -171,6 +171,82 @@ test("R1-g: hook frame WITHOUT event is dropped (no routeRemote call)", () => {
   assert.equal(mocks.hookCalls.length, 0);
 });
 
+// ── R1-k2: hook success audit entry ───────────────────────────────
+
+test("R1-k2: every successfully routed hook frame appends runner_hook_routed", () => {
+  const mocks = makeMocks();
+  const handle = createRunnerWsHandler({ ...mocks });
+  const ws = new MockWs();
+  handle(ws, {}, VERDICT);
+  ws.emit("message", JSON.stringify({
+    type: FRAME_HOOK,
+    event: { hook: "PreToolUse", tool: "Read", data: { file: "x.js" } },
+  }));
+  ws.emit("message", JSON.stringify({
+    type: FRAME_HOOK,
+    event: { hook: "PostToolUse", tool: "Bash", data: { exit: 0 } },
+  }));
+  ws.emit("message", JSON.stringify({
+    type: FRAME_HOOK,
+    event: { hook: "Stop", tool: null, data: {} },
+  }));
+  const routed = mocks.ledgerCalls.filter((e) => e.type === "runner_hook_routed");
+  assert.equal(routed.length, 3, "one runner_hook_routed per accepted hook");
+  // Every entry carries the verdict's runId and the hook + tool fields.
+  assert.equal(routed[0].runId, "rr-1");
+  assert.equal(routed[0].data.hostIdentity, "runner-x");
+  assert.equal(routed[0].data.hook, "PreToolUse");
+  assert.equal(routed[0].data.tool, "Read");
+  assert.equal(routed[1].data.hook, "PostToolUse");
+  assert.equal(routed[1].data.tool, "Bash");
+  assert.equal(routed[2].data.hook, "Stop");
+  assert.equal(routed[2].data.tool, null);
+});
+
+test("R1-k2: runner_hook_routed does NOT persist event.data (size + sensitivity)", () => {
+  const mocks = makeMocks();
+  const handle = createRunnerWsHandler({ ...mocks });
+  const ws = new MockWs();
+  handle(ws, {}, VERDICT);
+  ws.emit("message", JSON.stringify({
+    type: FRAME_HOOK,
+    event: {
+      hook: "PreToolUse",
+      tool: "Bash",
+      data: { command: "rm -rf /tmp/secrets", env: { SECRET: "leak-this" } },
+    },
+  }));
+  const routed = mocks.ledgerCalls.find((e) => e.type === "runner_hook_routed");
+  assert.ok(routed);
+  // The audit entry intentionally omits event.data — those fields are
+  // already broadcast for live consumers but are too large / sensitive
+  // for the persistent ledger.
+  assert.equal(routed.data.command, undefined);
+  assert.equal(routed.data.env, undefined);
+  assert.equal(routed.data.data, undefined);
+  assert.equal(routed.data.hook, "PreToolUse");
+  assert.equal(routed.data.tool, "Bash");
+});
+
+test("R1-k2: failure path still emits runner_hook_route_error, NOT runner_hook_routed", () => {
+  // The success entry must not appear when routeRemote throws — only the
+  // error entry. This locks the invariant that the chain reflects what
+  // actually happened, not just what was attempted.
+  const mocks = makeMocks();
+  mocks.hookRouter.routeRemote = () => { throw new Error("downstream broke"); };
+  const handle = createRunnerWsHandler({ ...mocks });
+  const ws = new MockWs();
+  handle(ws, {}, VERDICT);
+  ws.emit("message", JSON.stringify({
+    type: FRAME_HOOK,
+    event: { hook: "PreToolUse", tool: "Read" },
+  }));
+  const routed = mocks.ledgerCalls.find((e) => e.type === "runner_hook_routed");
+  const errored = mocks.ledgerCalls.find((e) => e.type === "runner_hook_route_error");
+  assert.equal(routed, undefined, "success entry must NOT fire when routing throws");
+  assert.ok(errored, "error entry MUST fire");
+});
+
 test("R1-g: routeRemote throws → ledger captures runner_hook_route_error, handler stays alive", () => {
   const mocks = makeMocks();
   mocks.hookRouter.routeRemote = () => { throw new Error("boom"); };

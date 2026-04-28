@@ -4,6 +4,11 @@
 //   call unregisterRemote with the {id, runId, hostIdentity} triple.
 //   runId + hostIdentity come from the JWT verdict, so a runner cannot
 //   smuggle a stop frame for another run's child id.
+// Slice R1-k2 (Phase D R1, 2026-04-28) — every routed hook frame now
+//   appends a `runner_hook_routed` entry to the audit chain. Without this
+//   the ledger only sees the error path; a forensic auditor reviewing the
+//   chain after a remote trust-boundary incident has no record of which
+//   hooks were accepted across the boundary in the first place.
 //
 // The handler's job:
 //
@@ -156,7 +161,20 @@ function createRunnerWsHandler({
           const event = frame.event && typeof frame.event === "object" ? frame.event : null;
           if (!event) { messagesDropped += 1; break; }
           if (hookRouter && typeof hookRouter.routeRemote === "function") {
-            try { hookRouter.routeRemote(runId, event); }
+            try {
+              hookRouter.routeRemote(runId, event);
+              // R1-k2: record successful routing on the audit chain so a
+              // forensic auditor can reconstruct exactly which hooks
+              // crossed the remote trust boundary. We persist only the
+              // hook name + tool; the full event.data is too large /
+              // potentially sensitive for the persistent ledger and is
+              // already broadcast on the bus for live consumers.
+              _ledgerAudit(ledger, runId, "runner_hook_routed", {
+                hostIdentity,
+                hook: typeof event.hook === "string" ? event.hook : null,
+                tool: typeof event.tool === "string" ? event.tool : null,
+              });
+            }
             catch (err) {
               // Don't let a routing failure crash the WS handler.
               _ledgerAudit(ledger, runId, "runner_hook_route_error", {
