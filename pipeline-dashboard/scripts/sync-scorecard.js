@@ -65,6 +65,47 @@ function runTestSuite(suiteName) {
   return { tests: pick("tests"), pass: pick("pass"), fail: pick("fail") };
 }
 
+// R2-0b stability: a flaky test (the original `evidenceLedger` TTL test —
+// fixed in R2-0a) used to occasionally drop the unit count by one,
+// which sync-scorecard then wrote into the doc markers, tripping the
+// freshness gate on the next CI run. The pattern recurred 4× through
+// the R1 round (deb417c, b8e3434, c97fb5b, R1-k3 sync). Defense in
+// depth: re-run the suite up to `maxAttempts` times until two
+// consecutive readings agree. If no two consecutive reads agree within
+// the budget, fall back to the mode of all readings + warn loudly.
+//
+// Cost: each run is ~1.5s for unit, ~3s for integration. Happy path
+// is two reads (3s + 6s = 9s overhead per sync) when readings agree on
+// first repeat. Worst case 5 reads (~7s + 15s = 22s).
+function runTestSuiteStable(suiteName, maxAttempts = 5) {
+  const readings = [];
+  for (let i = 0; i < maxAttempts; i++) {
+    const r = runTestSuite(suiteName);
+    readings.push(r);
+    if (i >= 1 && readings[i].pass === readings[i - 1].pass) {
+      const counts = readings.map((x) => x.pass);
+      const drifted = counts.some((c) => c !== counts[i]);
+      if (drifted) {
+        warn(suiteName + " drift recovered: readings=" + JSON.stringify(counts)
+          + " stabilized at " + readings[i].pass);
+      }
+      return readings[i];
+    }
+  }
+  // No consecutive agreement — use the mode (most-common reading) and
+  // surface the instability. This is the "we tried, we couldn't stabilise,
+  // pick the best guess" path.
+  const counts = readings.map((r) => r.pass);
+  const countMap = new Map();
+  for (const c of counts) countMap.set(c, (countMap.get(c) || 0) + 1);
+  const sorted = Array.from(countMap.entries()).sort((a, b) => b[1] - a[1]);
+  const winner = sorted[0][0];
+  warn(suiteName + " UNSTABLE across " + maxAttempts + " reads: "
+    + JSON.stringify(counts) + " — using mode " + winner
+    + ". A flaky test is leaking; investigate before next sync.");
+  return readings.find((r) => r.pass === winner);
+}
+
 // ── 2. Collect readiness score via JSON output. ─────────────────────
 //
 // Slice MD1 (Phase D Round MD, 2026-04-27) — switched the default to
@@ -123,8 +164,12 @@ function rewriteMarkers(text, replacements) {
 function main() {
   const readinessMode = isNoSpawn ? "static (--no-spawn)" : "live (server-spawned)";
   log("[sync-scorecard] running test:unit + test:integration + readiness [" + readinessMode + "]…");
-  const unit = runTestSuite("unit");
-  const integ = runTestSuite("integration");
+  // R2-0b: stabilised reads. Each suite runs at least twice; if those
+  // two readings agree we use them, otherwise we keep going until a
+  // pair agrees or the budget is exhausted. The flaky-test signal stays
+  // visible in the warn log without polluting the marker output.
+  const unit = runTestSuiteStable("unit");
+  const integ = runTestSuiteStable("integration");
   const readiness = runReadiness();
 
   if (unit.tests == null || integ.tests == null) {

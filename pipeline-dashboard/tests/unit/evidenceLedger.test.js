@@ -72,16 +72,43 @@ describe("EvidenceLedger", () => {
   });
 
   it("cleans up old runs by TTL", () => {
+    // R2-0a stability: pre-fix this test used `ttlMs: 1` + a 10ms busy-wait
+    // and racing with `Date.now()`'s 15ms-resolution scheduler tick on
+    // Windows occasionally landed `now - mtime` within the 1ms window
+    // (both readings collapsed onto the same tick). The cleanup then
+    // reported `removed: 0`, the test failed, and the test count dropped
+    // by 1 — which sync-scorecard then wrote into the doc markers,
+    // tripping the freshness gate on the next CI run. Fix: use a
+    // generous TTL and force the dir mtime backwards via fs.utimesSync
+    // so the test is deterministic regardless of clock resolution.
     const dir = tmpDir();
-    const ledger = new EvidenceLedger({ rootDir: dir, ttlMs: 1 }); // 1ms TTL
+    const ledger = new EvidenceLedger({ rootDir: dir, ttlMs: 1000 });
     ledger.append("old-run", { type: "start", data: {} });
 
-    // Wait briefly so mtime is older than TTL
-    const start = Date.now();
-    while (Date.now() - start < 10) {} // busy wait 10ms
+    // Backdate the run directory's mtime to 5 seconds ago. This makes
+    // `now - stat.mtimeMs` reliably 5000ms regardless of how Date.now()
+    // and fs.statSync agree on "now".
+    const oldDir = path.join(dir, "old-run");
+    const fiveSecondsAgoSec = (Date.now() - 5000) / 1000;
+    fs.utimesSync(oldDir, fiveSecondsAgoSec, fiveSecondsAgoSec);
+
     const result = ledger.cleanup();
-    assert.ok(result.removed >= 1);
-    assert.ok(!fs.existsSync(path.join(dir, "old-run")));
+    assert.ok(result.removed >= 1, "expected cleanup to remove the backdated run");
+    assert.ok(!fs.existsSync(oldDir));
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("does NOT clean up fresh runs (TTL boundary)", () => {
+    // R2-0a: companion test locking the negative case — a run that's
+    // newer than the TTL must NOT be touched. Ensures cleanup() doesn't
+    // sweep too aggressively, which would be the symmetric flake (count
+    // jumps UP when a non-stale run is removed prematurely).
+    const dir = tmpDir();
+    const ledger = new EvidenceLedger({ rootDir: dir, ttlMs: 60 * 1000 });
+    ledger.append("fresh-run", { type: "start", data: {} });
+    const result = ledger.cleanup();
+    assert.equal(result.removed, 0, "fresh run should survive cleanup");
+    assert.ok(fs.existsSync(path.join(dir, "fresh-run")));
     fs.rmSync(dir, { recursive: true, force: true });
   });
 
