@@ -259,3 +259,73 @@ test("R1-d: default bootstrapTokenFor reads HARNESS_REMOTE_RUNNER_TOKEN_<sanitiz
     else process.env["HARNESS_REMOTE_RUNNER_TOKEN_runner_a_3"] = old;
   }
 });
+
+// ── R2.5-d: active-run tracking for monitor visibility ────────────
+
+test("R2.5-d: markRunActive tracks runId + hostIdentity + since timestamp", () => {
+  let clock = 5000;
+  const reg = makeReg({ now: () => clock });
+  assert.equal(reg.markRunActive({ runId: "rr-1", hostIdentity: "host-x" }), true);
+  const meta = reg.getActiveRunMeta("rr-1");
+  assert.equal(meta.hostIdentity, "host-x");
+  assert.equal(meta.since, 5000);
+});
+
+test("R2.5-d: markRunActive overwrites on reconnect (idempotent + refreshes since)", () => {
+  let clock = 5000;
+  const reg = makeReg({ now: () => clock });
+  reg.markRunActive({ runId: "rr-1", hostIdentity: "host-x" });
+  clock += 10000;
+  reg.markRunActive({ runId: "rr-1", hostIdentity: "host-x" });
+  assert.equal(reg.getActiveRunMeta("rr-1").since, 15000);
+});
+
+test("R2.5-d: markRunActive rejects empty runId or hostIdentity", () => {
+  const reg = makeReg();
+  assert.equal(reg.markRunActive({ runId: "", hostIdentity: "h" }), false);
+  assert.equal(reg.markRunActive({ runId: "r", hostIdentity: "" }), false);
+  assert.equal(reg.markRunActive({}), false);
+  assert.equal(reg.getActiveRunMeta("r"), null);
+});
+
+test("R2.5-d: unmarkRunActive clears entry; idempotent", () => {
+  const reg = makeReg();
+  reg.markRunActive({ runId: "rr-1", hostIdentity: "host-x" });
+  assert.equal(reg.unmarkRunActive("rr-1"), true);
+  assert.equal(reg.getActiveRunMeta("rr-1"), null);
+  assert.equal(reg.unmarkRunActive("rr-1"), false);  // already gone
+  assert.equal(reg.unmarkRunActive("never-existed"), false);
+});
+
+test("R2.5-d: listActiveRuns returns every currently-marked run", () => {
+  let clock = 1000;
+  const reg = makeReg({ now: () => clock });
+  reg.markRunActive({ runId: "rr-A", hostIdentity: "host-1" });
+  clock += 100;
+  reg.markRunActive({ runId: "rr-B", hostIdentity: "host-2" });
+  const list = reg.listActiveRuns();
+  assert.equal(list.length, 2);
+  const a = list.find((r) => r.runId === "rr-A");
+  assert.equal(a.hostIdentity, "host-1");
+  assert.equal(a.since, 1000);
+  const b = list.find((r) => r.runId === "rr-B");
+  assert.equal(b.hostIdentity, "host-2");
+  assert.equal(b.since, 1100);
+});
+
+test("R2.5-d: markRunActive does NOT collide with the existing _runAssignments map (separate concern)", () => {
+  // claimRunForRunner is the orchestrator-claim path; markRunActive is
+  // the runner-WS-connection path. They MUST stay independent so a
+  // future R3 multi-runner can keep the orchestrator's claim semantics
+  // separate from the operational "runner has an open WS for this
+  // runId" tracking.
+  const reg = makeReg();
+  reg.handshake({ hostIdentity: "host-x", bootstrapToken: "x".repeat(16) });
+  reg._bootstrapTokenFor = () => "x".repeat(16);  // for claim re-test
+  reg.markRunActive({ runId: "rr-1", hostIdentity: "host-x" });
+  // Sanity: marking does NOT add to runAssignments.
+  assert.equal(reg._runAssignments.has("rr-1"), false);
+  // And vice versa — claiming does not mark active.
+  reg.claimRunForRunner("rr-2", "host-x");
+  assert.equal(reg.getActiveRunMeta("rr-2"), null);
+});

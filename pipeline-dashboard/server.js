@@ -335,6 +335,15 @@ const handleRunnerWsConnection = createRunnerWsHandler({
   hookRouter: {
     routeRemote: (runId, event) => hookRouter && hookRouter.routeRemote(runId, event),
   },
+  // Slice R2.5-d: pass the runnerRegistry so the handler can mark
+  // active-run on connect / unmark on close. Wrapped because
+  // _remoteRunner.runnerRegistry is null when HARNESS_REMOTE_MODE=off.
+  runnerRegistry: {
+    markRunActive: (opts) => _remoteRunner.runnerRegistry
+      && _remoteRunner.runnerRegistry.markRunActive(opts),
+    unmarkRunActive: (runId) => _remoteRunner.runnerRegistry
+      && _remoteRunner.runnerRegistry.unmarkRunActive(runId),
+  },
 });
 
 wss.on("connection", (ws, req) => {

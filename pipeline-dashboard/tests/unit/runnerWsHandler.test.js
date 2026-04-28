@@ -234,6 +234,73 @@ test("R2.5-b: when routeRemote returns rejected, handler emits runner_hook_rejec
   assert.equal(sanitized, undefined, "sanitized must NOT fire on a rejected frame");
 });
 
+// ── R2.5-d: runnerRegistry active-run mark/unmark ────────────────
+
+test("R2.5-d: connect calls runnerRegistry.markRunActive with verdict runId + hostIdentity", () => {
+  const mocks = makeMocks();
+  const markCalls = [];
+  const unmarkCalls = [];
+  mocks.runnerRegistry = {
+    markRunActive: (opts) => { markCalls.push(opts); return true; },
+    unmarkRunActive: (runId) => { unmarkCalls.push(runId); return true; },
+  };
+  const handle = createRunnerWsHandler({ ...mocks });
+  const ws = new MockWs();
+  handle(ws, {}, VERDICT);  // verdict has runId=rr-1, hostIdentity=runner-x
+  assert.equal(markCalls.length, 1);
+  assert.equal(markCalls[0].runId, "rr-1");
+  assert.equal(markCalls[0].hostIdentity, "runner-x");
+});
+
+test("R2.5-d: close calls runnerRegistry.unmarkRunActive with verdict runId", () => {
+  const mocks = makeMocks();
+  const unmarkCalls = [];
+  mocks.runnerRegistry = {
+    markRunActive: () => true,
+    unmarkRunActive: (runId) => { unmarkCalls.push(runId); return true; },
+  };
+  const handle = createRunnerWsHandler({ ...mocks });
+  const ws = new MockWs();
+  handle(ws, {}, VERDICT);
+  ws.close();
+  assert.equal(unmarkCalls.length, 1);
+  assert.equal(unmarkCalls[0], "rr-1");
+});
+
+test("R2.5-d: handler tolerates missing runnerRegistry (backward compat)", () => {
+  // The runnerRegistry param is optional. Without it, the active-run
+  // tracking is a no-op but the rest of the handler still works.
+  const mocks = makeMocks();
+  delete mocks.runnerRegistry;
+  const handle = createRunnerWsHandler({ ...mocks });
+  const ws = new MockWs();
+  // Must not throw on connect.
+  handle(ws, {}, VERDICT);
+  // hello + ledger entry still fire.
+  assert.equal(ws.sent.length, 1);
+  assert.ok(mocks.ledgerCalls.find((e) => e.type === "runner_ws_connected"));
+  // Must not throw on close.
+  ws.close();
+  assert.ok(mocks.ledgerCalls.find((e) => e.type === "runner_ws_disconnected"));
+});
+
+test("R2.5-d: markRunActive throwing does NOT crash the handler", () => {
+  const mocks = makeMocks();
+  mocks.runnerRegistry = {
+    markRunActive: () => { throw new Error("registry exploded"); },
+    unmarkRunActive: () => true,
+  };
+  const handle = createRunnerWsHandler({ ...mocks });
+  const ws = new MockWs();
+  // The handler must absorb the error — best-effort tracking should
+  // never break the WS upgrade path.
+  handle(ws, {}, VERDICT);
+  // hello frame still went out.
+  assert.equal(ws.sent.length, 1);
+  // Connection ledger entry still fired.
+  assert.ok(mocks.ledgerCalls.find((e) => e.type === "runner_ws_connected"));
+});
+
 // ── R2.5-c: dispatched / dispatch_error audit verbs ──────────────
 
 test("R2.5-c: when verdict.dispatched.ok=true, handler emits runner_hook_dispatched", async () => {

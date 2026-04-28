@@ -71,6 +71,58 @@ class RunnerRegistry {
     this._runners = new Map();
     // runId → hostIdentity (set when orchestrator claims a run for a runner)
     this._runAssignments = new Map();
+
+    // Slice R2.5-d: track active runner WS connections by runId so the
+    // monitor route can surface runner-claimed runs even when no
+    // pipeline run was ever created (off / report bridge modes).
+    // runId → { hostIdentity, since }
+    this._activeRunIds = new Map();
+  }
+
+  // ── R2.5-d: active-run tracking for monitor visibility ───────────
+
+  /**
+   * Slice R2.5-d: mark a runId as actively-connected by a remote
+   * runner. Idempotent — repeated calls overwrite the metadata so a
+   * reconnect updates `since`. Returns true on successful mark, false
+   * on missing args.
+   */
+  markRunActive({ runId, hostIdentity } = {}) {
+    if (typeof runId !== "string" || runId.length === 0) return false;
+    if (typeof hostIdentity !== "string" || hostIdentity.length === 0) return false;
+    this._activeRunIds.set(runId, { hostIdentity, since: this._now() });
+    return true;
+  }
+
+  /**
+   * Slice R2.5-d: unmark a runId on WS disconnect. Idempotent. Returns
+   * true if the entry existed and was removed.
+   */
+  unmarkRunActive(runId) {
+    if (typeof runId !== "string" || runId.length === 0) return false;
+    return this._activeRunIds.delete(runId);
+  }
+
+  /**
+   * Slice R2.5-d: snapshot of currently active runner-claimed runIds.
+   * The monitor route uses this to surface runner-claimed runs that
+   * haven't been promoted to pipeline runs yet (off/report modes).
+   */
+  getActiveRunMeta(runId) {
+    if (typeof runId !== "string" || runId.length === 0) return null;
+    return this._activeRunIds.get(runId) || null;
+  }
+
+  /**
+   * Slice R2.5-d: list all currently active runner-claimed runIds for
+   * dashboard surfacing.
+   */
+  listActiveRuns() {
+    return Array.from(this._activeRunIds.entries()).map(([runId, meta]) => ({
+      runId,
+      hostIdentity: meta.hostIdentity,
+      since: meta.since,
+    }));
   }
 
   static _defaultBootstrapTokenFor(hostIdentity) {

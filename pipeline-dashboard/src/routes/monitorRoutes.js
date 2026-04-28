@@ -68,6 +68,52 @@ function _resolveOrigin(runId, runnerProvider) {
   return Object.assign({}, LOCAL_ORIGIN_DEFAULTS);
 }
 
+/**
+ * Slice R2.5-d: response shape for a runner-claimed run that has not
+ * been promoted to a pipeline run yet (no executor in the
+ * orchestrator). Mirrors the full /api/monitor/runs/:runId envelope
+ * so client code can render uniformly — every field is empty/null
+ * except the ones the runner actually told us about.
+ */
+function _runnerClaimedRunResponse(runId, meta, childRegistry) {
+  let children = [];
+  if (childRegistry && typeof childRegistry.snapshot === "function") {
+    try {
+      children = childRegistry.snapshot().filter((c) => c && c.runId === runId);
+    } catch (_) { children = []; }
+  }
+  return {
+    run: {
+      id: runId,
+      // Distinct status so the UI can render "claimed by runner, no
+      // pipeline activity yet" rather than confuse with idle.
+      status: "runner-claimed",
+      templateId: null,
+      phase: null,
+      phaseIdx: null,
+      startedAt: typeof meta.since === "number"
+        ? new Date(meta.since).toISOString()
+        : null,
+      savedAt: null,
+    },
+    recentEvents: [],
+    children,
+    subagents: [],
+    findings: [],
+    findingsOverflow: null,
+    replayMeta: { hasCheckpoint: false, savedAt: null },
+    // Synthesize the origin from the runner's metadata. This is the
+    // same shape MF1 §3.2 documents for `/api/monitor/runs/:runId.origin`.
+    origin: {
+      runOrigin: "container-remote",
+      sandboxClass: "container-strict",
+      hostIdentity: meta.hostIdentity,
+      isolationStatus: "healthy",
+    },
+    exportedAt: new Date().toISOString(),
+  };
+}
+
 function _resolveRunners(runnerProvider) {
   if (runnerProvider && typeof runnerProvider.listRunners === "function") {
     try {
@@ -229,6 +275,18 @@ function createMonitorRoutes({
       }
       const exec = pipelineOrchestrator.get(runId);
       if (!exec) {
+        // Slice R2.5-d: fall back to the runner registry's
+        // active-run map. A remote runner connected with this runId
+        // (verdict.runId from JWT) — even though no pipeline run
+        // was ever created, the dashboard should still surface it
+        // so operators can correlate runner activity with run
+        // detail. Closes the R2 known-gap 404 path.
+        if (runnerProvider && typeof runnerProvider.getActiveRunMeta === "function") {
+          const meta = runnerProvider.getActiveRunMeta(runId);
+          if (meta) {
+            return res.json(_runnerClaimedRunResponse(runId, meta, childRegistry));
+          }
+        }
         return res.status(404).json({ error: "run not found", runId });
       }
 

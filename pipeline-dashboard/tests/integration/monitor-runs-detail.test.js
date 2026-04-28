@@ -425,3 +425,117 @@ test("monitorRoutes.js exposes the GET /monitor/runs/:runId route", () => {
   assert.match(SRC, /runnerProvider/);
   assert.match(SRC, /Slice R1-a/);
 });
+
+// ── R2.5-d: runner-claimed run fallback ──────────────────────────
+
+test("R2.5-d: monitor/runs/:runId falls back to runnerProvider for runner-claimed runs (no 404)", async () => {
+  // The R2 closeout report's known-gap: a runner connects + claims
+  // runId="rr-r2-eval-001" but no pipeline run is ever created (off
+  // / report bridge mode). Pre-fix, the dashboard saw 404. Post-fix,
+  // the route falls back to runnerProvider.getActiveRunMeta(runId)
+  // and returns 200 with a "runner-claimed" placeholder shape.
+  const childRegistry = createChildRegistry();
+  // A remote child registered against this runId should be visible
+  // in the children[] array (proves childRegistry filter still runs).
+  childRegistry.registerRemote({
+    id: "remote-agent-1",
+    label: "claude",
+    runId: "rr-runner-claimed",
+    hostIdentity: "host-r2",
+    agentType: "claude",
+  });
+  const eventReplayBuffer = createEventReplayBuffer({ maxSize: 50 });
+  // Pipeline orchestrator has no entry for rr-runner-claimed.
+  const pipelineOrchestrator = new PipelineOrchestrator({
+    maxConcurrent: 1,
+    createExecutor: () => makeStubExecutor("default"),
+  });
+  // Stub runnerProvider that claims to know rr-runner-claimed.
+  const runnerProvider = {
+    getActiveRunMeta: (runId) => runId === "rr-runner-claimed"
+      ? { hostIdentity: "host-r2", since: 1700000000000 }
+      : null,
+  };
+
+  const { server, port } = await startApp({
+    pipelineOrchestrator, childRegistry, eventReplayBuffer, runnerProvider,
+  });
+  try {
+    const resp = await get(port, "/api/monitor/runs/rr-runner-claimed");
+    assert.equal(resp.status, 200,
+      "runner-claimed run must NOT 404 — closes R2 known-gap");
+    // Run shape — placeholder status, runner metadata in origin.
+    assert.equal(resp.body.run.id, "rr-runner-claimed");
+    assert.equal(resp.body.run.status, "runner-claimed");
+    assert.equal(resp.body.run.templateId, null);
+    assert.equal(resp.body.run.phase, null);
+    // Origin pulled from runnerProvider's metadata.
+    assert.equal(resp.body.origin.runOrigin, "container-remote");
+    assert.equal(resp.body.origin.sandboxClass, "container-strict");
+    assert.equal(resp.body.origin.hostIdentity, "host-r2");
+    // Children filtered to this runId (childRegistry already had one).
+    assert.equal(resp.body.children.length, 1);
+    assert.equal(resp.body.children[0].id, "remote-agent-1");
+    assert.equal(resp.body.children[0].runId, "rr-runner-claimed");
+    // Other arrays default to empty (no pipeline activity yet).
+    assert.deepEqual(resp.body.recentEvents, []);
+    assert.deepEqual(resp.body.subagents, []);
+    assert.deepEqual(resp.body.findings, []);
+    // exportedAt + replayMeta still present.
+    assert.ok(resp.body.exportedAt);
+    assert.equal(resp.body.replayMeta.hasCheckpoint, false);
+  } finally {
+    server.close();
+  }
+});
+
+test("R2.5-d: when runner-claimed runId is unknown to runnerProvider, route still 404s", async () => {
+  // Negative regression: the fallback only fires when getActiveRunMeta
+  // affirmatively knows the runId. Random unknown runIds still get 404.
+  const childRegistry = createChildRegistry();
+  const eventReplayBuffer = createEventReplayBuffer({ maxSize: 50 });
+  const pipelineOrchestrator = new PipelineOrchestrator({
+    maxConcurrent: 1,
+    createExecutor: () => makeStubExecutor("default"),
+  });
+  const runnerProvider = { getActiveRunMeta: () => null };  // never knows
+  const { server, port } = await startApp({
+    pipelineOrchestrator, childRegistry, eventReplayBuffer, runnerProvider,
+  });
+  try {
+    const resp = await get(port, "/api/monitor/runs/never-existed");
+    assert.equal(resp.status, 404);
+    assert.equal(resp.body.error, "run not found");
+  } finally {
+    server.close();
+  }
+});
+
+test("R2.5-d: pipeline run takes precedence over runner-claimed (orchestrator wins)", async () => {
+  // If a runId exists in BOTH the orchestrator AND runnerProvider, the
+  // orchestrator's full pipeline-run detail wins (it has more data).
+  const childRegistry = createChildRegistry();
+  const eventReplayBuffer = createEventReplayBuffer({ maxSize: 50 });
+  const pipelineOrchestrator = new PipelineOrchestrator({
+    maxConcurrent: 5,
+    createExecutor: (runId) => makeStubExecutor(runId, {
+      snap: { status: "active", templateId: "tpl", phase: "B", phaseIdx: 1, startedAt: 1700000000000 },
+    }),
+  });
+  pipelineOrchestrator.getOrCreateRun("rr-shared");  // creates the executor
+  const runnerProvider = {
+    getActiveRunMeta: () => ({ hostIdentity: "host-r2", since: 1700000000000 }),
+  };
+  const { server, port } = await startApp({
+    pipelineOrchestrator, childRegistry, eventReplayBuffer, runnerProvider,
+  });
+  try {
+    const resp = await get(port, "/api/monitor/runs/rr-shared");
+    assert.equal(resp.status, 200);
+    // Orchestrator's status wins — NOT the runner-claimed placeholder.
+    assert.equal(resp.body.run.status, "active");
+    assert.equal(resp.body.run.templateId, "tpl");
+  } finally {
+    server.close();
+  }
+});

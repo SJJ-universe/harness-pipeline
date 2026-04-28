@@ -73,6 +73,11 @@ function createRunnerWsHandler({
   ledger = null,
   childRegistry = null,
   hookRouter = null,
+  // Slice R2.5-d: when wired, the handler marks the verdict's runId
+  // as actively-connected on open, and unmarks on close. The monitor
+  // route uses this to surface runner-claimed runs that haven't been
+  // promoted to pipeline runs (bridgeMode=off/report).
+  runnerRegistry = null,
   now,
 } = {}) {
   const clock = typeof now === "function" ? now : Date.now;
@@ -86,6 +91,14 @@ function createRunnerWsHandler({
     _ledgerAudit(ledger, runId, "runner_ws_connected", {
       hostIdentity, runOrigin, sandboxClass,
     });
+
+    // Slice R2.5-d: register this runId as active so the monitor
+    // route can surface it as a runner-claimed run even before any
+    // hook activity creates a pipeline run.
+    if (runnerRegistry && typeof runnerRegistry.markRunActive === "function") {
+      try { runnerRegistry.markRunActive({ runId, hostIdentity }); }
+      catch (_) { /* tracking is best-effort; never fail the handler */ }
+    }
 
     // Hello frame — confirms the JWT was accepted and the channel is live.
     // The runner uses this as its readiness signal before sending any
@@ -251,6 +264,13 @@ function createRunnerWsHandler({
         agentsAutoCleared: leaked,
         lastFrameType,
       });
+
+      // Slice R2.5-d: clear the active-run mark so the monitor route
+      // stops surfacing this runner-claimed runId on the next request.
+      if (runnerRegistry && typeof runnerRegistry.unmarkRunActive === "function") {
+        try { runnerRegistry.unmarkRunActive(runId); }
+        catch (_) { /* best-effort cleanup */ }
+      }
     });
 
     ws.on("error", (err) => {
