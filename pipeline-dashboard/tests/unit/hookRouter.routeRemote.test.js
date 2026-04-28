@@ -16,15 +16,39 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { HookRouter } = require("../../executor/hook-router");
 
-function makeRouter() {
+function makeRouter(opts = {}) {
   const broadcasts = [];
   const router = new HookRouter({
     broadcast: (e) => broadcasts.push(e),
     sessionWatcher: null,
     runRegistry: null,
     fixturesDir: null,
+    ...opts,  // allow tests to pass bridgeMode, etc.
   });
   return { router, broadcasts };
+}
+
+// R2.5-c helper: a recording mock executor for dispatch tests.
+function makeMockExecutor() {
+  const calls = [];
+  return {
+    calls,
+    onPreTool: async (tool, input) => {
+      calls.push({ method: "onPreTool", args: [tool, input] });
+    },
+    onPostTool: async (tool, response, input) => {
+      calls.push({ method: "onPostTool", args: [tool, response, input] });
+    },
+    onStop: async (payload) => {
+      calls.push({ method: "onStop", args: [payload] });
+    },
+    onSubagentStart: async (payload) => {
+      calls.push({ method: "onSubagentStart", args: [payload] });
+    },
+    onSubagentStop: async (payload) => {
+      calls.push({ method: "onSubagentStop", args: [payload] });
+    },
+  };
 }
 
 test("R1-g: routeRemote broadcasts runner_hook with origin=container-remote", () => {
@@ -122,9 +146,9 @@ test("R1-g: routeRemote NEVER calls into the attached executor (trust boundary)"
 
 // ── R2.5-b: structured return value + sanitization wiring ─────────
 
-test("R2.5-b: routeRemote returns {broadcast, rejected, sanitized, dispatched} on every accepted call", () => {
+test("R2.5-b: routeRemote returns {broadcast, rejected, sanitized, dispatched} on every accepted call", async () => {
   const { router } = makeRouter();
-  const result = router.routeRemote("rr-1", {
+  const result = await router.routeRemote("rr-1", {
     hook: "PreToolUse", tool: "Read",
     data: { file_path: "/work/in/x.txt" },
   });
@@ -138,12 +162,12 @@ test("R2.5-b: routeRemote returns {broadcast, rejected, sanitized, dispatched} o
   assert.equal(result.sanitized.tool, "Read");
   assert.deepEqual(result.sanitized._data, { file_path: "/work/in/x.txt" });
   assert.equal(result.dispatched, null,
-    "R2.5-b leaves dispatched=null; R2.5-c wires the dispatch path");
+    "default bridgeMode=off leaves dispatched=null; R2.5-c populates only in dispatch mode");
 });
 
-test("R2.5-b: routeRemote returns rejected reason for hook outside the allowlist", () => {
+test("R2.5-b: routeRemote returns rejected reason for hook outside the allowlist", async () => {
   const { router } = makeRouter();
-  const result = router.routeRemote("rr-1", {
+  const result = await router.routeRemote("rr-1", {
     hook: "SessionStart", tool: "Read",
   });
   // SessionStart is intentionally NOT in ALLOWED_HOOKS for R2.5.
@@ -154,10 +178,10 @@ test("R2.5-b: routeRemote returns rejected reason for hook outside the allowlist
   assert.equal(result.sanitized, null, "rejected frames have no sanitized payload");
 });
 
-test("R2.5-b: routeRemote returns rejected reason for write-side tools (Bash / Write / Edit)", () => {
+test("R2.5-b: routeRemote returns rejected reason for write-side tools (Bash / Write / Edit)", async () => {
   const { router } = makeRouter();
   for (const tool of ["Bash", "Write", "Edit"]) {
-    const result = router.routeRemote("rr-1", {
+    const result = await router.routeRemote("rr-1", {
       hook: "PreToolUse", tool,
       data: { command: "rm -rf /" },
     });
@@ -167,12 +191,12 @@ test("R2.5-b: routeRemote returns rejected reason for write-side tools (Bash / W
   }
 });
 
-test("R2.5-b: routeRemote stats track sanitized + rejected counts", () => {
+test("R2.5-b: routeRemote stats track sanitized + rejected counts", async () => {
   const { router } = makeRouter();
-  router.routeRemote("rr-1", { hook: "PreToolUse", tool: "Read" });    // accept
-  router.routeRemote("rr-1", { hook: "PreToolUse", tool: "Read" });    // accept
-  router.routeRemote("rr-1", { hook: "PreToolUse", tool: "Bash" });    // reject
-  router.routeRemote("rr-1", { hook: "Custom" });                       // reject
+  await router.routeRemote("rr-1", { hook: "PreToolUse", tool: "Read" });    // accept
+  await router.routeRemote("rr-1", { hook: "PreToolUse", tool: "Read" });    // accept
+  await router.routeRemote("rr-1", { hook: "PreToolUse", tool: "Bash" });    // reject
+  await router.routeRemote("rr-1", { hook: "Custom" });                       // reject
   const stats = router.getStats();
   assert.equal(stats.remoteHookSanitized, 2);
   assert.equal(stats.remoteHookRejected, 2);
@@ -182,18 +206,191 @@ test("R2.5-b: routeRemote stats track sanitized + rejected counts", () => {
   assert.equal(stats.remoteHooks, 4);
 });
 
-test("R2.5-b: routeRemote returns the empty result on null/missing inputs (no broadcast)", () => {
+test("R2.5-b: routeRemote returns the empty result on null/missing inputs (no broadcast)", async () => {
   // Defensive guard: when the input itself is invalid, broadcast is
   // skipped (no audit anchor either) — these calls should never have
   // happened. Distinct from "hook_not_allowed" which IS an attacker
   // event the operator should see.
   const { router } = makeRouter();
-  const r1 = router.routeRemote("", { hook: "PreToolUse", tool: "Read" });
-  const r2 = router.routeRemote(null, { hook: "PreToolUse", tool: "Read" });
-  const r3 = router.routeRemote("rr-1", null);
+  const r1 = await router.routeRemote("", { hook: "PreToolUse", tool: "Read" });
+  const r2 = await router.routeRemote(null, { hook: "PreToolUse", tool: "Read" });
+  const r3 = await router.routeRemote("rr-1", null);
   for (const r of [r1, r2, r3]) {
     assert.equal(r.broadcast, false);
     assert.equal(r.rejected, null);
     assert.equal(r.sanitized, null);
   }
+});
+
+// ── R2.5-c: bridge mode + controlled dispatch ─────────────────────
+
+test("R2.5-c: default bridge mode is 'off' (broadcast-only, no dispatch)", () => {
+  const { router } = makeRouter();
+  assert.equal(router.getBridgeMode(), "off");
+});
+
+test("R2.5-c: setBridgeMode rejects invalid modes (frozen vocabulary)", () => {
+  const { router } = makeRouter();
+  for (const bad of ["", "yolo", "true", "1", "execute"]) {
+    assert.throws(() => router.setBridgeMode(bad), /invalid mode/);
+  }
+  // Valid modes go through.
+  for (const ok of ["off", "report", "dispatch"]) {
+    router.setBridgeMode(ok);
+    assert.equal(router.getBridgeMode(), ok);
+  }
+});
+
+test("R2.5-c: bridgeMode='off' (default) — sanitized hook does NOT call executor", async () => {
+  // The R1/R2 default. Sanitization runs, audit verbs are emittable,
+  // but no executor method is invoked.
+  const { router } = makeRouter();
+  const exec = makeMockExecutor();
+  router.attachExecutor(exec);
+  const result = await router.routeRemote("rr-1", {
+    hook: "PreToolUse", tool: "Read", data: { file_path: "/x" },
+  });
+  assert.ok(result.sanitized);
+  assert.equal(result.dispatched, null);
+  assert.equal(exec.calls.length, 0);
+});
+
+test("R2.5-c: bridgeMode='report' — sanitized but NOT dispatched", async () => {
+  // The promotion-staging mode. Operator runs this for 24-48h before
+  // flipping to "dispatch" — see audit chain rejected/sanitized
+  // entries to understand what the bridge would have routed.
+  const { router } = makeRouter({ bridgeMode: "report" });
+  const exec = makeMockExecutor();
+  router.attachExecutor(exec);
+  const result = await router.routeRemote("rr-1", {
+    hook: "PreToolUse", tool: "Read", data: { file_path: "/x" },
+  });
+  assert.ok(result.sanitized);
+  assert.equal(result.dispatched, null,
+    "report mode skips dispatch — operators audit before promoting");
+  assert.equal(exec.calls.length, 0);
+});
+
+test("R2.5-c: bridgeMode='dispatch' — PreToolUse Read fires executor.onPreTool", async () => {
+  const { router } = makeRouter({ bridgeMode: "dispatch" });
+  const exec = makeMockExecutor();
+  router.attachExecutor(exec);
+  const result = await router.routeRemote("rr-1", {
+    hook: "PreToolUse", tool: "Read", data: { file_path: "/work/in/x.txt", limit: 100 },
+  });
+  assert.ok(result.dispatched);
+  assert.equal(result.dispatched.ok, true);
+  assert.equal(result.dispatched.method, "onPreTool");
+  assert.equal(exec.calls.length, 1);
+  assert.equal(exec.calls[0].method, "onPreTool");
+  assert.equal(exec.calls[0].args[0], "Read",
+    "first arg = tool name");
+  assert.deepEqual(exec.calls[0].args[1], { file_path: "/work/in/x.txt", limit: 100 },
+    "second arg = sanitized data ONLY (no extra keys)");
+});
+
+test("R2.5-c: bridgeMode='dispatch' — every allowed hook routes to its mapped method", async () => {
+  const { router } = makeRouter({ bridgeMode: "dispatch" });
+  const exec = makeMockExecutor();
+  router.attachExecutor(exec);
+  await router.routeRemote("rr", { hook: "PreToolUse",  tool: "Read",  data: { file_path: "/x" } });
+  await router.routeRemote("rr", { hook: "PostToolUse", tool: "Glob",  data: { path: "/x" }, response: { matches: [] } });
+  await router.routeRemote("rr", { hook: "Stop",        data: { session_id: "s1" } });
+  await router.routeRemote("rr", { hook: "SubagentStart", data: { agent_id: "a1", agent_type: "claude" } });
+  await router.routeRemote("rr", { hook: "SubagentStop",  data: { agent_id: "a1" } });
+  const methods = exec.calls.map((c) => c.method);
+  assert.deepEqual(methods, [
+    "onPreTool", "onPostTool", "onStop", "onSubagentStart", "onSubagentStop",
+  ], "every allowed hook must route to its contract-mapped method");
+});
+
+test("R2.5-c: bridgeMode='dispatch' — rejected frames never call the executor", async () => {
+  // Negative invariant: rejection MUST short-circuit before dispatch.
+  const { router } = makeRouter({ bridgeMode: "dispatch" });
+  const exec = makeMockExecutor();
+  router.attachExecutor(exec);
+  for (const evt of [
+    { hook: "SessionStart", tool: "Read" },             // hook_not_allowed
+    { hook: "PreToolUse",   tool: "Bash" },             // tool_not_allowed
+    { hook: "SubagentStart", data: {} },                // data_required_missing
+    { hook: "Custom" },                                 // hook_not_allowed
+  ]) {
+    const result = await router.routeRemote("rr", evt);
+    assert.ok(result.rejected, "evt should be rejected");
+    assert.equal(result.dispatched, null,
+      "rejected frames must NEVER reach dispatched (executor untouched)");
+  }
+  assert.equal(exec.calls.length, 0,
+    "executor must not be invoked once across any of the rejected frames");
+});
+
+test("R2.5-c: bridgeMode='dispatch' — executor exception captured in dispatched.error", async () => {
+  const { router } = makeRouter({ bridgeMode: "dispatch" });
+  router.attachExecutor({
+    onPreTool: async () => { throw new Error("boom downstream"); },
+  });
+  const result = await router.routeRemote("rr", {
+    hook: "PreToolUse", tool: "Read", data: { file_path: "/x" },
+  });
+  assert.ok(result.dispatched);
+  assert.equal(result.dispatched.ok, false);
+  assert.equal(result.dispatched.method, "onPreTool");
+  assert.match(result.dispatched.error, /boom downstream/);
+});
+
+test("R2.5-c: bridgeMode='dispatch' — no executor wired emits ok=false error=no_executor", async () => {
+  const { router } = makeRouter({ bridgeMode: "dispatch" });
+  // No attachExecutor + no orchestrator.
+  const result = await router.routeRemote("rr", {
+    hook: "Stop", data: { session_id: "s1" },
+  });
+  assert.equal(result.dispatched.ok, false);
+  assert.equal(result.dispatched.error, "no_executor");
+});
+
+test("R2.5-c: bridgeMode='dispatch' — orchestrator-resolved executor wins over attached singleton", async () => {
+  const { router } = makeRouter({ bridgeMode: "dispatch" });
+  const singletonExec = makeMockExecutor();
+  const perRunExec = makeMockExecutor();
+  router.attachExecutor(singletonExec);
+  router.attachOrchestrator({
+    getOrCreateRun: (runId) => runId === "rr-A" ? perRunExec : null,
+  });
+  await router.routeRemote("rr-A", { hook: "Stop", data: {} });
+  await router.routeRemote("rr-B", { hook: "Stop", data: {} });
+  // rr-A → perRunExec (orchestrator returned it), rr-B → singleton fallback.
+  assert.equal(perRunExec.calls.length, 1);
+  assert.equal(singletonExec.calls.length, 1);
+});
+
+test("R2.5-c: bridgeMode='dispatch' — orchestrator without getOrCreateRun falls back to .get()", async () => {
+  // Backward compat with older orchestrator implementations that only
+  // expose .get(). For runner-claimed runId that's not in the orch
+  // run-list, .get() returns null and we fall through to the
+  // singleton executor.
+  const { router } = makeRouter({ bridgeMode: "dispatch" });
+  const singletonExec = makeMockExecutor();
+  const perRunExec = makeMockExecutor();
+  router.attachExecutor(singletonExec);
+  router.attachOrchestrator({
+    get: (runId) => runId === "rr-X" ? perRunExec : null,
+  });
+  await router.routeRemote("rr-X", { hook: "Stop", data: {} });   // → perRunExec
+  await router.routeRemote("rr-Y", { hook: "Stop", data: {} });   // → singleton
+  assert.equal(perRunExec.calls.length, 1);
+  assert.equal(singletonExec.calls.length, 1);
+});
+
+test("R2.5-c: dispatch stats track dispatched + dispatch_error separately", async () => {
+  const { router } = makeRouter({ bridgeMode: "dispatch" });
+  router.attachExecutor({
+    onPreTool: async () => {},
+    onStop: async () => { throw new Error("boom"); },
+  });
+  await router.routeRemote("rr", { hook: "PreToolUse", tool: "Read", data: { file_path: "/x" } });
+  await router.routeRemote("rr", { hook: "PreToolUse", tool: "Read", data: { file_path: "/y" } });
+  await router.routeRemote("rr", { hook: "Stop", data: {} });  // throws
+  const stats = router.getStats();
+  assert.equal(stats.remoteHookDispatched, 2);
+  assert.equal(stats.remoteHookDispatchError, 1);
 });

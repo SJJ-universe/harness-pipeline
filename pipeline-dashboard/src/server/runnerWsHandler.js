@@ -107,7 +107,7 @@ function createRunnerWsHandler({
     let messagesRouted = 0;
     let lastFrameType = null;
 
-    ws.on("message", (raw) => {
+    ws.on("message", async (raw) => {
       messagesReceived += 1;
       let frame;
       try { frame = JSON.parse(raw.toString()); }
@@ -162,7 +162,15 @@ function createRunnerWsHandler({
           if (!event) { messagesDropped += 1; break; }
           if (hookRouter && typeof hookRouter.routeRemote === "function") {
             try {
-              const verdict = hookRouter.routeRemote(runId, event);
+              // R2.5-c: routeRemote is async to allow await on the
+              // executor dispatch. Old callers that didn't await still
+              // worked because broadcast is sync + happens before any
+              // await. New callers (this handler) get the structured
+              // verdict including any dispatch outcome.
+              const verdictPromise = hookRouter.routeRemote(runId, event);
+              const verdict = (verdictPromise && typeof verdictPromise.then === "function")
+                ? await verdictPromise
+                : verdictPromise;
               const hookName = typeof event.hook === "string" ? event.hook : null;
               const tool = typeof event.tool === "string" ? event.tool : null;
               // R1-k2: every accepted frame produces runner_hook_routed
@@ -173,9 +181,6 @@ function createRunnerWsHandler({
               // R2.5-b: emit the validation outcome on the audit chain
               // so an operator can reconstruct exactly which hooks were
               // accepted, rejected, or sanitized for downstream dispatch.
-              // verdict is the structured return from routeRemote — old
-              // callers that ignored the return still work; this branch
-              // only fires when verdict has the new shape.
               if (verdict && typeof verdict === "object") {
                 if (verdict.rejected) {
                   _ledgerAudit(ledger, runId, "runner_hook_rejected", {
@@ -186,9 +191,22 @@ function createRunnerWsHandler({
                   _ledgerAudit(ledger, runId, "runner_hook_sanitized", {
                     hostIdentity, hook: hookName, tool,
                   });
-                  // R2.5-c (next slice) fires runner_hook_dispatched /
-                  // runner_hook_dispatch_error here when bridge mode is
-                  // "dispatch". For R2.5-b that's a no-op.
+                  // R2.5-c: dispatch outcome (only present in
+                  // bridgeMode === "dispatch"; null otherwise).
+                  if (verdict.dispatched) {
+                    if (verdict.dispatched.ok) {
+                      _ledgerAudit(ledger, runId, "runner_hook_dispatched", {
+                        hostIdentity, hook: hookName, tool,
+                        method: verdict.dispatched.method,
+                      });
+                    } else {
+                      _ledgerAudit(ledger, runId, "runner_hook_dispatch_error", {
+                        hostIdentity, hook: hookName, tool,
+                        method: verdict.dispatched.method,
+                        error: verdict.dispatched.error,
+                      });
+                    }
+                  }
                 }
               }
             }

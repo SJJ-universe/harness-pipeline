@@ -602,7 +602,17 @@ const sessionWatcher = new SessionWatcher(broadcast, path.resolve(__dirname, "..
 // Remaining routes mounted below after dependency construction
 
 // ── Hook Router + Pipeline Executor (Phase 1 + 2 + 3 + 4) ──
-const hookRouter = new HookRouter({ broadcast, sessionWatcher, runRegistry });
+// Slice R2.5-c (Phase D R2.5): bridge mode comes from env. Default
+// "off" preserves R1/R2 broadcast-only behavior. Operators promote
+// via HARNESS_REMOTE_BRIDGE_MODE=report (validate-only, see audit
+// chain) and then HARNESS_REMOTE_BRIDGE_MODE=dispatch (forward
+// sanitized hooks to the local executor's on{Pre,Post}Tool/onStop/
+// onSubagentStart/onSubagentStop methods).
+const { resolveBridgeMode } = require("./src/runtime/remoteHookBridgeContract");
+const hookRouter = new HookRouter({
+  broadcast, sessionWatcher, runRegistry,
+  bridgeMode: resolveBridgeMode(process.env),
+});
 // Slice N (v6): shared child-process semaphore across Codex + Claude so the
 // two runners can't collectively spawn more than HARNESS_CHILD_MAX processes
 // at once. Queue depth broadcasts as `child_queue_depth` → dashboard.

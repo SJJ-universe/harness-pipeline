@@ -8,9 +8,14 @@ const fs = require("fs");
 const path = require("path");
 const { alarmForUsage, extractContextUsage } = require("../src/runtime/contextUsage");
 const { sanitizeRemoteHook } = require("../src/runtime/remoteHookSanitizer");
+const {
+  EXECUTOR_DISPATCH,
+  DEFAULT_BRIDGE_MODE,
+  BRIDGE_MODES,
+} = require("../src/runtime/remoteHookBridgeContract");
 
 class HookRouter {
-  constructor({ broadcast, sessionWatcher, runRegistry, fixturesDir }) {
+  constructor({ broadcast, sessionWatcher, runRegistry, fixturesDir, bridgeMode }) {
     this.broadcast = broadcast;
     this.sessionWatcher = sessionWatcher;
     this.runRegistry = runRegistry || null;
@@ -22,6 +27,29 @@ class HookRouter {
     // collapses everything to the default run — this is the infra only.
     this.orchestrator = null;
     this.stats = { total: 0, byEvent: {} };
+    // Slice R2.5-c: controlled execution bridge for remote hooks.
+    // "off" (default) preserves R1/R2 behavior — sanitization runs but
+    // no executor method is invoked. "report" runs sanitization + emits
+    // sanitized/rejected audit verbs but skips dispatch. "dispatch"
+    // forwards sanitized payloads to the local executor's mapped method.
+    this._bridgeMode = BRIDGE_MODES.includes(bridgeMode) ? bridgeMode : DEFAULT_BRIDGE_MODE;
+  }
+
+  /**
+   * Slice R2.5-c: explicit setter for the bridge mode (tests + runtime
+   * promotion). Anything outside BRIDGE_MODES is rejected so an attacker
+   * with env-write access can't smuggle in an unrecognized mode that
+   * the router would mishandle.
+   */
+  setBridgeMode(mode) {
+    if (!BRIDGE_MODES.includes(mode)) {
+      throw new TypeError("HookRouter.setBridgeMode: invalid mode " + mode);
+    }
+    this._bridgeMode = mode;
+  }
+
+  getBridgeMode() {
+    return this._bridgeMode;
   }
 
   attachExecutor(executor) {
@@ -281,21 +309,27 @@ class HookRouter {
    *   on every runId+event call as before. The result is an opt-in
    *   for callers that want to drive the audit chain.
    *
-   * Slice R2.5-c (next): when bridgeMode === "dispatch", the sanitized
-   *   payload is forwarded to the local executor's mapped method.
-   *   This slice (R2.5-b) populates `result.sanitized` but leaves
-   *   `result.dispatched` as null.
+   * Slice R2.5-c: when bridgeMode === "dispatch", the sanitized
+   *   payload is forwarded to the local executor's mapped method
+   *   (per remoteHookBridgeContract.EXECUTOR_DISPATCH). The result
+   *   lands in `result.dispatched`. In "off" or "report" modes,
+   *   `result.dispatched` stays null.
+   *
+   *   The function is async because the executor methods may be async.
+   *   Old callers that called this synchronously and ignored the
+   *   return value still work — the broadcast is synchronous and
+   *   happens before any async work.
    *
    * @param {string} runId  Verdict runId (NEVER trust frame body).
    * @param {object} hookEvent  The runner's event payload.
-   * @returns {{
+   * @returns {Promise<{
    *   broadcast: boolean,                       // routeRemote happened
    *   rejected: null | {reason: string},        // sanitization verdict
    *   sanitized: null | object,                 // post-sanitizer payload
-   *   dispatched: null | {ok: boolean, error?}, // R2.5-c only; null here
-   * }}
+   *   dispatched: null | {ok: boolean, method?: string, error?: string}
+   * }>}
    */
-  routeRemote(runId, hookEvent) {
+  async routeRemote(runId, hookEvent) {
     const result = {
       broadcast: false,
       rejected: null,
@@ -329,11 +363,105 @@ class HookRouter {
     if (!verdict.ok) {
       result.rejected = { reason: verdict.reason };
       this.stats.remoteHookRejected = (this.stats.remoteHookRejected || 0) + 1;
+      return result;
+    }
+    result.sanitized = verdict.sanitized;
+    this.stats.remoteHookSanitized = (this.stats.remoteHookSanitized || 0) + 1;
+
+    // R2.5-c: dispatch only when bridge mode is "dispatch". "off" and
+    // "report" stop here — operators can preview the validation
+    // outcome (`runner_hook_sanitized` audit) before promoting.
+    if (this._bridgeMode !== "dispatch") return result;
+
+    result.dispatched = await this._dispatchSanitized(runId, verdict.sanitized);
+    if (result.dispatched.ok) {
+      this.stats.remoteHookDispatched = (this.stats.remoteHookDispatched || 0) + 1;
     } else {
-      result.sanitized = verdict.sanitized;
-      this.stats.remoteHookSanitized = (this.stats.remoteHookSanitized || 0) + 1;
+      this.stats.remoteHookDispatchError = (this.stats.remoteHookDispatchError || 0) + 1;
     }
     return result;
+  }
+
+  /**
+   * Slice R2.5-c: forward a sanitized remote hook to the local
+   * executor. NEVER touches the runner's frame body directly — the
+   * sanitizer already produced a defensive copy with only allowlist
+   * keys. Method binding lives in EXECUTOR_DISPATCH.
+   *
+   * Failure modes:
+   *   - no_executor — neither orchestrator nor attached executor available
+   *   - executor_method_missing — executor lacks the expected onXxx method
+   *   - unmapped_hook — sanitized.hook is not in EXECUTOR_DISPATCH
+   *                     (should not happen if sanitizer is correct;
+   *                     defensive nonetheless)
+   *   - <executor's thrown message> — wrapped from the executor itself
+   *
+   * @returns {Promise<{ok: boolean, method?: string, error?: string}>}
+   */
+  async _dispatchSanitized(runId, sanitized) {
+    const dispatch = EXECUTOR_DISPATCH[sanitized.hook];
+    if (!dispatch) {
+      return { ok: false, error: "unmapped_hook" };
+    }
+    const executor = this._resolveExecutorByRunId(runId);
+    if (!executor) {
+      return { ok: false, method: dispatch.method, error: "no_executor" };
+    }
+    const fn = executor[dispatch.method];
+    if (typeof fn !== "function") {
+      return {
+        ok: false,
+        method: dispatch.method,
+        error: "executor_method_missing",
+      };
+    }
+    // Bind args from the sanitized payload by key. The contract pins
+    // each binding key as one of {tool, response, _data}; the special
+    // _data key passes the entire sanitized data object.
+    const args = dispatch.args.map((argKey) => {
+      if (argKey === "_data") return sanitized._data;
+      return sanitized[argKey];
+    });
+    try {
+      await fn.apply(executor, args);
+      return { ok: true, method: dispatch.method };
+    } catch (e) {
+      return {
+        ok: false,
+        method: dispatch.method,
+        error: (e && e.message) ? e.message : String(e),
+      };
+    }
+  }
+
+  /**
+   * Slice R2.5-c: pick the executor for the JWT-verdict's runId.
+   *
+   * Uses the verdict runId DIRECTLY — never reads payload.session_id
+   * etc. (that's how _resolveExecutor(payload) drives local pipeline
+   * routing; for remote hooks the JWT is authoritative).
+   *
+   * Resolution order:
+   *   1. orchestrator.getOrCreateRun(runId) — creates a new pipeline
+   *      run if it doesn't exist + the orchestrator has headroom.
+   *      This is what makes runner-claimed runs first-class in the
+   *      monitor's run list (R2.5-d concern).
+   *   2. orchestrator.get(runId) — fallback for orchestrators without
+   *      the getOrCreateRun method.
+   *   3. this.executor — last-resort fallback to the singleton
+   *      executor (single-pipeline mode).
+   */
+  _resolveExecutorByRunId(runId) {
+    if (this.orchestrator) {
+      if (typeof this.orchestrator.getOrCreateRun === "function") {
+        const exec = this.orchestrator.getOrCreateRun(runId);
+        if (exec) return exec;
+      } else if (typeof this.orchestrator.get === "function") {
+        const exec = this.orchestrator.get(runId);
+        if (exec) return exec;
+      }
+    }
+    return this.executor;
   }
 
   getStats() {

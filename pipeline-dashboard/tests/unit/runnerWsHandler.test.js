@@ -234,6 +234,77 @@ test("R2.5-b: when routeRemote returns rejected, handler emits runner_hook_rejec
   assert.equal(sanitized, undefined, "sanitized must NOT fire on a rejected frame");
 });
 
+// ── R2.5-c: dispatched / dispatch_error audit verbs ──────────────
+
+test("R2.5-c: when verdict.dispatched.ok=true, handler emits runner_hook_dispatched", async () => {
+  const mocks = makeMocks();
+  // Simulate the R2.5-c bridgeMode=dispatch path: sanitized AND
+  // dispatched.ok with a method name.
+  mocks.hookRouter.routeRemote = async () => ({
+    broadcast: true,
+    rejected: null,
+    sanitized: { hook: "PreToolUse", tool: "Read", _data: {} },
+    dispatched: { ok: true, method: "onPreTool" },
+  });
+  const handle = createRunnerWsHandler({ ...mocks });
+  const ws = new MockWs();
+  handle(ws, {}, VERDICT);
+  ws.emit("message", JSON.stringify({
+    type: FRAME_HOOK,
+    event: { hook: "PreToolUse", tool: "Read" },
+  }));
+  // Async dispatch — wait a tick for the handler's async callback.
+  await new Promise((r) => setImmediate(r));
+  await new Promise((r) => setImmediate(r));
+  const dispatched = mocks.ledgerCalls.find((e) => e.type === "runner_hook_dispatched");
+  assert.ok(dispatched, "runner_hook_dispatched must fire on successful dispatch");
+  assert.equal(dispatched.data.method, "onPreTool");
+  assert.equal(dispatched.data.hook, "PreToolUse");
+  // Should NOT have fired the error verb.
+  assert.equal(mocks.ledgerCalls.find((e) => e.type === "runner_hook_dispatch_error"), undefined);
+});
+
+test("R2.5-c: when verdict.dispatched.ok=false, handler emits runner_hook_dispatch_error with error+method", async () => {
+  const mocks = makeMocks();
+  mocks.hookRouter.routeRemote = async () => ({
+    broadcast: true, rejected: null,
+    sanitized: { hook: "Stop", tool: null, _data: {} },
+    dispatched: { ok: false, method: "onStop", error: "boom downstream" },
+  });
+  const handle = createRunnerWsHandler({ ...mocks });
+  const ws = new MockWs();
+  handle(ws, {}, VERDICT);
+  ws.emit("message", JSON.stringify({ type: FRAME_HOOK, event: { hook: "Stop" } }));
+  await new Promise((r) => setImmediate(r));
+  await new Promise((r) => setImmediate(r));
+  const errEntry = mocks.ledgerCalls.find((e) => e.type === "runner_hook_dispatch_error");
+  assert.ok(errEntry);
+  assert.equal(errEntry.data.method, "onStop");
+  assert.equal(errEntry.data.error, "boom downstream");
+  assert.equal(mocks.ledgerCalls.find((e) => e.type === "runner_hook_dispatched"), undefined);
+});
+
+test("R2.5-c: report mode (verdict.sanitized but verdict.dispatched=null) emits sanitized only", async () => {
+  // No dispatched/dispatch_error verb when bridge mode is "report"
+  // (verdict.dispatched is null). Only sanitized fires after routed.
+  const mocks = makeMocks();
+  mocks.hookRouter.routeRemote = async () => ({
+    broadcast: true, rejected: null,
+    sanitized: { hook: "PreToolUse", tool: "Read", _data: {} },
+    dispatched: null,
+  });
+  const handle = createRunnerWsHandler({ ...mocks });
+  const ws = new MockWs();
+  handle(ws, {}, VERDICT);
+  ws.emit("message", JSON.stringify({ type: FRAME_HOOK, event: { hook: "PreToolUse", tool: "Read" } }));
+  await new Promise((r) => setImmediate(r));
+  await new Promise((r) => setImmediate(r));
+  assert.ok(mocks.ledgerCalls.find((e) => e.type === "runner_hook_routed"));
+  assert.ok(mocks.ledgerCalls.find((e) => e.type === "runner_hook_sanitized"));
+  assert.equal(mocks.ledgerCalls.find((e) => e.type === "runner_hook_dispatched"), undefined);
+  assert.equal(mocks.ledgerCalls.find((e) => e.type === "runner_hook_dispatch_error"), undefined);
+});
+
 test("R2.5-b: backward compat — handler tolerates routeRemote that returns nothing", () => {
   // Old mocks (pre-R2.5-b) return undefined. Handler should still
   // emit runner_hook_routed but skip the new verbs gracefully.
