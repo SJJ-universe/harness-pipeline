@@ -106,7 +106,26 @@ function createRunnerRoutes({
       sandboxClass: body.sandboxClass,
     });
     if (!result.ok) {
-      _ledgerAudit("system", "runner_handshake_rejected", {
+      // Slice R3-c-1 (Phase D R3, 2026-04-28): split the audit event
+      // by reason so true collisions surface separately. R3-G06.
+      //
+      //   host_in_use            existing host is fresh + bootstrap
+      //                          reused → collision attempt. Emit
+      //                          `runner_handshake_collision` so an
+      //                          operator can grep the chain for
+      //                          "someone tried to claim a hostIdentity
+      //                          that's already in use" without
+      //                          confusing it with replay-after-stale
+      //                          or wrong-bootstrap noise.
+      //   everything else        emit the established
+      //                          `runner_handshake_rejected` event so
+      //                          existing R1/R2 audit consumers stay
+      //                          intact (no shape change for already-
+      //                          green tests).
+      const auditType = result.reason === "host_in_use"
+        ? "runner_handshake_collision"
+        : "runner_handshake_rejected";
+      _ledgerAudit("system", auditType, {
         hostIdentity,
         reason: result.reason,
       });

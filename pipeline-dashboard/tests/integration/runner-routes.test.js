@@ -171,6 +171,105 @@ test("R1-d: handshake writes ledger entries on ok + reject (when ledger wired)",
   }
 });
 
+test("R3-c-1: handshake collision (fresh existing host + replay) emits runner_handshake_collision", async () => {
+  // R3-G06 forensic anchor: when a second handshake arrives for a
+  // hostIdentity that's already registered and fresh, the rejection
+  // surfaces as `runner_handshake_collision` (NOT `runner_handshake_rejected`)
+  // so an operator grepping the chain can quickly see "someone tried
+  // to claim a hostIdentity that's already in use" without filtering
+  // through the noisier `runner_handshake_rejected` stream.
+  const dir = tmpLedgerDir();
+  try {
+    const reg = new RunnerRegistry({
+      bootstrapTokenFor: (h) => h === "host-1" ? "boot-1234567890" : null,
+    });
+    const ledger = new EvidenceLedger({
+      rootDir: dir,
+      signingKey: Buffer.from("0".repeat(32), "utf-8"),
+    });
+    const { server, port } = await startApp({ runnerRegistry: reg, mode: "preview", ledger });
+    try {
+      // First handshake — succeeds, host-1 is now in the registry.
+      const ok = await postJson(port, "/api/runner/handshake",
+        { hostIdentity: "host-1" },
+        { Authorization: "Bearer boot-1234567890" });
+      assert.equal(ok.status, 200);
+      // Second handshake with the same bootstrap — collision.
+      const collision = await postJson(port, "/api/runner/handshake",
+        { hostIdentity: "host-1" },
+        { Authorization: "Bearer boot-1234567890" });
+      assert.equal(collision.status, 401);
+      assert.equal(collision.body.reason, "host_in_use");
+    } finally {
+      server.close();
+    }
+    const entries = ledger.read("system");
+    // Expect three entries: handshake_ok, handshake_collision.
+    // (No handshake_rejected — that audit type is reserved for non-collision rejections.)
+    assert.equal(entries.length, 2);
+    assert.equal(entries[0].type, "runner_handshake_ok");
+    assert.equal(entries[1].type, "runner_handshake_collision",
+      "fresh existing host + bootstrap replay must surface as collision in the chain");
+    assert.equal(entries[1].data.hostIdentity, "host-1");
+    assert.equal(entries[1].data.reason, "host_in_use");
+    // Collision entry is signed like every other audit row.
+    assert.equal(typeof entries[1].sig, "string");
+    assert.equal(entries[1].sigVer, 1);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("R3-c-1: stale-replay still emits runner_handshake_rejected (not collision)", async () => {
+  // Distinguishing collision from stale-replay: when the existing host
+  // has gone stale past the heartbeat-drop window, the replay produces
+  // `bootstrap_consumed` (single-use semantic, env rotation required).
+  // The audit type is `runner_handshake_rejected` (not `_collision`)
+  // because no fresh host is "in use".
+  //
+  // We force the staleness via a custom now() injected into the
+  // registry so the test runs deterministically.
+  const dir = tmpLedgerDir();
+  try {
+    let clock = 1000;
+    const reg = new RunnerRegistry({
+      bootstrapTokenFor: (h) => h === "host-1" ? "boot-1234567890" : null,
+      now: () => clock,
+      heartbeatDropMs: 30_000,
+    });
+    const ledger = new EvidenceLedger({
+      rootDir: dir,
+      signingKey: Buffer.from("0".repeat(32), "utf-8"),
+    });
+    const { server, port } = await startApp({ runnerRegistry: reg, mode: "preview", ledger });
+    try {
+      // First handshake.
+      const ok = await postJson(port, "/api/runner/handshake",
+        { hostIdentity: "host-1" },
+        { Authorization: "Bearer boot-1234567890" });
+      assert.equal(ok.status, 200);
+      // Time-warp past the drop threshold.
+      clock += 60_000;
+      // Replay handshake — host went stale, single-use bootstrap consumed.
+      const stale = await postJson(port, "/api/runner/handshake",
+        { hostIdentity: "host-1" },
+        { Authorization: "Bearer boot-1234567890" });
+      assert.equal(stale.status, 401);
+      assert.equal(stale.body.reason, "bootstrap_consumed");
+    } finally {
+      server.close();
+    }
+    const entries = ledger.read("system");
+    assert.equal(entries.length, 2);
+    assert.equal(entries[0].type, "runner_handshake_ok");
+    assert.equal(entries[1].type, "runner_handshake_rejected",
+      "stale-replay reuses the existing rejection audit type (not collision)");
+    assert.equal(entries[1].data.reason, "bootstrap_consumed");
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 // ── /api/runner/heartbeat ──────────────────────────────────────────
 
 test("R1-d: heartbeat happy path with runnerToken from handshake", async () => {

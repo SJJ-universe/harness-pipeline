@@ -285,6 +285,64 @@ test("R1-a: /api/monitor/bootstrap surfaces runners from runnerProvider when wir
   }
 });
 
+test("R3-c-1 / R3-G10: /api/monitor/bootstrap surfaces all 3 runners after multi-host handshake", async () => {
+  // R3-G10 forensic anchor: with the REAL RunnerRegistry (not a fake
+  // listRunners stub), three sequential handshakes for distinct
+  // hostIdentities all surface in /api/monitor/bootstrap.runners[].
+  // Pre-R3-c the registry could have a single-host limit hiding here;
+  // this test pins multi-host visibility down.
+  const { RunnerRegistry } = require("../../src/runtime/runnerRegistry");
+  const tokens = {
+    "host-pool-1": "boot-1234567890",
+    "host-pool-2": "boot-2345678901",
+    "host-pool-3": "boot-3456789012",
+  };
+  const reg = new RunnerRegistry({ bootstrapTokenFor: (h) => tokens[h] });
+  // Three handshakes — one per runner host. Each consumes its bootstrap.
+  for (const [host, token] of Object.entries(tokens)) {
+    const r = reg.handshake({
+      hostIdentity: host,
+      bootstrapToken: token,
+      sandboxClass: "container-strict",
+    });
+    assert.equal(r.ok, true, `expected ${host} handshake to succeed`);
+  }
+  // Claim runs on two of the three hosts so activeRuns differ.
+  reg.claimRunForRunner("rr-A", "host-pool-1");
+  reg.claimRunForRunner("rr-B", "host-pool-1");
+  reg.claimRunForRunner("rr-C", "host-pool-2");
+
+  const { server, port } = await startApp({
+    pipelineOrchestrator: new PipelineOrchestrator({
+      createExecutor: (runId) => makeStubExecutor(runId),
+    }),
+    childRegistry: createChildRegistry(),
+    eventReplayBuffer: createEventReplayBuffer(),
+    runnerProvider: reg,
+  });
+  try {
+    const { body } = await get(port, "/api/monitor/bootstrap");
+    assert.equal(body.runners.length, 3, "all three runners must appear");
+    const byHost = Object.fromEntries(
+      body.runners.map((r) => [r.hostIdentity, r]),
+    );
+    assert.ok(byHost["host-pool-1"], "host-pool-1 missing from bootstrap");
+    assert.ok(byHost["host-pool-2"], "host-pool-2 missing from bootstrap");
+    assert.ok(byHost["host-pool-3"], "host-pool-3 missing from bootstrap");
+    // Per-runner activeRuns reflects the real registry state.
+    assert.equal(byHost["host-pool-1"].activeRuns, 2);
+    assert.equal(byHost["host-pool-2"].activeRuns, 1);
+    assert.equal(byHost["host-pool-3"].activeRuns, 0);
+    // All three are healthy at this clock (just-handshake'd).
+    for (const h of ["host-pool-1", "host-pool-2", "host-pool-3"]) {
+      assert.equal(byHost[h].health, "healthy");
+      assert.equal(byHost[h].sandboxClass, "container-strict");
+    }
+  } finally {
+    server.close();
+  }
+});
+
 test("R1-a: /api/monitor/bootstrap survives a runnerProvider that throws", async () => {
   // Same null-safe policy as the childRegistry-throws test above.
   const angryProvider = {

@@ -164,9 +164,31 @@ class RunnerRegistry {
     }
     const existing = this._runners.get(hostIdentity);
     if (existing && existing.bootstrapConsumed) {
-      // Bootstrap already used — refuse silently. The runner-host operator
-      // can rejoin only after orchestrator restart re-loads the env value
-      // (typical ops: rotate the env value before the new runner-host).
+      // Slice R3-c-1 (Phase D R3): differentiate replay-while-active from
+      // replay-after-stale. Both stay rejected — single-use bootstrap is
+      // preserved either way — but the routes layer can audit them
+      // separately so collision attempts surface in the chain.
+      //
+      //   host_in_use         existing entry is fresh (lastSeen ≤ drop).
+      //                       This is either (a) the same operator
+      //                       retrying the handshake, (b) a replay
+      //                       attack with a leaked bootstrap, or (c) a
+      //                       second operator who rotated env trying
+      //                       to claim a hostIdentity that's already
+      //                       occupied. Per R3-0 §9.3 Q6 we silent-
+      //                       reject — the routes layer emits
+      //                       `runner_handshake_collision`.
+      //   bootstrap_consumed  existing entry is stale (lastSeen > drop).
+      //                       The previous runner has gone silent past
+      //                       the heartbeat-drop threshold but the
+      //                       single-use semantic still holds: rejoin
+      //                       requires env rotation. The routes layer
+      //                       emits `runner_handshake_rejected` with
+      //                       reason=bootstrap_consumed (existing path).
+      const elapsed = this._now() - existing.lastSeen;
+      if (elapsed <= this._heartbeatDropMs) {
+        return { ok: false, reason: "host_in_use" };
+      }
       return { ok: false, reason: "bootstrap_consumed" };
     }
 
@@ -258,6 +280,123 @@ class RunnerRegistry {
     if (r && r.activeRuns > 0) r.activeRuns -= 1;
     this._runAssignments.delete(runId);
     return true;
+  }
+
+  // ── R3-c-1: pool scheduling + stale detection (multi-runner) ─────
+
+  /**
+   * Slice R3-c-1 (Phase D R3, 2026-04-28): Public assignment query.
+   * Returns the hostIdentity bound to runId or null. Promotes the
+   * `_hostFor` test hook to a public surface so the orchestrator's
+   * dispatch path can read assignments without depending on the
+   * underscore-prefixed private field.
+   *
+   * Returns the hostIdentity REGARDLESS of host staleness — staleness
+   * is a separate concern (see `pruneStaleRunners()`). This avoids
+   * conflating "is the run claimed?" with "is the host healthy?",
+   * which keeps the host-loss policy in the caller's hands per
+   * R3-G09 ("fail not silent forward").
+   */
+  getAssignment(runId) {
+    if (typeof runId !== "string" || runId.length === 0) return null;
+    return this._runAssignments.get(runId) || null;
+  }
+
+  /**
+   * Slice R3-c-1: Pick the least-loaded healthy runner for a fresh
+   * dispatch. Returns the hostIdentity or null if no runner is
+   * eligible. Does NOT mutate state — the caller is responsible
+   * for `claimRunForRunner` after this returns.
+   *
+   * Selection policy (MG1 §6.3 step 4):
+   *   - Eligibility: elapsed (now - lastSeen) ≤ heartbeatDropMs.
+   *     Hosts whose last heartbeat exceeds the drop window are
+   *     skipped — they're stale and a fresh dispatch to them would
+   *     stall.
+   *   - Saturation: when `maxConcurrentRunsPerHost` is set, hosts
+   *     already at or above that count are skipped (not the same as
+   *     stale — these hosts are healthy but full).
+   *   - Least-loaded: among eligible+unsaturated hosts, pick the one
+   *     with the lowest `activeRuns`.
+   *   - FIFO tie-break: when multiple hosts tie on activeRuns, the
+   *     one registered earliest (lowest `issuedAt`) wins. Map
+   *     iteration order in Node preserves insertion order, so simply
+   *     iterating and using strict-less-than achieves FIFO without
+   *     an extra sort.
+   *
+   * This is a pure read of registry state — repeated calls without
+   * a `claimRunForRunner` in between return the same answer. The
+   * orchestrator MUST claim immediately after selecting to avoid
+   * two simultaneous dispatches picking the same least-loaded host.
+   *
+   * @param {object} [opts]
+   * @param {number} [opts.maxConcurrentRunsPerHost=Infinity]
+   * @returns {string|null} hostIdentity or null when no eligible host.
+   */
+  selectFreshRunner({ maxConcurrentRunsPerHost = Infinity } = {}) {
+    const now = this._now();
+    let best = null;
+    let bestActive = Infinity;
+    for (const [hostIdentity, r] of this._runners) {
+      const elapsed = now - r.lastSeen;
+      if (elapsed > this._heartbeatDropMs) continue;        // stale
+      if (r.activeRuns >= maxConcurrentRunsPerHost) continue; // saturated
+      // Strict-less-than preserves FIFO among equal-load hosts because
+      // the Map yields insertion order; the first equal entry wins and
+      // no later entry displaces it.
+      if (r.activeRuns < bestActive) {
+        best = hostIdentity;
+        bestActive = r.activeRuns;
+      }
+    }
+    return best;
+  }
+
+  /**
+   * Slice R3-c-1: Observation of stale runners — those whose lastSeen
+   * exceeds heartbeatDropMs. Returns an array of
+   *   { hostIdentity, lastSeen, elapsedMs, activeRuns, affectedRuns: [...runIds] }
+   * sorted by elapsedMs descending (longest-silent first) so audit
+   * + ops surfaces show the most-likely-dead host at the top.
+   *
+   * Pure observation — does NOT mutate `_runners` or `_runAssignments`.
+   * The caller (orchestrator host-loss handler, R3-c-3) decides whether
+   * to:
+   *   - emit `runner_host_lost` audit entries,
+   *   - mark affected runs as failed (R3-G09: fail-not-forward),
+   *   - evict the host from `_runners` after a longer silence,
+   *   - leave the host in place to recover via re-handshake.
+   *
+   * Returning the affected runIds with each entry keeps the policy
+   * decision in one place — the registry just reports "these are
+   * the hosts that have gone silent, these are the runs claimed for
+   * each, decide what to do". Affected runs are derived from the
+   * snapshot of `_runAssignments` at call time; if the caller is
+   * concurrently claiming new runs, the snapshot may miss them but
+   * subsequent calls will catch up.
+   */
+  pruneStaleRunners() {
+    const now = this._now();
+    const stale = [];
+    for (const [hostIdentity, r] of this._runners) {
+      const elapsed = now - r.lastSeen;
+      if (elapsed <= this._heartbeatDropMs) continue;
+      const affectedRuns = [];
+      for (const [runId, host] of this._runAssignments) {
+        if (host === hostIdentity) affectedRuns.push(runId);
+      }
+      stale.push({
+        hostIdentity,
+        lastSeen: new Date(r.lastSeen).toISOString(),
+        elapsedMs: elapsed,
+        activeRuns: r.activeRuns,
+        affectedRuns,
+      });
+    }
+    // Longest-silent first so observability surfaces lead with the
+    // most-likely-dead host.
+    stale.sort((a, b) => b.elapsedMs - a.elapsedMs);
+    return stale;
   }
 
   // ── monitorRoutes-facing surface ─────────────────────────────────
