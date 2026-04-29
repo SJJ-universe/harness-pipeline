@@ -270,11 +270,14 @@ test("D1-a: plaintext backend round-trip set/get/list/delete", async (t) => {
   assert.deepEqual(onDisk.work, { ANTHROPIC_API_KEY: "sk-ccc" });
 });
 
-test("D1-a: plaintext backend creates credentials.json with mode 0600", { skip: process.platform === "win32" ? "POSIX-only mode check" : false }, async (t) => {
-  // Windows NTFS ACL doesn't map cleanly to POSIX mode, so chmod is a
-  // partial no-op on win32. Skip the bitwise-mode check on Windows
-  // and rely on the per-user %APPDATA% sandbox + atomic-write
-  // semantics for safety.
+test("D1-a: plaintext backend creates credentials.json with mode 0600 on POSIX", async (t) => {
+  // Windows NTFS ACL doesn't map cleanly to POSIX mode bits, so chmod
+  // is a partial no-op on win32 — the file lives under %APPDATA% which
+  // is per-user already (defense in depth, not the primary control).
+  // We DON'T use `{ skip: ... }` here because Linux CI vs Windows local
+  // would then disagree on the total test count, breaking the
+  // AUTO:test-counts marker freshness gate. Instead, the test runs on
+  // every platform but verifies what each platform actually enforces.
   const fsPaths = tmpConfigPaths(t);
   const store = createCredentialStore({
     keytar: null,
@@ -284,9 +287,20 @@ test("D1-a: plaintext backend creates credentials.json with mode 0600", { skip: 
   });
   await store.setSecret("personal", "X", "y");
   const credFile = path.join(fsPaths.appdataConfig, "credentials.json");
+  assert.ok(fs.existsSync(credFile), "credentials.json must exist after setSecret");
+
+  if (process.platform === "win32") {
+    // On Windows, only verify the file exists with content. The
+    // permission-bit check would always pass (chmod is a no-op) so a
+    // real assertion isn't possible here without diving into the
+    // Win32 ACL APIs.
+    const content = fs.readFileSync(credFile, "utf-8");
+    assert.match(content, /personal/);
+    return;
+  }
+  // POSIX (Linux + macOS): mode bits are real and chmod 0600 took.
   const stat = fs.statSync(credFile);
-  // Mask the type bits — we only care about the permission bits.
-  const mode = stat.mode & 0o777;
+  const mode = stat.mode & 0o777; // mask the type bits
   assert.equal(mode, 0o600, `credentials.json mode should be 0600, got ${mode.toString(8)}`);
 });
 
