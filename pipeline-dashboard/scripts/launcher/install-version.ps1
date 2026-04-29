@@ -103,6 +103,22 @@ if (-not (Test-Path $VersionsDir)) {
     }
 }
 
+# --- 1.5. Enforce manifest URL trust scope (Slice D0-e) --------------------
+# Reject non-https manifest URLs before any network I/O. The manifest is
+# fetched BEFORE any signature exists, so the only thing protecting it is
+# the channel's transport security — if the channel is plain HTTP, an
+# MITM can swap the manifest entirely (URL + sha256) and the launcher
+# happily installs whatever zip the manifest now points at.
+#
+# `HARNESS_ALLOW_INSECURE_MANIFEST_URL=1` opens the door for dev/test
+# (file://, http://localhost). The CLI prints a loud warning when used.
+Write-Step "validating manifest URL scheme..."
+$urlCheck = Invoke-LauncherCli -CliArgs @('validate-manifest-url', $ManifestUrl)
+if ($urlCheck.ExitCode -ne 0) {
+    Write-Error "manifest URL rejected (see launcher-cli stderr above) — refusing to fetch"
+    exit 35
+}
+
 # --- 2. Download manifest --------------------------------------------------
 # Stage manifest + zip in a per-run temp dir. Cleaning the temp dir is
 # important for re-runs (Force re-install scenario) since Invoke-WebRequest
@@ -143,9 +159,50 @@ $ExpectedSha = $manifest.sha256
 
 Write-Step "manifest OK: version=$Version url=$ZipUrl"
 
-# --- 4. Resolve install dir + Force handling ------------------------------
+# --- 4. Resolve install dir + sweep stale partial dirs --------------------
+# Slice D0-e: atomic install. Previously we extracted directly into
+# `<VersionsDir>\<Version>\`. If extraction crashed mid-way, the next
+# launcher run saw the directory exist and assumed the install was
+# complete — silently launching a half-extracted server.
+#
+# New layout:
+#   <VersionsDir>\<Version>\                 final, "complete" install
+#   <VersionsDir>\<Version>\.install-complete  sentinel marker (any content)
+#   <VersionsDir>\<Version>.partial-<ts>\    in-progress extraction zone
+#
+# An install is considered "complete" only when both:
+#   1. <Version>\ exists, AND
+#   2. <Version>\.install-complete sentinel exists
+#
+# Anything else (partial dir, no sentinel) is swept on the next install
+# attempt. This means a power-cut mid-extract self-heals on next launch.
 $InstallDir = Join-Path $VersionsDir $Version
-if (Test-Path $InstallDir) {
+$Sentinel = Join-Path $InstallDir '.install-complete'
+$IsComplete = (Test-Path $InstallDir) -and (Test-Path $Sentinel)
+
+# Sweep stale `<Version>.partial-*` dirs from prior aborted runs. Doing
+# this BEFORE the "is complete?" check guards against a stale partial
+# masquerading as a complete install if it got renamed manually.
+$StalePartials = Get-ChildItem -Path $VersionsDir -Directory `
+    -Filter "$Version.partial-*" -ErrorAction SilentlyContinue
+foreach ($p in $StalePartials) {
+    Write-Step "sweeping stale partial: $($p.FullName)"
+    if ($PSCmdlet.ShouldProcess($p.FullName, 'Remove stale partial')) {
+        Remove-Item -Path $p.FullName -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# Detect a directory without a sentinel — that's a previous run's failure.
+# Treat it like a force-removal target.
+if ((Test-Path $InstallDir) -and (-not $IsComplete)) {
+    Write-Step "$InstallDir exists but missing .install-complete sentinel — treating as failed prior install, removing"
+    if ($PSCmdlet.ShouldProcess($InstallDir, 'Remove incomplete install')) {
+        Remove-Item -Path $InstallDir -Recurse -Force
+    }
+    $IsComplete = $false
+}
+
+if ($IsComplete) {
     if (-not $Force) {
         Write-Step "version $Version already installed at $InstallDir (use -Force to re-extract)"
         # Fall through to marker write so the caller can read the install path.
@@ -154,11 +211,12 @@ if (Test-Path $InstallDir) {
         if ($PSCmdlet.ShouldProcess($InstallDir, 'Remove existing install')) {
             Remove-Item -Path $InstallDir -Recurse -Force
         }
+        $IsComplete = $false
     }
 }
 
-# --- 5. Download zip (if needed) + verify SHA256 --------------------------
-if (-not (Test-Path $InstallDir)) {
+# --- 5. Download zip (if needed) + verify SHA256 + atomic-extract ---------
+if (-not $IsComplete) {
     $ZipFile = Join-Path $TempDir "harness-pipeline-$Version.zip"
     Write-Step "downloading zip to $ZipFile..."
     try {
@@ -185,17 +243,33 @@ if (-not (Test-Path $InstallDir)) {
         Write-Step "SHA256 verified."
     }
 
-    Write-Step "extracting to $InstallDir..."
-    if ($PSCmdlet.ShouldProcess($InstallDir, 'Expand zip')) {
-        New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
-        Expand-Archive -Path $ZipFile -DestinationPath $InstallDir -Force
+    # D0-e atomic install: extract into `<Version>.partial-<ts>` first.
+    # If anything below this point fails (extract error, sentinel write
+    # failure, manifest copy failure), the partial dir gets swept on the
+    # next run before we ever risk launching from a half-install.
+    $PartialDir = Join-Path $VersionsDir ("$Version.partial-" + [datetime]::UtcNow.ToString('yyyyMMddHHmmss'))
+    Write-Step "extracting to staging: $PartialDir"
+    if ($PSCmdlet.ShouldProcess($PartialDir, 'Expand zip into staging')) {
+        New-Item -ItemType Directory -Path $PartialDir -Force | Out-Null
+        Expand-Archive -Path $ZipFile -DestinationPath $PartialDir -Force
+        # Persist the manifest alongside the install so harness-start.bat can
+        # re-validate (and check-update.ps1 can compare versions).
+        Copy-Item -Path $ManifestFile -Destination (Join-Path $PartialDir 'manifest.json') -Force
     }
 
-    # Persist the manifest alongside the install so harness-start.bat can
-    # re-validate (and check-update.ps1 can compare versions). Copying is
-    # cheap (manifest.json is < 1 KB).
-    $InstalledManifest = Join-Path $InstallDir 'manifest.json'
-    Copy-Item -Path $ManifestFile -Destination $InstalledManifest -Force
+    Write-Step "promoting staging to $InstallDir"
+    if ($PSCmdlet.ShouldProcess($InstallDir, 'Promote staging dir')) {
+        # On Windows, Move-Item across the SAME parent dir (VersionsDir)
+        # is an atomic rename at the NTFS layer, so a concurrent reader
+        # never sees a half-renamed state.
+        Move-Item -Path $PartialDir -Destination $InstallDir
+        # Write the sentinel LAST. The check-for-completeness logic
+        # above keys off this file's existence — without it, a crash
+        # between rename and sentinel write would still self-heal on
+        # the next install attempt because `IsComplete` would be false.
+        $sentinelPayload = "installed=$([datetime]::UtcNow.ToString('o'))`nversion=$Version`n"
+        Set-Content -Path $Sentinel -Value $sentinelPayload -Encoding UTF8
+    }
 }
 
 # --- 6. Write the install marker so the .bat can pick up the path --------

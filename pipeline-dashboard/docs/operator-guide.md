@@ -111,7 +111,8 @@ which:
 | --- | --- | --- |
 | `HARNESS_DATA_DIR` | Override the data directory (versions, logs, runs). Set this to `D:\harness-portable` to install onto a USB stick. | Win: `%LOCALAPPDATA%\HarnessPipeline` · macOS: `~/Library/Application Support/HarnessPipeline` · Linux: `~/.local/share/HarnessPipeline` |
 | `HARNESS_CONFIG_DIR` | Override the config directory (profiles.json — Phase E1 D1+). | Win: `%APPDATA%\HarnessPipeline\config` · macOS: `~/Library/Application Support/HarnessPipeline/config` · Linux: `~/.config/HarnessPipeline` |
-| `HARNESS_MANIFEST_URL` | Manifest URL for installer-mode bootstrap. **Required when `server.js` is absent.** | (unset) |
+| `HARNESS_MANIFEST_URL` | Manifest URL for installer-mode bootstrap. **Required when `server.js` is absent.** Must use `https://` unless `HARNESS_ALLOW_INSECURE_MANIFEST_URL=1` is also set. | (unset) |
+| `HARNESS_ALLOW_INSECURE_MANIFEST_URL` | Set to `1` to permit `http://`, `file://`, etc. for the manifest URL. **Dev/test only — never enable in production.** Loud stderr warning each time. | (unset → https only) |
 | `HARNESS_PORT` | Dashboard port. | `4201` |
 | `HARNESS_HOST` | Dashboard bind address. | `127.0.0.1` |
 | `HARNESS_NO_BROWSER` | Set to `1` to skip browser auto-open (CI / headless). | (unset → opens browser) |
@@ -225,16 +226,36 @@ manifest URL is configured. Either:
 
 ### "Server did not respond within 10s"
 
-The supervisor (`node start.js`) launched but `server.js` failed to bind
-the port. Check `<INSTALL_DIR>/launcher.log` (macOS / Linux) or the
-PowerShell window output (Windows) for the underlying error.
+The supervisor (`node start.js`) launched but the launcher's
+`verify-health` check never saw a response identifying as
+`HarnessPipeline`. Check `<INSTALL_DIR>/launcher.log` (macOS / Linux) or
+the PowerShell window output (Windows) for the underlying error.
 
 Common causes:
 
-- Port `4201` already taken → set `HARNESS_PORT=<other>` and retry.
+- Port `4201` already taken **by an unrelated service** → the launcher
+  intentionally refuses to declare success unless the response carries
+  `"app": "HarnessPipeline"` (Phase E1 D0-e port-squat defense). Either
+  free the port or set `HARNESS_PORT=<other>` and retry.
+- Port `4201` already taken **by another HarnessPipeline instance** →
+  the launcher correctly detects this via `verify-health` and opens
+  the browser instead of starting a second server.
 - Antivirus blocking node binary → whitelist `node.exe` and retry.
 - Corrupted `node_modules/` → re-run installer with `-Force` (PowerShell)
   or `--force` (bash) to re-extract.
+
+### "$InstallDir exists but missing .install-complete sentinel"
+
+A previous install attempt was interrupted (power loss, Ctrl-C during
+extract, antivirus quarantine mid-zip). The launcher's atomic-install
+logic detects this on the next run and removes the partial directory
+before retrying. No operator action is required — the message is
+informational so you can correlate with whatever caused the original
+interruption.
+
+If the sentinel is missing despite a clean prior install, the install
+directory may have been tampered with. Treat the same way as a SHA256
+mismatch: don't override; investigate the chain of custody.
 
 ### Windows SmartScreen banner ("Microsoft Defender SmartScreen prevented…")
 

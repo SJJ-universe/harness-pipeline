@@ -79,6 +79,20 @@ if ([string]::IsNullOrEmpty($CurrentVersion)) {
 }
 
 # --- 2. Fetch + validate manifest ----------------------------------------
+# Slice D0-e: enforce https:// before any network I/O. Same reasoning as
+# install-version.ps1 — the manifest URL is the most exposed step in the
+# trust chain because no signature exists yet at that point.
+$urlCheckOutput = & node $LauncherCli validate-manifest-url $ManifestUrl
+if ($LASTEXITCODE -ne 0) {
+    if ($Json) {
+        $err = @{ ok = $false; error = "url_rejected"; message = "manifest URL must be https://" } | ConvertTo-Json -Compress
+        Write-Output $err
+    } else {
+        Write-Output "[check-update] manifest URL rejected — refusing to fetch."
+    }
+    exit 2
+}
+
 $TempDir = Join-Path $env:TEMP "harness-update-check-$([guid]::NewGuid().ToString('N'))"
 New-Item -ItemType Directory -Path $TempDir -Force | Out-Null
 $ManifestFile = Join-Path $TempDir 'manifest.json'

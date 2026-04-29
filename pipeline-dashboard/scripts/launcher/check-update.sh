@@ -74,6 +74,16 @@ if [[ -z "$CURRENT_VERSION" ]]; then
 fi
 
 # --- 2. Fetch + validate manifest --------------------------------------
+# Slice D0-e: enforce https:// before any network I/O.
+if ! node "$LAUNCHER_CLI" validate-manifest-url "$MANIFEST_URL" 2>/dev/null; then
+  if [[ $JSON -eq 1 ]]; then
+    printf '{"ok":false,"error":"url_rejected"}\n'
+  else
+    echo "[check-update] manifest URL rejected — refusing to fetch." >&2
+  fi
+  exit 2
+fi
+
 TMP_DIR="$(mktemp -d -t harness-update.XXXXXX)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 MANIFEST_FILE="$TMP_DIR/manifest.json"
@@ -96,8 +106,10 @@ if ! node "$LAUNCHER_CLI" validate-manifest "$MANIFEST_FILE" >/dev/null 2>/dev/n
   exit 2
 fi
 
-LATEST_VERSION="$(node -e "process.stdout.write(require('$MANIFEST_FILE').version);")"
-PUBLISHED_AT="$(node -e "process.stdout.write(require('$MANIFEST_FILE').publishedAt);")"
+# Slice D0-e: same manifest-field switch as install-version.sh — avoids
+# inline `node -e require(...)` quoting fragility on paths with spaces.
+LATEST_VERSION="$(node "$LAUNCHER_CLI" manifest-field "$MANIFEST_FILE" version)"
+PUBLISHED_AT="$(node "$LAUNCHER_CLI" manifest-field "$MANIFEST_FILE" publishedAt)"
 
 # --- 3. Compare semver --------------------------------------------------
 # launcher-cli compare-semver prints -1/0/1 to stdout. capture as integer.

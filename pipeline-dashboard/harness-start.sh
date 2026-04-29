@@ -65,6 +65,12 @@ else
     echo "                  2. Set HARNESS_MANIFEST_URL=<https url> and re-run." >&2
     exit 11
   fi
+  # D0-e: scheme check before delegating to install-version.sh.
+  if ! node "$SCRIPT_DIR/scripts/launcher/launcher-cli.js" validate-manifest-url "$HARNESS_MANIFEST_URL" >/dev/null 2>&1; then
+    echo "[harness-start] HARNESS_MANIFEST_URL must use https:// (set" >&2
+    echo "                HARNESS_ALLOW_INSECURE_MANIFEST_URL=1 for dev only)." >&2
+    exit 15
+  fi
 fi
 
 # --- 4. Installer mode: delegate to install-version.sh ------------------
@@ -100,9 +106,12 @@ fi
 # --- 5. Verify Node version meets minimum ------------------------------
 MANIFEST_PATH="$INSTALL_DIR/manifest.json"
 if [[ -f "$MANIFEST_PATH" ]]; then
-  # Pull minNodeVersion straight via node — avoids forking jq just for
-  # one field. This stays portable to systems without jq installed.
-  MIN_NODE="$(node -e "process.stdout.write(require('$MANIFEST_PATH').minNodeVersion||'');")"
+  # Slice D0-e: switch from inline `node -e require(...)` to
+  # `manifest-field`. Quoting-safe for install dirs with spaces and
+  # shares the BOM-tolerant parsing path used by the schema validator.
+  # `|| true` so a missing field doesn't abort under `set -e`; the
+  # next line treats the empty string as "no minimum to enforce".
+  MIN_NODE="$(node "$SCRIPT_DIR/scripts/launcher/launcher-cli.js" manifest-field "$MANIFEST_PATH" minNodeVersion 2>/dev/null || true)"
   if [[ -n "$MIN_NODE" ]]; then
     if ! node "$SCRIPT_DIR/scripts/launcher/launcher-cli.js" check-runtime "$NODE_VERSION" "$MIN_NODE" >/dev/null 2>&1; then
       echo "[harness-start] Node $NODE_VERSION does not satisfy minNodeVersion=$MIN_NODE" >&2
@@ -132,7 +141,11 @@ open_browser_or_print() {
   fi
 }
 
-if curl -s --connect-timeout 2 "$HEALTH_URL/api/health" >/dev/null 2>&1; then
+# D0-e: verify-health discriminates "HarnessPipeline is running" from
+# "some unrelated service squatted port 4201". Without this check, an
+# arbitrary HTTP-200 responder would let the launcher open the browser
+# at someone else's app.
+if node "$SCRIPT_DIR/scripts/launcher/launcher-cli.js" verify-health "$HEALTH_URL/api/health" >/dev/null 2>&1; then
   echo "[harness-start] already running at $HEALTH_URL"
   if [[ "${HARNESS_NO_BROWSER:-0}" != "1" ]]; then
     open_browser_or_print "$HEALTH_URL" || true
@@ -155,7 +168,11 @@ echo "[harness-start] supervisor pid=$SUPERVISOR_PID logfile=$INSTALL_DIR/launch
 RETRY=0
 while [[ $RETRY -lt 10 ]]; do
   sleep 1
-  if curl -s --connect-timeout 2 "$HEALTH_URL/api/health" >/dev/null 2>&1; then
+  # D0-e: poll verify-health (not raw curl) so we wait until the
+  # response identifies as HarnessPipeline. Random services that boot
+  # faster on port 4201 won't satisfy this and won't make us declare
+  # success early.
+  if node "$SCRIPT_DIR/scripts/launcher/launcher-cli.js" verify-health "$HEALTH_URL/api/health" >/dev/null 2>&1; then
     echo "[harness-start] server up at $HEALTH_URL"
     if [[ "${HARNESS_NO_BROWSER:-0}" != "1" ]]; then
       open_browser_or_print "$HEALTH_URL" || true

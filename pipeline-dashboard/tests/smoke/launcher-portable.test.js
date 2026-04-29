@@ -39,7 +39,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const os = require("node:os");
 const crypto = require("node:crypto");
-const { spawnSync } = require("node:child_process");
+const { spawnSync, spawn } = require("node:child_process");
 
 const REPO_ROOT = path.resolve(__dirname, "..", "..");
 const CLI_PATH = path.join(REPO_ROOT, "scripts", "launcher", "launcher-cli.js");
@@ -56,6 +56,23 @@ function runCli(args, opts = {}) {
     stdout: result.stdout,
     stderr: result.stderr,
   };
+}
+
+// Async variant — REQUIRED when the launcher-cli command needs to talk
+// to an HTTP server living in this same Node process. spawnSync blocks
+// the event loop, so an in-process server can't accept the connection
+// during the call. The verify-health tests trip over that.
+function runCliAsync(args, opts = {}) {
+  return new Promise((resolve) => {
+    const child = spawn(process.execPath, [CLI_PATH, ...args], {
+      env: { ...process.env, ...(opts.env || {}) },
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (c) => { stdout += c.toString("utf-8"); });
+    child.stderr.on("data", (c) => { stderr += c.toString("utf-8"); });
+    child.on("close", (code) => resolve({ code, stdout, stderr }));
+  });
 }
 
 test("launcher-cli: --help lists every documented command", () => {
@@ -279,6 +296,137 @@ test("launcher-cli: manifest-field extracts a single field value", (t) => {
   const missing = runCli(["manifest-field", file, "doesNotExist"]);
   assert.equal(missing.code, 1);
   assert.match(missing.stderr, /not present/);
+});
+
+// ─────────────────────────────────────────────────────────────────
+//  D0-e (Phase E1, 2026-04-29) hardening tests:
+//   1. validate-manifest-url scheme enforcement
+//   2. verify-health app=="HarnessPipeline" discriminator
+// ─────────────────────────────────────────────────────────────────
+
+test("D0-e validate-manifest-url accepts https:// by default", () => {
+  const r = runCli(["validate-manifest-url", "https://example.internal/manifest.json"]);
+  assert.equal(r.code, 0, "https URL must pass without env override");
+  assert.match(r.stdout, /^ok https /, "stdout reports scheme + host");
+});
+
+test("D0-e validate-manifest-url rejects http:// without escape hatch", () => {
+  const r = runCli(["validate-manifest-url", "http://example.com/manifest.json"], {
+    env: { HARNESS_ALLOW_INSECURE_MANIFEST_URL: "" }, // explicit unset
+  });
+  assert.equal(r.code, 1, "http URL must be rejected when override is off");
+  assert.match(r.stderr, /https:\/\/ required/);
+  assert.match(r.stderr, /HARNESS_ALLOW_INSECURE_MANIFEST_URL=1/, "stderr documents the escape hatch");
+});
+
+test("D0-e validate-manifest-url rejects file:// without escape hatch", () => {
+  const r = runCli(["validate-manifest-url", "file:///tmp/manifest.json"]);
+  assert.equal(r.code, 1, "file:// URL must be rejected");
+  assert.match(r.stderr, /https:\/\/ required/);
+});
+
+test("D0-e validate-manifest-url permits non-https with HARNESS_ALLOW_INSECURE_MANIFEST_URL=1", () => {
+  // Dev / test escape hatch. Loud stderr warning is mandatory so the
+  // operator can never quietly drift from the safe default.
+  const r = runCli(["validate-manifest-url", "http://localhost:8080/m.json"], {
+    env: { HARNESS_ALLOW_INSECURE_MANIFEST_URL: "1" },
+  });
+  assert.equal(r.code, 0, "exit 0 when escape hatch is enabled");
+  assert.match(r.stderr, /WARNING/, "stderr warns the operator");
+  assert.match(r.stderr, /never enable in production/, "stderr names the danger");
+  assert.match(r.stdout, /ok insecure /);
+});
+
+test("D0-e validate-manifest-url rejects malformed URLs", () => {
+  // Whitespace-padded URLs slip past naive regex checks but break URL
+  // parsing. Reject loudly.
+  const r1 = runCli(["validate-manifest-url", "https:// extra-space.com"]);
+  assert.equal(r1.code, 1);
+
+  const r2 = runCli(["validate-manifest-url", "not-a-url-at-all"]);
+  assert.equal(r2.code, 1);
+
+  const r3 = runCli(["validate-manifest-url", " https://leading-space.com"]);
+  assert.equal(r3.code, 1, "leading whitespace is a configuration mistake worth catching");
+});
+
+test("D0-e verify-health: rejects URL that doesn't respond", () => {
+  // Pick a port unlikely to have anything bound. exit 1 (not 2) because
+  // the URL was syntactically valid; the network failure is what fails.
+  const r = runCli(["verify-health", "http://127.0.0.1:1/api/health"]);
+  assert.equal(r.code, 1);
+});
+
+test("D0-e verify-health: accepts a real HarnessPipeline server", async () => {
+  // Boot a real server and confirm verify-health says "ok". Uses the
+  // ASYNC runCli — spawnSync would block this process and the test
+  // server couldn't accept the connection.
+  const { start } = require("../../server");
+  const PORT = 4327; // unused in the existing test matrix
+  const listener = start(PORT, "127.0.0.1");
+  let ready = false;
+  for (let i = 0; i < 30 && !ready; i++) {
+    try {
+      const res = await fetch(`http://127.0.0.1:${PORT}/api/health`);
+      if (res.ok) {
+        const body = await res.json();
+        // Inline assertion that the server actually advertises the
+        // discriminator — without this, verify-health below would
+        // pass on a server that didn't even know about D0-e.
+        assert.equal(body.app, "HarnessPipeline", "/api/health body must include app field");
+        assert.equal(body.healthVersion, 1, "/api/health body must include healthVersion");
+        ready = true;
+      }
+    } catch (_) { /* retry */ }
+    if (!ready) await new Promise((r) => setTimeout(r, 100));
+  }
+  if (!ready) throw new Error("server did not become ready");
+
+  try {
+    const r = await runCliAsync(["verify-health", `http://127.0.0.1:${PORT}/api/health`]);
+    assert.equal(r.code, 0, "verify-health must accept the real server");
+    assert.match(r.stdout, /"app"\s*:\s*"HarnessPipeline"/);
+  } finally {
+    await new Promise((resolve) => listener.close(resolve));
+  }
+});
+
+test("D0-e verify-health: rejects a server that returns a different app field", async () => {
+  // Stand up a tiny HTTP server that returns 200 + JSON but with the
+  // WRONG app field. This is the port-squat scenario the D0-e check
+  // exists to defend against. ASYNC runCli is required.
+  const http = require("node:http");
+  const server = http.createServer((req, res) => {
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify({ status: "ok", app: "SomeOtherService" }));
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const port = server.address().port;
+  try {
+    const r = await runCliAsync(["verify-health", `http://127.0.0.1:${port}/api/health`]);
+    assert.equal(r.code, 1, "verify-health must reject foreign app field");
+    assert.match(r.stderr, /missing app="HarnessPipeline"/);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("D0-e verify-health: rejects 200 response that is not JSON", async () => {
+  // Even simpler port squat: plain text 200 response.
+  const http = require("node:http");
+  const server = http.createServer((req, res) => {
+    res.writeHead(200, { "content-type": "text/plain" });
+    res.end("hello from another world");
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const port = server.address().port;
+  try {
+    const r = await runCliAsync(["verify-health", `http://127.0.0.1:${port}/api/health`]);
+    assert.equal(r.code, 1, "non-JSON 200 must be rejected");
+    assert.match(r.stderr, /not JSON/);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
 });
 
 test("launcher scripts exist in the repo for every supported platform", () => {

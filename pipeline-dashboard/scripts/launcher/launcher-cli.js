@@ -43,6 +43,26 @@
 //        a manifest without forking a separate `node -e "..."` (which
 //        has cmd.exe quoting hell when the manifest path contains spaces).
 //
+//   node launcher-cli.js validate-manifest-url <url>
+//        → exit 0 if the URL is acceptable for fetching a manifest
+//        → exit 1 if the URL violates trust scope (non-https, blank, etc.)
+//        Centralizes the scheme check so PowerShell + bash can share one
+//        source of truth. Set HARNESS_ALLOW_INSECURE_MANIFEST_URL=1 to
+//        permit http://, file://, or other schemes for dev/test only.
+//        D0-e (Phase E1, 2026-04-29): closes the gap where the manifest
+//        fetch URL itself was unverified — we used to validate the *zip*
+//        URL inside the manifest but accepted any scheme to fetch the
+//        manifest, which is the first thing an MITM attacker would target.
+//
+//   node launcher-cli.js verify-health <url>
+//        → exit 0 if the URL serves a HarnessPipeline /api/health response
+//        → exit 1 if the response is missing, non-JSON, or app != "HarnessPipeline"
+//        Used by harness-start.bat / .sh to confirm "already running"
+//        is actually OUR server — without this discriminator, an
+//        unrelated service squatting on port 4201 would let the
+//        launcher skip startup and open the browser into someone
+//        else's app. D0-e closes that gap.
+//
 // All commands print machine-readable JSON to stdout (or, for primitives,
 // a single token). PowerShell invokes via `$result = & node ...`; bash
 // invokes via `result=$(node ...)`. Exit codes are the primary signal —
@@ -171,6 +191,144 @@ function cmdVersionInstallDir(args) {
   process.exit(0);
 }
 
+function cmdVerifyHealth(args) {
+  // Slice D0-e (Phase E1, 2026-04-29): launcher port-squat defense.
+  //
+  // The launcher's "already running" branch fires when GET /api/health
+  // returns 200. Pre-D0-e the body was {status:"ok"}, indistinguishable
+  // from any random "I'm alive" endpoint another service might serve.
+  // After D0-e the body includes {app:"HarnessPipeline", healthVersion}
+  // and this command checks for that discriminator before the launcher
+  // trusts the "already running" path.
+  //
+  // We use http(s) module directly (not fetch) because the launcher
+  // ships with a bare Node and the node_modules dir is the version
+  // we just installed — we want this CLI to work even pre-extraction.
+  const [url] = args;
+  if (!url) fail("verify-health: missing <url> argument", 2);
+
+  const http = require("node:http");
+  const https = require("node:https");
+  const { URL } = require("node:url");
+
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch (_) {
+    fail(`verify-health: invalid URL "${url}"`);
+  }
+
+  const lib = parsed.protocol === "https:" ? https : http;
+  const req = lib.get(url, { timeout: 3000 }, (res) => {
+    if (res.statusCode !== 200) {
+      process.stderr.write(`verify-health: HTTP ${res.statusCode}\n`);
+      res.resume();
+      process.exit(1);
+    }
+    const chunks = [];
+    res.on("data", (c) => chunks.push(c));
+    res.on("end", () => {
+      const text = Buffer.concat(chunks).toString("utf-8");
+      let body;
+      try {
+        body = JSON.parse(text);
+      } catch (_) {
+        process.stderr.write(`verify-health: response is not JSON\n`);
+        process.exit(1);
+      }
+      // Must be a HarnessPipeline server. Accept any healthVersion the
+      // server advertises (forward-compatible — newer servers may bump
+      // the version when they add fields, but the discriminator stays).
+      if (body && body.app === "HarnessPipeline") {
+        process.stdout.write(JSON.stringify({
+          ok: true,
+          app: body.app,
+          healthVersion: body.healthVersion,
+        }) + "\n");
+        process.exit(0);
+      }
+      process.stderr.write(
+        `verify-health: response missing app="HarnessPipeline" ` +
+        `(got ${JSON.stringify(body)}) — refusing to assume already-running\n`,
+      );
+      process.exit(1);
+    });
+  });
+  req.on("timeout", () => {
+    try { req.destroy(); } catch (_) {}
+    process.stderr.write(`verify-health: request timed out\n`);
+    process.exit(1);
+  });
+  req.on("error", (err) => {
+    process.stderr.write(`verify-health: ${err.message}\n`);
+    process.exit(1);
+  });
+}
+
+function cmdValidateManifestUrl(args) {
+  // Slice D0-e (Phase E1, 2026-04-29): scheme enforcement for the
+  // manifest URL itself (separate from the zip URL inside the manifest,
+  // which is checked by validate-manifest-schema). The launcher fetches
+  // the manifest before any signature exists, so the only protection
+  // we have at that step is "trust the channel" — and that means the
+  // channel must be HTTPS.
+  //
+  // The HARNESS_ALLOW_INSECURE_MANIFEST_URL escape hatch exists for
+  // local dev (file:// fixtures, http://localhost test servers). It is
+  // off by default and the launcher prints a loud banner whenever a
+  // run uses it, so an operator can never quietly drift from the safe
+  // default in production.
+  const [url] = args;
+  if (!url) fail("validate-manifest-url: missing <url> argument", 2);
+
+  if (typeof url !== "string" || url.length === 0) {
+    fail("validate-manifest-url: URL must be a non-empty string");
+  }
+
+  // Defend against accidental whitespace from CLI args / config files.
+  const trimmed = url.trim();
+  if (trimmed !== url) {
+    fail(`validate-manifest-url: URL has leading/trailing whitespace`);
+  }
+
+  const allowInsecure = process.env.HARNESS_ALLOW_INSECURE_MANIFEST_URL === "1";
+
+  // Strict accept: https:// only. Anything else falls through to either
+  // the dev-only escape hatch or hard reject. Using URL parsing (not a
+  // regex) so we get correct handling of credentials/ports/paths.
+  let parsed;
+  try {
+    parsed = new URL(trimmed);
+  } catch (_) {
+    fail(`validate-manifest-url: "${trimmed}" is not a valid URL`);
+  }
+
+  if (parsed.protocol === "https:") {
+    process.stdout.write(`ok https ${parsed.host}\n`);
+    process.exit(0);
+  }
+
+  if (allowInsecure) {
+    // Loud stderr banner so the operator sees this in any mode (CI,
+    // interactive, scheduled task). Exit 0 because the operator opted
+    // in, but we want the audit trail.
+    process.stderr.write(
+      `[validate-manifest-url] WARNING: accepting non-https URL ` +
+      `"${trimmed}" because HARNESS_ALLOW_INSECURE_MANIFEST_URL=1. ` +
+      `This is dev-only — never enable in production.\n`,
+    );
+    process.stdout.write(`ok insecure ${parsed.protocol}\n`);
+    process.exit(0);
+  }
+
+  process.stderr.write(
+    `[validate-manifest-url] rejected: "${trimmed}" uses scheme ` +
+    `"${parsed.protocol}" (https:// required). Set ` +
+    `HARNESS_ALLOW_INSECURE_MANIFEST_URL=1 to override for dev only.\n`,
+  );
+  process.exit(1);
+}
+
 function cmdManifestField(args) {
   const [manifestPath, field] = args;
   if (!manifestPath || !field) {
@@ -210,6 +368,8 @@ const COMMANDS = {
   "resolve-paths": cmdResolvePaths,
   "version-install-dir": cmdVersionInstallDir,
   "manifest-field": cmdManifestField,
+  "validate-manifest-url": cmdValidateManifestUrl,
+  "verify-health": cmdVerifyHealth,
 };
 
 function main() {
@@ -226,6 +386,8 @@ function main() {
       "  resolve-paths",
       "  version-install-dir <version>",
       "  manifest-field <path> <field>",
+      "  validate-manifest-url <url>",
+      "  verify-health <url>",
       "",
     ].join("\n"));
     process.exit(0);

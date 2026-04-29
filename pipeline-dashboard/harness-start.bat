@@ -87,6 +87,20 @@ if exist "%SCRIPT_DIR%server.js" (
         pause
         exit /b 11
     )
+    rem D0-e: scheme check before delegating to install-version.ps1, so
+    rem the operator sees a fast, focused error instead of a generic
+    rem "install-version.ps1 failed (rc=35)" further down the call chain.
+    rem Note the ^) escapes below — unescaped close-paren inside an `( ... )`
+    rem block (we are inside the `if exist ... else ( ... )` block) prematurely
+    rem terminates the block. The same trap already bit "for dev only)" — we
+    rem fix it by escaping every `)` in echoed user-facing text.
+    node "%SCRIPT_DIR%scripts\launcher\launcher-cli.js" validate-manifest-url "%HARNESS_MANIFEST_URL%" >nul 2>&1
+    if errorlevel 1 (
+        echo [harness-start] HARNESS_MANIFEST_URL must use https:// ^(set
+        echo                 HARNESS_ALLOW_INSECURE_MANIFEST_URL=1 for dev only^).
+        pause
+        exit /b 15
+    )
 )
 
 :: --- 4. Installer mode: delegate to PowerShell --------------------------
@@ -154,7 +168,11 @@ set "HEALTH_HOST=%HARNESS_HOST%"
 if "%HEALTH_HOST%"=="" set "HEALTH_HOST=127.0.0.1"
 set "HEALTH_URL=http://%HEALTH_HOST%:%HEALTH_PORT%"
 
-curl -s --connect-timeout 2 "%HEALTH_URL%/api/health" >nul 2>&1
+:: D0-e: verify the running service is OUR app (app=="HarnessPipeline")
+:: before treating "200 OK" as "already running". This protects against
+:: an unrelated HTTP service squatting the port and tricking the
+:: launcher into opening the browser at someone else's app.
+node "%SCRIPT_DIR%scripts\launcher\launcher-cli.js" verify-health "%HEALTH_URL%/api/health" >nul 2>&1
 if not errorlevel 1 (
     echo [harness-start] already running at %HEALTH_URL%
     if "%HARNESS_NO_BROWSER%"=="1" (
@@ -184,7 +202,10 @@ if %RETRY% GEQ 10 (
 :: stdin is not a real console. `ping -n 2 127.0.0.1` schedules two
 :: echos with a 1s gap, giving us ~1s of wait without the stdin gate.
 ping 127.0.0.1 -n 2 >nul 2>&1
-curl -s --connect-timeout 2 "%HEALTH_URL%/api/health" >nul 2>&1
+:: D0-e: poll `verify-health` (not raw curl) so we wait until the
+:: response says app=="HarnessPipeline". A racy "200 OK" from a
+:: different service squatting the port is rejected here.
+node "%SCRIPT_DIR%scripts\launcher\launcher-cli.js" verify-health "%HEALTH_URL%/api/health" >nul 2>&1
 if errorlevel 1 (
     set /a RETRY+=1
     goto WAIT_LOOP

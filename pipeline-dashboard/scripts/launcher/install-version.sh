@@ -73,6 +73,16 @@ fi
 mkdir -p "$DATA_DIR/versions"
 VERSIONS_DIR="$DATA_DIR/versions"
 
+# --- 2.5. Enforce manifest URL trust scope (Slice D0-e) ------------------
+# Same rationale as install-version.ps1: the manifest fetch is the
+# unprotected step in the trust chain (no signature yet). https://-only
+# unless HARNESS_ALLOW_INSECURE_MANIFEST_URL=1 is explicitly set.
+echo "[install-version] validating manifest URL scheme..."
+if ! node "$LAUNCHER_CLI" validate-manifest-url "$MANIFEST_URL"; then
+  echo "[install-version] manifest URL rejected — refusing to fetch" >&2
+  exit 35
+fi
+
 # --- 3. Download manifest ------------------------------------------------
 TMP_DIR="$(mktemp -d -t harness-install.XXXXXX)"
 trap 'rm -rf "$TMP_DIR"' EXIT
@@ -91,27 +101,59 @@ if ! node "$LAUNCHER_CLI" validate-manifest "$MANIFEST_FILE" >/dev/null; then
   exit 32
 fi
 
-# Pull the version + url + sha256 fields directly via node — keeps the
-# script jq-free (jq isn't installed everywhere; node always is here
-# because we just verified it via Node check).
-VERSION="$(node -e "process.stdout.write(require('$MANIFEST_FILE').version);")"
-ZIP_URL="$(node -e "process.stdout.write(require('$MANIFEST_FILE').url);")"
-EXPECTED_SHA="$(node -e "process.stdout.write(require('$MANIFEST_FILE').sha256);")"
+# Slice D0-e: pull the version + url + sha256 fields via launcher-cli
+# manifest-field. This was previously `node -e require('$MANIFEST_FILE')`
+# inline, which broke when $MANIFEST_FILE contained spaces or shell
+# metachars. manifest-field takes the path as argv[2] (no quoting hell)
+# and goes through the same BOM-tolerant + JSON.parse logic the schema
+# validator uses, keeping behavior aligned across PS1 / bash / inline.
+VERSION="$(node "$LAUNCHER_CLI" manifest-field "$MANIFEST_FILE" version)"
+ZIP_URL="$(node "$LAUNCHER_CLI" manifest-field "$MANIFEST_FILE" url)"
+EXPECTED_SHA="$(node "$LAUNCHER_CLI" manifest-field "$MANIFEST_FILE" sha256)"
 echo "[install-version] manifest OK: version=$VERSION url=$ZIP_URL"
 
-# --- 5. Resolve install dir + Force handling ----------------------------
+# --- 5. Resolve install dir + sweep stale partials (Slice D0-e atomic) --
+# Same atomic-install logic as install-version.ps1 — see that file for
+# the design rationale. An install is "complete" iff:
+#   1. <Version>/ exists, AND
+#   2. <Version>/.install-complete sentinel exists
+# Anything else is swept on the next install attempt so a power-cut
+# mid-extract self-heals.
 INSTALL_DIR="$VERSIONS_DIR/$VERSION"
-if [[ -d "$INSTALL_DIR" ]]; then
+SENTINEL="$INSTALL_DIR/.install-complete"
+IS_COMPLETE=0
+if [[ -d "$INSTALL_DIR" && -f "$SENTINEL" ]]; then
+  IS_COMPLETE=1
+fi
+
+# Sweep stale `<Version>.partial-*` dirs from prior aborted runs.
+# `2>/dev/null || true` keeps `set -e` happy when the glob has no
+# matches (bash returns the literal pattern in that case).
+shopt -s nullglob
+for stale in "$VERSIONS_DIR/$VERSION".partial-*; do
+  echo "[install-version] sweeping stale partial: $stale"
+  rm -rf "$stale"
+done
+shopt -u nullglob
+
+# Treat a directory without the sentinel as a previous run's failure.
+if [[ -d "$INSTALL_DIR" && $IS_COMPLETE -eq 0 ]]; then
+  echo "[install-version] $INSTALL_DIR exists but missing .install-complete — removing failed prior install"
+  rm -rf "$INSTALL_DIR"
+fi
+
+if [[ $IS_COMPLETE -eq 1 ]]; then
   if [[ $FORCE -eq 0 ]]; then
     echo "[install-version] version $VERSION already installed at $INSTALL_DIR (use --force to re-extract)"
   else
     echo "[install-version] --force: removing existing $INSTALL_DIR"
     rm -rf "$INSTALL_DIR"
+    IS_COMPLETE=0
   fi
 fi
 
-# --- 6. Download zip + verify SHA256 + extract --------------------------
-if [[ ! -d "$INSTALL_DIR" ]]; then
+# --- 6. Download zip + verify SHA256 + atomic-extract -------------------
+if [[ $IS_COMPLETE -eq 0 ]]; then
   ZIP_FILE="$TMP_DIR/harness-pipeline-$VERSION.zip"
   echo "[install-version] downloading zip to $ZIP_FILE..."
   if ! curl -fsSL --connect-timeout 30 -o "$ZIP_FILE" "$ZIP_URL"; then
@@ -130,21 +172,33 @@ if [[ ! -d "$INSTALL_DIR" ]]; then
   fi
   echo "[install-version] SHA256 verified."
 
-  echo "[install-version] extracting to $INSTALL_DIR..."
-  mkdir -p "$INSTALL_DIR"
+  # D0-e: extract into staging dir first, rename atomically last.
+  PARTIAL_DIR="$VERSIONS_DIR/$VERSION.partial-$(date -u +%Y%m%d%H%M%S)"
+  echo "[install-version] extracting to staging: $PARTIAL_DIR"
+  mkdir -p "$PARTIAL_DIR"
   # Use unzip if available (most Linux distros), else `tar -xf` for the
   # zip (BSD tar handles zip on modern Mac). Decide once at runtime.
   if command -v unzip >/dev/null 2>&1; then
-    unzip -q "$ZIP_FILE" -d "$INSTALL_DIR"
+    unzip -q "$ZIP_FILE" -d "$PARTIAL_DIR"
   elif tar --version 2>/dev/null | grep -qi 'bsdtar'; then
-    tar -xf "$ZIP_FILE" -C "$INSTALL_DIR"
+    tar -xf "$ZIP_FILE" -C "$PARTIAL_DIR"
   else
     echo "[install-version] no unzip available; install 'unzip' package and retry" >&2
-    rm -rf "$INSTALL_DIR"
-    exit 35
+    rm -rf "$PARTIAL_DIR"
+    exit 36
   fi
 
-  cp "$MANIFEST_FILE" "$INSTALL_DIR/manifest.json"
+  cp "$MANIFEST_FILE" "$PARTIAL_DIR/manifest.json"
+
+  echo "[install-version] promoting staging to $INSTALL_DIR"
+  # `mv` between same parent dir is rename(2) on POSIX — atomic at the
+  # filesystem layer, so concurrent readers never see a half-state.
+  mv "$PARTIAL_DIR" "$INSTALL_DIR"
+
+  # Sentinel last. The completeness check above keys off this file's
+  # existence — without it, a crash between rename and sentinel write
+  # still self-heals on the next install attempt.
+  printf 'installed=%s\nversion=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$VERSION" > "$SENTINEL"
 fi
 
 # --- 7. Write install marker --------------------------------------------
