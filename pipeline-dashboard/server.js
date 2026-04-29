@@ -714,6 +714,13 @@ const hookRouter = new HookRouter({
   // grant/deny in the dashboard resolves the same Promise the
   // hook-router awaits.
   approvalManager: _approvalManager,
+  // Slice GOV-APPROVAL-0: deployment posture context lets the gate
+  // run a piiScanner over write-tool args before queueing an
+  // approval, and triggers the public-sector "manager required"
+  // assertion at construct time so operators get a specific
+  // remediation hint when posture mandates approval but no manager
+  // is wired.
+  deploymentProfile: _deploymentProfile,
 });
 // Slice N (v6): shared child-process semaphore across Codex + Claude so the
 // two runners can't collectively spawn more than HARNESS_CHILD_MAX processes

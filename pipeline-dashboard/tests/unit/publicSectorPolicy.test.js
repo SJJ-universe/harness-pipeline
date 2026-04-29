@@ -221,14 +221,19 @@ test("GOV-SB-0: profile arg defaults to no-op (caller bug, not a security failur
   assertSandboxWorkspaceRequired(undefined, { requireSandboxWorkspace: true });
 });
 
-test("GOV-SB-0: POLICY_BLOCK_CODES exposes both codes + is frozen", () => {
-  // Audit emitter (claude-runner / codex-runner) consults this set
-  // to decide whether to write a `local_executor_blocked` row.
+test("GOV-SB-0 / GOV-APPROVAL-0: POLICY_BLOCK_CODES exposes the public-sector code set + is frozen", () => {
+  // Audit emitter (claude-runner / codex-runner / hook-router)
+  // consults this set to decide whether a thrown public-sector
+  // policy error should land in the audit chain with the
+  // corresponding `*_blocked` shape rather than just bubbling.
   // Frozen so a future caller can't extend the policy vocabulary
   // without an explicit code change.
   assert.ok(POLICY_BLOCK_CODES.has("PUBLIC_SECTOR_LOCAL_EXECUTOR_DISABLED"));
   assert.ok(POLICY_BLOCK_CODES.has("PUBLIC_SECTOR_SANDBOX_WORKSPACE_REQUIRED"));
+  // GOV-APPROVAL-0 extension: write-tool dispatch in public-sector
+  // mode requires an approvalManager wired through the hook-router.
+  assert.ok(POLICY_BLOCK_CODES.has("PUBLIC_SECTOR_APPROVAL_MANAGER_REQUIRED"));
   assert.ok(Object.isFrozen(POLICY_BLOCK_CODES));
-  assert.equal(POLICY_BLOCK_CODES.size, 2,
+  assert.equal(POLICY_BLOCK_CODES.size, 3,
     "extending POLICY_BLOCK_CODES requires an explicit code change");
 });

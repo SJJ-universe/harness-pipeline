@@ -13,9 +13,20 @@ const {
   DEFAULT_BRIDGE_MODE,
   BRIDGE_MODES,
 } = require("../src/runtime/remoteHookBridgeContract");
+// Slice GOV-APPROVAL-0 (Phase E1.5, 2026-04-29) — PII-aware approval.
+// The hook-router scans write-tool args for Korean PII before queueing
+// an approval request, so the operator card surfaces detected types
+// (krn / phone / email / ...) at the moment of decision rather than
+// requiring a separate scan step. piiScanImpl is constructor-injectable
+// for tests.
+const { scanForPii: defaultScanForPii } = require("../src/security/piiScanner");
+const {
+  requiresWriteToolApproval,
+  assertWriteToolApprovalAvailable,
+} = require("../src/policy/publicSectorPolicy");
 
 class HookRouter {
-  constructor({ broadcast, sessionWatcher, runRegistry, fixturesDir, bridgeMode, approvalManager }) {
+  constructor({ broadcast, sessionWatcher, runRegistry, fixturesDir, bridgeMode, approvalManager, deploymentProfile, scanForPii }) {
     this.broadcast = broadcast;
     this.sessionWatcher = sessionWatcher;
     this.runRegistry = runRegistry || null;
@@ -42,6 +53,19 @@ class HookRouter {
     // would have needed one. Read-only tools (Read / Grep / Glob)
     // dispatch unchanged regardless of this dependency.
     this.approvalManager = approvalManager || null;
+    // Slice GOV-APPROVAL-0: deployment posture + injectable PII scanner.
+    // When deploymentProfile.publicSector === true AND
+    // requirePiiScanBeforeProviderDispatch === true, the gate scans
+    // every write-tool arg payload for Korean PII before queueing the
+    // approval request. The result lands in piiContext on the manager
+    // request so the operator card surfaces what was detected.
+    this.deploymentProfile = deploymentProfile || null;
+    this.scanForPii = typeof scanForPii === "function" ? scanForPii : defaultScanForPii;
+    // Public-sector deployments fail loud at construct time if approval
+    // is mandatory but no manager is wired. Standard posture is
+    // unaffected (the hook-router's own fail-closed handles missing
+    // manager with `approval_unavailable` per slice R3-e-d).
+    assertWriteToolApprovalAvailable(this.deploymentProfile, this.approvalManager);
   }
 
   /**
@@ -537,6 +561,13 @@ class HookRouter {
     }
     this.stats.remoteHookApprovalRequested = (this.stats.remoteHookApprovalRequested || 0) + 1;
 
+    // GOV-APPROVAL-0: scan args for Korean PII before queueing the
+    // approval. Defensive try/catch — a scanner fault must not cause
+    // the gate to fail open OR leak the args to the audit chain.
+    // The result lands in piiContext on the manager request so the
+    // operator card surfaces detected types at decision time.
+    const piiContext = this._scanArgsForPii(sanitized.tool, sanitized._data);
+
     let result;
     try {
       result = await this.approvalManager.request({
@@ -546,9 +577,7 @@ class HookRouter {
         runId,
         hostIdentity: ctx.hostIdentity || null,
         source: ctx.source || "remote_hook",
-        // GOV-APPROVAL-0 (slice 5) plugs piiContext here from a
-        // piiScanner call on the args. R3-e-d alone passes nothing,
-        // and the manager records piiContext: null.
+        piiContext,
       });
     } catch (e) {
       // Manager.request() only throws on invalid input (caller bug).
@@ -585,6 +614,51 @@ class HookRouter {
     // cancelled — caller-side cleanup (run completed, WS dropped, etc.)
     this.stats.remoteHookApprovalCancelled = (this.stats.remoteHookApprovalCancelled || 0) + 1;
     return { proceed: false, approval, error: "approval_cancelled" };
+  }
+
+  /**
+   * Slice GOV-APPROVAL-0: scan a write-tool's args for Korean PII so
+   * the operator approval card can surface detected types at decision
+   * time. Returns a manager-shaped piiContext or null when scan
+   * yields no PII (or a scanner fault — defensive fail-quiet).
+   *
+   * The deeper pattern set (BRN / driver license / passport in
+   * addition to the GOV-PII-0 inline 5) is appropriate here — the
+   * operator is reviewing a single tool call, not a stream of prompt
+   * tokens, so the deeper scan's runtime cost is amortized across
+   * the operator's review window.
+   *
+   * @param {string} tool
+   * @param {object} args  sanitizer's defensive copy
+   * @returns {object|null}  {hasPii, findingTypes, samples, scannedAt}
+   *   or null when the scan yields no signals.
+   */
+  _scanArgsForPii(tool, args) {
+    const text = _argsToScannableText(args);
+    if (text.length === 0) return null;
+    let scan;
+    try {
+      scan = this.scanForPii(text, { depth: "deep" });
+    } catch (_) {
+      // Scanner fault: better to surface a null piiContext than to
+      // crash the gate or leak the raw args via the error path.
+      return null;
+    }
+    if (!scan || !scan.hasPii) return null;
+    const findingTypes = Array.isArray(scan.findings)
+      ? scan.findings.map((f) => f.type) : [];
+    const samples = {};
+    if (Array.isArray(scan.findings)) {
+      for (const f of scan.findings) {
+        samples[f.type] = f.samples;  // already redacted by scanner
+      }
+    }
+    return {
+      hasPii: true,
+      findingTypes,
+      samples,
+      scannedAt: Date.now(),
+    };
   }
 
   /**
@@ -644,4 +718,24 @@ class HookRouter {
   }
 }
 
-module.exports = { HookRouter };
+// Slice GOV-APPROVAL-0 helper. Build a flat scannable text from
+// write-tool args so piiScanner can surface Korean PII matches. Each
+// string-valued field becomes "key=value" on its own line; primitive
+// number/bool fields collapse to "key=String(value)". Non-primitive
+// values (arrays / nested objects) are skipped — the WRITE_TOOL_DATA_KEYS
+// contract guarantees flat args for Bash / Edit / Write, so this only
+// matters as a defensive fallback for future tool additions.
+function _argsToScannableText(args) {
+  if (!args || typeof args !== "object" || Array.isArray(args)) return "";
+  const parts = [];
+  for (const [key, value] of Object.entries(args)) {
+    if (typeof value === "string") {
+      parts.push(`${key}=${value}`);
+    } else if (typeof value === "number" || typeof value === "boolean") {
+      parts.push(`${key}=${String(value)}`);
+    }
+  }
+  return parts.join("\n");
+}
+
+module.exports = { HookRouter, _argsToScannableText };

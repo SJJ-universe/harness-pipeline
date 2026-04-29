@@ -209,7 +209,66 @@ function assertSandboxWorkspaceRequired(profile, deploymentProfile) {
 const POLICY_BLOCK_CODES = Object.freeze(new Set([
   "PUBLIC_SECTOR_LOCAL_EXECUTOR_DISABLED",
   "PUBLIC_SECTOR_SANDBOX_WORKSPACE_REQUIRED",
+  // Slice GOV-APPROVAL-0: write-tool dispatch in public-sector mode
+  // requires an approvalManager wired through the hook-router. When
+  // missing, the gate refuses every write-tool dispatch and emits
+  // the public-sector audit shape rather than the generic
+  // `approval_unavailable`.
+  "PUBLIC_SECTOR_APPROVAL_MANAGER_REQUIRED",
 ]));
+
+// Slice GOV-APPROVAL-0 (Phase E1.5, 2026-04-29) — approval gate helpers.
+
+/**
+ * @param {object} deploymentProfile
+ *   Result of `resolveDeploymentProfile()`. Must have
+ *   `requirePiiScanBeforeProviderDispatch` to qualify for write-tool
+ *   approval enforcement (the same flag GOV-PII-0 uses — operators
+ *   tuning posture flip the same switch for all three layers).
+ * @returns {boolean} true when posture mandates per-call approval
+ *   for write tools, false otherwise (standard posture defers to
+ *   the hook-router's own approvalManager-or-fail-closed policy).
+ */
+function requiresWriteToolApproval(deploymentProfile) {
+  if (!deploymentProfile) return false;
+  // Public-sector posture mandates approval when both the local
+  // PII gate is required AND the scanner is fail-closed. This is
+  // the same set GOV-PII-0 uses for the inline gate; reusing it
+  // keeps operators from having to learn a separate posture lever
+  // for write-tool approval.
+  return deploymentProfile.publicSector === true
+    && deploymentProfile.requirePiiScanBeforeProviderDispatch === true;
+}
+
+/**
+ * Public-sector hard requirement: when posture mandates write-tool
+ * approval but no approvalManager is wired into the hook-router,
+ * fail loud with a structured error so the operator gets a
+ * specific remediation hint ("wire approvalManager") rather than
+ * the generic `approval_unavailable` reason.
+ *
+ * Standard-posture deployments are unaffected — the hook-router's
+ * own fail-closed policy already handles the missing-manager case
+ * with `approval_unavailable`.
+ *
+ * @param {object} deploymentProfile
+ * @param {object|null} approvalManager
+ * @throws Error with `code: "PUBLIC_SECTOR_APPROVAL_MANAGER_REQUIRED"`
+ *   when public-sector mandates approval and the manager is missing.
+ */
+function assertWriteToolApprovalAvailable(deploymentProfile, approvalManager) {
+  if (!requiresWriteToolApproval(deploymentProfile)) return;
+  if (approvalManager && typeof approvalManager.request === "function") return;
+  const err = new Error(
+    `public-sector policy requires per-call approval for write tools ` +
+    `(Bash/Edit/Write) but no approvalManager is wired into the hook-router. ` +
+    `Construct HookRouter with { approvalManager } pointing at the same ` +
+    `instance the /api/approvals routes use, or set ` +
+    `HARNESS_DEPLOYMENT_PROFILE=standard.`,
+  );
+  err.code = "PUBLIC_SECTOR_APPROVAL_MANAGER_REQUIRED";
+  throw err;
+}
 
 /**
  * Convenience for routes that want a 400-shaped response on policy
@@ -232,6 +291,9 @@ module.exports = {
   validateProfileForPublicSector,
   assertLocalExecutorAllowed,
   assertSandboxWorkspaceRequired,
+  // Slice GOV-APPROVAL-0 additions:
+  requiresWriteToolApproval,
+  assertWriteToolApprovalAvailable,
   buildPolicyErrorResponse,
   // Exposed for tests + downstream modules that need to know which
   // backends are considered "plaintext" (e.g., credentialStore can
