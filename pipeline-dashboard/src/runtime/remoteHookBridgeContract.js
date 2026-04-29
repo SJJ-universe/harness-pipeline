@@ -163,6 +163,7 @@ const PAYLOAD_SCHEMAS = Object.freeze({
   PreToolUse: Object.freeze({
     requireTool: true,
     dataKeys: Object.freeze([
+      // R2.5 read-only tools (Read / Grep / Glob)
       "file_path",   // Read / Edit
       "path",        // Glob, Grep
       "pattern",     // Grep
@@ -173,6 +174,19 @@ const PAYLOAD_SCHEMAS = Object.freeze({
       "type",        // Grep --type
       "output_mode", // Grep
       "session_id",  // pass-through for executor's _resolveRunId
+      // R3-e write-tool args — kept here so the sanitizer's
+      // defensive copy doesn't drop them when the tool is in
+      // WRITE_TOOLS_REQUIRING_APPROVAL. The schema is hook-keyed
+      // (not tool-keyed); harmless extras for read tools (the
+      // executor's onPreTool(Read, input) only reads file_path).
+      "command",            // Bash
+      "description",        // Bash
+      "timeout",            // Bash
+      "run_in_background",  // Bash
+      "old_string",         // Edit
+      "new_string",         // Edit
+      "replace_all",        // Edit
+      "content",            // Write
     ]),
     dataKeysRequired: Object.freeze([]),
   }),
@@ -181,6 +195,10 @@ const PAYLOAD_SCHEMAS = Object.freeze({
     dataKeys: Object.freeze([
       "file_path", "path", "pattern", "glob", "limit",
       "offset", "head_limit", "type", "output_mode", "session_id",
+      // R3-e write-tool args (mirror PreToolUse — same dispatcher,
+      // same allowlist surface).
+      "command", "description", "timeout", "run_in_background",
+      "old_string", "new_string", "replace_all", "content",
     ]),
     dataKeysRequired: Object.freeze([]),
     responseMaxBytes: 4096,

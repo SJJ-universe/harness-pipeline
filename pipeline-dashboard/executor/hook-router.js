@@ -15,7 +15,7 @@ const {
 } = require("../src/runtime/remoteHookBridgeContract");
 
 class HookRouter {
-  constructor({ broadcast, sessionWatcher, runRegistry, fixturesDir, bridgeMode }) {
+  constructor({ broadcast, sessionWatcher, runRegistry, fixturesDir, bridgeMode, approvalManager }) {
     this.broadcast = broadcast;
     this.sessionWatcher = sessionWatcher;
     this.runRegistry = runRegistry || null;
@@ -33,6 +33,15 @@ class HookRouter {
     // sanitized/rejected audit verbs but skips dispatch. "dispatch"
     // forwards sanitized payloads to the local executor's mapped method.
     this._bridgeMode = BRIDGE_MODES.includes(bridgeMode) ? bridgeMode : DEFAULT_BRIDGE_MODE;
+    // Slice R3-e-d: per-call approval manager. When wired, sanitized
+    // payloads carrying `requiresApproval: true` (write tools — Bash /
+    // Edit / Write) round-trip through the manager BEFORE any executor
+    // method is invoked. When NOT wired, write-tool sanitized payloads
+    // are dropped at the gate (fail-closed): the operator deliberately
+    // disabled approvals, so we refuse to dispatch a write hook that
+    // would have needed one. Read-only tools (Read / Grep / Glob)
+    // dispatch unchanged regardless of this dependency.
+    this.approvalManager = approvalManager || null;
   }
 
   /**
@@ -322,22 +331,38 @@ class HookRouter {
    *
    * @param {string} runId  Verdict runId (NEVER trust frame body).
    * @param {object} hookEvent  The runner's event payload.
+   * @param {object} [ctx]
+   * @param {string} [ctx.hostIdentity]  Verdict-bound host identity.
+   *   Plumbed into the approval request payload so the audit chain +
+   *   operator card can name the runner that asked.
+   * @param {string} [ctx.source]  Provenance label for the approval
+   *   audit row. Defaults to "remote_hook".
    * @returns {Promise<{
    *   broadcast: boolean,                       // routeRemote happened
    *   rejected: null | {reason: string},        // sanitization verdict
    *   sanitized: null | object,                 // post-sanitizer payload
+   *   approval: null | {
+   *     requested: boolean,
+   *     approvalId?: string,
+   *     resolution?: "granted"|"denied"|"timeout"|"cancelled"|"unavailable",
+   *     decidedAt?: number,
+   *     deciderId?: string|null,
+   *     reason?: string|null
+   *   },
    *   dispatched: null | {ok: boolean, method?: string, error?: string}
    * }>}
    */
-  async routeRemote(runId, hookEvent) {
+  async routeRemote(runId, hookEvent, ctx) {
     const result = {
       broadcast: false,
       rejected: null,
       sanitized: null,
+      approval: null,
       dispatched: null,
     };
     if (typeof runId !== "string" || runId.length === 0) return result;
     if (!hookEvent || typeof hookEvent !== "object") return result;
+    const callCtx = ctx && typeof ctx === "object" ? ctx : {};
     this.stats.total += 1;
     this.stats.remoteHooks = (this.stats.remoteHooks || 0) + 1;
     const event = {
@@ -373,10 +398,20 @@ class HookRouter {
     // outcome (`runner_hook_sanitized` audit) before promoting.
     if (this._bridgeMode !== "dispatch") return result;
 
-    result.dispatched = await this._dispatchSanitized(runId, verdict.sanitized);
-    if (result.dispatched.ok) {
+    // R3-e-d: write-tool sanitized payloads round-trip through the
+    // approval manager before dispatch. _dispatchSanitized handles
+    // the gate logic; the approval verdict (or null when no approval
+    // was needed) lands in `result.approval` for the caller's audit.
+    const dispatchResult = await this._dispatchSanitized(runId, verdict.sanitized, {
+      hostIdentity: callCtx.hostIdentity || null,
+      source: callCtx.source || null,
+    });
+    result.approval = dispatchResult.approval;
+    result.dispatched = dispatchResult.dispatched;
+
+    if (result.dispatched && result.dispatched.ok) {
       this.stats.remoteHookDispatched = (this.stats.remoteHookDispatched || 0) + 1;
-    } else {
+    } else if (result.dispatched && !result.dispatched.ok) {
       this.stats.remoteHookDispatchError = (this.stats.remoteHookDispatchError || 0) + 1;
     }
     return result;
@@ -388,32 +423,72 @@ class HookRouter {
    * sanitizer already produced a defensive copy with only allowlist
    * keys. Method binding lives in EXECUTOR_DISPATCH.
    *
+   * Slice R3-e-d: write-tool sanitized payloads (Bash / Edit / Write
+   * — sanitized.requiresApproval === true) round-trip through the
+   * approvalManager before any executor method is invoked. The
+   * approval verdict (granted / denied / timeout / cancelled /
+   * unavailable) lands in the returned `approval` field; only
+   * "granted" proceeds to dispatch. "unavailable" is the fail-closed
+   * mode that fires when no approvalManager is wired — the operator
+   * deliberately disabled approvals, so the router refuses to
+   * dispatch a write hook that would have needed one.
+   *
    * Failure modes:
    *   - no_executor — neither orchestrator nor attached executor available
    *   - executor_method_missing — executor lacks the expected onXxx method
    *   - unmapped_hook — sanitized.hook is not in EXECUTOR_DISPATCH
    *                     (should not happen if sanitizer is correct;
    *                     defensive nonetheless)
+   *   - approval_unavailable — requiresApproval && no approvalManager
+   *   - approval_denied — operator pressed deny
+   *   - approval_timeout — operator did not respond in time
+   *   - approval_cancelled — pending request cancelled (run completed
+   *                         / WS dropped / orchestrator shutdown)
    *   - <executor's thrown message> — wrapped from the executor itself
    *
-   * @returns {Promise<{ok: boolean, method?: string, error?: string}>}
+   * @param {string} runId
+   * @param {object} sanitized — output of sanitizeRemoteHook (incl.
+   *   `requiresApproval` flag).
+   * @param {object} [ctx]
+   * @param {string|null} [ctx.hostIdentity]
+   * @param {string|null} [ctx.source]
+   * @returns {Promise<{
+   *   approval: null | object,
+   *   dispatched: null | {ok: boolean, method?: string, error?: string}
+   * }>}
    */
-  async _dispatchSanitized(runId, sanitized) {
+  async _dispatchSanitized(runId, sanitized, ctx) {
+    const callCtx = ctx && typeof ctx === "object" ? ctx : {};
+    const out = { approval: null, dispatched: null };
+
     const dispatch = EXECUTOR_DISPATCH[sanitized.hook];
     if (!dispatch) {
-      return { ok: false, error: "unmapped_hook" };
+      out.dispatched = { ok: false, error: "unmapped_hook" };
+      return out;
     }
+
+    // R3-e-d: approval gate — only fires for write-tool sanitized
+    // payloads. Read-only tools skip the gate entirely.
+    if (sanitized.requiresApproval) {
+      const gate = await this._gateOnApproval(sanitized, runId, callCtx);
+      out.approval = gate.approval;
+      if (!gate.proceed) {
+        out.dispatched = { ok: false, method: dispatch.method, error: gate.error };
+        return out;
+      }
+    }
+
     const executor = this._resolveExecutorByRunId(runId);
     if (!executor) {
-      return { ok: false, method: dispatch.method, error: "no_executor" };
+      out.dispatched = { ok: false, method: dispatch.method, error: "no_executor" };
+      return out;
     }
     const fn = executor[dispatch.method];
     if (typeof fn !== "function") {
-      return {
-        ok: false,
-        method: dispatch.method,
-        error: "executor_method_missing",
+      out.dispatched = {
+        ok: false, method: dispatch.method, error: "executor_method_missing",
       };
+      return out;
     }
     // Bind args from the sanitized payload by key. The contract pins
     // each binding key as one of {tool, response, _data}; the special
@@ -424,14 +499,92 @@ class HookRouter {
     });
     try {
       await fn.apply(executor, args);
-      return { ok: true, method: dispatch.method };
+      out.dispatched = { ok: true, method: dispatch.method };
     } catch (e) {
-      return {
-        ok: false,
-        method: dispatch.method,
+      out.dispatched = {
+        ok: false, method: dispatch.method,
         error: (e && e.message) ? e.message : String(e),
       };
     }
+    return out;
+  }
+
+  /**
+   * R3-e-d: gate a write-tool sanitized payload behind operator
+   * approval. Returns:
+   *
+   *   { proceed: true,  approval: {requested:true, resolution:"granted", ...} }
+   *   { proceed: false, approval: {requested:true, resolution:"denied", ...},  error: "approval_denied" }
+   *   { proceed: false, approval: {requested:true, resolution:"timeout", ...}, error: "approval_timeout" }
+   *   { proceed: false, approval: {requested:true, resolution:"cancelled", ...}, error: "approval_cancelled" }
+   *   { proceed: false, approval: {requested:false, resolution:"unavailable"}, error: "approval_unavailable" }
+   *
+   * Audit verbs (runner_hook_approval_*) fire from the manager's own
+   * auditFn — the router does not emit them. The manager owns the
+   * audit narration so a future router refactor can't accidentally
+   * skip it.
+   */
+  async _gateOnApproval(sanitized, runId, ctx) {
+    if (!this.approvalManager) {
+      // Fail-closed: no manager wired but the sanitizer marked the
+      // payload as approval-required. Refuse to dispatch.
+      this.stats.remoteHookApprovalUnavailable = (this.stats.remoteHookApprovalUnavailable || 0) + 1;
+      return {
+        proceed: false,
+        approval: { requested: false, resolution: "unavailable" },
+        error: "approval_unavailable",
+      };
+    }
+    this.stats.remoteHookApprovalRequested = (this.stats.remoteHookApprovalRequested || 0) + 1;
+
+    let result;
+    try {
+      result = await this.approvalManager.request({
+        hook: sanitized.hook,
+        tool: sanitized.tool,
+        args: sanitized._data,  // already filtered to allowlist by sanitizer
+        runId,
+        hostIdentity: ctx.hostIdentity || null,
+        source: ctx.source || "remote_hook",
+        // GOV-APPROVAL-0 (slice 5) plugs piiContext here from a
+        // piiScanner call on the args. R3-e-d alone passes nothing,
+        // and the manager records piiContext: null.
+      });
+    } catch (e) {
+      // Manager.request() only throws on invalid input (caller bug).
+      // Treat as fail-closed approval_unavailable.
+      this.stats.remoteHookApprovalUnavailable = (this.stats.remoteHookApprovalUnavailable || 0) + 1;
+      return {
+        proceed: false,
+        approval: { requested: false, resolution: "unavailable" },
+        error: "approval_unavailable",
+      };
+    }
+
+    const approval = {
+      requested: true,
+      approvalId: result.approvalId,
+      resolution: result.resolution,
+      decidedAt: result.decidedAt,
+      deciderId: result.deciderId,
+      reason: result.reason,
+    };
+
+    if (result.resolution === "granted") {
+      this.stats.remoteHookApprovalGranted = (this.stats.remoteHookApprovalGranted || 0) + 1;
+      return { proceed: true, approval };
+    }
+    if (result.resolution === "denied") {
+      this.stats.remoteHookApprovalDenied = (this.stats.remoteHookApprovalDenied || 0) + 1;
+      return { proceed: false, approval, error: "approval_denied" };
+    }
+    if (result.resolution === "timeout") {
+      this.stats.remoteHookApprovalTimeout = (this.stats.remoteHookApprovalTimeout || 0) + 1;
+      return { proceed: false, approval, error: "approval_timeout" };
+    }
+    // cancelled — caller-side cleanup (run completed, WS dropped, etc.)
+    this.stats.remoteHookApprovalCancelled = (this.stats.remoteHookApprovalCancelled || 0) + 1;
+    return { proceed: false, approval, error: "approval_cancelled" };
   }
 
   /**

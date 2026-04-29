@@ -66,7 +66,7 @@ test("R1-g: routeRemote broadcasts runner_hook with origin=container-remote", ()
 test("R1-g: routeRemote bumps stats.total + stats.remoteHooks + stats.byEvent[hook]", () => {
   const { router } = makeRouter();
   router.routeRemote("rr-1", { hook: "PreToolUse", tool: "Read" });
-  router.routeRemote("rr-1", { hook: "PreToolUse", tool: "Write" });
+  router.routeRemote("rr-1", { hook: "PreToolUse", tool: "Glob" });
   router.routeRemote("rr-1", { hook: "Stop", tool: null, data: {} });
   const s = router.getStats();
   assert.equal(s.total, 3);
@@ -178,25 +178,46 @@ test("R2.5-b: routeRemote returns rejected reason for hook outside the allowlist
   assert.equal(result.sanitized, null, "rejected frames have no sanitized payload");
 });
 
-test("R2.5-b: routeRemote returns rejected reason for write-side tools (Bash / Write / Edit)", async () => {
+test("R3-e-d: routeRemote PASSES write-side tools through sanitization (no longer rejects)", async () => {
+  // R3-e-d relaxes the R2.5-b "tool_not_allowed" pin for Bash/Edit/Write
+  // — these now sanitize successfully with `requiresApproval: true`.
+  // The hook-router's approval gate (still in this slice) decides
+  // whether dispatch happens. With no approvalManager wired (the
+  // default makeRouter harness), the gate fail-closes; with a manager
+  // wired, the operator decides.
   const { router } = makeRouter();
-  for (const tool of ["Bash", "Write", "Edit"]) {
+  for (const writeTool of ["Bash", "Edit", "Write"]) {
+    const data = writeTool === "Bash" ? { command: "echo hi" }
+              : writeTool === "Edit" ? { file_path: "/x", old_string: "a", new_string: "b" }
+              : { file_path: "/x", content: "hi" };
     const result = await router.routeRemote("rr-1", {
-      hook: "PreToolUse", tool,
-      data: { command: "rm -rf /" },
+      hook: "PreToolUse", tool: writeTool, data,
+    });
+    assert.equal(result.rejected, null,
+      `tool=${writeTool} should NOT be rejected at sanitizer (R3-e-d relaxed the pin)`);
+    assert.ok(result.sanitized, `tool=${writeTool} should produce a sanitized payload`);
+    assert.equal(result.sanitized.requiresApproval, true,
+      `tool=${writeTool} sanitized payload must carry requiresApproval:true`);
+  }
+});
+
+test("R3-e-d: tool_not_allowed still fires for tools outside both sets (WebFetch / Task)", async () => {
+  const { router } = makeRouter();
+  for (const banned of ["WebFetch", "WebSearch", "Task", "CustomTool"]) {
+    const result = await router.routeRemote("rr-1", {
+      hook: "PreToolUse", tool: banned, data: {},
     });
     assert.equal(result.rejected && result.rejected.reason, "tool_not_allowed",
-      `tool=${tool} should reject with tool_not_allowed`);
-    assert.equal(result.sanitized, null);
+      `tool=${banned} should reject with tool_not_allowed (not in ALLOWED_TOOLS or WRITE_TOOLS_REQUIRING_APPROVAL)`);
   }
 });
 
 test("R2.5-b: routeRemote stats track sanitized + rejected counts", async () => {
   const { router } = makeRouter();
-  await router.routeRemote("rr-1", { hook: "PreToolUse", tool: "Read" });    // accept
-  await router.routeRemote("rr-1", { hook: "PreToolUse", tool: "Read" });    // accept
-  await router.routeRemote("rr-1", { hook: "PreToolUse", tool: "Bash" });    // reject
-  await router.routeRemote("rr-1", { hook: "Custom" });                       // reject
+  await router.routeRemote("rr-1", { hook: "PreToolUse", tool: "Read" });        // accept
+  await router.routeRemote("rr-1", { hook: "PreToolUse", tool: "Read" });        // accept
+  await router.routeRemote("rr-1", { hook: "PreToolUse", tool: "WebFetch" });    // reject (out-of-set)
+  await router.routeRemote("rr-1", { hook: "Custom" });                          // reject
   const stats = router.getStats();
   assert.equal(stats.remoteHookSanitized, 2);
   assert.equal(stats.remoteHookRejected, 2);
@@ -306,12 +327,15 @@ test("R2.5-c: bridgeMode='dispatch' — every allowed hook routes to its mapped 
 
 test("R2.5-c: bridgeMode='dispatch' — rejected frames never call the executor", async () => {
   // Negative invariant: rejection MUST short-circuit before dispatch.
+  // R3-e-d note: Bash/Edit/Write are no longer sanitization-time rejects
+  // (now gated at the approval layer instead). WebFetch is the
+  // updated "out-of-set" tool that still rejects with tool_not_allowed.
   const { router } = makeRouter({ bridgeMode: "dispatch" });
   const exec = makeMockExecutor();
   router.attachExecutor(exec);
   for (const evt of [
     { hook: "SessionStart", tool: "Read" },             // hook_not_allowed
-    { hook: "PreToolUse",   tool: "Bash" },             // tool_not_allowed
+    { hook: "PreToolUse",   tool: "WebFetch" },         // tool_not_allowed (out-of-set)
     { hook: "SubagentStart", data: {} },                // data_required_missing
     { hook: "Custom" },                                 // hook_not_allowed
   ]) {

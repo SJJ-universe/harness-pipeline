@@ -25,6 +25,8 @@
 const {
   ALLOWED_HOOKS,
   ALLOWED_TOOLS,
+  WRITE_TOOLS_REQUIRING_APPROVAL,
+  isWriteToolRequiringApproval,
   PAYLOAD_SCHEMAS,
 } = require("./remoteHookBridgeContract");
 
@@ -51,14 +53,22 @@ function sanitizeRemoteHook(rawEvent) {
 
   const schema = PAYLOAD_SCHEMAS[hook];
 
-  // Tool: required for Pre/PostToolUse, must be in allowlist when present.
+  // Tool: required for Pre/PostToolUse. The allowlist is the union
+  // of `ALLOWED_TOOLS` (R2.5 read-only — Read / Grep / Glob) and
+  // `WRITE_TOOLS_REQUIRING_APPROVAL` (R3-e — Bash / Edit / Write).
+  // Read-only tools dispatch directly; write tools pass sanitization
+  // but the result carries `requiresApproval: true` so the hook-
+  // router gates them behind operator approval before any executor
+  // method is invoked.
   let sanitizedTool = null;
   if (schema.requireTool) {
     const tool = rawEvent.tool;
     if (typeof tool !== "string" || tool.length === 0) {
       return { ok: false, reason: "tool_required_missing" };
     }
-    if (!ALLOWED_TOOLS.includes(tool)) {
+    const isReadOnly = ALLOWED_TOOLS.includes(tool);
+    const isWriteApproval = WRITE_TOOLS_REQUIRING_APPROVAL.includes(tool);
+    if (!isReadOnly && !isWriteApproval) {
       return { ok: false, reason: "tool_not_allowed" };
     }
     sanitizedTool = tool;
@@ -119,11 +129,18 @@ function sanitizeRemoteHook(rawEvent) {
 
   // Pack the result. The dispatcher reads tool / response / _data from
   // here per remoteHookBridgeContract.EXECUTOR_DISPATCH bindings.
+  //
+  // R3-e: `requiresApproval` flag tells the hook-router whether the
+  // sanitized payload can dispatch directly (false → Read/Grep/Glob)
+  // or must first round-trip through the approval manager (true →
+  // Bash/Edit/Write). Pure flag, no side effects here — the router
+  // owns the gate logic.
   const sanitized = {
     hook,
     tool: sanitizedTool,
     response: sanitizedResponse,
     _data: sanitizedData,
+    requiresApproval: isWriteToolRequiringApproval(sanitizedTool),
   };
   return { ok: true, sanitized };
 }

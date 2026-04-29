@@ -708,6 +708,12 @@ const { resolveBridgeMode } = require("./src/runtime/remoteHookBridgeContract");
 const hookRouter = new HookRouter({
   broadcast, sessionWatcher, runRegistry,
   bridgeMode: resolveBridgeMode(process.env),
+  // Slice R3-e-d: write-tool sanitized payloads (Bash/Edit/Write)
+  // round-trip through the approvalManager before dispatch. Same
+  // singleton instance the /api/approvals routes use — operator
+  // grant/deny in the dashboard resolves the same Promise the
+  // hook-router awaits.
+  approvalManager: _approvalManager,
 });
 // Slice N (v6): shared child-process semaphore across Codex + Claude so the
 // two runners can't collectively spawn more than HARNESS_CHILD_MAX processes

@@ -48,12 +48,98 @@ test("R2.5-b: tool_required_missing for PreToolUse / PostToolUse without a tool"
   }
 });
 
-test("R2.5-b: tool_not_allowed for write-side tools", () => {
-  for (const banned of ["Bash", "Write", "Edit", "WebFetch"]) {
+test("R3-e-d: tool_not_allowed for tools outside both ALLOWED_TOOLS and write-approval set", () => {
+  // R3-e introduces WRITE_TOOLS_REQUIRING_APPROVAL = [Bash,Edit,Write]
+  // which now PASS sanitization (with requiresApproval: true). Only
+  // tools in NEITHER set hit the tool_not_allowed reject path.
+  // WebFetch / WebSearch / Task remain rejected because they're not
+  // gated through approval (egress / subagent concerns deferred).
+  for (const banned of ["WebFetch", "WebSearch", "Task", "Custom"]) {
     const r = sanitizeRemoteHook({ hook: "PreToolUse", tool: banned });
     assert.equal(r.ok, false, `tool=${banned} should reject`);
     assert.equal(r.reason, "tool_not_allowed");
   }
+});
+
+test("R3-e-d: write-approval tools (Bash/Edit/Write) PASS sanitization with requiresApproval flag", () => {
+  // The R2.5-b "tool_not_allowed" pin for Bash/Edit/Write is
+  // intentionally relaxed here. The READ-only invariant moves up a
+  // layer: sanitizer returns ok:true with requiresApproval:true, and
+  // the hook-router (slice R3-e-d) gates dispatch behind approval.
+  for (const writeTool of ["Bash", "Edit", "Write"]) {
+    const r = sanitizeRemoteHook({
+      hook: "PreToolUse",
+      tool: writeTool,
+      data: writeTool === "Bash" ? { command: "echo hi" }
+          : writeTool === "Edit" ? { file_path: "/x", old_string: "a", new_string: "b" }
+          : { file_path: "/x", content: "hello" },
+    });
+    assert.equal(r.ok, true, `write tool ${writeTool} should pass sanitization`);
+    assert.equal(r.sanitized.tool, writeTool);
+    assert.equal(r.sanitized.requiresApproval, true);
+  }
+});
+
+test("R3-e-d: read-only tools sanitize with requiresApproval:false", () => {
+  for (const readTool of ["Read", "Grep", "Glob"]) {
+    const r = sanitizeRemoteHook({
+      hook: "PreToolUse",
+      tool: readTool,
+      data: { file_path: "/x" },
+    });
+    assert.equal(r.ok, true);
+    assert.equal(r.sanitized.requiresApproval, false);
+  }
+});
+
+test("R3-e-d: write-tool args pass through the schema's defensive copy", () => {
+  // The PreToolUse / PostToolUse schemas were extended in R3-e-d to
+  // include write-tool arg keys. A Bash hook should keep its command
+  // / description / timeout / run_in_background; an Edit hook keeps
+  // its old_string / new_string / replace_all; a Write hook keeps
+  // its content. Extras still get dropped per allowlist.
+  const bash = sanitizeRemoteHook({
+    hook: "PreToolUse", tool: "Bash",
+    data: {
+      command: "echo hi", description: "say hi",
+      timeout: 5000, run_in_background: false,
+      smuggled_field: "should be dropped",
+    },
+  });
+  assert.equal(bash.ok, true);
+  assert.deepEqual(Object.keys(bash.sanitized._data).sort(),
+    ["command", "description", "run_in_background", "timeout"]);
+
+  const edit = sanitizeRemoteHook({
+    hook: "PreToolUse", tool: "Edit",
+    data: {
+      file_path: "/tmp/x.js",
+      old_string: "foo", new_string: "bar", replace_all: true,
+    },
+  });
+  assert.equal(edit.ok, true);
+  assert.equal(edit.sanitized._data.file_path, "/tmp/x.js");
+  assert.equal(edit.sanitized._data.replace_all, true);
+
+  const write = sanitizeRemoteHook({
+    hook: "PreToolUse", tool: "Write",
+    data: { file_path: "/tmp/x.js", content: "hello world" },
+  });
+  assert.equal(write.ok, true);
+  assert.equal(write.sanitized._data.content, "hello world");
+});
+
+test("R3-e-d: PostToolUse with write tool also passes through (response capped)", () => {
+  // A remote Bash post-hook with a small response stays valid.
+  const r = sanitizeRemoteHook({
+    hook: "PostToolUse", tool: "Bash",
+    data: { command: "ls" },
+    response: { stdout: "file1\nfile2", exit_code: 0 },
+  });
+  assert.equal(r.ok, true);
+  assert.equal(r.sanitized.tool, "Bash");
+  assert.equal(r.sanitized.requiresApproval, true);
+  assert.equal(r.sanitized.response.exit_code, 0);
 });
 
 test("R2.5-b: data_invalid_type when event.data is not an object", () => {
