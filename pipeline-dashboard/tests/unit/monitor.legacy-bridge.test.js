@@ -396,3 +396,175 @@ test("MC2: _syncRunFromEvent is exposed as a test hook", () => {
   handle._syncRunFromEvent({ type: "run_created", data: { runId: "T", templateId: "general" } });
   assert.deepEqual(Object.keys(store.snapshot().runs), ["T"]);
 });
+
+// ── Slice UX-2-a: approval lifecycle WS events ──────────────────
+
+test("UX-2-a: approval_requested → store.upsertApproval", () => {
+  dispatcher._resetForTests();
+  const store = createMonitorStore();
+  const handle = install({
+    store, normalize, dispatcher,
+    setIntervalFn: () => null, clearIntervalFn: () => {},
+  });
+
+  dispatcher.notifyTaps({
+    type: "approval_requested",
+    data: {
+      approvalId: "appr-1",
+      hook: "PreToolUse",
+      tool: "Bash",
+      args: { command: "echo hi" },
+      argsHash: "deadbeef",
+      argsSummary: "echo hi",
+      runId: "run-1",
+      hostIdentity: "host-A",
+      source: "remote_hook",
+      piiContext: null,
+      timeoutMs: 30000,
+      requestedAt: 1000,
+      expiresAt: 31000,
+    },
+  });
+
+  const snap = store.snapshot();
+  assert.equal(snap.pendingApprovals.length, 1);
+  assert.equal(snap.pendingApprovals[0].approvalId, "appr-1");
+  assert.equal(snap.pendingApprovals[0].tool, "Bash");
+  assert.equal(handle.stats().approvalSyncs, 1);
+  // Approval events should NOT pollute the events ring.
+  assert.equal(snap.events.length, 0);
+  handle.destroy();
+});
+
+test("UX-2-a: approval_resolved → store.resolveApproval", () => {
+  dispatcher._resetForTests();
+  const store = createMonitorStore();
+  const handle = install({
+    store, normalize, dispatcher,
+    setIntervalFn: () => null, clearIntervalFn: () => {},
+  });
+
+  // Seed a pending approval.
+  store.upsertApproval({
+    approvalId: "appr-1", tool: "Bash", argsSummary: "x", requestedAt: 100,
+  });
+  assert.equal(store.snapshot().pendingApprovals.length, 1);
+
+  dispatcher.notifyTaps({
+    type: "approval_resolved",
+    data: {
+      approvalId: "appr-1", resolution: "granted",
+      decidedAt: 5000, deciderId: "operator-1",
+    },
+  });
+
+  assert.equal(store.snapshot().pendingApprovals.length, 0);
+  assert.equal(handle.stats().approvalSyncs, 1);
+  handle.destroy();
+});
+
+test("UX-2-a: approval_resolved with unknown id is a no-op (no exception)", () => {
+  dispatcher._resetForTests();
+  const store = createMonitorStore();
+  const handle = install({
+    store, normalize, dispatcher,
+    setIntervalFn: () => null, clearIntervalFn: () => {},
+  });
+
+  // No pending entry; resolved arrives anyway (e.g., out-of-order
+  // delivery or grant after page refresh).
+  dispatcher.notifyTaps({
+    type: "approval_resolved",
+    data: { approvalId: "ghost-id", resolution: "granted" },
+  });
+
+  assert.equal(store.snapshot().pendingApprovals.length, 0);
+  // approvalSyncs still bumps because the bridge attempted the
+  // resolveApproval call. The store's internal no-op for unknown
+  // ids is what makes this safe.
+  assert.equal(handle.stats().approvalSyncs, 1);
+  handle.destroy();
+});
+
+test("UX-2-a: approval events do NOT also push to events ring (precedence)", () => {
+  // Approval events have their own slice; routing them through
+  // pushEvent too would create duplicate UI cards (one in the
+  // pending-approvals slice, one in the events ring) — operator-
+  // confusing. The bridge precedence-checks _syncApprovalFromEvent
+  // before falling through to pushEvent.
+  dispatcher._resetForTests();
+  const store = createMonitorStore();
+  const handle = install({
+    store, normalize, dispatcher,
+    setIntervalFn: () => null, clearIntervalFn: () => {},
+  });
+
+  dispatcher.notifyTaps({
+    type: "approval_requested",
+    data: { approvalId: "x", tool: "Bash", argsSummary: "y", requestedAt: 1 },
+  });
+  dispatcher.notifyTaps({
+    type: "approval_resolved",
+    data: { approvalId: "x", resolution: "denied" },
+  });
+  dispatcher.notifyTaps({
+    type: "tool_recorded",  // non-approval — should land in events
+    data: { runId: "default", tool: "Read" },
+  });
+
+  const snap = store.snapshot();
+  assert.equal(snap.events.length, 1, "only the tool_recorded event lands in the ring");
+  assert.equal(snap.events[0].scope, "tool");
+  handle.destroy();
+});
+
+test("UX-2-a: approval events run BEFORE run sync (lifecycle precedence)", () => {
+  // approval_requested doesn't carry a runId in the lifecycle-event
+  // sense, so _syncRunFromEvent would no-op anyway. But this test
+  // pins the precedence so a future refactor that handles approval
+  // events via pushEvent first doesn't regress the slice routing.
+  dispatcher._resetForTests();
+  const store = createMonitorStore();
+  const handle = install({
+    store, normalize, dispatcher,
+    setIntervalFn: () => null, clearIntervalFn: () => {},
+  });
+  dispatcher.notifyTaps({
+    type: "approval_requested",
+    data: {
+      approvalId: "x", tool: "Bash", argsSummary: "y", requestedAt: 1,
+      runId: "run-1",  // present but should NOT trigger upsertRun
+    },
+  });
+  // The approval lifecycle should not have created a run entry.
+  assert.equal(Object.keys(store.snapshot().runs).length, 0);
+  assert.equal(store.snapshot().pendingApprovals.length, 1);
+  handle.destroy();
+});
+
+test("UX-2-a: approvalSyncs counter starts at 0 and increments per approval event", () => {
+  dispatcher._resetForTests();
+  const store = createMonitorStore();
+  const handle = install({
+    store, normalize, dispatcher,
+    setIntervalFn: () => null, clearIntervalFn: () => {},
+  });
+  assert.equal(handle.stats().approvalSyncs, 0);
+
+  dispatcher.notifyTaps({
+    type: "approval_requested",
+    data: { approvalId: "a", tool: "Bash", argsSummary: "x", requestedAt: 1 },
+  });
+  assert.equal(handle.stats().approvalSyncs, 1);
+
+  dispatcher.notifyTaps({
+    type: "approval_resolved",
+    data: { approvalId: "a", resolution: "granted" },
+  });
+  assert.equal(handle.stats().approvalSyncs, 2);
+
+  // A non-approval event doesn't bump.
+  dispatcher.notifyTaps({ type: "tool_recorded", data: { runId: "x" } });
+  assert.equal(handle.stats().approvalSyncs, 2);
+  handle.destroy();
+});

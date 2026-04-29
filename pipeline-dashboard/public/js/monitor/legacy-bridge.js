@@ -84,6 +84,10 @@
       // Slice MC2: count run-summary upserts so tests + readiness
       // checks can verify lifecycle event handling.
       runSyncs: 0,
+      // Slice UX-2-a: count approval lifecycle syncs. Increments on
+      // every approval_requested / approval_resolved that reached
+      // the store.
+      approvalSyncs: 0,
     };
     let unsubscribeTap = null;
     let intervalId = null;
@@ -155,8 +159,49 @@
       return true;
     }
 
+    // Slice UX-2-a: approval lifecycle event → store pendingApprovals.
+    // The hook-router's approvalManager broadcasts approval_requested
+    // (full request snapshot) and approval_resolved (just the
+    // approvalId + resolution) via the WS. Translate both into
+    // store.upsertApproval / store.resolveApproval.
+    //
+    // Returns true if the event was an approval lifecycle event so
+    // the caller can skip the normal pushEvent path (approval events
+    // shouldn't pollute the events ring — the inspector uses the
+    // pendingApprovals slice instead).
+    function _syncApprovalFromEvent(event) {
+      if (!event || typeof event !== "object") return false;
+      const type = event.type;
+      const data = (event.data && typeof event.data === "object") ? event.data : {};
+      if (type === "approval_requested") {
+        if (typeof store.upsertApproval !== "function") return true;
+        try {
+          store.upsertApproval(data);
+          stats.approvalSyncs = (stats.approvalSyncs || 0) + 1;
+        } catch (_) { /* defensive */ }
+        return true;
+      }
+      if (type === "approval_resolved") {
+        if (typeof store.resolveApproval !== "function") return true;
+        const id = data.approvalId;
+        if (typeof id === "string" && id.length > 0) {
+          try {
+            store.resolveApproval(id);
+            stats.approvalSyncs = (stats.approvalSyncs || 0) + 1;
+          } catch (_) { /* defensive */ }
+        }
+        return true;
+      }
+      return false;
+    }
+
     // ── 1. Wildcard tap → store.pushEvent + run sync ──
     function _onLegacyEvent(event) {
+      // Slice UX-2-a: approval events take precedence — they have
+      // their own slice (pendingApprovals) and don't go through the
+      // generic events ring. Skip pushEvent + run sync for them.
+      if (_syncApprovalFromEvent(event)) return;
+
       const env = normalize(event);
       if (!env) {
         stats.eventsDropped++;

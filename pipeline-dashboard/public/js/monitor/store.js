@@ -44,6 +44,54 @@
 })(typeof window !== "undefined" ? window : globalThis, function () {
   const DEFAULT_MAX_EVENTS = 200;
 
+  /**
+   * Slice UX-2-a — copy each samples-array so caller mutation of
+   * sample[type].push("...") doesn't leak into stored state. Shape:
+   *   { krn: ["...***...", ...], phone_kr_mobile: [...], ... }
+   */
+  function _cloneSamplesShape(samples) {
+    if (!samples || typeof samples !== "object") return {};
+    const out = {};
+    for (const [type, arr] of Object.entries(samples)) {
+      out[type] = Array.isArray(arr) ? [...arr] : [];
+    }
+    return out;
+  }
+
+  /**
+   * Slice UX-2-a — defensive copy of an approval request from the
+   * manager's broadcast envelope. Mirrors the manager's
+   * `_shallowClone` so the snapshot shape stays in lockstep.
+   * Args + samples are nested objects; defensive copies guard
+   * against caller mutation leaking into stored state.
+   */
+  function _shallowCloneApproval(r) {
+    return {
+      approvalId: r.approvalId,
+      hook: r.hook,
+      tool: r.tool,
+      args: r.args && typeof r.args === "object" ? { ...r.args } : {},
+      argsHash: r.argsHash,
+      argsSummary: r.argsSummary,
+      runId: r.runId,
+      hostIdentity: r.hostIdentity,
+      source: r.source,
+      piiContext: r.piiContext ? {
+        hasPii: !!r.piiContext.hasPii,
+        findingTypes: Array.isArray(r.piiContext.findingTypes)
+          ? [...r.piiContext.findingTypes] : [],
+        // Samples object: each value is an array of redacted strings.
+        // Deep-copy the arrays so caller mutation doesn't leak into
+        // stored state. Strings inside are immutable, so a shallow
+        // array copy at this level is sufficient.
+        samples: _cloneSamplesShape(r.piiContext.samples),
+      } : null,
+      timeoutMs: r.timeoutMs,
+      requestedAt: r.requestedAt,
+      expiresAt: r.expiresAt,
+    };
+  }
+
   function freshState() {
     return {
       server: null,                  // last /api/server/info or bootstrap summary
@@ -88,6 +136,17 @@
       // null until the first refresh lands; the global-bar shows
       // "(loading)" placeholders until then.
       accountStatus: null,
+      // Slice UX-2-a (R3-e + GOV-APPROVAL-0): pending operator
+      // approvals for write-tool dispatches. Map<approvalId, request>
+      // where request mirrors the manager's snapshot:
+      //   { approvalId, hook, tool, args, argsHash, argsSummary,
+      //     runId, hostIdentity, source, piiContext, timeoutMs,
+      //     requestedAt, expiresAt }
+      // Filled by the legacy-bridge translating WS approval_requested
+      // events; emptied on approval_resolved (no matter the
+      // resolution). Both Simple-Mode card + Advanced-Mode panel
+      // read this slice.
+      pendingApprovals: new Map(),
     };
   }
 
@@ -141,6 +200,12 @@
               remote: state.accountStatus.remote ? { ...state.accountStatus.remote } : null,
             }
           : null,
+        // Slice UX-2-a: defensive shallow copy of each pending
+        // approval. Sorted by requestedAt so the card UI displays
+        // oldest-first (operator deciding in arrival order).
+        pendingApprovals: Array.from(state.pendingApprovals.values())
+          .map((r) => _shallowCloneApproval(r))
+          .sort((a, b) => (a.requestedAt || 0) - (b.requestedAt || 0)),
       };
     }
 
@@ -356,6 +421,41 @@
       return snapshot();
     }
 
+    // ── Slice UX-2-a: pending-approval actions ───────────────────
+
+    function upsertApproval(request) {
+      // Tolerant input — broadcast envelope from the WS bridge
+      // hands us the manager's snapshot shape verbatim. Defensive
+      // shallow copy so the caller can't mutate the stored entry.
+      if (!request || typeof request !== "object") return snapshot();
+      const id = request.approvalId;
+      if (typeof id !== "string" || id.length === 0) return snapshot();
+      state.pendingApprovals.set(id, _shallowCloneApproval(request));
+      _publish();
+      return snapshot();
+    }
+
+    function resolveApproval(approvalId) {
+      // Single-arg signature — the manager's broadcastFn already
+      // includes resolution metadata in the approval_resolved event,
+      // but the store doesn't keep resolved entries (the audit chain
+      // does). UI shows "Resolved (granted by …)" toast via the
+      // legacy-bridge handler before the entry leaves the slice.
+      if (typeof approvalId !== "string" || approvalId.length === 0) return snapshot();
+      if (!state.pendingApprovals.has(approvalId)) return snapshot();
+      state.pendingApprovals.delete(approvalId);
+      _publish();
+      return snapshot();
+    }
+
+    function clearApprovals() {
+      // Used by reset() and on monitor close.
+      if (state.pendingApprovals.size === 0) return snapshot();
+      state.pendingApprovals.clear();
+      _publish();
+      return snapshot();
+    }
+
     function clearRunDetail(runId) {
       // Specific runId clears just that entry; null/undefined clears all
       // (used on monitor close + tab refresh).
@@ -404,6 +504,10 @@
       clearRunDetail,
       // Slice D3-b
       setAccountStatus,
+      // Slice UX-2-a: pending-approval slice (R3-e + GOV-APPROVAL-0)
+      upsertApproval,
+      resolveApproval,
+      clearApprovals,
       // testing aid
       _internal,
     };
