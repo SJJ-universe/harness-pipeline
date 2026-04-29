@@ -91,6 +91,14 @@ if (_remoteRunner.mode !== "off" && _remoteRunner.error === "token_missing") {
 // SAFE_KEY_NAMES allowlist preserves legitimate audit metadata
 // (secretCount, secretsInjected, secretIds, key — name not value).
 const { sanitizeAuditData } = require("./src/security/auditSanitizer");
+// Slice D3-a (Phase E1.5, 2026-04-29): resolve the deployment profile
+// once at boot so the /api/server/info account-status block can echo
+// it without re-resolving env per request. Frozen — every consumer
+// downstream (runners + profileSpawn) re-resolves at use-time, but
+// the operator-visible posture in the UI shouldn't flicker between
+// requests.
+const { resolveDeploymentProfile } = require("./src/policy/deploymentProfile");
+const _deploymentProfile = resolveDeploymentProfile();
 
 const evidenceLedger = new EvidenceLedger({
   rootDir: runsDir,
@@ -837,6 +845,25 @@ app.use("/api", createServerControlRoutes({
   // Operators can see live bridge throughput without grepping the
   // audit chain.
   hookRouter,
+  // Slice D3-a (Phase E1.5, 2026-04-29): account-status summaries
+  // for the monitor shell's global-bar 5-cell extension (D3-c) +
+  // settings-accounts modal (D3-d). Each dep is optional from the
+  // route module's POV — wiring all four here gives the UI a stable,
+  // ALWAYS-PRESENT contract:
+  //   profile.{activeId,activeLabel,count,credentialBackend}
+  //   deployment.{mode,publicSector,allowLocalExecutor,
+  //               allowPlaintextSecrets,requireSandboxWorkspace,
+  //               requirePiiScan}
+  //   bridge.{mode}        — off | report | dispatch
+  //   remote.{mode,activeRunnerCount}
+  profileStore,
+  credentialStore,
+  deploymentProfile: _deploymentProfile,
+  runnerRegistry: _remoteRunner.runnerRegistry,
+  bridgeMode: hookRouter && typeof hookRouter.getBridgeMode === "function"
+    ? hookRouter.getBridgeMode()
+    : null,
+  remoteMode: _remoteRunner.mode,
 }));
 app.use("/api", createCodexRoutes({
   codexRunner,
