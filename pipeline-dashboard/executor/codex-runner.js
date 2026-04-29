@@ -14,6 +14,12 @@
 const { spawn } = require("child_process");
 const dangerGate = require("../src/policy/dangerGate");
 const { filterSensitiveEnv } = require("../src/security/envFilter");
+// Slice D1-d (Phase E1, 2026-04-29): same profileSpawn integration
+// pattern as ClaudeRunner. See claude-runner.js for the full
+// rationale; mirror summary here for grep-friendliness.
+const { buildSpawnEnv } = require("../src/runtime/profileSpawn");
+const { resolveDeploymentProfile } = require("../src/policy/deploymentProfile");
+const { assertLocalExecutorAllowed } = require("../src/policy/publicSectorPolicy");
 
 const SECRET_PATTERNS = [
   /sk-[A-Za-z0-9_-]{20,}/g,
@@ -60,6 +66,13 @@ class CodexRunner {
     // calls registry.killAll('SIGTERM') so long-running codex critiques
     // (often 120s+) get a chance to wind down instead of orphaning.
     childRegistry = null,
+    // Slice D1-d (Phase E1, 2026-04-29): profile + credential layer.
+    // BOTH must be wired together for profileSpawn to engage.
+    profileStore = null,
+    credentialStore = null,
+    // Audit handle for emitting profile_spawn_env_built when profile-
+    // mode is active.
+    ledger = null,
   } = {}) {
     this.codexCommand = codexCommand;
     this.fallbackCommands = fallbackCommands || [
@@ -80,6 +93,9 @@ class CodexRunner {
     this.flushBytes = flushBytes;
     this.childSemaphore = childSemaphore;
     this.childRegistry = childRegistry;
+    this.profileStore = profileStore;
+    this.credentialStore = credentialStore;
+    this.ledger = ledger;
     this._resolvedSpec = null;
   }
 
@@ -112,180 +128,231 @@ class CodexRunner {
   }
 
   _tryExec(spec, prompt, opts = {}) {
-    const { timeoutMs, cwd, phaseId = null, iteration = 0, source = "phase" } = opts;
+    const { timeoutMs, cwd, phaseId = null, iteration = 0, source = "phase", profileId } = opts;
     return new Promise((resolve) => {
-      const args = [...spec.argsPrefix, "exec", "--full-auto", "--skip-git-repo-check"];
-      const policyDecision = dangerGate.evaluate({
-        type: "agent-run",
-        cmd: spec.cmd,
-        args,
-        cwd,
-        repoRoot: this.repoRoot,
-      });
-      if (policyDecision.decision === "block") {
-        return resolve(this._failure(policyDecision.reason));
-      }
-      const runId = this.runRegistry?.start({
-        kind: "codex",
-        input: { prompt },
-        policyDecision,
-      });
-      const startedAt = Date.now();
-
-      let child;
-      try {
-        child = this.spawn(resolveCommand(spec.cmd), args, {
-          stdio: ["pipe", "pipe", "pipe"],
-          windowsHide: true,
-          cwd: cwd || process.cwd(),
-          shell: process.platform === "win32",
-          // Slice P0 (Phase E, 2026-04-28): never inherit raw process.env.
-          // Pre-P0 the env option was omitted entirely (Node default =
-          // parent env inheritance) which leaked HARNESS_TOKEN +
-          // RUNNER_BOOTSTRAP_TOKEN + ANTHROPIC_API_KEY + GITHUB_TOKEN to
-          // the codex child. Phase E D1's profileSpawn layers profile-
-          // scoped credential inject ON TOP of this base.
-          env: filterSensitiveEnv(process.env),
-        });
-      } catch (err) {
-        const f = this._failure(`spawn failed (${spec.cmd}): ${err.message}`);
-        f._enoent = /ENOENT/i.test(err.message);
-        if (runId) this.runRegistry?.complete(runId, f);
-        return resolve(f);
-      }
-
-      // Slice S3 (Phase 3-S): track this codex spawn so server.js graceful
-      // shutdown can SIGTERM/SIGKILL it. Codex calls live up to 120s, so
-      // without this an Electron / dashboard close would orphan them.
-      this.childRegistry?.register(child, { label: "codex", runId });
-
-      // Write prompt via stdin and close
-      try {
-        child.stdin.on("error", () => {});
-        child.stdin.write(prompt);
-        child.stdin.end();
-      } catch (_) { /* close handler reports real reason */ }
-
-      // Final (bounded) buffers
-      const out = [];
-      const errChunks = [];
-      let finalOutBytes = 0;
-      let finalErrBytes = 0;
-      let stdoutTruncated = false;
-      let stderrTruncated = false;
-      // Live streaming buffers (cleared on each flush)
-      let liveOut = "";
-      let liveErr = "";
-      let flushTimer = null;
-      let settled = false;
-
-      const flush = () => {
-        if (!liveOut && !liveErr) return;
-        const stdoutPayload = liveOut ? this.redact(liveOut).slice(-this.maxLiveBytes) : "";
-        const stderrPayload = liveErr ? this.redact(liveErr).slice(-this.maxLiveBytes) : "";
-        const stream = liveOut && liveErr ? "mixed" : liveErr ? "stderr" : "stdout";
+      // Slice D1-d (Phase E1, 2026-04-29): wrap the body in an async
+      // IIFE so we can `await buildSpawnEnv(...)` between dangerGate
+      // and spawn(). Same pattern as ClaudeRunner; see claude-runner.js
+      // for the full design rationale. The outer try/catch catches any
+      // unexpected throw inside the async chain and resolves with a
+      // structured failure (the Promise constructor exposes no
+      // `reject`).
+      (async () => {
         try {
-          this.broadcast({
-            type: "codex_progress",
-            data: {
-              runId,
-              phase: phaseId,
-              iteration,
-              source,
-              stdout: stdoutPayload,
-              stderr: stderrPayload,
-              stream,
-              truncated: stdoutTruncated || stderrTruncated,
-              elapsedMs: Date.now() - startedAt,
-            },
+          const args = [...spec.argsPrefix, "exec", "--full-auto", "--skip-git-repo-check"];
+          const policyDecision = dangerGate.evaluate({
+            type: "agent-run",
+            cmd: spec.cmd,
+            args,
+            cwd,
+            repoRoot: this.repoRoot,
           });
-        } catch (_) { /* broadcast errors must not break codex execution */ }
-        liveOut = "";
-        liveErr = "";
-      };
+          if (policyDecision.decision === "block") {
+            return resolve(this._failure(policyDecision.reason));
+          }
 
-      const scheduleFlush = () => {
-        if (flushTimer) return;
-        flushTimer = setTimeout(() => { flushTimer = null; flush(); }, this.flushIntervalMs);
-      };
+          // Slice D1-d defense-in-depth: enforce public-sector policy
+          // here in addition to inside profileSpawn. If a future refactor
+          // bypasses profileSpawn, this catches it.
+          let spawnEnv;
+          let spawnEnvMeta = null;
+          try {
+            assertLocalExecutorAllowed(resolveDeploymentProfile());
+            if (this.profileStore && this.credentialStore) {
+              const resolvedProfileId = profileId || this.profileStore.getActiveId();
+              const built = await buildSpawnEnv({
+                parentEnv: process.env,
+                profileId: resolvedProfileId,
+                profileStore: this.profileStore,
+                credentialStore: this.credentialStore,
+              });
+              spawnEnv = built.env;
+              spawnEnvMeta = built;
+            } else {
+              spawnEnv = filterSensitiveEnv(process.env);
+            }
+          } catch (err) {
+            const f = this._failure(`spawn env build failed: ${err.message}`);
+            if (err.code) f.code = err.code;
+            return resolve(f);
+          }
 
-      const timer = setTimeout(() => {
-        if (settled) return;
-        try { child.kill(); } catch (_) {}
-      }, timeoutMs || this.defaultTimeoutMs);
+          const runId = this.runRegistry?.start({
+            kind: "codex",
+            input: { prompt },
+            policyDecision,
+          });
+          const startedAt = Date.now();
 
-      child.stdout.on("data", (chunk) => {
-        const text = chunk.toString();
-        if (finalOutBytes < this.maxFinalStdoutBytes) {
-          out.push(chunk);
-          finalOutBytes += chunk.length;
-          if (finalOutBytes >= this.maxFinalStdoutBytes) stdoutTruncated = true;
-        } else {
-          stdoutTruncated = true;
+          // D1-d: emit profile_spawn_env_built audit when in profile mode.
+          if (spawnEnvMeta && spawnEnvMeta.profileId && this.ledger) {
+            try {
+              this.ledger.append("system", {
+                type: "profile_spawn_env_built",
+                data: {
+                  profileId: spawnEnvMeta.profileId,
+                  workspacePath: spawnEnvMeta.workspacePath,
+                  secretsInjected: spawnEnvMeta.secretsInjected,
+                  runner: "codex",
+                  runId: runId || null,
+                },
+              });
+            } catch (_) { /* best-effort */ }
+          }
+
+          let child;
+          try {
+            child = this.spawn(resolveCommand(spec.cmd), args, {
+              stdio: ["pipe", "pipe", "pipe"],
+              windowsHide: true,
+              cwd: cwd || process.cwd(),
+              shell: process.platform === "win32",
+              env: spawnEnv,
+            });
+          } catch (err) {
+            const f = this._failure(`spawn failed (${spec.cmd}): ${err.message}`);
+            f._enoent = /ENOENT/i.test(err.message);
+            if (runId) this.runRegistry?.complete(runId, f);
+            return resolve(f);
+          }
+
+          // Slice S3 (Phase 3-S): track this codex spawn so server.js graceful
+          // shutdown can SIGTERM/SIGKILL it. Codex calls live up to 120s, so
+          // without this an Electron / dashboard close would orphan them.
+          this.childRegistry?.register(child, { label: "codex", runId });
+
+          // Write prompt via stdin and close
+          try {
+            child.stdin.on("error", () => {});
+            child.stdin.write(prompt);
+            child.stdin.end();
+          } catch (_) { /* close handler reports real reason */ }
+
+          // Final (bounded) buffers
+          const out = [];
+          const errChunks = [];
+          let finalOutBytes = 0;
+          let finalErrBytes = 0;
+          let stdoutTruncated = false;
+          let stderrTruncated = false;
+          // Live streaming buffers (cleared on each flush)
+          let liveOut = "";
+          let liveErr = "";
+          let flushTimer = null;
+          let settled = false;
+
+          const flush = () => {
+            if (!liveOut && !liveErr) return;
+            const stdoutPayload = liveOut ? this.redact(liveOut).slice(-this.maxLiveBytes) : "";
+            const stderrPayload = liveErr ? this.redact(liveErr).slice(-this.maxLiveBytes) : "";
+            const stream = liveOut && liveErr ? "mixed" : liveErr ? "stderr" : "stdout";
+            try {
+              this.broadcast({
+                type: "codex_progress",
+                data: {
+                  runId,
+                  phase: phaseId,
+                  iteration,
+                  source,
+                  stdout: stdoutPayload,
+                  stderr: stderrPayload,
+                  stream,
+                  truncated: stdoutTruncated || stderrTruncated,
+                  elapsedMs: Date.now() - startedAt,
+                },
+              });
+            } catch (_) { /* broadcast errors must not break codex execution */ }
+            liveOut = "";
+            liveErr = "";
+          };
+
+          const scheduleFlush = () => {
+            if (flushTimer) return;
+            flushTimer = setTimeout(() => { flushTimer = null; flush(); }, this.flushIntervalMs);
+          };
+
+          const timer = setTimeout(() => {
+            if (settled) return;
+            try { child.kill(); } catch (_) {}
+          }, timeoutMs || this.defaultTimeoutMs);
+
+          child.stdout.on("data", (chunk) => {
+            const text = chunk.toString();
+            if (finalOutBytes < this.maxFinalStdoutBytes) {
+              out.push(chunk);
+              finalOutBytes += chunk.length;
+              if (finalOutBytes >= this.maxFinalStdoutBytes) stdoutTruncated = true;
+            } else {
+              stdoutTruncated = true;
+            }
+            liveOut += text;
+            if (liveOut.length + liveErr.length >= this.flushBytes) flush();
+            else scheduleFlush();
+          });
+
+          child.stderr.on("data", (chunk) => {
+            const text = chunk.toString();
+            if (finalErrBytes < this.maxFinalStderrBytes) {
+              errChunks.push(chunk);
+              finalErrBytes += chunk.length;
+              if (finalErrBytes >= this.maxFinalStderrBytes) stderrTruncated = true;
+            } else {
+              stderrTruncated = true;
+            }
+            liveErr += text;
+            if (liveOut.length + liveErr.length >= this.flushBytes) flush();
+            else scheduleFlush();
+          });
+
+          child.on("error", (err) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
+            // S3: drop registry entry — child is gone, no SIGTERM needed.
+            this.childRegistry?.unregister(child);
+            const f = this._failure(`spawn error (${spec.cmd}): ${err.message}`);
+            f._enoent = /ENOENT/i.test(err.message);
+            if (runId) this.runRegistry?.complete(runId, f);
+            resolve(f);
+          });
+
+          child.on("close", (code) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
+            // S3: codex completed normally — registry no longer tracks this child.
+            this.childRegistry?.unregister(child);
+            flush(); // final live flush
+            const rawStdout = Buffer.concat(out).toString("utf-8");
+            const rawStderr = Buffer.concat(errChunks).toString("utf-8");
+            const stdout = this.redact(rawStdout);
+            const stderr = this.redact(rawStderr);
+            const enoentLike =
+              code !== 0 &&
+              /(is not recognized|command not found|ENOENT|not found|'codex'|no such file)/i.test(
+                stderr + stdout
+              ) && (stdout.length < 2000);
+            const result = {
+              ok: code === 0,
+              exitCode: code,
+              stdout,
+              stderr,
+              stdoutTruncated,
+              stderrTruncated,
+              summary: this._extractSummary(stdout),
+              findings: this._extractFindings(stdout),
+              _enoent: enoentLike,
+            };
+            if (runId) this.runRegistry?.complete(runId, result);
+            resolve(result);
+          });
+        } catch (err) {
+          // D1-d: catch-all for unexpected throws inside the async IIFE.
+          resolve(this._failure(`unexpected error: ${err.message}`));
         }
-        liveOut += text;
-        if (liveOut.length + liveErr.length >= this.flushBytes) flush();
-        else scheduleFlush();
-      });
-
-      child.stderr.on("data", (chunk) => {
-        const text = chunk.toString();
-        if (finalErrBytes < this.maxFinalStderrBytes) {
-          errChunks.push(chunk);
-          finalErrBytes += chunk.length;
-          if (finalErrBytes >= this.maxFinalStderrBytes) stderrTruncated = true;
-        } else {
-          stderrTruncated = true;
-        }
-        liveErr += text;
-        if (liveOut.length + liveErr.length >= this.flushBytes) flush();
-        else scheduleFlush();
-      });
-
-      child.on("error", (err) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
-        // S3: drop registry entry — child is gone, no SIGTERM needed.
-        this.childRegistry?.unregister(child);
-        const f = this._failure(`spawn error (${spec.cmd}): ${err.message}`);
-        f._enoent = /ENOENT/i.test(err.message);
-        if (runId) this.runRegistry?.complete(runId, f);
-        resolve(f);
-      });
-
-      child.on("close", (code) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
-        // S3: codex completed normally — registry no longer tracks this child.
-        this.childRegistry?.unregister(child);
-        flush(); // final live flush
-        const rawStdout = Buffer.concat(out).toString("utf-8");
-        const rawStderr = Buffer.concat(errChunks).toString("utf-8");
-        const stdout = this.redact(rawStdout);
-        const stderr = this.redact(rawStderr);
-        const enoentLike =
-          code !== 0 &&
-          /(is not recognized|command not found|ENOENT|not found|'codex'|no such file)/i.test(
-            stderr + stdout
-          ) && (stdout.length < 2000);
-        const result = {
-          ok: code === 0,
-          exitCode: code,
-          stdout,
-          stderr,
-          stdoutTruncated,
-          stderrTruncated,
-          summary: this._extractSummary(stdout),
-          findings: this._extractFindings(stdout),
-          _enoent: enoentLike,
-        };
-        if (runId) this.runRegistry?.complete(runId, result);
-        resolve(result);
-      });
+      })();
     });
   }
 
