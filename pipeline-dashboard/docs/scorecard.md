@@ -2,7 +2,7 @@
 
 ## Current Score
 
-**109 / 118** (Phase 2.5 multi-run + Phase 3-S security + Phase D MA0~MA7 monitor shell + Phase D Round 2 MB1~MB6 backfill + Phase D Round 2.5 MC1~MC5 live wiring + MA7 UI-3 rewrite readiness + Phase D Round MD readiness automation + Phase D Round ME CI hygiene + Phase D Round MF P4 design RFC + Phase D Round MG P4 implementation RFC + **Phase D R1 a~i + e + g + g+ — full remote runner subsystem** + **Phase D R1-k1/k2/k3 — external review correctness round** + **Phase D R2 — single-runner deployment evaluation (live verified)** + **Phase D R2.5 — controlled remote execution bridge with allowlist + sanitization + full audit narrative** + **Phase E1 D0-a~e — productization launcher (harness-start.bat/.sh + atomic install + https-only manifest URL + port-squat defense)** + **Phase E1 D1-a~g — profile + credential + spawn rewiring + public-sector policy baseline + audit sanitizer** + **Phase E1.5 GOV-SB-0 — sandbox-only execution + local_executor_blocked audit emission** + **Phase E1.5 GOV-PII-0 — KR-focused inline PII gate with public-sector block / standard warn** + **Phase E1.5 D2-a~d — first-run setup wizard with cliProbe + 3-tier providerProbe + 5-endpoint setupRoutes + interactive Node wizard with standard / public-sector dual tracks** + **Phase E1.5 D3-a~d — UI account-status surface: server-info account block + monitor-store accountStatus slice + global-bar 4 new cells + settings-accounts modal with test/switch/delete**; MD2 extended Testability cap 10 → 11; R1-j extended Safety cap 15 → 16; R2 extended Safety cap 16 → 17; R2.5 extends Safety cap 17 → 18; D0-e extends Config/portability cap 5 → 8; D1-g extends Config/portability cap 8 → 10; **D2 fills Config/portability cap 9 → 10 — operator double-clicks `harness-start.bat`, the wizard discovers Claude/Codex CLIs, builds an agency-managed or personal profile, and sets it active**; **D3 fills UI feedback loop cap 6 → 7 — operator sees posture / profile / bridge / remote at-a-glance in the global bar AND manages profiles via the settings modal (test Claude / test Codex / switch / delete) without leaving the dashboard**; **E1.5 introduces a new Public-sector readiness cap 3 with score 2 — sandbox-only enforcement + inline PII gate live-verified, deep-scan + auditor evidence + signed distribution deferred to later GOV-* slices**)
+**110 / 118** (Phase 2.5 multi-run + Phase 3-S security + Phase D MA0~MA7 monitor shell + Phase D Round 2 MB1~MB6 backfill + Phase D Round 2.5 MC1~MC5 live wiring + MA7 UI-3 rewrite readiness + Phase D Round MD readiness automation + Phase D Round ME CI hygiene + Phase D Round MF P4 design RFC + Phase D Round MG P4 implementation RFC + **Phase D R1 a~i + e + g + g+ — full remote runner subsystem** + **Phase D R1-k1/k2/k3 — external review correctness round** + **Phase D R2 — single-runner deployment evaluation (live verified)** + **Phase D R2.5 — controlled remote execution bridge with allowlist + sanitization + full audit narrative** + **Phase E1 D0-a~e — productization launcher (harness-start.bat/.sh + atomic install + https-only manifest URL + port-squat defense)** + **Phase E1 D1-a~g — profile + credential + spawn rewiring + public-sector policy baseline + audit sanitizer** + **Phase E1.5 GOV-SB-0 — sandbox-only execution + local_executor_blocked audit emission** + **Phase E1.5 GOV-PII-0 — KR-focused inline PII gate with public-sector block / standard warn** + **Phase E1.5 D2-a~d — first-run setup wizard with cliProbe + 3-tier providerProbe + 5-endpoint setupRoutes + interactive Node wizard with standard / public-sector dual tracks** + **Phase E1.5 D3-a~d — UI account-status surface: server-info account block + monitor-store accountStatus slice + global-bar 4 new cells + settings-accounts modal with test/switch/delete** + **Phase E1.5 GOV-PII-1-a/b — deep file-import scan: piiScanner depth selector + 사업자등록번호 (BRN with check digit) + 한국 운전면허 + 한국 여권 + /api/security/scan endpoint + pii_file_scan_blocked / pii_file_scan_warn audit verbs**; MD2 extended Testability cap 10 → 11; R1-j extended Safety cap 15 → 16; R2 extended Safety cap 16 → 17; R2.5 extends Safety cap 17 → 18; D0-e extends Config/portability cap 5 → 8; D1-g extends Config/portability cap 8 → 10; **D2 fills Config/portability cap 9 → 10 — operator double-clicks `harness-start.bat`, the wizard discovers Claude/Codex CLIs, builds an agency-managed or personal profile, and sets it active**; **D3 fills UI feedback loop cap 6 → 7 — operator sees posture / profile / bridge / remote at-a-glance in the global bar AND manages profiles via the settings modal (test Claude / test Codex / switch / delete) without leaving the dashboard**; **E1.5 introduces a new Public-sector readiness cap 3 — GOV-SB-0 sandbox-only enforcement + GOV-PII-0 inline PII gate + GOV-PII-1 deep file-import scan all live-verified; cap fully filled at 3/3**)
 
 Trajectory:
 - v3.1 hardening — 87
@@ -31,6 +31,7 @@ Trajectory:
 - **Phase E1.5 GOV-PII-0** (inline KR-focused PII gate before provider dispatch — `src/security/piiScanner.js` (333-line fast detector: 주민등록번호 with check-digit + birth-date + gender-code validation, Korean mobile/landline phone, email, credit card with Luhn; PATTERNS frozen registry; samples ALREADY redacted at the scanner level so audit chain never carries raw PII; 4KB scan completes in <1ms, spec ceiling 50ms) + `src/security/piiGate.js` (159-line pure decision function — `enforcePiiGate(text, {deploymentProfile, source})` returns `{ok, blocked, scan, reason, auditVerb, auditData}`; public-sector → `pii_scan_blocked` row + spawn refused; standard → `pii_scan_warn` row + spawn proceeds; fail-closed on either `requirePiiScanBeforeProviderDispatch=true` OR `scannerFailurePolicy="block"` signal) + runner integration in claude-runner.js + codex-runner.js (gate fires inline immediately after `buildSpawnEnv` and before `spawn()`; verdict's auditVerb decides which row fires; on block resolves with `code: "PII_SCAN_BLOCKED"` and unwinds runRegistry start). +49 unit + 6 integration tests, all green; counts 1455 → 1504 unit / 300 → 306 integration. Live-verified end-to-end via `gov-pii-block.test.js`: standard mode + KRN prompt → spawn proceeds + `pii_scan_warn` audit, public-sector + KRN prompt → spawn refused + audit) — **107/118** (Public-sector readiness 1 → 2; remaining 1 star reserved for GOV-PII-1 deep-scan when an attachment lands on disk; `pii_scan_blocked` is now the second public-sector audit verb on the deny path, joining `local_executor_blocked` from GOV-SB-0)
 - **Phase E1.5 D2-a/b/c/d** (first-run setup wizard — `src/runtime/cliProbe.js` cross-platform `where`/`which` with strict CLI-name allowlist + shell:false baseline + 5s default timeout; `src/runtime/providerProbe.js` 3-tier probe (installed → authenticated → canRun) with public-sector defense-in-depth refusal, frozen ERROR_CODES + PROBE_MODES + TIER_TIMEOUT_MS + RUNNER_CONFIG (claude/codex), version + accountLabel parsers, fail-closed `RATE_LIMITED` detection on tier 3; `src/routes/setupRoutes.js` 5-endpoint HTTP API (`POST /api/setup/{probe-node, probe-cli, probe-provider, probe-workspace, finalize}`) with tier-3-requires-consent gate, profileId 404, profileStore-not-wired 503, public-sector violation 400 with `details[]`, active-run 409 + `setup_finalize_blocked` audit; `scripts/setup-wizard.js` 608-line interactive Node wizard with **standard track** (8 steps: Node/Claude CLI/Codex CLI/profile/workspace/optional auth tests/finalize) and **public-sector track** (skips local CLI discovery; collects agency-managed accountType + sandbox workspaceMode + dataClassification + egressPolicyId; REQUIRES three operator acknowledgments — sandbox runner configured / PII scanner active / trusted internal release — before finalize); `scripts/setup-wizard.{ps1,sh}` thin wrappers (35-40 lines each) that resolve sibling .js + Node sanity check + arg pass-through. End-to-end verified via stub fetch + stub prompt across both tracks. +52 unit / +24 integration / +17 smoke tests, all green) — **108/118** (Config/portability cap 9 → 10 fully filled — D0-e was 6/8, D1-g lifted cap to 10 with 9/10 score, D2 closes the last point with the operator-facing wizard. Public-sector readiness stays 2/3 — the wizard's public-sector track collects fields and acknowledgments but doesn't yet probe sandbox-runner connectivity or perform deep-scan; those live behind future GOV-* slices)
 - **Phase E1.5 D3-a/b/c/d** (UI account-status surface — server contract + store slice + global bar + operator modal threaded into one round. `src/routes/serverControlRoutes.js` (D3-a) extends `/api/server/info` with 4 ADDITIVE blocks: `profile {activeId, activeLabel, count, credentialBackend}` + `deployment {mode, publicSector, allowLocalExecutor, allowPlaintextSecrets, requireSandboxWorkspace, requirePiiScan}` + `bridge {mode}` + `remote {mode, activeRunnerCount}`. Stable-shape contract — every block is ALWAYS present even when its dep is missing; defensive try/catch around every dep means an observability path can NEVER break the info endpoint. `public/js/monitor/store.js` (D3-b) adds `accountStatus` slice with partial-friendly `setAccountStatus({profile, deployment, bridge, remote})` — missing sub-blocks preserve last-known-good (a partial poll response from a future server change can't wipe state). Defensive shallow copies in snapshot prevent mutation reaching back into store state. `public/js/monitor/legacy-bridge.js` (D3-b) refresh() maps the four blocks to ONE setAccountStatus call per poll (single re-render), only fires when at least one D3 block is present (legacy server response doesn't clobber state). `public/js/monitor/panels/global-bar.js` (D3-c) adds 4 cells: `profile` (active label + "+N" suffix or "(setup)" + warn tone), `posture` (standard / public-sector with ERROR tone for public-sector + flag summary tooltip), `bridge` (off/report/dispatch with WARN tone for dispatch), `remote` (off/preview/on with active runner count + WARN when count > 0; singular/plural noun in tooltip). `public/js/monitor/panels/settings-accounts.js` (D3-d, 370 lines) is the operator-facing modal that lets the operator manage profiles: list all profiles with active marker, Test Claude / Test Codex per profile via `/api/setup/probe-provider mode=tier1+2` (no token spend, result cached panel-local), Switch profile (POST `/api/profiles/:id/switch` with 409 active-run toast), Delete profile (DELETE with `window.confirm()` guard so accidental click can't wipe a profile), PUBLIC_SECTOR_BLOCKED test result → operator-readable toast routing to "use sandbox runner". `public/js/monitor/layout.js` (D3-d) mounts the settings panel into a hidden region; global-bar Settings button toggles `is-hidden` so the test result cache + in-flight fetches survive close. `public/index.html` adds the panel script before layout.js (CSP-safe external src). +52 unit + 18 integration tests, all green) — **109/118** (UI feedback loop cap 6 → 7 fully filled — operator now sees posture / profile / bridge / remote at-a-glance AND manages profiles without leaving the dashboard. End-to-end verified via stub fetch + JSDOM-style DOM stubs; account-status flows from server-info → store slice → global-bar cells AND through the settings modal's per-profile actions. Public-sector readiness stays 2/3 — D3 exposes existing posture state but doesn't add a defense layer)
+- **Phase E1.5 GOV-PII-1-a/b** (deep file-import PII scan — `src/security/piiScanner.js` extended with depth selector (`opts.depth: "inline" | "deep"`, default "inline" for GOV-PII-0 backwards compat) + 3 KR-focused deep patterns: 사업자등록번호 with full check-digit validation per Korean tax authority spec (10 digits, weights [1,3,7,1,3,7,1,3,5] + floor((d8*5)/10) step), 한국 운전면허번호 (12 digit format-only match), 한국 여권번호 (M/S + 8 digits with anchored lookarounds). PATTERNS registry now 8 entries (5 inline + 3 deep), all frozen. INLINE_PATTERN_TYPES + DEEP_PATTERN_TYPES exported as frozen wire-format locks. `src/routes/securityRoutes.js` (NEW, 196 lines) with one endpoint: `POST /api/security/scan` accepts `{ content, filename?, source?, depth? }` body, emits `pii_file_scan_blocked` (public-sector posture) or `pii_file_scan_warn` (standard) with already-redacted samples in the audit data — clean scans emit NO audit row (audit chain stays quiet). Default depth is "deep" for the file-import context (operator opts INTO the deeper set when calling /api/security/scan). 1MB content cap via express.json + route guard. Posture decision mirrors GOV-PII-0 piiGate fail-closed semantics: ANY signal (requirePiiScanBeforeProviderDispatch=true OR scannerFailurePolicy="block") triggers block. server.js wires evidenceLedger + boot-resolved deploymentProfile. End-to-end verified via 25 unit + 19 integration tests, all green. BRN samples are pre-redacted at the scanner level — audit chain never carries raw PII) — **110/118** (Public-sector readiness cap 2 → 3 fully filled — three live-verified defense layers stack: GOV-SB-0 enforces sandbox-only execution with audit emission, GOV-PII-0 gates the inline pre-dispatch path, GOV-PII-1 catches PII when an attachment lands on disk via the explicit /api/security/scan endpoint. The new `pii_file_scan_*` verb prefix lets auditors distinguish inline-prompt detections from file-content detections without re-parsing the audit chain. Operator UX: D3 settings modal already wires "Test Claude / Test Codex" — a future GOV-* slice can extend the modal with "Scan File" using this same endpoint)
 - **Phase E1 D0-a/b/c/d/e** (productization launcher — `harness-start.bat` UTF-8 BOM + CRLF Windows entry / `harness-start.sh` Mac-Linux entry / `scripts/launcher/{install-version,check-update}.{ps1,sh}` thin shells / `scripts/launcher/launcher-cli.js` ~250-line Node bridge that PowerShell + bash share for SHA256 + semver + path resolution + manifest validation + URL scheme check + health discriminator. D0-a `configPaths.js` + `launcherManifest.js` (43 unit tests). D0-b/c/d ship the platform shells + 16 smoke tests + operator guide. D0-e closes 4 production-readiness gaps: https-only manifest URL with `HARNESS_ALLOW_INSECURE_MANIFEST_URL=1` escape hatch; bash sites unified through `manifest-field` (no more inline `node -e require(...)` quoting fragility); atomic install via `<Version>.partial-<ts>` staging + `.install-complete` sentinel last; `/api/health` discriminator `app:"HarnessPipeline" + healthVersion:1` + `verify-health` CLI so port-squat services can't trick the launcher into "already running" treatment. cmd.exe trap catalog grew during D0-b: `::` inside `( ... )` blocks → use `rem`; `set /p var=<file` inside parens → use `for /f "usebackq"`; `timeout /t 1` aborts under redirected stdin → use `ping -n 2`; unescaped `)` in `echo` lines inside `( ... )` blocks → escape via `^)`. `.gitattributes` pins `*.bat`/`*.ps1` → CRLF and `*.sh` → LF so Windows cloners with `core.autocrlf=true` don't break the bash launchers) — **104/113** (Config/portability cap extended 5 → 8 — captures the qualitative shift from "developer runs `node start.js` from a checked-out repo" to "operator double-clicks `harness-start.bat` from a release zip")
 
 Target after Phase 3 (D platformization): **103+**.
@@ -478,20 +479,20 @@ GOV-PII-0 deferred for false-positive control) OR GOV-AUDIT-0
 (auditor evidence export) — whichever lands first in a future
 public-sector hardening round.
 
-| Area | Pre-E1.5 max | Post-E1.5 max | Pre-D2 score | Post-D2 score | **Post-D3 score** |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Pipeline orchestration and phase model | 15 | 15 | 15 | 15 | 15 |
-| State, artifacts, and quality gates | 15 | 15 | 15 | 15 | 15 |
-| Dual-agent integration | 10 | 10 | 10 | 10 | 10 |
-| Directive control and tool gating | 10 | 10 | 9 | 9 | 9 |
-| Safety and security boundary | 18 | 18 | 18 | 18 | 18 |
-| Observability and runtime proof | 10 | 10 | 10 | 10 | 10 |
-| Testability and regression suite | 11 | 11 | 11 | 11 | 11 |
-| Config, portability, onboarding | 10 | 10 | 9 | 10 | 10 |
-| UI feedback loop | 7 | 7 | 6 | 6 | **7** |
-| Maintainability and modularity | 8 | 8 | 6 | 6 | 6 |
-| Public-sector readiness | 0 | 3 | 2 | 2 | 2 |
-| **Total** | **115** | **118** | **107** | **108** | **109** |
+| Area | Pre-E1.5 max | Post-E1.5 max | Pre-D2 score | Post-D2 score | Post-D3 score | **Post-GOV-PII-1 score** |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Pipeline orchestration and phase model | 15 | 15 | 15 | 15 | 15 | 15 |
+| State, artifacts, and quality gates | 15 | 15 | 15 | 15 | 15 | 15 |
+| Dual-agent integration | 10 | 10 | 10 | 10 | 10 | 10 |
+| Directive control and tool gating | 10 | 10 | 9 | 9 | 9 | 9 |
+| Safety and security boundary | 18 | 18 | 18 | 18 | 18 | 18 |
+| Observability and runtime proof | 10 | 10 | 10 | 10 | 10 | 10 |
+| Testability and regression suite | 11 | 11 | 11 | 11 | 11 | 11 |
+| Config, portability, onboarding | 10 | 10 | 9 | 10 | 10 | 10 |
+| UI feedback loop | 7 | 7 | 6 | 6 | 7 | 7 |
+| Maintainability and modularity | 8 | 8 | 6 | 6 | 6 | 6 |
+| Public-sector readiness | 0 | 3 | 2 | 2 | 2 | **3** |
+| **Total** | **115** | **118** | **107** | **108** | **109** | **110** |
 
 ## Phase D R2 progress (single-runner deployment evaluation)
 
@@ -1330,7 +1331,100 @@ Test counts cumulative across D3: 1577 → 1622 unit (+45),
 330 → 348 integration (+18), smoke unchanged.
 All gates green.
 
-## What 109 means
+## Phase E1.5 GOV-PII-1 progress (Deep file-import scan — GOV-PII-1-a, GOV-PII-1-b)
+
+Closes the third star of the Public-sector readiness cap. With
+GOV-SB-0 enforcing sandbox-only execution (audit row
+`local_executor_blocked`) and GOV-PII-0 gating the inline pre-
+dispatch path (audit row `pii_scan_blocked` / `_warn`), GOV-PII-1
+catches PII at the file-import boundary — when an attachment lands
+on disk for an agency-managed workspace, or when an operator runs
+an explicit content audit via curl / settings UI.
+
+- **GOV-PII-1-a — piiScanner depth selector + 3 KR deep patterns**:
+    - `scanForPii(text, opts.depth)` accepts "inline" (GOV-PII-0 fast
+      5-pattern set, default) or "deep" (8 patterns: inline + BRN +
+      driver license + passport).
+    - 사업자등록번호 (BRN) with full check digit per Korean tax
+      authority spec — Luhn-equivalent precision: BRN-shaped
+      sequences with bad check digit are rejected. Algorithm:
+      weights [1,3,7,1,3,7,1,3,5] applied to first 9 digits + a
+      `floor(digit[8]*5/10)` step. Severity: high.
+    - 한국 운전면허번호 (12-digit format match, no check digit —
+      false-positive risk acceptable in deep tier where operator
+      already opted into a content scan). Severity: high.
+    - 한국 여권번호 (M/S + 8 digits with anchored lookarounds so
+      a passport-shaped token embedded in a longer alphanumeric
+      identifier doesn't match). Severity: critical.
+    - PATTERNS registry: 8 entries (5 inline + 3 deep), all frozen.
+    - INLINE_PATTERN_TYPES + DEEP_PATTERN_TYPES exported as frozen
+      wire-format locks.
+    - Backwards compat: GOV-PII-0 callers (claude-runner, codex-runner,
+      piiGate) keep the inline-only behavior. BRN / driver license /
+      passport are INVISIBLE under default depth — explicit
+      `depth: "deep"` opts in.
+    - Sample redaction: BRN samples pre-redacted at the scanner
+      level (first 2 + last 2 chars + asterisks). Audit chain never
+      carries raw PII.
+    - +25 unit tests (33 → 58 in piiScanner.test.js): BRN check
+      digit positive/negative/format, KR driver license, KR
+      passport (M/S + anchored), depth selector contract, frozen
+      exports, redactPii honors depth.
+
+- **GOV-PII-1-b — `/api/security/scan` HTTP endpoint**:
+    - `src/routes/securityRoutes.js` (NEW, 196 lines).
+    - One endpoint: `POST /api/security/scan` accepts
+      `{ content, filename?, source?, depth? }` and emits one of:
+        - `pii_file_scan_blocked` — public-sector + hasPii
+        - `pii_file_scan_warn`    — standard + hasPii
+        - (no audit verb) — clean scan (audit chain stays quiet
+          under normal operation)
+    - Default depth "deep" — operator calling /api/security/scan
+      is opting INTO a file-content scan, so the deeper 8-pattern
+      set is the expected behavior. Operator can pass
+      `depth: "inline"` to fall back to the GOV-PII-0 fast set.
+    - Posture decision mirrors GOV-PII-0 piiGate fail-closed
+      semantics: ANY signal (`requirePiiScanBeforeProviderDispatch=true`
+      OR `scannerFailurePolicy="block"`) triggers block.
+    - Defenses: 1MB body cap (express.json + route guard), scanner
+      throw → 500 with operator-readable error, missing
+      deploymentProfile → standard posture (UI safety), invalid
+      depth value → defaults to "deep", non-string content → 400
+      content_required.
+    - Audit data shape (already-redacted samples per scanner):
+      `{ source, filename, sizeBytes, depth, findingCount,
+         findingTypes, samples: { [type]: [redacted excerpts] } }`
+    - server.js wires `evidenceLedger` (signed + sanitized chain)
+      + `_deploymentProfile` (boot-resolved, frozen).
+    - +19 integration tests (`security-scan.test.js`): body
+      validation, depth selector, posture-driven block + warn,
+      clean scan no-audit, audit data shape, response shape lock,
+      back-compat (no deploymentProfile), fail-closed (one signal),
+      scanner exception, frozen exports.
+
+GOV-PII-1 cap movement (109 → 110):
+  Public-sector readiness cap 2 → 3 fully filled. The three live-
+  verified defense layers stack at distinct lifecycle moments:
+    GOV-SB-0   — at runtime when a local provider would spawn
+    GOV-PII-0  — at runtime when a prompt is about to dispatch
+    GOV-PII-1  — at file-content boundary (explicit operator op)
+  The new `pii_file_scan_*` verb prefix sits alongside GOV-PII-0's
+  `pii_scan_*` so auditors triaging a forensic event distinguish
+  inline-prompt detections from file-content detections without
+  re-parsing the audit chain.
+
+What's NOT in GOV-PII-1 (deferred to future GOV-* slices):
+  - GOV-AUDIT-0 auditor evidence export (per-run forensic packet)
+  - GOV-RELEASE-0 signed/offline distribution
+  - GOV-SANDBOX-PROBE sandbox runner connectivity (auto-verify
+    public-sector wizard's first ack)
+  - "Scan File" UI in D3-d settings modal (the endpoint is wired;
+    the operator UI is a follow-up)
+
+Test counts cumulative across GOV-PII-1: 1622 → 1647 unit (+25),
+348 → 367 integration (+19). All gates green.
+
+## What 110 means
 
 Single-user local harness with multi-run isolation, hardened external-input boundaries, AND a monitoring-first opt-in console with live data flow + agent observability + per-run detail contract + flow-level readiness rubric + behavior-verified readiness scoring + auto-derived doc trust + dispatcher-driven extraction pattern + CI-enforced regression protection + **a complete remote-execution design RFC** + **a complete implementation RFC with concrete tech decisions for runtime / image / JWT / ledger / control plane / network egress / bootstrap / failure recovery** + **the orchestrator-side primitives of remote mode actually shipped — JWT module + signed audit ledger + runner registry + handshake/heartbeat/hook routes + Dockerfile + server.js wiring + 6th readiness rubric category (remote-isolation, behavior-verified)** + **the runner-host primitives that complete the remote subsystem — WS path-aware demux + connection-lifecycle handler + `RunnerAgent` Node entrypoint + WS message protocol + `childRegistry` remote projection + readiness Star 3 upgraded to live runner→orchestrator round-trip** + **external-review correctness hardening — composite-key remote children with stop-path ownership verify + hook success audit-chain entries + runner-agent env validation that fails fast on bad numeric env** + **R2 single-runner deployment evaluation completed — all MF1 §4.1 gates G1-G9 verified live on the operator's Docker Desktop with repeatable probe scripts; 8 latent bugs surfaced and fixed** + **R2.5 controlled remote execution bridge — sanitized hooks now drive the local executor under an opt-in feature flag, with allowlist (5 hooks × 3 read-only tools), pure sanitizer with prototype-pollution resistance, and a 5-verb audit narrative (routed → rejected | sanitized → dispatched | dispatch_error). G4 hook ingress auth lifted from "partial PASS" to "full PASS"; runner-claimed runs are first-class in `/api/monitor/runs/:runId`**. The next-round work splits into two complementary axes: **R3 multi-runner pool + Linux host** for the layer 2/3 egress enforcement R2-4 left open, and a **per-call approval flow** before opening Bash / Write / Edit through the bridge. **R3-0 (plan) + R3-a (two-network topology) + R3-c (multi-runner pool primitives) landed**. R3-0 locked the gates; R3-a closes R2-4's dashboard host port gap (orchestrator dual-homed; strict override flips runner bridge only); R3-c ships the multi-runner pool primitives at registry + monitor layer (`selectFreshRunner` LEAST_LOADED + FIFO tie-break, `pruneStaleRunners` observation, `getAssignment` public surface, handshake collision detection with new `host_in_use` reason and `runner_handshake_collision` audit, `RunnerStaleMonitor` periodic prune wired into server.js with single-emit `runner_host_lost` audit row + dedupe-on-recovery + idle-host skip + ledger-failure resilience). R3-G01 + R3-G02 + R3-G06 + R3-G07 + R3-G09 + R3-G10 are GREEN. R3-G08 fairness algo verified by unit + integration; live deployment evidence deferred to R3-e. **R3-d (graceful shutdown polish) landed** — `src/server/shutdown.js` walks `wss.clients` on SIGTERM/SIGINT, sends `ws.close(1000, "orchestrator_shutdown")` to runner-bound connections; `runnerAgent.js` differentiates clean-1000 from 1006-crash and 1011/1008-fatal. **Phase E1 D0 (a-e) closed the productization launcher** — operator can install from a release zip, double-click `harness-start.bat` (or `./harness-start.sh`), and the launcher fetches/SHA256-verifies/atomic-installs/launches/health-checks/opens-browser, with https-only manifest URL, port-squat defense via `app:"HarnessPipeline"` discriminator, atomic install via `.install-complete` sentinel, and a `verify-health` CLI that distinguishes our server from any 200-OK responder. Config/portability cap extended 5 → 8 to capture the audience shift from "developer with `git clone`" to "operator with a download". Next: **R3-b** (Linux host nftables L2 + dnsmasq L3, requires Linux host), **R3-e** (per-call approval for write-side tools), and the **D1 profile + credential layer** that makes the harness usable with the operator's own Claude/Codex account instead of the developer-supplied env vars.
 
