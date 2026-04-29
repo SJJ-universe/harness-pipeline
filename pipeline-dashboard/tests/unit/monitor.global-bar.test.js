@@ -540,6 +540,42 @@ test("D3-c remote cell: singular noun for activeRunnerCount=1", () => {
 
 // ── re-render on store update ──
 
+// ── D3-d: Settings button (toggles accounts modal) ──
+
+test("D3-d global-bar: Settings button only renders when onOpenSettings is provided", () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+
+  // Without onOpenSettings — no Settings button.
+  create({ root, store, doc });
+  let settingsBtns = root._findAllByClass("gb-btn-settings");
+  assert.equal(settingsBtns.length, 0,
+    "no Settings button when onOpenSettings is omitted (back-compat for legacy callers)");
+
+  // Re-mount with onOpenSettings.
+  const root2 = doc.createElement("div");
+  let opened = 0;
+  create({ root: root2, store, doc, onOpenSettings: () => { opened += 1; } });
+  settingsBtns = root2._findAllByClass("gb-btn-settings");
+  assert.equal(settingsBtns.length, 1);
+  // Click triggers the callback.
+  settingsBtns[0]._dispatch("click");
+  assert.equal(opened, 1);
+});
+
+test("D3-d global-bar: Settings button onOpenSettings throw is swallowed (panel keeps working)", () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  create({ root, store, doc, onOpenSettings: () => { throw new Error("user callback exploded"); } });
+
+  const settingsBtns = root._findAllByClass("gb-btn-settings");
+  assert.equal(settingsBtns.length, 1);
+  // Click must NOT throw out of the panel.
+  assert.doesNotThrow(() => settingsBtns[0]._dispatch("click"));
+});
+
 test("D3-c: setAccountStatus triggers re-render of all 4 cells", () => {
   const doc = makeStubDoc();
   const root = doc.createElement("div");

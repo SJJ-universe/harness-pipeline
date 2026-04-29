@@ -238,11 +238,22 @@
     shellDock.setAttribute("role", "region");
     shellDock.setAttribute("aria-label", "Bottom dock");
 
+    // Slice D3-d (Phase E1.5, 2026-04-29): hidden settings region.
+    // Mounts the settings-accounts panel ONCE at layout init; the
+    // global-bar's "설정" button toggles `is-hidden` to show/hide.
+    // No conditional create/destroy — keeps the test result cache
+    // alive across open/close cycles.
+    const settingsMount = _doc.createElement("div");
+    settingsMount.className = "settings-accounts-mount is-hidden";
+    settingsMount.setAttribute("role", "dialog");
+    settingsMount.setAttribute("aria-label", "Accounts settings");
+
     root.innerHTML = "";
     root.appendChild(globalBarRoot);
     root.appendChild(errorBox);
     root.appendChild(shellBody);
     root.appendChild(shellDock);
+    root.appendChild(settingsMount);
 
     // Slice MB4-a: keyed error sources so hydrate's success-path doesn't
     // wipe a bridge's install failure (and vice versa). Each caller
@@ -286,7 +297,40 @@
             body.classList.remove("monitor-active");
           }
         },
+        // Slice D3-d: toggle the settings region's visibility.
+        onOpenSettings() {
+          if (settingsMount.classList.contains("is-hidden")) {
+            settingsMount.classList.remove("is-hidden");
+          } else {
+            settingsMount.classList.add("is-hidden");
+          }
+        },
       });
+    }
+
+    // Slice D3-d: mount the settings-accounts panel into the hidden
+    // region. The panel is always live (subscribed to the store) so
+    // open/close just toggles visibility — the test result cache + any
+    // in-flight fetches survive the close.
+    let settingsHandle = null;
+    const SettingsAccounts = _resolvePanel(panels, "settingsAccounts", "HarnessMonitorSettingsAccounts");
+    if (SettingsAccounts) {
+      try {
+        settingsHandle = SettingsAccounts.create({
+          root: settingsMount,
+          store,
+          doc: _doc,
+          headers,
+          fetchImpl,
+          onClose() {
+            settingsMount.classList.add("is-hidden");
+          },
+        });
+      } catch (err) {
+        // Never break the layout if the settings panel fails to mount —
+        // the rest of the monitor still works without it.
+        showError("settings panel: " + (err && err.message ? err.message : "init failed"), "settings");
+      }
     }
 
     // ── Slice MA4: mount the run-tree (left rail) + run-summary (centre) ──
@@ -453,6 +497,8 @@
         try { inspectorHandle && inspectorHandle.destroy && inspectorHandle.destroy(); } catch (_) {}
         try { bottomDockHandle && bottomDockHandle.destroy && bottomDockHandle.destroy(); } catch (_) {}
         try { agentTreeHandle && agentTreeHandle.destroy && agentTreeHandle.destroy(); } catch (_) {}
+        // Slice D3-d: tear down the settings panel before the bridge.
+        try { settingsHandle && settingsHandle.destroy && settingsHandle.destroy(); } catch (_) {}
         // Slice MB4-a: tear down the bridge LAST so any final events that
         // panels might emit during destroy still reach the store cleanly.
         try { bridgeHandle && bridgeHandle.destroy && bridgeHandle.destroy(); } catch (_) {}

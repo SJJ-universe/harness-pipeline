@@ -69,7 +69,7 @@
     return n;
   }
 
-  function create({ root, store, onClose, doc } = {}) {
+  function create({ root, store, onClose, onOpenSettings, doc } = {}) {
     if (!root || typeof root.appendChild !== "function") {
       throw new Error("globalBar.create: root must be an element");
     }
@@ -217,6 +217,20 @@
 
       const actions = _doc.createElement("span");
       actions.className = "gb-actions";
+      // Slice D3-d: Settings button (toggles the accounts modal). Lives
+      // before Close so the layout's z-order (close → kill the whole
+      // shell) stays the rightmost action.
+      if (typeof onOpenSettings === "function") {
+        const settingsBtn = _doc.createElement("button");
+        settingsBtn.type = "button";
+        settingsBtn.className = "gb-btn gb-btn-settings";
+        settingsBtn.textContent = "설정";
+        settingsBtn.setAttribute("aria-label", "Open accounts settings");
+        settingsBtn.addEventListener("click", () => {
+          try { onOpenSettings(); } catch (_) { /* never let user callback abort */ }
+        });
+        actions.appendChild(settingsBtn);
+      }
       const closeBtn = _doc.createElement("button");
       closeBtn.type = "button";
       closeBtn.className = "gb-btn";
