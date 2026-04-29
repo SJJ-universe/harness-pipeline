@@ -993,6 +993,21 @@ app.use("/api", createSetupRoutes({
   isActiveRun: _isActiveRun,
 }));
 
+// Slice GOV-PII-1-b (Phase E1.5, 2026-04-29): file-import scan API.
+// Mounted under /api/security. ONE endpoint:
+//   POST /api/security/scan — body { content, filename?, source?, depth? }
+// Default depth is "deep" (file-import context opts INTO the deeper
+// 8-pattern set including 사업자등록번호 / 운전면허 / 여권). Audit
+// verbs pii_file_scan_blocked / pii_file_scan_warn ride the same
+// signed + sanitized chain that D1-f set up. The deploymentProfile
+// resolved at boot drives block-vs-warn (mirrors GOV-PII-0 piiGate
+// fail-closed semantics).
+const { createSecurityRoutes } = require("./src/routes/securityRoutes");
+app.use("/api", createSecurityRoutes({
+  ledger: evidenceLedger,
+  deploymentProfile: _deploymentProfile,
+}));
+
 // MB4-b (Phase D Round 2, 2026-04-27): the ~270 lines of
 // runGeneralPipeline + finalizeGeneralRun + 3 prompt builders that
 // lived here have been lifted to src/server/generalPipelineRunner.js.
