@@ -938,17 +938,32 @@ app.use("/api", createRunnerRoutes({
 // childRegistry.snapshot() — switching profile is blocked while any
 // Claude/Codex child is in flight (audit chain forks between
 // profile-A start and profile-B end-of-run otherwise).
+const _isActiveRun = () => {
+  try {
+    const snap = childRegistry.snapshot();
+    return Array.isArray(snap) && snap.length > 0;
+  } catch (_) { return false; }
+};
 const { createProfileRoutes } = require("./src/routes/profileRoutes");
 app.use("/api", createProfileRoutes({
   profileStore,
   credentialStore,
   ledger: evidenceLedger,
-  isActiveRun: () => {
-    try {
-      const snap = childRegistry.snapshot();
-      return Array.isArray(snap) && snap.length > 0;
-    } catch (_) { return false; }
-  },
+  isActiveRun: _isActiveRun,
+}));
+
+// Slice D2-c (Phase E1.5, 2026-04-29): setup-wizard HTTP API. Mounted
+// under /api/setup. 5 endpoints: probe-node / probe-cli / probe-provider
+// / probe-workspace / finalize. The wizard scripts (D2-d) consume these
+// endpoints; the D3 UI account-status panel will too. Same active-run
+// gate as the profile routes — finalize that would yank the active
+// profile out from under an in-flight run is refused with 409.
+const { createSetupRoutes } = require("./src/routes/setupRoutes");
+app.use("/api", createSetupRoutes({
+  profileStore,
+  credentialStore,
+  ledger: evidenceLedger,
+  isActiveRun: _isActiveRun,
 }));
 
 // MB4-b (Phase D Round 2, 2026-04-27): the ~270 lines of
