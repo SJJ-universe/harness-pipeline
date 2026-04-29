@@ -951,3 +951,142 @@ body.monitor-active {
 /* MA6: child + subagent inspector cards reuse most of .ip-* styles. */
 .monitor-shell .ip-scope-child    { background: rgba(63, 185, 80, 0.2); color: var(--green, #3fb950); }
 .monitor-shell .ip-scope-subagent { background: rgba(188, 140, 255, 0.2); color: var(--purple, #bc8cff); }
+
+/* ── Slice UX-2-b: approval card panel ── */
+
+.monitor-shell .approval-card-region {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-bottom: 1px solid var(--border, #30363d);
+  background: var(--bg-card, #161b22);
+}
+
+.monitor-shell .ac-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.monitor-shell .ac-count {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-dim, #8b949e);
+}
+
+.monitor-shell .ac-toast {
+  font-size: 11px;
+  color: var(--purple, #bc8cff);
+  padding: 2px 8px;
+  background: rgba(188, 140, 255, 0.1);
+  border-radius: 10px;
+}
+
+.monitor-shell .ac-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.monitor-shell .ac-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--border, #30363d);
+  border-left: 3px solid var(--orange, #d29922);
+  border-radius: 6px;
+  background: var(--bg-node, #1c2333);
+}
+
+.monitor-shell .ac-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-family: ui-monospace, monospace;
+}
+
+.monitor-shell .ac-tool-glyph {
+  font-size: 14px;
+  color: var(--orange, #d29922);
+  width: 16px;
+  text-align: center;
+}
+
+.monitor-shell .ac-tool {
+  font-weight: 600;
+  color: var(--text, #e6edf3);
+  font-size: 13px;
+}
+
+.monitor-shell .ac-summary {
+  flex: 1;
+  color: var(--text-dim, #8b949e);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.monitor-shell .ac-pii-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  background: rgba(248, 81, 73, 0.18);
+  color: var(--red, #f85149);
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  align-self: flex-start;
+}
+
+.monitor-shell .ac-meta {
+  font-size: 11px;
+  color: var(--text-dim, #8b949e);
+  font-family: ui-monospace, monospace;
+}
+
+.monitor-shell .ac-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.monitor-shell .ac-btn {
+  padding: 4px 12px;
+  border: 1px solid var(--border, #30363d);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text, #e6edf3);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.monitor-shell .ac-btn:hover:not(:disabled) {
+  border-color: var(--text, #e6edf3);
+}
+
+.monitor-shell .ac-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.monitor-shell .ac-btn-allow {
+  border-color: var(--green, #3fb950);
+  color: var(--green, #3fb950);
+}
+
+.monitor-shell .ac-btn-allow:hover:not(:disabled) {
+  background: rgba(63, 185, 80, 0.18);
+}
+
+.monitor-shell .ac-btn-deny {
+  border-color: var(--red, #f85149);
+  color: var(--red, #f85149);
+}
+
+.monitor-shell .ac-btn-deny:hover:not(:disabled) {
+  background: rgba(248, 81, 73, 0.18);
+}
