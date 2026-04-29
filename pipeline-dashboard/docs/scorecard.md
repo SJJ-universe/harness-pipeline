@@ -2,7 +2,7 @@
 
 ## Current Score
 
-**104 / 113** (Phase 2.5 multi-run + Phase 3-S security + Phase D MA0~MA7 monitor shell + Phase D Round 2 MB1~MB6 backfill + Phase D Round 2.5 MC1~MC5 live wiring + MA7 UI-3 rewrite readiness + Phase D Round MD readiness automation + Phase D Round ME CI hygiene + Phase D Round MF P4 design RFC + Phase D Round MG P4 implementation RFC + **Phase D R1 a~i + e + g + g+ — full remote runner subsystem** + **Phase D R1-k1/k2/k3 — external review correctness round** + **Phase D R2 — single-runner deployment evaluation (live verified)** + **Phase D R2.5 — controlled remote execution bridge with allowlist + sanitization + full audit narrative** + **Phase E1 D0-a~e — productization launcher (harness-start.bat/.sh + atomic install + https-only manifest URL + port-squat defense)**; MD2 extended Testability cap 10 → 11; R1-j extended Safety cap 15 → 16; R2 extended Safety cap 16 → 17; R2.5 extends Safety cap 17 → 18; D0-e extends Config/portability cap 5 → 8 — productization-grade launcher with atomic install + https-only manifest URL + port-squat defense)
+**105 / 115** (Phase 2.5 multi-run + Phase 3-S security + Phase D MA0~MA7 monitor shell + Phase D Round 2 MB1~MB6 backfill + Phase D Round 2.5 MC1~MC5 live wiring + MA7 UI-3 rewrite readiness + Phase D Round MD readiness automation + Phase D Round ME CI hygiene + Phase D Round MF P4 design RFC + Phase D Round MG P4 implementation RFC + **Phase D R1 a~i + e + g + g+ — full remote runner subsystem** + **Phase D R1-k1/k2/k3 — external review correctness round** + **Phase D R2 — single-runner deployment evaluation (live verified)** + **Phase D R2.5 — controlled remote execution bridge with allowlist + sanitization + full audit narrative** + **Phase E1 D0-a~e — productization launcher (harness-start.bat/.sh + atomic install + https-only manifest URL + port-squat defense)** + **Phase E1 D1-a~g — profile + credential + spawn rewiring + public-sector policy baseline + audit sanitizer**; MD2 extended Testability cap 10 → 11; R1-j extended Safety cap 15 → 16; R2 extended Safety cap 16 → 17; R2.5 extends Safety cap 17 → 18; D0-e extends Config/portability cap 5 → 8; D1-g extends Config/portability cap 8 → 10 — operator runs Claude/Codex with their OWN agency account through profileSpawn + fail-closed credentialStore + EvidenceLedger sanitizer)
 
 Trajectory:
 - v3.1 hardening — 87
@@ -26,6 +26,7 @@ Trajectory:
 - **Phase D R3-c** (multi-runner pool primitives — registry layer R3-c-1: `selectFreshRunner` + `pruneStaleRunners` + `getAssignment` + handshake collision detection with new `host_in_use` reason and `runner_handshake_collision` audit; runtime layer R3-c-2: `RunnerStaleMonitor` periodic prune loop wired into server.js with single-emit `runner_host_lost` audit row + dedupe-on-recovery + idle-host skip + ledger-failure resilience) — **103/112** (operational primitives, no rubric move; R3-G06 + R3-G07 + R3-G09 + R3-G10 closed at registry/monitor layer; R3-G08 fairness algorithm verified by unit + integration but live deployment evidence requires multi-runner orchestrator-dispatch wiring deferred to R3-d / R3-e)
 - **Phase D R3-d** (graceful shutdown polish — `src/server/shutdown.js` walks wss.clients on SIGTERM/SIGINT, sends `ws.close(1000, "orchestrator_shutdown")` to runner-bound connections; `runnerAgent.js` learns to differentiate clean-1000 from 1006-crash and 1011/1008-fatal; `tests/integration/runner-shutdown.test.js`) — **103/112** (operational fix, no rubric move per R3-0 plan)
 - **Phase E1 P0** (envFilter for Claude/Codex spawn — `src/security/envFilter.js` filters TOKEN/SECRET/KEY/PASSWORD/CREDENTIAL keys from spawn env unless allowlisted; closes the gap where `executor/claude-runner.js` + `executor/codex-runner.js` previously inherited `process.env` wholesale, leaking HARNESS_TOKEN + provider tokens to agent children) — **103/112** (precondition for D1 profile + credential layer; cap unchanged because the fix lands as a security baseline, not a new capability)
+- **Phase E1 D1-a/b/c/d/e/f/g + D1-gov-1..5** (profile + credential + spawn rewiring + public-sector policy baseline + EvidenceLedger sanitizer — `src/security/credentialStore.js` (fail-closed by default, keytar OS-keychain or HARNESS_ALLOW_PLAINTEXT_SECRETS=1 dev escape, `credential_set/_deleted/_plaintext_fallback/_backend_unavailable` audit verbs, profileId+key sanitation), `src/runtime/profileStore.js` (atomic temp+rename writes, schema-version mismatch loud-fail, BOM tolerance, `profile_created/_updated/_deleted/_switched` audit, agency-layer fields when public-sector), `src/runtime/profileSpawn.js` (4-layer env composition: P0 base → profile lookup → credential injection → telemetry env, refuse partial-credential spawn), `src/policy/deploymentProfile.js` + `src/policy/publicSectorPolicy.js` (HARNESS_DEPLOYMENT_PROFILE resolver — public-sector flips every fail-closed flag together; validateProfileForPublicSector + assertLocalExecutorAllowed), runner integration in claude-runner.js + codex-runner.js (async IIFE wraps `_tryExec` body so `await buildSpawnEnv` fits between `dangerGate` and `spawn()`; defense-in-depth `assertLocalExecutorAllowed` from runner itself + inside profileSpawn; emits `profile_spawn_env_built`), `src/routes/profileRoutes.js` (CRUD + active-run-gated /switch returning 409 + `profile_switch_blocked` audit + secret KEY-only listing/setting/deleting + public-sector violation → 400 with structured details), `src/security/auditSanitizer.js` (recursive secret-name redaction with SAFE_KEY_NAMES allowlist, prototype-pollution skip, cycle protection, depth limit; threaded through EvidenceLedger.append BEFORE hashing so chain + signature cover the sanitized form), server.js wires the full stack including `evidenceLedger` with `sanitizer: sanitizeAuditData` and `createProfileRoutes` with `isActiveRun: () => childRegistry.snapshot().length > 0`. End-to-end live verified: `harness-start.bat` boots → `GET /api/profiles` returns `{profiles:[], activeProfileId:null}`) — **105/115** (Config/portability cap extended 8 → 10 — captures the shift from "operator double-clicks the launcher" to "operator runs Claude/Codex with their own agency account through profile + credential management"; +137 unit, +26 integration tests)
 - **Phase E1 D0-a/b/c/d/e** (productization launcher — `harness-start.bat` UTF-8 BOM + CRLF Windows entry / `harness-start.sh` Mac-Linux entry / `scripts/launcher/{install-version,check-update}.{ps1,sh}` thin shells / `scripts/launcher/launcher-cli.js` ~250-line Node bridge that PowerShell + bash share for SHA256 + semver + path resolution + manifest validation + URL scheme check + health discriminator. D0-a `configPaths.js` + `launcherManifest.js` (43 unit tests). D0-b/c/d ship the platform shells + 16 smoke tests + operator guide. D0-e closes 4 production-readiness gaps: https-only manifest URL with `HARNESS_ALLOW_INSECURE_MANIFEST_URL=1` escape hatch; bash sites unified through `manifest-field` (no more inline `node -e require(...)` quoting fragility); atomic install via `<Version>.partial-<ts>` staging + `.install-complete` sentinel last; `/api/health` discriminator `app:"HarnessPipeline" + healthVersion:1` + `verify-health` CLI so port-squat services can't trick the launcher into "already running" treatment. cmd.exe trap catalog grew during D0-b: `::` inside `( ... )` blocks → use `rem`; `set /p var=<file` inside parens → use `for /f "usebackq"`; `timeout /t 1` aborts under redirected stdin → use `ping -n 2`; unescaped `)` in `echo` lines inside `( ... )` blocks → escape via `^)`. `.gitattributes` pins `*.bat`/`*.ps1` → CRLF and `*.sh` → LF so Windows cloners with `core.autocrlf=true` don't break the bash launchers) — **104/113** (Config/portability cap extended 5 → 8 — captures the qualitative shift from "developer runs `node start.js` from a checked-out repo" to "operator double-clicks `harness-start.bat` from a release zip")
 
 Target after Phase 3 (D platformization): **103+**.
@@ -379,6 +380,53 @@ The remaining headroom (104 → 113) is reserved for:
   overlay + per-call approval card (~2 points)
 - E2 launch overhead — backup/restore/uninstall + manifest signing
   for public distribution (~3 points; E3 territory)
+
+### Rubric scale change (D1-g)
+
+D1 closed the profile + credential + spawn round, plus inserted
+the D1-gov public-sector policy baseline mid-round per
+docs/public-sector-hardening-plan.md §9. The Config / portability
+cap extended at D0-e (5 → 8) tracks the audience shift to
+"operator with a download". D1 adds the next qualitative layer:
+the operator now runs Claude/Codex with their OWN agency
+account through fail-closed credential storage, profile-scoped
+spawn-env composition, and a public-sector mode that hard-blocks
+plaintext credentials + sandbox-only execution + agency-managed
+profiles + signed-manifest distribution.
+
+| Area | Pre-D1-g max | Post-D1-g max |
+| --- | ---: | ---: |
+| Config, portability, onboarding | 8 | **10** |
+| **Total** | 113 | **115** |
+
+The +1 score (104 → 105) within the new cap reflects:
+- credentialStore with fail-closed default + 3-tier backend taxonomy
+- profileStore with atomic write + schema-version mismatch loud-fail
+- profileSpawn 4-layer env composition + refuse-partial-credentials
+- ClaudeRunner / CodexRunner integrated through profileSpawn with
+  defense-in-depth assertLocalExecutorAllowed
+- profileRoutes 8-endpoint HTTP surface with active-run gate (409)
+  + secret-VALUES-never-echoed regression guard
+- EvidenceLedger sanitizer wired in production — every audit
+  payload goes through the redactor before hashing
+- Public-sector policy baseline (deploymentProfile + publicSectorPolicy)
+  with integration into all three storage modules + both runners
+- 137 new unit tests + 26 new integration tests covering every
+  fail-closed default + every audit redaction + every regression
+  guard against secret-value leakage
+
+The remaining headroom (105 → 115) is reserved for:
+- D2 setup wizard + cliProbe (~1 point: 8-step first-run flow)
+- D3 UI account status + settings panel (~1 point)
+- UX-0/UX-1/UX-2 simple/advanced/legacy mode shell + welcome
+  overlay + per-call approval card (~2 points)
+- E2 launch overhead — backup/restore/uninstall + manifest signing
+  for public distribution (~3 points; E3 territory)
+- Public-sector readiness cap (~3 points): end-to-end
+  behavior-verification of public_sector_profile_policy returning
+  400 over the wire under `HARNESS_DEPLOYMENT_PROFILE=public-sector`
+  + sandbox-only dispatch + PII inline scanner + auditor evidence
+  export. Pending Tasks 3-7 of `docs/public-sector-hardening-plan.md`.
 
 ## Phase D R2 progress (single-runner deployment evaluation)
 
@@ -767,7 +815,162 @@ profile + credential + spawn rewiring** — the round that makes the
 harness usable by an operator with their own Claude/Codex account
 instead of the developer-supplied env vars.
 
-## What 104 means
+## Phase E1 D1 progress (profile + credential + spawn + public-sector baseline)
+
+D1 closes the gap between "the launcher works on any machine"
+(D0) and "the operator has their own Claude/Codex account, not
+the developer's env vars". Six storage / runtime modules + one
+HTTP route surface + a defense-in-depth audit-data sanitizer.
+
+Mid-round insertion of **D1-gov policy baseline** (per
+`docs/public-sector-hardening-plan.md` Task 1+2): every D1 module
+now has a `public-sector` mode that fail-closes plaintext
+credentials, sandbox-only execution, agency-managed accounts,
+and signed-manifest distribution. Standard mode behavior is
+unchanged.
+
+- **D1-a — credentialStore** (commit `74d708c`):
+  `src/security/credentialStore.js` — fail-closed default. Three
+  backends: keychain (keytar via lazy require), plaintext (only
+  when `HARNESS_ALLOW_PLAINTEXT_SECRETS=1` AND `NODE_ENV !=
+  "production"`), none (refuse setSecret when nothing else is
+  available). 26 unit tests cover the security baseline. Audit
+  verbs: `credential_set` / `credential_deleted` /
+  `credential_plaintext_fallback` / `credential_backend_unavailable`.
+  Profile id sanitation matches the manifest version regex
+  (`/^[A-Za-z0-9_.-]+$/`) so the OS keychain service name can
+  never carry path-traversal or null-byte.
+
+- **D1-b — profileStore** (commit `c775708`):
+  `src/runtime/profileStore.js` — JSON-backed profile registry
+  under `<HARNESS_CONFIG_DIR>/profiles.json` with atomic
+  temp+rename writes, BOM tolerance, schema-version mismatch
+  loud-fail, mode 0600 on POSIX. 28 unit tests cover the round-
+  trip + active-profile lifecycle + audit verbs (`profile_created`
+  / `profile_updated` / `profile_deleted` / `profile_switched`).
+  Defensive copy on input.secretIds — caller mutation post-upsert
+  cannot leak into persisted state.
+
+- **D1-c — profileSpawn** (commit `37d338a`):
+  `src/runtime/profileSpawn.js` — `buildSpawnEnv()` composes the
+  spawn env in 4 layers: (1) P0 base via `filterSensitiveEnv`,
+  (2) profile lookup, (3) credential injection per
+  `profile.secretIds`, (4) telemetry env (`HARNESS_PROFILE_ID` +
+  `HARNESS_WORKSPACE_PATH`). Refuses to spawn when any required
+  credential is missing — no partial-credential execution. 17
+  unit tests.
+
+- **D1-gov-1 + D1-gov-2 — policy baseline** (commit `d87e622`):
+  `src/policy/deploymentProfile.js` resolves
+  `HARNESS_DEPLOYMENT_PROFILE` (default "standard"). Public-sector
+  mode flips every fail-closed flag together: `allowLocalExecutor=false`,
+  `allowPersonalAccounts=false`, `allowPlaintextSecrets=false` (overrides
+  the opt-in flag in defense-in-depth), `requireSandboxWorkspace=true`,
+  `requireSignedManifest=true`, `scannerFailurePolicy="block"`.
+  `src/policy/publicSectorPolicy.js` exposes
+  `validateProfileForPublicSector` (collects ALL violations in one
+  pass — operator-friendly route response) and
+  `assertLocalExecutorAllowed` (throws `PUBLIC_SECTOR_LOCAL_EXECUTOR_DISABLED`).
+  25 unit tests across the two modules.
+
+- **D1-gov-3 + D1-gov-4 + D1-gov-5 — policy hooks** (commit `fff7b8b`):
+  Wires the policy into the three D1 storage/runtime modules.
+  credentialStore consults `deploymentProfile.allowPlaintextSecrets`
+  and emits `credential_backend_unavailable` with reason
+  `plaintext_blocked_in_public_sector` when public-sector hard-blocks.
+  profileStore.upsert calls `validateProfileForPublicSector` when
+  publicSector=true; persists agency-layer fields (accountType,
+  workspaceMode, credentialBackend, dataClassification, egressPolicyId).
+  profileSpawn calls `assertLocalExecutorAllowed` BEFORE any P0
+  base env construction. +18 unit tests.
+
+- **D1-d — runner spawn rewiring** (commit `17befc2`):
+  `executor/claude-runner.js` + `executor/codex-runner.js` —
+  constructor accepts `profileStore` / `credentialStore` / `ledger`
+  (all optional, default null = pre-D1 behavior). `_tryExec` body
+  wrapped in async IIFE so `await buildSpawnEnv(...)` fits between
+  `dangerGate` and `spawn()`. Defense-in-depth:
+  `assertLocalExecutorAllowed(resolveDeploymentProfile())` fires
+  from the runner ITSELF in addition to inside profileSpawn — even
+  if a future refactor bypasses profileSpawn, the runner-level
+  gate still blocks the local executor under public-sector. Emits
+  `profile_spawn_env_built` audit on profile-mode spawn. 10 unit
+  tests covering: public-sector refusal in both runners (spawn
+  never invoked), deleted profile / missing credential structured
+  failures, profile-mode credential injection at the spawn boundary
+  (CodexRunner uses spawnImpl injection for stub-driven assertion),
+  P0 fallback path emits no audit (regression guard), legacy
+  constructor still works.
+
+- **D1-e — profileRoutes** (commit `8444102`):
+  `src/routes/profileRoutes.js` — eight endpoints under
+  `/api/profiles`. CRUD + active-switch (with **active-run gate**
+  returning 409 + `profile_switch_blocked` audit when
+  `childRegistry.snapshot()` reports any in-flight child) + secret
+  KEY listing/setting/deleting. Critical regression guard: secret
+  VALUES never appear in any response — GET only returns key
+  names; POST never echoes the value back. Public-sector
+  validation errors map to `400 {error: "public_sector_profile_policy",
+  details: [...]}` so operators get every violation in one
+  round-trip. Routes 503 (not 404) when stores aren't wired —
+  actionable error during partial rollout. 19 integration tests.
+
+- **D1-f — EvidenceLedger sanitizer** (commit `59f1494`):
+  `src/security/auditSanitizer.js` — defense-in-depth secret
+  redaction. Every audit `data` payload runs through the
+  sanitizer before hashing + persisting. Walks the tree
+  recursively; replaces values whose KEY name matches
+  TOKEN/SECRET/KEY/PASSWORD/CREDENTIAL with a structured
+  redaction marker `{redacted: true, keyName, originalType,
+  approxLength}`. SAFE_KEY_NAMES allowlist preserves audit-
+  metadata fields (`secretCount` is a count, `secretsKeys` is an
+  array of NAMES, `key` is a NAME not a value). Defenses:
+  prototype-pollution skip (__proto__ / constructor / prototype
+  never recurse), cycle protection (WeakSet → "[circular]"),
+  depth limit (MAX_DEPTH=16). EvidenceLedger constructor accepts
+  optional `sanitizer` — wired in production via server.js, opt-in
+  for tests. Hash chain + signature both cover the SANITIZED form
+  (verify() and verifyChain() round-trip cleanly). 13 unit + 7
+  integration tests.
+
+- **D1-g — D1 closeout + server.js wiring** (this commit):
+  server.js wires the full D1 stack:
+    - `evidenceLedger` constructed with `sanitizer: sanitizeAuditData`
+    - `profileStore` constructed with `filePath` from configPaths +
+      ledger
+    - `credentialStore` constructed with `fsPaths` + ledger
+    - `claudeRunner` + `codexRunner` constructed with
+      `profileStore` + `credentialStore` + `ledger` (D1-d engages)
+    - `createProfileRoutes` mounted under `/api` with the active-
+      run gate reading `childRegistry.snapshot()`
+  End-to-end live verification: harness-start.bat boots →
+  `GET /api/profiles` returns `{profiles:[], activeProfileId:null}`
+  + `/api/health` carries the D0-e `app:"HarnessPipeline"`
+  discriminator.
+
+D1 cap movement (104 → 105):
+  Config / portability cap extended 8 → 10 to capture the shift
+  from "operator double-clicks the launcher" (D0 — 6/8) to
+  "operator double-clicks the launcher AND uses their own Claude/
+  Codex account through profile + credential management"
+  (D1 — 8/10). The remaining 2 points sit in:
+    - D2 setup wizard (8-step first-run flow) — ~1 point
+    - D3 UI account-status panel + accounts-modal — ~1 point
+
+Public-sector cap movement: deferred. The hardening plan §11
+suggests a public-sector readiness cap addition, but the score
+movement gates on behavior-verified end-to-end (route-level
+public-sector test fires only when the orchestrator is actually
+running under `HARNESS_DEPLOYMENT_PROFILE=public-sector`). That
+behavior-verification belongs to a later round (D1 ships the
+mechanism; the production verification of `public_sector_profile_policy`
+returning 400 over the wire under a real public-sector orchestrator
+will close the cap movement).
+
+Test counts cumulative across D1: 1309 -> 1446 unit (+137),
+268 -> 294 integration (+26).
+
+## What 105 means
 
 Single-user local harness with multi-run isolation, hardened external-input boundaries, AND a monitoring-first opt-in console with live data flow + agent observability + per-run detail contract + flow-level readiness rubric + behavior-verified readiness scoring + auto-derived doc trust + dispatcher-driven extraction pattern + CI-enforced regression protection + **a complete remote-execution design RFC** + **a complete implementation RFC with concrete tech decisions for runtime / image / JWT / ledger / control plane / network egress / bootstrap / failure recovery** + **the orchestrator-side primitives of remote mode actually shipped — JWT module + signed audit ledger + runner registry + handshake/heartbeat/hook routes + Dockerfile + server.js wiring + 6th readiness rubric category (remote-isolation, behavior-verified)** + **the runner-host primitives that complete the remote subsystem — WS path-aware demux + connection-lifecycle handler + `RunnerAgent` Node entrypoint + WS message protocol + `childRegistry` remote projection + readiness Star 3 upgraded to live runner→orchestrator round-trip** + **external-review correctness hardening — composite-key remote children with stop-path ownership verify + hook success audit-chain entries + runner-agent env validation that fails fast on bad numeric env** + **R2 single-runner deployment evaluation completed — all MF1 §4.1 gates G1-G9 verified live on the operator's Docker Desktop with repeatable probe scripts; 8 latent bugs surfaced and fixed** + **R2.5 controlled remote execution bridge — sanitized hooks now drive the local executor under an opt-in feature flag, with allowlist (5 hooks × 3 read-only tools), pure sanitizer with prototype-pollution resistance, and a 5-verb audit narrative (routed → rejected | sanitized → dispatched | dispatch_error). G4 hook ingress auth lifted from "partial PASS" to "full PASS"; runner-claimed runs are first-class in `/api/monitor/runs/:runId`**. The next-round work splits into two complementary axes: **R3 multi-runner pool + Linux host** for the layer 2/3 egress enforcement R2-4 left open, and a **per-call approval flow** before opening Bash / Write / Edit through the bridge. **R3-0 (plan) + R3-a (two-network topology) + R3-c (multi-runner pool primitives) landed**. R3-0 locked the gates; R3-a closes R2-4's dashboard host port gap (orchestrator dual-homed; strict override flips runner bridge only); R3-c ships the multi-runner pool primitives at registry + monitor layer (`selectFreshRunner` LEAST_LOADED + FIFO tie-break, `pruneStaleRunners` observation, `getAssignment` public surface, handshake collision detection with new `host_in_use` reason and `runner_handshake_collision` audit, `RunnerStaleMonitor` periodic prune wired into server.js with single-emit `runner_host_lost` audit row + dedupe-on-recovery + idle-host skip + ledger-failure resilience). R3-G01 + R3-G02 + R3-G06 + R3-G07 + R3-G09 + R3-G10 are GREEN. R3-G08 fairness algo verified by unit + integration; live deployment evidence deferred to R3-e. **R3-d (graceful shutdown polish) landed** — `src/server/shutdown.js` walks `wss.clients` on SIGTERM/SIGINT, sends `ws.close(1000, "orchestrator_shutdown")` to runner-bound connections; `runnerAgent.js` differentiates clean-1000 from 1006-crash and 1011/1008-fatal. **Phase E1 D0 (a-e) closed the productization launcher** — operator can install from a release zip, double-click `harness-start.bat` (or `./harness-start.sh`), and the launcher fetches/SHA256-verifies/atomic-installs/launches/health-checks/opens-browser, with https-only manifest URL, port-squat defense via `app:"HarnessPipeline"` discriminator, atomic install via `.install-complete` sentinel, and a `verify-health` CLI that distinguishes our server from any 200-OK responder. Config/portability cap extended 5 → 8 to capture the audience shift from "developer with `git clone`" to "operator with a download". Next: **R3-b** (Linux host nftables L2 + dnsmasq L3, requires Linux host), **R3-e** (per-call approval for write-side tools), and the **D1 profile + credential layer** that makes the harness usable with the operator's own Claude/Codex account instead of the developer-supplied env vars.
 

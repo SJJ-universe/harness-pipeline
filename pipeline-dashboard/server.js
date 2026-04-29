@@ -82,12 +82,24 @@ if (_remoteRunner.mode !== "off" && _remoteRunner.error === "token_missing") {
     " but HARNESS_TOKEN is missing — runner routes will 503.",
   );
 }
+// Slice D1-f (Phase E1, 2026-04-29): defense-in-depth sanitizer that
+// runs every audit `data` payload through a TOKEN/SECRET/KEY/PASSWORD/
+// CREDENTIAL key-name redactor before it lands on disk. The audit
+// verbs added in D1-a..e are constructed to NEVER include secret
+// values, but the sanitizer catches a future verb that forgets the
+// discipline (or a hook payload with a pathological field name).
+// SAFE_KEY_NAMES allowlist preserves legitimate audit metadata
+// (secretCount, secretsInjected, secretIds, key — name not value).
+const { sanitizeAuditData } = require("./src/security/auditSanitizer");
+
 const evidenceLedger = new EvidenceLedger({
   rootDir: runsDir,
   // R1-c + R1-h: when remote mode is preview/on AND HARNESS_TOKEN is set,
   // sign every appended entry. Existing unsigned entries in the JSONL files
   // continue to verify (verifyChain accepts the legacy shape).
   signingKey: _remoteRunner.ledgerKey,
+  // D1-f: opt-in defense layer.
+  sanitizer: sanitizeAuditData,
 });
 
 // Slice R3-c-2 (Phase D R3, 2026-04-28): periodic stale-runner monitor.
@@ -681,18 +693,46 @@ const childSemaphore = createChildSemaphore({
 const { createChildRegistry } = require("./src/runtime/childRegistry");
 const childRegistry = createChildRegistry({ broadcast });
 
+// Slice D1 (Phase E1, 2026-04-29): per-operator profile + credential
+// layer. `profileStore` persists profiles.json under HARNESS_CONFIG_DIR;
+// `credentialStore` fronts the OS keychain (keytar) — falls back to
+// "none" backend when keytar is missing AND HARNESS_ALLOW_PLAINTEXT_SECRETS
+// isn't set (fail-closed default). Both are wired into ClaudeRunner +
+// CodexRunner below so profileSpawn engages on every spawn; profileRoutes
+// (mounted further down) exposes the HTTP surface.
+const { resolve: resolveConfigPaths } = require("./src/runtime/configPaths");
+const { createProfileStore } = require("./src/runtime/profileStore");
+const { createCredentialStore } = require("./src/security/credentialStore");
+const _configPaths = resolveConfigPaths();
+const profileStore = createProfileStore({
+  filePath: _configPaths.profileFile,
+  ledger: evidenceLedger,
+});
+const credentialStore = createCredentialStore({
+  fsPaths: _configPaths,
+  ledger: evidenceLedger,
+});
+
 const codexRunner = new CodexRunner({
   runRegistry,
   repoRoot: REPO_ROOT,
   broadcast,
   childSemaphore,
   childRegistry,
+  // D1-d: profileSpawn engages when both stores are wired.
+  profileStore,
+  credentialStore,
+  ledger: evidenceLedger,
 });
 const claudeRunner = new ClaudeRunner({
   runRegistry,
   repoRoot: REPO_ROOT,
   childSemaphore,
   childRegistry,
+  // D1-d: same wiring as codex side.
+  profileStore,
+  credentialStore,
+  ledger: evidenceLedger,
 });
 
 // generalRunRef.active is set by pipelineRoutes — see above
@@ -891,6 +931,24 @@ app.use("/api", createRunnerRoutes({
   mode: _remoteRunner.mode,
   ledger: evidenceLedger,
   hookRouter: null,
+}));
+
+// Slice D1-e (Phase E1, 2026-04-29): operator-facing profile + credential
+// routes. Mounted under /api/profiles. The active-run gate uses
+// childRegistry.snapshot() — switching profile is blocked while any
+// Claude/Codex child is in flight (audit chain forks between
+// profile-A start and profile-B end-of-run otherwise).
+const { createProfileRoutes } = require("./src/routes/profileRoutes");
+app.use("/api", createProfileRoutes({
+  profileStore,
+  credentialStore,
+  ledger: evidenceLedger,
+  isActiveRun: () => {
+    try {
+      const snap = childRegistry.snapshot();
+      return Array.isArray(snap) && snap.length > 0;
+    } catch (_) { return false; }
+  },
 }));
 
 // MB4-b (Phase D Round 2, 2026-04-27): the ~270 lines of
