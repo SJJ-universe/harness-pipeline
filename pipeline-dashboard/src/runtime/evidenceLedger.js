@@ -72,9 +72,26 @@ const VERIFY_CHAIN_REASONS = Object.freeze({
 });
 
 class EvidenceLedger {
-  constructor({ rootDir, ttlMs = 7 * 24 * 3600 * 1000, signingKey = null }) {
+  constructor({ rootDir, ttlMs = 7 * 24 * 3600 * 1000, signingKey = null, sanitizer = null }) {
     this.rootDir = rootDir;
     this.ttlMs = ttlMs;
+    // Slice D1-f (Phase E1, 2026-04-29): optional sanitizer applied
+    // to entry.data before computing the dataHash. When wired (server.js
+    // passes `sanitizer: sanitizeAuditData` from src/security/auditSanitizer.js),
+    // any audit field whose KEY name looks like a secret (TOKEN/SECRET/
+    // KEY/PASSWORD/CREDENTIAL) gets replaced with a structured redaction
+    // marker BEFORE the entry lands on disk. The hash chain (and the
+    // optional R1-c HMAC signature) cover the sanitized form — so the
+    // audit chain is consistent with what's persisted, not with what
+    // the caller passed.
+    //
+    // Backwards compat: when sanitizer=null (today's default + every
+    // existing test), append() behaves exactly as before. server.js
+    // wires the production sanitizer; tests opt out for clarity.
+    if (sanitizer !== null && typeof sanitizer !== "function") {
+      throw new TypeError("EvidenceLedger: sanitizer must be a function or null");
+    }
+    this.sanitizer = sanitizer;
     // R1-c: optional HMAC signing key. Buffer or string; null → no signing.
     if (signingKey != null && !Buffer.isBuffer(signingKey) && typeof signingKey !== "string") {
       throw new TypeError("EvidenceLedger: signingKey must be Buffer, string, or null");
@@ -98,13 +115,19 @@ class EvidenceLedger {
     const dir = this._runDir(runId);
     fs.mkdirSync(dir, { recursive: true });
 
+    // Slice D1-f: sanitize BEFORE hashing so the dataHash and
+    // eventHash reflect what actually lands on disk. If the
+    // sanitizer is null (default), the data is passed through
+    // unchanged — exact same behavior as pre-D1-f.
+    const sanitizedData = this.sanitizer ? this.sanitizer(data) : data;
+
     const at = new Date().toISOString();
-    const dataHash = sha256(JSON.stringify(data));
+    const dataHash = sha256(JSON.stringify(sanitizedData));
     const previousHash = this._chainHeads.get(runId) || "0";
     const eventHash = sha256(previousHash + type + dataHash);
     const eventId = `evt-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`;
 
-    const entry = { eventId, runId, type, at, dataHash, previousHash, eventHash, data };
+    const entry = { eventId, runId, type, at, dataHash, previousHash, eventHash, data: sanitizedData };
 
     // R1-c: HMAC signature when a signing key is configured. The hash chain
     // already detects in-place tampering; the signature blocks an attacker
