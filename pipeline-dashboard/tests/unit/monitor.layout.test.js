@@ -775,6 +775,94 @@ test("MC1: hydrate failure does NOT block selection or break the panel", async (
   assert.ok(!handle._runDetailInFlight.has("Z"));
 });
 
+// ── Slice UX-2-c: approval card region ─────────────────────────
+
+test("UX-2-c: mount builds the approval-card region between global-bar and shell-body", async () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  const handle = mount({
+    root, store, normalize,
+    hydrate: () => Promise.resolve({ snapshot: store.snapshot(), raw: {} }),
+    doc,
+  });
+  await handle.hydrationPromise;
+  const regions = root._findAllByClass("approval-card-region");
+  assert.equal(regions.length, 1, "exactly one approval-card-region");
+  assert.equal(regions[0].attributes.role, "region");
+  assert.equal(regions[0].attributes["aria-label"], "Pending approvals");
+  assert.equal(handle._approvalMount, regions[0]);
+});
+
+test("UX-2-c: mount uses panels.approvalCard override", async () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  let captured = null;
+  const stubApproval = {
+    create(opts) {
+      captured = opts;
+      return {
+        destroy() { captured = null; },
+      };
+    },
+  };
+  const handle = mount({
+    root, store, normalize,
+    hydrate: () => Promise.resolve({ snapshot: store.snapshot(), raw: {} }),
+    panels: { approvalCard: stubApproval },
+    doc,
+  });
+  await handle.hydrationPromise;
+  assert.ok(captured, "approvalCard.create was invoked");
+  assert.equal(captured.root, handle._approvalMount);
+  assert.equal(captured.store, store);
+  // destroy() should clean up the panel handle.
+  assert.ok(handle._approvalHandle);
+  handle.destroy();
+  assert.equal(captured, null, "approval handle.destroy ran on layout teardown");
+});
+
+test("UX-2-c: missing approvalCard panel does not break layout (graceful)", async () => {
+  // Ensure no global resolution finds the panel — tests run with the
+  // module loaded but the layout's _resolvePanel falls through to
+  // window.HarnessMonitorApprovalCard, which is undefined here.
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  // Pass panels: {} explicitly to bypass any prior global registration.
+  const handle = mount({
+    root, store, normalize,
+    hydrate: () => Promise.resolve({ snapshot: store.snapshot(), raw: {} }),
+    panels: {},
+    doc,
+  });
+  await handle.hydrationPromise;
+  // Region still exists, panel handle is null.
+  assert.ok(handle._approvalMount);
+  assert.equal(handle._approvalHandle, null);
+});
+
+test("UX-2-c: approvalCard.create that throws surfaces error but layout survives", async () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  const stubApproval = {
+    create() { throw new Error("approval mount blew up"); },
+  };
+  const handle = mount({
+    root, store, normalize,
+    hydrate: () => Promise.resolve({ snapshot: store.snapshot(), raw: {} }),
+    panels: { approvalCard: stubApproval },
+    doc,
+  });
+  await handle.hydrationPromise;
+  // Layout did not crash — error surfaces in errorBox.
+  assert.ok(handle._errorBox);
+  // Approval handle remains null.
+  assert.equal(handle._approvalHandle, null);
+});
+
 test("MC1: bootstrap-time selectedRunId triggers an initial detail fetch", async () => {
   const doc = makeStubDoc();
   const root = doc.createElement("div");

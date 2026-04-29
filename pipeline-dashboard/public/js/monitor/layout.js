@@ -248,9 +248,23 @@
     settingsMount.setAttribute("role", "dialog");
     settingsMount.setAttribute("aria-label", "Accounts settings");
 
+    // Slice UX-2-c (Phase D R3 + E1.5, 2026-04-29): approval card region.
+    // Surfaces pending operator approvals between the global bar and
+    // the run rail / center workspace. The panel renders a card per
+    // pending approval; empty state shows "No pending approvals" but
+    // still occupies a slim header row so operators see "approvals
+    // are wired" at a glance. CSS hides the region when the slice is
+    // empty if needed; for now it's always visible to keep the
+    // visual structure stable.
+    const approvalMount = _doc.createElement("div");
+    approvalMount.className = "approval-card-region";
+    approvalMount.setAttribute("role", "region");
+    approvalMount.setAttribute("aria-label", "Pending approvals");
+
     root.innerHTML = "";
     root.appendChild(globalBarRoot);
     root.appendChild(errorBox);
+    root.appendChild(approvalMount);
     root.appendChild(shellBody);
     root.appendChild(shellDock);
     root.appendChild(settingsMount);
@@ -306,6 +320,29 @@
           }
         },
       });
+    }
+
+    // Slice UX-2-c (Phase D R3 + E1.5, 2026-04-29): mount the approval
+    // card panel into the dedicated region. Always-live subscription
+    // to the store; renders cards as approval_requested broadcasts
+    // arrive, removes them on approval_resolved.
+    let approvalHandle = null;
+    const ApprovalCard = _resolvePanel(panels, "approvalCard", "HarnessMonitorApprovalCard");
+    if (ApprovalCard) {
+      try {
+        approvalHandle = ApprovalCard.create({
+          root: approvalMount,
+          store,
+          doc: _doc,
+          headers,
+          fetchImpl,
+        });
+      } catch (err) {
+        // Never break the layout if the approval panel fails to mount —
+        // pending approvals still drive audit chain entries via the
+        // manager's broadcastFn; operators just lose the in-shell UI.
+        showError("approval panel: " + (err && err.message ? err.message : "init failed"), "approval");
+      }
     }
 
     // Slice D3-d: mount the settings-accounts panel into the hidden
@@ -497,6 +534,8 @@
         try { inspectorHandle && inspectorHandle.destroy && inspectorHandle.destroy(); } catch (_) {}
         try { bottomDockHandle && bottomDockHandle.destroy && bottomDockHandle.destroy(); } catch (_) {}
         try { agentTreeHandle && agentTreeHandle.destroy && agentTreeHandle.destroy(); } catch (_) {}
+        // Slice UX-2-c: tear down the approval card before the bridge.
+        try { approvalHandle && approvalHandle.destroy && approvalHandle.destroy(); } catch (_) {}
         // Slice D3-d: tear down the settings panel before the bridge.
         try { settingsHandle && settingsHandle.destroy && settingsHandle.destroy(); } catch (_) {}
         // Slice MB4-a: tear down the bridge LAST so any final events that
@@ -528,6 +567,9 @@
       _agentRailSection: agentRailSection,
       _runTreeMount: runTreeMount,
       _agentTreeMount: agentTreeMount,
+      // Slice UX-2-c: approval region + handle exposed for tests.
+      _approvalMount: approvalMount,
+      _approvalHandle: approvalHandle,
       // MB4-a hooks
       _bridgeHandle: bridgeHandle,
       // MC1 hooks — tests inspect dedupe/TTL state directly
