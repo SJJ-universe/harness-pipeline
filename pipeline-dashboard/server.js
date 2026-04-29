@@ -287,6 +287,21 @@ function gracefulShutdown(reason = "manual") {
       childRegistry.killAll("SIGTERM");
     }
   } catch (_) { /* never let shutdown signal handler throw */ }
+  // Slice R3-d (Phase D R3, 2026-04-28): send WS close 1000 to runner-
+  // bound connections BEFORE server.close() so the runner agent's state
+  // machine can distinguish clean orchestrator shutdown (1000 → exit 0,
+  // no reconnect) from crash (1006 → backoff retry). Runner connections
+  // were marked `ws._isRunnerWs = true` at upgrade time. Dashboard
+  // clients keep the legacy close() (defaults to 1005, no reason).
+  try {
+    for (const ws of wss.clients) {
+      try {
+        if (ws._isRunnerWs) {
+          ws.close(1000, "orchestrator_shutdown");
+        }
+      } catch (_) {}
+    }
+  } catch (_) {}
   try {
     for (const ws of clients) { try { ws.close(); } catch (_) {} }
   } catch (_) {}
@@ -379,6 +394,11 @@ wss.on("connection", (ws, req) => {
       try { ws.close(runnerVerdict.code, runnerVerdict.reason); } catch (_) {}
       return;
     }
+    // Slice R3-d (Phase D R3, 2026-04-28): mark runner-bound connections
+    // so gracefulShutdown can send close 1000 selectively. Without this
+    // mark, server.close() would yank the socket and the agent would see
+    // 1006 (abnormal) and start a backoff/reconnect loop pointlessly.
+    ws._isRunnerWs = true;
     handleRunnerWsConnection(ws, req, runnerVerdict);
     return;
   }

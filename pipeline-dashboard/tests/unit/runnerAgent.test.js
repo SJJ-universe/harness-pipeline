@@ -271,6 +271,27 @@ test("R1-e-3: ws close 1008 is fatal — agent stops", async () => {
   assert.equal(agent.state, STATES.STOPPED);
 });
 
+test("R3-d: ws close 1000 (clean orchestrator shutdown) — agent stops cleanly without reconnect", async () => {
+  // R3-d distinguishes graceful orchestrator shutdown (1000) from
+  // crash/network-drop (1006). 1000 must behave like 1011/1008 (fatal,
+  // no reconnect) so a runner attached to a deliberately-stopped
+  // orchestrator exits cleanly, not loops backoff against a dead host.
+  let reconnectScheduled = false;
+  const fetchImpl = makeFetch(new Map());
+  const agent = new RunnerAgent(baseConfig, baseDeps({
+    fetchImpl,
+    setTimeoutFn: () => { reconnectScheduled = true; return 1; },
+  }));
+  agent.state = STATES.RUNNING;
+  agent._connectWs();
+  const ws = agent.ws;
+  ws.emit("close", 1000, Buffer.from("orchestrator_shutdown"));
+  await new Promise((r) => setImmediate(r));
+  assert.equal(agent.state, STATES.STOPPED, "1000 must move to STOPPED state");
+  assert.equal(reconnectScheduled, false,
+    "1000 must NOT schedule a reconnect (clean exit, no backoff)");
+});
+
 test("R1-e-3: ws close 1006 (abnormal) triggers reconnect", () => {
   let scheduledDelay;
   const fetchImpl = makeFetch(new Map());

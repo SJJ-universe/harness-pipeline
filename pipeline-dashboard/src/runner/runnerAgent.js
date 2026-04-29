@@ -263,6 +263,20 @@ class RunnerAgent {
       this.stats.wsDisconnects += 1;
       this.logger.log(`[harness-runner] ws close code=${code} reason=${String(reason)}`);
       this.ws = null;
+      // Slice R3-d (Phase D R3, 2026-04-28): code 1000 = orchestrator
+      // sent a clean close (graceful shutdown). Distinguish from 1006
+      // (abnormal — orchestrator crashed or network died) which still
+      // earns a backoff retry. A stuck runner that keeps reconnecting
+      // to a dead orchestrator is a wasted operator's surprise — 1000
+      // exits cleanly so process supervisors (systemd / docker --restart)
+      // can interpret exit 0 as "no need to revive".
+      if (code === 1000) {
+        this.logger.log(
+          `[harness-runner] ws close 1000 (clean orchestrator shutdown) — agent stopping cleanly`,
+        );
+        this.stop();
+        return;
+      }
       // 1011 = orchestrator can't honor (mode=off, no key). Don't spin.
       // 1008 = bad credentials. Same — don't spin against a wall.
       if (code === 1011 || code === 1008) {

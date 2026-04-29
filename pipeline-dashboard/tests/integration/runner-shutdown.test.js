@@ -133,11 +133,42 @@ test("server.js passes childRegistry into both CodexRunner and ClaudeRunner", ()
   assert.match(claudeBlock, /childRegistry/, "ClaudeRunner gets childRegistry");
 });
 
+test("R3-d: server.js marks runner WS connections with _isRunnerWs flag at upgrade time", () => {
+  // The flag lets gracefulShutdown send close 1000 selectively to runner-
+  // bound connections only, not to dashboard clients (which would be
+  // bewildered by an explicit 1000 close from a server they're still
+  // talking to).
+  const idx = SERVER_SRC.indexOf("isRunnerWsPath(req.url)");
+  assert.ok(idx > -1, "expected runner-path branch in wss connection handler");
+  const window = SERVER_SRC.slice(idx, idx + 800);
+  assert.match(window, /ws\._isRunnerWs\s*=\s*true/,
+    "runner-path branch must mark ws._isRunnerWs = true so gracefulShutdown can find them");
+});
+
+test("R3-d: server.js gracefulShutdown sends close 1000 to runner WS connections (clean shutdown signal)", () => {
+  // Without this, the runner agent sees 1006 (abnormal) on every clean
+  // SIGTERM and starts a backoff/reconnect loop pointlessly. R3-d
+  // distinguishes deliberate shutdown from crash.
+  const fnStart = SERVER_SRC.indexOf("function gracefulShutdown");
+  assert.ok(fnStart > -1);
+  const block = SERVER_SRC.slice(fnStart, fnStart + 3000);
+  assert.match(block, /wss\.clients/,
+    "gracefulShutdown must walk wss.clients to find runner-bound WS");
+  assert.match(block, /_isRunnerWs/,
+    "gracefulShutdown must filter on the _isRunnerWs flag");
+  assert.match(block, /ws\.close\(1000,\s*["']orchestrator_shutdown["']\)/,
+    "runner WS must receive close 1000 with reason orchestrator_shutdown");
+});
+
 test("server.js gracefulShutdown calls childRegistry.killAll with SIGTERM and SIGKILL", () => {
   const fnStart = SERVER_SRC.indexOf("function gracefulShutdown");
   assert.ok(fnStart > -1);
   // Capture a generous slice — the SIGKILL path lives after the setTimeout.
-  const block = SERVER_SRC.slice(fnStart, fnStart + 2000);
+  // R3-d (Phase D R3, 2026-04-28) added the runner WS close 1000 broadcast
+  // inside gracefulShutdown which pushed SIGKILL past the original 2000-char
+  // window. Bumping to 3000 keeps the assertion intact without hard-coding
+  // line numbers.
+  const block = SERVER_SRC.slice(fnStart, fnStart + 3000);
   assert.match(
     block,
     /childRegistry\.killAll\(["']SIGTERM["']\)/,
