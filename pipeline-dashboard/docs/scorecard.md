@@ -2,7 +2,7 @@
 
 ## Current Score
 
-**103 / 112** (Phase 2.5 multi-run + Phase 3-S security + Phase D MA0~MA7 monitor shell + Phase D Round 2 MB1~MB6 backfill + Phase D Round 2.5 MC1~MC5 live wiring + MA7 UI-3 rewrite readiness + Phase D Round MD readiness automation + Phase D Round ME CI hygiene + Phase D Round MF P4 design RFC + Phase D Round MG P4 implementation RFC + **Phase D R1 a~i + e + g + g+ — full remote runner subsystem** + **Phase D R1-k1/k2/k3 — external review correctness round** + **Phase D R2 — single-runner deployment evaluation (live verified)** + **Phase D R2.5 — controlled remote execution bridge with allowlist + sanitization + full audit narrative**; MD2 extended Testability cap 10 → 11; R1-j extended Safety cap 15 → 16; R2 extended Safety cap 16 → 17; R2.5 extends Safety cap 17 → 18 — controlled execution bridge for remote hooks, allowlist-only, opt-in via HARNESS_REMOTE_BRIDGE_MODE)
+**104 / 113** (Phase 2.5 multi-run + Phase 3-S security + Phase D MA0~MA7 monitor shell + Phase D Round 2 MB1~MB6 backfill + Phase D Round 2.5 MC1~MC5 live wiring + MA7 UI-3 rewrite readiness + Phase D Round MD readiness automation + Phase D Round ME CI hygiene + Phase D Round MF P4 design RFC + Phase D Round MG P4 implementation RFC + **Phase D R1 a~i + e + g + g+ — full remote runner subsystem** + **Phase D R1-k1/k2/k3 — external review correctness round** + **Phase D R2 — single-runner deployment evaluation (live verified)** + **Phase D R2.5 — controlled remote execution bridge with allowlist + sanitization + full audit narrative** + **Phase E1 D0-a~e — productization launcher (harness-start.bat/.sh + atomic install + https-only manifest URL + port-squat defense)**; MD2 extended Testability cap 10 → 11; R1-j extended Safety cap 15 → 16; R2 extended Safety cap 16 → 17; R2.5 extends Safety cap 17 → 18; D0-e extends Config/portability cap 5 → 8 — productization-grade launcher with atomic install + https-only manifest URL + port-squat defense)
 
 Trajectory:
 - v3.1 hardening — 87
@@ -24,6 +24,9 @@ Trajectory:
 - **Phase D R3-0** (rollout plan + 15 acceptance gates R3-G01..G15 + 5 sub-rounds R3-a..e + Linux host evidence requirement for L2/L3 + per-call approval scope for write-side tools; landed at [`docs/r3-rollout-plan.md`](./r3-rollout-plan.md) before any R3 code) — **103/112** (design dividend, no rubric move; follows the ME1/ME2 precedent — discipline / planning rounds increase the credibility of subsequent slices without moving the rubric. Gates locked before code keeps R3 from entangling multi-runner + Linux host networking + write-tool approval into a single risky push)
 - **Phase D R3-a** (two-network topology — operator-facing bridge + runner-internal bridge, orchestrator dual-homed; closes R2 eval §3 row "Strict mode breaks dashboard host port"; R3-G01 + R3-G02 verified live on Docker Desktop) — **103/112** (operational fix, no rubric move; pre-R3-a strict mode broke `127.0.0.1:4201` from host because the single internal bridge severed NAT. R3-a separates the operator-facing path from runner egress so strict mode can sever runner egress without taking the dashboard with it. r2-eval 4/4 + r2-probe-egress 6/6 + r2-monitor-probe 4/4 all PASS under strict mode now)
 - **Phase D R3-c** (multi-runner pool primitives — registry layer R3-c-1: `selectFreshRunner` + `pruneStaleRunners` + `getAssignment` + handshake collision detection with new `host_in_use` reason and `runner_handshake_collision` audit; runtime layer R3-c-2: `RunnerStaleMonitor` periodic prune loop wired into server.js with single-emit `runner_host_lost` audit row + dedupe-on-recovery + idle-host skip + ledger-failure resilience) — **103/112** (operational primitives, no rubric move; R3-G06 + R3-G07 + R3-G09 + R3-G10 closed at registry/monitor layer; R3-G08 fairness algorithm verified by unit + integration but live deployment evidence requires multi-runner orchestrator-dispatch wiring deferred to R3-d / R3-e)
+- **Phase D R3-d** (graceful shutdown polish — `src/server/shutdown.js` walks wss.clients on SIGTERM/SIGINT, sends `ws.close(1000, "orchestrator_shutdown")` to runner-bound connections; `runnerAgent.js` learns to differentiate clean-1000 from 1006-crash and 1011/1008-fatal; `tests/integration/runner-shutdown.test.js`) — **103/112** (operational fix, no rubric move per R3-0 plan)
+- **Phase E1 P0** (envFilter for Claude/Codex spawn — `src/security/envFilter.js` filters TOKEN/SECRET/KEY/PASSWORD/CREDENTIAL keys from spawn env unless allowlisted; closes the gap where `executor/claude-runner.js` + `executor/codex-runner.js` previously inherited `process.env` wholesale, leaking HARNESS_TOKEN + provider tokens to agent children) — **103/112** (precondition for D1 profile + credential layer; cap unchanged because the fix lands as a security baseline, not a new capability)
+- **Phase E1 D0-a/b/c/d/e** (productization launcher — `harness-start.bat` UTF-8 BOM + CRLF Windows entry / `harness-start.sh` Mac-Linux entry / `scripts/launcher/{install-version,check-update}.{ps1,sh}` thin shells / `scripts/launcher/launcher-cli.js` ~250-line Node bridge that PowerShell + bash share for SHA256 + semver + path resolution + manifest validation + URL scheme check + health discriminator. D0-a `configPaths.js` + `launcherManifest.js` (43 unit tests). D0-b/c/d ship the platform shells + 16 smoke tests + operator guide. D0-e closes 4 production-readiness gaps: https-only manifest URL with `HARNESS_ALLOW_INSECURE_MANIFEST_URL=1` escape hatch; bash sites unified through `manifest-field` (no more inline `node -e require(...)` quoting fragility); atomic install via `<Version>.partial-<ts>` staging + `.install-complete` sentinel last; `/api/health` discriminator `app:"HarnessPipeline" + healthVersion:1` + `verify-health` CLI so port-squat services can't trick the launcher into "already running" treatment. cmd.exe trap catalog grew during D0-b: `::` inside `( ... )` blocks → use `rem`; `set /p var=<file` inside parens → use `for /f "usebackq"`; `timeout /t 1` aborts under redirected stdin → use `ping -n 2`; unescaped `)` in `echo` lines inside `( ... )` blocks → escape via `^)`. `.gitattributes` pins `*.bat`/`*.ps1` → CRLF and `*.sh` → LF so Windows cloners with `core.autocrlf=true` don't break the bash launchers) — **104/113** (Config/portability cap extended 5 → 8 — captures the qualitative shift from "developer runs `node start.js` from a checked-out repo" to "operator double-clicks `harness-start.bat` from a release zip")
 
 Target after Phase 3 (D platformization): **103+**.
 Container sandbox + remote-mode hardening required for the multi-tenant tier.
@@ -45,7 +48,7 @@ Total max → **108 points**. Previous score normalisation: pre-MB6 90/100 = ~88
 | Safety and security boundary | 15 | 13 | 14 | **14** | — |
 | Observability and runtime proof | 10 | 8 | 9 | **10** | +1 (MA1+MA5+MA6 + MB1 detail + MB4-a legacy-bridge live data + MB5 readiness rubric) |
 | Testability and regression suite | 10 | 9 | 10 | **10** | — (878 unit + 189 integration; +25% from Phase 3-S) |
-| Config, portability, onboarding | 5 | 4 | 5 | **5** | — |
+| Config, portability, onboarding | 5 | 4 | 5 | **5** | — _(scale 5 → 8 in D0-e; current value 6/8 — see "Rubric scale change (D0-e)" below)_ |
 | **UI feedback loop** (scale 5 → 7) | **7** | 4 | 5 | **6** | +1 (MA0~MA6 monitor shell + MB3 dock tabs) |
 | **Maintainability and modularity** (scale 5 → 8) | **8** | 5 | 5 | **8** | +3 (MB4-b/c/d server + app extraction + module factories + DOM-free stores) |
 | **Total** | **108** | **87** | **89** | **94** | **+5** |
@@ -332,6 +335,51 @@ The remaining 9 points sit in:
 - Phase 3 multi-tenant orchestrator (~3 points: per-user RBAC,
   audit log retention, runner-pool scheduling).
 
+### Rubric scale change (D0-e)
+
+The original 5-point cap on "Config, portability, onboarding"
+assumed the user is a **developer who runs `node start.js` from a
+checked-out repo**. Phase E1 D0 changes the audience: the user is
+now an **operator who installs from a release zip and double-clicks
+`harness-start.bat`**. That qualitative shift — from "you need git
+and npm" to "you need Node 24 and a download" — outgrew the 5-point
+cap. D0-e (the hardening sub-slice that closed atomic install +
+https-only manifest URL + port-squat defense) extends the cap to
+**8** to match the qualitative shift; D1 profile + credential will
+push category further within the new headroom.
+
+| Area | Pre-D0-e max | Post-D0-e max |
+| --- | ---: | ---: |
+| Config, portability, onboarding | 5 | **8** |
+| **Total** | 112 | **113** |
+
+The +1 score (103 → 104) within the new cap reflects:
+- Cross-platform launcher (Windows 1st-class, Mac/Linux best-effort)
+- OS-aware config + data dir resolution with `HARNESS_DATA_DIR`
+  portable-mode override
+- Atomic install with self-healing (partial-dir sweep + sentinel
+  detection); SHA256 quarantine on mismatch
+- https-only manifest URL with explicit `HARNESS_ALLOW_INSECURE_MANIFEST_URL=1`
+  dev-only escape hatch
+- Port-squat defense: `verify-health` checks `app:"HarnessPipeline"`
+  before treating a 200 as "already running"
+- 25 smoke tests covering CLI bridge contract + atomic install
+  semantics + verify-health gate
+
+The remaining headroom (104 → 113) is reserved for:
+- D1 profile + credential layer (~2 points: keytar fail-closed
+  credential store, profile JSON schema + round-trip + switch,
+  spawn-env rewiring through profileSpawn)
+- D2 setup wizard + cliProbe (~1 point: 8-step first-run flow with
+  Claude/Codex CLI discovery + profile creation + workspace
+  permission check + test calls)
+- D3 UI account status + settings panel (~1 point: global-bar
+  account cell + accounts-modal switch UX)
+- UX-0/UX-1/UX-2 simple/advanced/legacy mode shell + welcome
+  overlay + per-call approval card (~2 points)
+- E2 launch overhead — backup/restore/uninstall + manifest signing
+  for public distribution (~3 points; E3 territory)
+
 ## Phase D R2 progress (single-runner deployment evaluation)
 
 This is the FIRST round where the harness runs as an actual deployed
@@ -584,9 +632,144 @@ that increase credibility without moving the rubric.
   tests. `runner_host_lost` rows fire when a future multi-runner
   orchestrator-dispatch flow holds claims past WS disconnect.
 
-## What 103 means
+## Phase E1 D0 progress (productization launcher)
 
-Single-user local harness with multi-run isolation, hardened external-input boundaries, AND a monitoring-first opt-in console with live data flow + agent observability + per-run detail contract + flow-level readiness rubric + behavior-verified readiness scoring + auto-derived doc trust + dispatcher-driven extraction pattern + CI-enforced regression protection + **a complete remote-execution design RFC** + **a complete implementation RFC with concrete tech decisions for runtime / image / JWT / ledger / control plane / network egress / bootstrap / failure recovery** + **the orchestrator-side primitives of remote mode actually shipped — JWT module + signed audit ledger + runner registry + handshake/heartbeat/hook routes + Dockerfile + server.js wiring + 6th readiness rubric category (remote-isolation, behavior-verified)** + **the runner-host primitives that complete the remote subsystem — WS path-aware demux + connection-lifecycle handler + `RunnerAgent` Node entrypoint + WS message protocol + `childRegistry` remote projection + readiness Star 3 upgraded to live runner→orchestrator round-trip** + **external-review correctness hardening — composite-key remote children with stop-path ownership verify + hook success audit-chain entries + runner-agent env validation that fails fast on bad numeric env** + **R2 single-runner deployment evaluation completed — all MF1 §4.1 gates G1-G9 verified live on the operator's Docker Desktop with repeatable probe scripts; 8 latent bugs surfaced and fixed** + **R2.5 controlled remote execution bridge — sanitized hooks now drive the local executor under an opt-in feature flag, with allowlist (5 hooks × 3 read-only tools), pure sanitizer with prototype-pollution resistance, and a 5-verb audit narrative (routed → rejected | sanitized → dispatched | dispatch_error). G4 hook ingress auth lifted from "partial PASS" to "full PASS"; runner-claimed runs are first-class in `/api/monitor/runs/:runId`**. The next-round work splits into two complementary axes: **R3 multi-runner pool + Linux host** for the layer 2/3 egress enforcement R2-4 left open, and a **per-call approval flow** before opening Bash / Write / Edit through the bridge. **R3-0 (plan) + R3-a (two-network topology) + R3-c (multi-runner pool primitives) landed**. R3-0 locked the gates; R3-a closes R2-4's dashboard host port gap (orchestrator dual-homed; strict override flips runner bridge only); R3-c ships the multi-runner pool primitives at registry + monitor layer (`selectFreshRunner` LEAST_LOADED + FIFO tie-break, `pruneStaleRunners` observation, `getAssignment` public surface, handshake collision detection with new `host_in_use` reason and `runner_handshake_collision` audit, `RunnerStaleMonitor` periodic prune wired into server.js with single-emit `runner_host_lost` audit row + dedupe-on-recovery + idle-host skip + ledger-failure resilience). R3-G01 + R3-G02 + R3-G06 + R3-G07 + R3-G09 + R3-G10 are GREEN. R3-G08 fairness algo verified by unit + integration; live deployment evidence deferred to R3-d/e. Next: R3-d (graceful shutdown polish — clean WS close 1000 distinguishable from 1006 crash, RunnerAgent state machine differentiation), then R3-b (Linux host nftables L2 + dnsmasq L3, requires Linux host), then R3-e (per-call approval for write-side tools, last).
+D0 is the FIRST round whose primary user is the **operator at install
+time**, not the developer in a checked-out repo. Every prior round
+assumed `git clone` + `npm install` + `node start.js`. D0 closes the
+"can a non-developer run this from a release zip?" gap.
+
+The five sub-slices ship in dependency order: D0-a (JS foundation) →
+D0-b (Windows 1st-class) → D0-c (Mac/Linux best-effort) → D0-d (smoke +
+docs) → D0-e (hardening). User feedback after D0-d flagged four
+production-readiness gaps that D0-e closed before D1 entry.
+
+- **D0-a — JS foundation** (commit `c0e68cc`):
+  `src/runtime/configPaths.js` (resolve OS-aware config + data dirs:
+  Win `%APPDATA%`/`%LOCALAPPDATA%`, mac `~/Library/Application Support`,
+  Linux XDG; `HARNESS_DATA_DIR`/`HARNESS_CONFIG_DIR` env overrides for
+  portable-mode USB-stick installs; `versionInstallDir(version)` rejects
+  path-traversal characters). `src/runtime/launcherManifest.js`
+  (`validateManifestSchema` enforces required-fields + https-only URL +
+  64-char lowercase-hex SHA256 + parseable ISO8601 publishedAt + semver
+  versions; `sha256OfFile` chunked-read; `timingSafeHexEqual` constant-
+  time; `verifySha256`; `compareSemver`; `checkRuntimeVersion`).
+  `scripts/launcher/manifest.json.example` references the trust scope
+  in a `_comment` field. +43 unit tests
+  (`tests/unit/configPaths.test.js` + `launcherManifest.test.js`).
+
+- **D0-b — Windows 1st-class launcher** (commit `08f02d3`):
+  `harness-start.bat` (UTF-8 BOM + CRLF, dev/installer 2-mode, 10s
+  health budget, `HARNESS_NO_BROWSER=1` for CI). Companion PS1 scripts:
+  `install-version.ps1` (manifest fetch + SHA256 verify + extract;
+  mismatch → quarantine), `check-update.ps1` (notify-only, no
+  auto-update — supply-chain risk too high for unattended fetch+exec).
+  cmd.exe traps caught + fixed during this slice: `::` comments inside
+  `( ... )` blocks are parsed as labels and spam stderr (use `rem` instead);
+  `set /p var=<file` is unreliable inside `( ... )` (use `for /f
+  "usebackq"`); `timeout /t 1` aborts under redirected stdin (use
+  `ping -n 2 127.0.0.1` instead); `)` inside echo lines inside `(...)`
+  blocks prematurely terminates the block (escape via `^)`). Operator
+  guide reiterates trust scope at top + bottom: INTERNAL/PRIVATE only
+  until E3 Release Hygiene adds manifest signing.
+
+- **D0-c — Mac/Linux best-effort** (same commit `08f02d3`):
+  `harness-start.sh` (mode 100755, identical contract: `nohup`
+  background + `<INSTALL_DIR>/launcher.log`, `open`/`xdg-open` browser
+  fallback). `install-version.sh` (long-option-only parser to sidestep
+  BSD-vs-GNU getopt portability, jq-free manifest parse, `unzip`-or-`tar`
+  extraction). `check-update.sh` (`--json` flag for cron consumers).
+  `.gitattributes` pins `*.bat`/`*.ps1`/`*.cmd`/`*.psm1` → `eol=crlf`,
+  `*.sh` → `eol=lf` so `core.autocrlf=true` cloners on Windows don't
+  break the bash launchers with "bad interpreter" errors.
+
+- **D0-d — Smoke test + docs** (same commit `08f02d3`):
+  `scripts/launcher/launcher-cli.js` (~180-line Node CLI bridge —
+  PowerShell + bash share one source of truth for SHA256 + semver +
+  paths + manifest validation; without it, three launcher
+  implementations would drift). `tests/smoke/launcher-portable.test.js`
+  (+15 cross-platform smoke tests covering --help → unknown command →
+  validate-manifest happy/sad paths → BOM tolerance → SHA256
+  match/mismatch → compare-semver single-token contract → check-runtime
+  → resolve-paths HARNESS_DATA_DIR override → version-install-dir
+  path-traversal rejection → manifest-field → launcher-files-exist
+  regression guard). `docs/operator-guide.md` documents the two
+  deployment scenarios + env table + manifest format + troubleshooting
+  + trust-scope disclaimer.
+
+- **D0-e — Launcher hardening** (commit `1655e55`, this section):
+  Four production-readiness gaps closed in one focused commit.
+
+  - **D0-e-1 HARNESS_MANIFEST_URL https:// enforcement.** The manifest
+    fetch is the unprotected step in the trust chain — it happens
+    BEFORE any signature exists, so the only thing protecting it is
+    the channel's transport security. Pre-D0-e, the launcher fetched
+    manifest from any URL the operator gave it: an MITM could swap the
+    manifest entirely (URL + sha256) and the launcher would happily
+    install whatever zip the swapped manifest pointed at. Post-D0-e,
+    `launcher-cli validate-manifest-url <url>` runs before any network
+    I/O in install-version.{ps1,sh}, check-update.{ps1,sh}, and the
+    .bat/.sh entry points. Uses URL parsing (not regex) so credentials/
+    ports/paths are handled correctly. `HARNESS_ALLOW_INSECURE_MANIFEST_URL=1`
+    escape hatch for dev/test (file://, http://localhost) prints a loud
+    stderr WARNING every time so operators can never quietly drift from
+    the safe default.
+
+  - **D0-e-2 Bash manifest field extraction unified through `manifest-field`.**
+    The previous bash sites used inline `node -e "process.stdout.write(
+    require('$MANIFEST_FILE').field);"` which broke when the manifest
+    path contained spaces or shell metacharacters (single-quoted inside
+    double-quoted inside `$(...)` — three layers of quoting, all
+    fragile). All five sites (install-version.sh's VERSION/ZIP_URL/
+    EXPECTED_SHA, check-update.sh's LATEST_VERSION/PUBLISHED_AT,
+    harness-start.sh's MIN_NODE) now go through `launcher-cli
+    manifest-field` which shares the BOM-tolerant + JSON.parse logic
+    the schema validator uses. Cross-platform parity now extends to
+    field extraction, not just schema validation.
+
+  - **D0-e-3 Atomic install via `.install-complete` sentinel.**
+    Pre-D0-e the install dir was created and extracted into in-place.
+    A power loss or Ctrl-C mid-extract left a partial directory that
+    the next launcher run mistook for a complete install — silently
+    launching a half-extracted server. Post-D0-e: extract into a
+    per-run `<Version>.partial-<ts>` staging dir → atomic
+    `Move-Item`/`mv` to the final `<Version>` location → write the
+    `.install-complete` sentinel LAST. An install is "complete" iff
+    BOTH the directory AND the sentinel exist. `install-version.{ps1,sh}`
+    sweeps stale `<Version>.partial-*` dirs at start and removes any
+    `<Version>` directory missing the sentinel before a fresh extract.
+    A crash between rename and sentinel-write self-heals on the next
+    install attempt. Concurrent-reader safety: rename-into-place is
+    atomic at the filesystem layer (NTFS + POSIX), so harness-start
+    reading `last-install.txt` during an install never sees a
+    half-extracted state.
+
+  - **D0-e-4 `/api/health` discriminator + `verify-health` command.**
+    Pre-D0-e the launcher's "already running" branch fired on any 200
+    response from `/api/health` — including from unrelated services
+    squatting port 4201. The launcher would then open the browser,
+    sending the operator into someone else's app. Post-D0-e:
+    `src/routes/healthRoutes.js` adds `{app:"HarnessPipeline",
+    healthVersion:1}` to every `/api/health` response (additive — all
+    existing consumers, including docker healthchecks, still pass).
+    `launcher-cli verify-health <url>` does a structural check against
+    those fields. `harness-start.{bat,sh}` swap raw `curl /api/health`
+    for `verify-health` in BOTH the start-time "already running?"
+    check AND the post-launch health-poll loop.
+
+  Test counts: 1309 unit (no change), 268 integration (no change),
+  16 smoke → 25 smoke (+9 D0-e tests covering https accept / http
+  reject / file:// reject / escape hatch warning / malformed URL +
+  verify-health real-server / wrong-app / non-JSON / unreachable).
+
+D0 (a-e) closes the launcher round. Next step in Phase E1 is **D1
+profile + credential + spawn rewiring** — the round that makes the
+harness usable by an operator with their own Claude/Codex account
+instead of the developer-supplied env vars.
+
+## What 104 means
+
+Single-user local harness with multi-run isolation, hardened external-input boundaries, AND a monitoring-first opt-in console with live data flow + agent observability + per-run detail contract + flow-level readiness rubric + behavior-verified readiness scoring + auto-derived doc trust + dispatcher-driven extraction pattern + CI-enforced regression protection + **a complete remote-execution design RFC** + **a complete implementation RFC with concrete tech decisions for runtime / image / JWT / ledger / control plane / network egress / bootstrap / failure recovery** + **the orchestrator-side primitives of remote mode actually shipped — JWT module + signed audit ledger + runner registry + handshake/heartbeat/hook routes + Dockerfile + server.js wiring + 6th readiness rubric category (remote-isolation, behavior-verified)** + **the runner-host primitives that complete the remote subsystem — WS path-aware demux + connection-lifecycle handler + `RunnerAgent` Node entrypoint + WS message protocol + `childRegistry` remote projection + readiness Star 3 upgraded to live runner→orchestrator round-trip** + **external-review correctness hardening — composite-key remote children with stop-path ownership verify + hook success audit-chain entries + runner-agent env validation that fails fast on bad numeric env** + **R2 single-runner deployment evaluation completed — all MF1 §4.1 gates G1-G9 verified live on the operator's Docker Desktop with repeatable probe scripts; 8 latent bugs surfaced and fixed** + **R2.5 controlled remote execution bridge — sanitized hooks now drive the local executor under an opt-in feature flag, with allowlist (5 hooks × 3 read-only tools), pure sanitizer with prototype-pollution resistance, and a 5-verb audit narrative (routed → rejected | sanitized → dispatched | dispatch_error). G4 hook ingress auth lifted from "partial PASS" to "full PASS"; runner-claimed runs are first-class in `/api/monitor/runs/:runId`**. The next-round work splits into two complementary axes: **R3 multi-runner pool + Linux host** for the layer 2/3 egress enforcement R2-4 left open, and a **per-call approval flow** before opening Bash / Write / Edit through the bridge. **R3-0 (plan) + R3-a (two-network topology) + R3-c (multi-runner pool primitives) landed**. R3-0 locked the gates; R3-a closes R2-4's dashboard host port gap (orchestrator dual-homed; strict override flips runner bridge only); R3-c ships the multi-runner pool primitives at registry + monitor layer (`selectFreshRunner` LEAST_LOADED + FIFO tie-break, `pruneStaleRunners` observation, `getAssignment` public surface, handshake collision detection with new `host_in_use` reason and `runner_handshake_collision` audit, `RunnerStaleMonitor` periodic prune wired into server.js with single-emit `runner_host_lost` audit row + dedupe-on-recovery + idle-host skip + ledger-failure resilience). R3-G01 + R3-G02 + R3-G06 + R3-G07 + R3-G09 + R3-G10 are GREEN. R3-G08 fairness algo verified by unit + integration; live deployment evidence deferred to R3-e. **R3-d (graceful shutdown polish) landed** — `src/server/shutdown.js` walks `wss.clients` on SIGTERM/SIGINT, sends `ws.close(1000, "orchestrator_shutdown")` to runner-bound connections; `runnerAgent.js` differentiates clean-1000 from 1006-crash and 1011/1008-fatal. **Phase E1 D0 (a-e) closed the productization launcher** — operator can install from a release zip, double-click `harness-start.bat` (or `./harness-start.sh`), and the launcher fetches/SHA256-verifies/atomic-installs/launches/health-checks/opens-browser, with https-only manifest URL, port-squat defense via `app:"HarnessPipeline"` discriminator, atomic install via `.install-complete` sentinel, and a `verify-health` CLI that distinguishes our server from any 200-OK responder. Config/portability cap extended 5 → 8 to capture the audience shift from "developer with `git clone`" to "operator with a download". Next: **R3-b** (Linux host nftables L2 + dnsmasq L3, requires Linux host), **R3-e** (per-call approval for write-side tools), and the **D1 profile + credential layer** that makes the harness usable with the operator's own Claude/Codex account instead of the developer-supplied env vars.
 
 The MB1~MB6 + MC1~MC5 + MA7-a/b/c rounds closed the highest-leverage structural debt without bloating the surface. Each lift was behaviour-preserving + locked by tests; the file shrinkage is genuine. server.js dropped 276 lines, app.js dropped 252 lines. Module footprint expanded by 21 small UMD/Node modules, all under test, all CSP-compliant.
 
