@@ -27,8 +27,11 @@ const {
   redactPii,
   PATTERNS,
   DEFAULT_PATTERN_TYPES,
+  INLINE_PATTERN_TYPES,
+  DEEP_PATTERN_TYPES,
   _isValidKrn,
   _isValidLuhn,
+  _isValidBrn,
   _redactSample,
 } = require("../../src/security/piiScanner");
 
@@ -303,6 +306,240 @@ test("GOV-PII-0: scanForPii on 4KB prompt completes in well under 50ms", () => {
 // ─────────────────────────────────────────────────────────────────
 //  Multi-pattern, multi-finding output shape
 // ─────────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────────
+//  Slice GOV-PII-1-a (Phase E1.5, 2026-04-29) — depth selector
+//  + 3 KR deep patterns (사업자등록번호 / 운전면허 / 여권)
+// ─────────────────────────────────────────────────────────────────
+
+// Computed valid BRN per the 사업자등록번호 check-digit algorithm
+// (see _isValidBrn comment in piiScanner.js for the math).
+const BRN_VALID = "123-45-67891";        // computed: digit[9] = 1
+const BRN_INVALID_CHECK = "123-45-67890"; // last digit should be 1
+const BRN_VALID_2 = "208-81-07076";      // independently computed: digit[9] = 6
+
+// ── BRN check digit ──────────────────────────────────────────
+
+test("GOV-PII-1-a: _isValidBrn passes a known-valid 사업자번호", () => {
+  assert.equal(_isValidBrn("1234567891"), true);
+  assert.equal(_isValidBrn("2088107076"), true);
+});
+
+test("GOV-PII-1-a: _isValidBrn rejects bad check digit", () => {
+  assert.equal(_isValidBrn("1234567890"), false);
+  assert.equal(_isValidBrn("1234567899"), false);
+});
+
+test("GOV-PII-1-a: _isValidBrn rejects non-10-digit input", () => {
+  assert.equal(_isValidBrn(""), false);
+  assert.equal(_isValidBrn("123"), false);
+  assert.equal(_isValidBrn("12345678901"), false); // 11 digits
+  assert.equal(_isValidBrn("123-45-67891"), false); // includes dash
+  assert.equal(_isValidBrn("ABCDEFGHIJ"), false);
+  assert.equal(_isValidBrn(null), false);
+  assert.equal(_isValidBrn(undefined), false);
+});
+
+// ── BRN scanning (deep mode required) ──────────────────────────
+
+test("GOV-PII-1-a: BRN is INVISIBLE under default (inline) depth — back-compat regression guard", () => {
+  // Existing GOV-PII-0 callers must NOT see BRN matches creep in
+  // when they upgrade to the GOV-PII-1 piiScanner. The fast inline
+  // gate stays unchanged.
+  const result = scanForPii(`사업자번호 ${BRN_VALID}`);
+  const brn = result.findings.find((f) => f.type === "business_reg");
+  assert.equal(brn, undefined,
+    "default depth (inline) must not match BRN — would regress GOV-PII-0 behavior");
+});
+
+test("GOV-PII-1-a: BRN matches under depth=deep with valid check digit", () => {
+  const result = scanForPii(`사업자번호 ${BRN_VALID}`, { depth: "deep" });
+  assert.equal(result.hasPii, true);
+  const brn = result.findings.find((f) => f.type === "business_reg");
+  assert.ok(brn);
+  assert.equal(brn.count, 1);
+  assert.equal(brn.severity, "high");
+});
+
+test("GOV-PII-1-a: BRN-shaped sequence with bad check digit does NOT match", () => {
+  const result = scanForPii(`fake: ${BRN_INVALID_CHECK}`, { depth: "deep" });
+  const brn = result.findings.find((f) => f.type === "business_reg");
+  assert.equal(brn, undefined,
+    "Luhn-fail equivalent: BRN with bad check digit must NOT match (false-positive guard)");
+});
+
+test("GOV-PII-1-a: BRN matches with and without dashes", () => {
+  const dashed = scanForPii(BRN_VALID, { depth: "deep" });
+  const undashed = scanForPii(BRN_VALID.replace(/-/g, ""), { depth: "deep" });
+  assert.equal(dashed.findings.find((f) => f.type === "business_reg")?.count, 1);
+  assert.equal(undashed.findings.find((f) => f.type === "business_reg")?.count, 1);
+});
+
+test("GOV-PII-1-a: multiple valid BRNs all match", () => {
+  const text = `회사1: ${BRN_VALID}\n회사2: ${BRN_VALID_2}`;
+  const result = scanForPii(text, { depth: "deep" });
+  const brn = result.findings.find((f) => f.type === "business_reg");
+  assert.equal(brn.count, 2);
+});
+
+// ── Korean driver license ──────────────────────────────────────
+
+test("GOV-PII-1-a: KR driver license matches under depth=deep (12-digit format)", () => {
+  // Format: XX-XX-XXXXXX-XX
+  const text = "운전면허: 11-22-333344-55";
+  const result = scanForPii(text, { depth: "deep" });
+  const dl = result.findings.find((f) => f.type === "driver_license_kr");
+  assert.ok(dl);
+  assert.equal(dl.severity, "high");
+});
+
+test("GOV-PII-1-a: KR driver license invisible under default (inline) depth", () => {
+  const result = scanForPii("운전면허: 11-22-333344-55");
+  const dl = result.findings.find((f) => f.type === "driver_license_kr");
+  assert.equal(dl, undefined);
+});
+
+test("GOV-PII-1-a: KR driver license matches without dashes", () => {
+  const text = "운전면허: 112233334455";
+  const result = scanForPii(text, { depth: "deep" });
+  const dl = result.findings.find((f) => f.type === "driver_license_kr");
+  assert.ok(dl);
+});
+
+// ── Korean passport ──────────────────────────────────────────
+
+test("GOV-PII-1-a: KR passport matches under depth=deep (M/S + 8 digits)", () => {
+  for (const sample of ["M12345678", "S99887766"]) {
+    const result = scanForPii(`여권: ${sample}`, { depth: "deep" });
+    const p = result.findings.find((f) => f.type === "passport_kr");
+    assert.ok(p, `must match passport "${sample}"`);
+    assert.equal(p.severity, "critical");
+  }
+});
+
+test("GOV-PII-1-a: KR passport invisible under default (inline) depth", () => {
+  const result = scanForPii("여권: M12345678");
+  const p = result.findings.find((f) => f.type === "passport_kr");
+  assert.equal(p, undefined);
+});
+
+test("GOV-PII-1-a: KR passport prefix beyond M/S does NOT match", () => {
+  const result = scanForPii("코드: A12345678 X99887766", { depth: "deep" });
+  const p = result.findings.find((f) => f.type === "passport_kr");
+  assert.equal(p, undefined,
+    "current spec is M/S only — A/B/C/X don't qualify");
+});
+
+test("GOV-PII-1-a: KR passport embedded in longer alphanumeric does NOT match (anchoring)", () => {
+  // The lookarounds (?<![A-Z\d]) and (?![A-Z\d]) prevent grabbing
+  // a passport-shaped token from inside a larger identifier.
+  const result = scanForPii("token=ABCM123456789EFG", { depth: "deep" });
+  const p = result.findings.find((f) => f.type === "passport_kr");
+  assert.equal(p, undefined);
+});
+
+// ── Depth selector contract ────────────────────────────────────
+
+test("GOV-PII-1-a: explicit opts.patterns wins over depth", () => {
+  // Even with depth="deep", an explicit single-pattern subset still
+  // narrows the scan. This lets the route layer ask "just check
+  // BRN" without running the full set.
+  const text = `KRN: 900101-1234568, BRN: ${BRN_VALID}, email: a@b.com`;
+  const result = scanForPii(text, { depth: "deep", patterns: ["business_reg"] });
+  assert.equal(result.findings.length, 1);
+  assert.equal(result.findings[0].type, "business_reg");
+});
+
+test("GOV-PII-1-a: depth='deep' finds BRN + KRN + email simultaneously", () => {
+  const text = [
+    `KRN: 900101-1234568`,
+    `BRN: ${BRN_VALID}`,
+    `email: a@b.com`,
+    `passport: M12345678`,
+  ].join("\n");
+  const result = scanForPii(text, { depth: "deep" });
+  const types = result.findings.map((f) => f.type).sort();
+  assert.deepEqual(types, ["business_reg", "email", "krn", "passport_kr"].sort());
+});
+
+test("GOV-PII-1-a: depth selector ignored when explicit patterns is non-empty", () => {
+  const text = `KRN: 900101-1234568, BRN: ${BRN_VALID}`;
+  // Explicit patterns + depth=inline → only KRN matches (BRN not in explicit list).
+  const result = scanForPii(text, { depth: "inline", patterns: ["krn"] });
+  assert.equal(result.findings.length, 1);
+  assert.equal(result.findings[0].type, "krn");
+});
+
+test("GOV-PII-1-a: empty/invalid depth value defaults to inline", () => {
+  for (const bad of [null, undefined, "", "ghost", 42, true]) {
+    const result = scanForPii(`BRN: ${BRN_VALID}`, { depth: bad });
+    const brn = result.findings.find((f) => f.type === "business_reg");
+    assert.equal(brn, undefined,
+      `depth="${bad}" must default to inline (BRN not matched)`);
+  }
+});
+
+// ── INLINE_PATTERN_TYPES + DEEP_PATTERN_TYPES exports ──────────
+
+test("GOV-PII-1-a: INLINE_PATTERN_TYPES is the GOV-PII-0 set (5 entries, frozen)", () => {
+  assert.ok(Object.isFrozen(INLINE_PATTERN_TYPES));
+  assert.deepEqual(
+    [...INLINE_PATTERN_TYPES].sort(),
+    ["credit_card", "email", "krn", "phone_kr_landline", "phone_kr_mobile"],
+  );
+});
+
+test("GOV-PII-1-a: DEEP_PATTERN_TYPES is INLINE + 3 deep entries (8 total, frozen)", () => {
+  assert.ok(Object.isFrozen(DEEP_PATTERN_TYPES));
+  assert.equal(DEEP_PATTERN_TYPES.length, 8);
+  assert.ok(DEEP_PATTERN_TYPES.includes("business_reg"));
+  assert.ok(DEEP_PATTERN_TYPES.includes("driver_license_kr"));
+  assert.ok(DEEP_PATTERN_TYPES.includes("passport_kr"));
+  // Inline entries are still in deep.
+  for (const t of INLINE_PATTERN_TYPES) {
+    assert.ok(DEEP_PATTERN_TYPES.includes(t));
+  }
+});
+
+test("GOV-PII-1-a: DEFAULT_PATTERN_TYPES === INLINE_PATTERN_TYPES (back-compat alias)", () => {
+  assert.deepEqual(DEFAULT_PATTERN_TYPES, INLINE_PATTERN_TYPES,
+    "DEFAULT_PATTERN_TYPES must alias INLINE_PATTERN_TYPES so pre-GOV-PII-1 callers keep their behavior");
+});
+
+// ── PATTERNS registry has all 8 entries (frozen + per-entry frozen)
+
+test("GOV-PII-1-a: PATTERNS registry now has 8 entries (5 inline + 3 deep)", () => {
+  assert.equal(Object.keys(PATTERNS).length, 8);
+  // Every registry entry is itself frozen (per-pattern wire format lock).
+  for (const ptype of Object.keys(PATTERNS)) {
+    assert.ok(Object.isFrozen(PATTERNS[ptype]),
+      `pattern "${ptype}" must be frozen`);
+  }
+});
+
+// ── Sample redaction safety on deep matches ──────────────────────
+
+test("GOV-PII-1-a: BRN samples are redacted (no raw digits)", () => {
+  const result = scanForPii(`BRN: ${BRN_VALID}`, { depth: "deep" });
+  const brn = result.findings.find((f) => f.type === "business_reg");
+  for (const s of brn.samples) {
+    assert.ok(!s.includes("12345"),
+      `sample "${s}" must not contain raw digits from "${BRN_VALID}"`);
+    assert.ok(s.includes("*"));
+  }
+});
+
+// ── redactPii honors depth selector ──────────────────────────────
+
+test("GOV-PII-1-a: redactPii(depth='deep') replaces BRN; default (inline) leaves it", () => {
+  const text = `BRN: ${BRN_VALID}`;
+  const inlineRedacted = redactPii(text);
+  assert.equal(inlineRedacted, text,
+    "default (inline) redactPii leaves BRN alone — back-compat with GOV-PII-0");
+  const deepRedacted = redactPii(text, { depth: "deep" });
+  assert.match(deepRedacted, /\[REDACTED:business_reg\]/);
+  assert.ok(!deepRedacted.includes(BRN_VALID));
+});
 
 test("GOV-PII-0: output shape — multiple patterns matched simultaneously", () => {
   const txt = [

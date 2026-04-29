@@ -95,6 +95,50 @@ const EMAIL_REGEX = /(?<![\w.+-])([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,2
 // We capture, then verify with Luhn. Luhn-fail samples pass through.
 const CREDIT_CARD_REGEX = /(?<![\d])(\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{1,7})(?![\d])/g;
 
+// ── Slice GOV-PII-1-a (Phase E1.5, 2026-04-29) deep patterns ──
+//
+// "Deep" patterns are higher-precision but more expensive. Used by
+// the file-import scanner (`/api/security/scan` — GOV-PII-1-b)
+// where the input is a known file payload, not an inline prompt.
+// `scanForPii(text, { depth: "deep" })` opts into them; the inline
+// gate stays unchanged for backward compat with GOV-PII-0.
+
+// 사업자등록번호 (Business Registration Number, BRN). Format:
+// XXX-XX-XXXXX (3+2+5 digits with optional dashes). 10 digits total
+// + check digit at position 9.
+const BRN_REGEX = /(?<![\d-])(\d{3})-?(\d{2})-?(\d{5})(?![\d])/g;
+
+// 한국 운전면허번호. Format: XX-XX-XXXXXX-XX (region 2 + year 2 +
+// serial 6 + check 2 — 12 digits total). Korean DMV (도로교통공단)
+// publishes a check-digit algorithm but we keep this format-only:
+// false-positive risk is acceptable in the deep tier where the
+// operator already opted into a file-content scan.
+const KR_DRIVER_LICENSE_REGEX = /(?<![\d-])(\d{2})-?(\d{2})-?(\d{6})-?(\d{2})(?![\d])/g;
+
+// 한국 여권번호. Format: 1 letter (M=normal / S=special) + 8 digits.
+// Anchored on word-boundary for letters + digits so we don't grab a
+// random "M12345678" embedded in a longer alphanumeric token.
+const KR_PASSPORT_REGEX = /(?<![A-Z\d])([MS]\d{8})(?![A-Z\d])/g;
+
+// ── BRN check digit ────────────────────────────────────────────
+//
+// Algorithm (Korean tax authority spec):
+//   weights = [1, 3, 7, 1, 3, 7, 1, 3, 5]
+//   M = sum(digit[i] * weights[i]) for i in 0..8
+//   M = M + floor(digit[8] * 5 / 10)
+//   check = (10 - (M % 10)) % 10
+//   valid ⇔ check === digit[9]
+function _isValidBrn(d10) {
+  if (typeof d10 !== "string" || !/^\d{10}$/.test(d10)) return false;
+  const digits = d10.split("").map((c) => parseInt(c, 10));
+  const weights = [1, 3, 7, 1, 3, 7, 1, 3, 5];
+  let sum = 0;
+  for (let i = 0; i < 9; i += 1) sum += digits[i] * weights[i];
+  sum += Math.floor((digits[8] * 5) / 10);
+  const expected = (10 - (sum % 10)) % 10;
+  return expected === digits[9];
+}
+
 // ── KRN check (birth date + check digit) ────────────────────────
 //
 // Birth date: YY (2-digit), MM (1-12), DD (1-31). We don't validate
@@ -194,11 +238,58 @@ const PATTERNS = Object.freeze({
     validator: (match) => _isValidLuhn(match.replace(/[\s-]/g, "")),
     severity: "critical",
   }),
+  // Slice GOV-PII-1-a (Phase E1.5, 2026-04-29) — deep patterns. Only
+  // active when scanForPii is called with `depth: "deep"` (default
+  // is "inline", preserving GOV-PII-0 backwards compat).
+  business_reg: Object.freeze({
+    type: "business_reg",
+    label: "Korean Business Registration Number (사업자등록번호)",
+    regex: BRN_REGEX,
+    validator: (match) => _isValidBrn(match.replace(/-/g, "")),
+    severity: "high",
+  }),
+  driver_license_kr: Object.freeze({
+    type: "driver_license_kr",
+    label: "Korean driver license number",
+    regex: KR_DRIVER_LICENSE_REGEX,
+    validator: () => true,
+    severity: "high",
+  }),
+  passport_kr: Object.freeze({
+    type: "passport_kr",
+    label: "Korean passport number",
+    regex: KR_PASSPORT_REGEX,
+    validator: () => true,
+    severity: "critical",
+  }),
 });
 
-const DEFAULT_PATTERN_TYPES = Object.freeze(
-  Object.keys(PATTERNS),
-);
+// Slice GOV-PII-1-a: depth-selector pattern subsets (frozen).
+//
+//   inline — fast-path patterns shipped in GOV-PII-0. Used by the
+//            inline pre-dispatch gate (piiGate.js); ~ < 1ms on 4KB.
+//   deep   — inline + 3 KR-focused additions (사업자등록번호 /
+//            운전면허 / 여권). Used by the file-import scanner
+//            (GOV-PII-1-b /api/security/scan endpoint). Slower but
+//            higher-precision; the operator already opted into a
+//            file-content scan when this fires.
+const INLINE_PATTERN_TYPES = Object.freeze([
+  "krn",
+  "phone_kr_mobile",
+  "phone_kr_landline",
+  "email",
+  "credit_card",
+]);
+const DEEP_PATTERN_TYPES = Object.freeze([
+  ...INLINE_PATTERN_TYPES,
+  "business_reg",
+  "driver_license_kr",
+  "passport_kr",
+]);
+// Backward-compat alias. Pre-GOV-PII-1 callers (auditSanitizer test
+// suites, anything that imported DEFAULT_PATTERN_TYPES) keep getting
+// the inline set.
+const DEFAULT_PATTERN_TYPES = INLINE_PATTERN_TYPES;
 
 // ── Public API ──────────────────────────────────────────────────
 
@@ -208,8 +299,13 @@ const DEFAULT_PATTERN_TYPES = Object.freeze(
  *
  * @param {string} text - input to scan
  * @param {object} [opts]
- * @param {string[]} [opts.patterns] - subset of pattern types to
- *   run. Default: all (DEFAULT_PATTERN_TYPES).
+ * @param {"inline"|"deep"} [opts.depth="inline"] - pattern set
+ *   selector (Slice GOV-PII-1-a). "inline" is the GOV-PII-0 fast
+ *   pre-dispatch set (5 patterns); "deep" adds 3 KR file-import
+ *   patterns (사업자등록번호, 운전면허, 여권). Ignored when
+ *   `opts.patterns` is given explicitly.
+ * @param {string[]} [opts.patterns] - explicit subset of pattern types
+ *   to run. Overrides `opts.depth`. Default: depth-selected set.
  * @param {number} [opts.maxFindingsPerType=100] - cap to prevent
  *   pathological inputs from blowing up the payload.
  * @param {number} [opts.maxSamples=3] - how many redacted samples
@@ -231,9 +327,14 @@ function scanForPii(text, opts = {}) {
     return { hasPii: false, findings: [], elapsedMs: Date.now() - start };
   }
   const input = typeof text === "string" ? text : String(text);
+  // Slice GOV-PII-1-a: depth selector. Default "inline" preserves
+  // GOV-PII-0 backwards compat — every existing caller (piiGate +
+  // claude-runner + codex-runner) gets the same fast 5-pattern set.
+  // Explicit `opts.patterns` still wins.
+  const depthDefault = opts.depth === "deep" ? DEEP_PATTERN_TYPES : INLINE_PATTERN_TYPES;
   const patternTypes = Array.isArray(opts.patterns) && opts.patterns.length > 0
     ? opts.patterns
-    : DEFAULT_PATTERN_TYPES;
+    : depthDefault;
   const maxFindingsPerType = Number.isFinite(opts.maxFindingsPerType) && opts.maxFindingsPerType > 0
     ? Math.floor(opts.maxFindingsPerType)
     : 100;
@@ -297,9 +398,12 @@ function scanForPii(text, opts = {}) {
 function redactPii(text, opts = {}) {
   if (text == null) return "";
   let output = typeof text === "string" ? text : String(text);
+  // Slice GOV-PII-1-a: same depth selector as scanForPii — explicit
+  // patterns wins, otherwise depth-default (default "inline").
+  const depthDefault = opts.depth === "deep" ? DEEP_PATTERN_TYPES : INLINE_PATTERN_TYPES;
   const patternTypes = Array.isArray(opts.patterns) && opts.patterns.length > 0
     ? opts.patterns
-    : DEFAULT_PATTERN_TYPES;
+    : depthDefault;
 
   for (const ptype of patternTypes) {
     const def = PATTERNS[ptype];
@@ -325,9 +429,13 @@ module.exports = {
   redactPii,
   PATTERNS,
   DEFAULT_PATTERN_TYPES,
+  // Slice GOV-PII-1-a: depth selector exports.
+  INLINE_PATTERN_TYPES,
+  DEEP_PATTERN_TYPES,
   // Lower-level helpers exposed for unit tests + future GOV-PII-1
   // deep-scan reuse.
   _isValidKrn,
   _isValidLuhn,
+  _isValidBrn,
   _redactSample,
 };
