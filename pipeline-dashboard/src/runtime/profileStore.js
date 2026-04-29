@@ -58,6 +58,12 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+// Slice D1-gov-4 (Phase E1, 2026-04-29): public-sector mode adds
+// schema fields (accountType, workspaceMode, credentialBackend,
+// dataClassification, egressPolicyId) and rejects profiles that
+// violate the policy. Standard mode stays unchanged.
+const { resolveDeploymentProfile } = require("../policy/deploymentProfile");
+const { validateProfileForPublicSector } = require("../policy/publicSectorPolicy");
 
 const SCHEMA_VERSION = 1;
 const SAFE_ID_RE = /^[A-Za-z0-9_.-]+$/;
@@ -200,6 +206,12 @@ function writeStateSync(filePath, state) {
  */
 function validateProfile(raw, opts = {}) {
   const allowMissingTimestamps = opts.allowMissingTimestamps !== false;
+  // Slice D1-gov-4: when invoked in public-sector mode, the validator
+  // also enforces the agency-layer schema (accountType, workspaceMode,
+  // dataClassification, egressPolicyId, credentialBackend).
+  // Callers pass `deploymentProfile`; standard-mode callers omit it
+  // and the existing schema applies.
+  const deploymentProfile = opts.deploymentProfile || null;
   if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
     throw new Error("profileStore: profile must be an object");
   }
@@ -208,6 +220,25 @@ function validateProfile(raw, opts = {}) {
   assertWorkspacePath(raw.workspacePath);
   assertProvider(raw.activeProvider);
   assertSecretIds(raw.secretIds || []);
+
+  // Public-sector schema layered on top of the standard schema. We
+  // call validateProfileForPublicSector ONCE and surface ALL
+  // violations together (the route layer wants every error in one
+  // 400 response, not iterative round-trips).
+  if (deploymentProfile && deploymentProfile.publicSector) {
+    const verdict = validateProfileForPublicSector(raw);
+    if (!verdict.ok) {
+      // Use a structured Error.code so the route layer can map to
+      // a specific HTTP shape without parsing the message.
+      const err = new Error(
+        "profileStore: public-sector policy violations: " +
+        verdict.errors.join("; "),
+      );
+      err.code = "PUBLIC_SECTOR_PROFILE_POLICY";
+      err.details = verdict.errors;
+      throw err;
+    }
+  }
 
   if (!allowMissingTimestamps) {
     if (typeof raw.createdAt !== "string" || Number.isNaN(Date.parse(raw.createdAt))) {
@@ -236,6 +267,12 @@ function createProfileStore(opts = {}) {
   const filePath = opts.filePath;
   const ledger = opts.ledger || null;
   const now = opts.now || (() => new Date());
+  // Slice D1-gov-4: thread deployment profile into validateProfile
+  // so upsert enforces the public-sector schema when the orchestrator
+  // is in public-sector mode. Tests can inject opts.deploymentProfile
+  // directly; production callers omit it and we resolve from env.
+  const deploymentProfile = opts.deploymentProfile
+    || resolveDeploymentProfile({ env: opts.env || process.env });
 
   function nowIso() {
     return now().toISOString();
@@ -276,7 +313,10 @@ function createProfileStore(opts = {}) {
   // ── Write paths ─────────────────────────────────────────────
 
   function upsert(input) {
-    validateProfile(input);
+    // Pass deploymentProfile so public-sector mode enforces the
+    // agency-layer schema. validateProfile throws with .code set
+    // when public-sector validation fails — caller can inspect.
+    validateProfile(input, { deploymentProfile });
     const state = readStateSync(filePath);
     const existing = state.profiles[input.id];
     // Single nowIso() call so on creation `createdAt === updatedAt`,
@@ -295,6 +335,20 @@ function createProfileStore(opts = {}) {
       createdAt,
       updatedAt: stamp,
     };
+    // D1-gov-4: persist agency-layer fields when present. Optional
+    // for standard-mode profiles; required (and validated above) for
+    // public-sector profiles. Storing them as undefined produces
+    // smaller JSON than always emitting null/empty strings.
+    const govFields = [
+      "accountType",
+      "workspaceMode",
+      "credentialBackend",
+      "dataClassification",
+      "egressPolicyId",
+    ];
+    for (const f of govFields) {
+      if (typeof input[f] !== "undefined") profile[f] = input[f];
+    }
     state.profiles[input.id] = profile;
     writeStateSync(filePath, state);
     audit(existing ? "profile_updated" : "profile_created", {
@@ -302,6 +356,10 @@ function createProfileStore(opts = {}) {
       label: profile.label,
       activeProvider: profile.activeProvider,
       secretCount: profile.secretIds.length,
+      // Audit-friendly identifier of the public-sector posture this
+      // profile was saved under — null in standard mode.
+      accountType: profile.accountType || null,
+      workspaceMode: profile.workspaceMode || null,
     });
     return profile;
   }

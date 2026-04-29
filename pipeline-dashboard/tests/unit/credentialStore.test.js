@@ -453,3 +453,88 @@ test("D1-a: returned store handle is frozen (caller cannot swap backend)", () =>
   assert.ok(Object.isFrozen(store));
   assert.throws(() => { store.setSecret = () => "tampered"; }, /Cannot/);
 });
+
+// ─────────────────────────────────────────────────────────────────
+//  D1-gov-3 — public-sector hard-block on plaintext
+// ─────────────────────────────────────────────────────────────────
+
+test("D1-gov-3: public-sector mode HARD-BLOCKS plaintext even with HARNESS_ALLOW_PLAINTEXT_SECRETS=1", (t) => {
+  const fsPaths = tmpConfigPaths(t);
+  const warned = [];
+  const store = createCredentialStore({
+    keytar: null,
+    env: {
+      HARNESS_DEPLOYMENT_PROFILE: "public-sector",
+      HARNESS_ALLOW_PLAINTEXT_SECRETS: "1",
+    },
+    fsPaths,
+    warn: (msg) => warned.push(msg),
+  });
+  assert.equal(store.backend, "none",
+    "public-sector must override the plaintext opt-in flag");
+  assert.ok(warned.some((w) => /HARNESS_DEPLOYMENT_PROFILE=public-sector/.test(w)));
+  assert.ok(warned.some((w) => /Install keytar/.test(w)));
+});
+
+test("D1-gov-3: public-sector + no-keytar emits credential_backend_unavailable with public-sector reason", (t) => {
+  const fsPaths = tmpConfigPaths(t);
+  const ledger = makeLedger();
+  createCredentialStore({
+    keytar: null,
+    env: {
+      HARNESS_DEPLOYMENT_PROFILE: "public-sector",
+      HARNESS_ALLOW_PLAINTEXT_SECRETS: "1",
+    },
+    fsPaths,
+    ledger,
+    warn: () => {},
+  });
+  const entry = ledger.entries.find((e) => e.type === "credential_backend_unavailable");
+  assert.ok(entry, "public-sector block must emit credential_backend_unavailable");
+  assert.equal(entry.data.reason, "plaintext_blocked_in_public_sector");
+});
+
+test("D1-gov-3: public-sector + setSecret throws (fail-closed end-to-end)", async (t) => {
+  const fsPaths = tmpConfigPaths(t);
+  const store = createCredentialStore({
+    keytar: null,
+    env: {
+      HARNESS_DEPLOYMENT_PROFILE: "public-sector",
+      HARNESS_ALLOW_PLAINTEXT_SECRETS: "1",
+    },
+    fsPaths,
+    warn: () => {},
+  });
+  await assert.rejects(
+    () => store.setSecret("agency", "ANTHROPIC_API_KEY", "sk-test"),
+    /no credential backend available/,
+    "public-sector + no-keytar must refuse setSecret end-to-end (no fallback)",
+  );
+});
+
+test("D1-gov-3: standard mode + plaintext flag still works (no regression)", (t) => {
+  const fsPaths = tmpConfigPaths(t);
+  const store = createCredentialStore({
+    keytar: null,
+    env: { HARNESS_ALLOW_PLAINTEXT_SECRETS: "1" },
+    fsPaths,
+    warn: () => {},
+  });
+  assert.equal(store.backend, "plaintext",
+    "standard mode must keep honoring the plaintext opt-in");
+});
+
+test("D1-gov-3: deploymentProfile injection takes precedence over env (test injection)", (t) => {
+  // Allows tests + downstream callers to pre-resolve the deployment
+  // profile and inject it (e.g. orchestrator resolves once at boot
+  // and passes through to every collaborator).
+  const fsPaths = tmpConfigPaths(t);
+  const store = createCredentialStore({
+    keytar: null,
+    env: { HARNESS_ALLOW_PLAINTEXT_SECRETS: "1" }, // would normally enable plaintext
+    deploymentProfile: { publicSector: true, allowPlaintextSecrets: false }, // override
+    fsPaths,
+    warn: () => {},
+  });
+  assert.equal(store.backend, "none", "injected profile overrides env");
+});

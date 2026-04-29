@@ -322,3 +322,66 @@ test("D1-c: baseFilterOpts.extraDrop is forwarded (defense for arbitrary names)"
   assert.equal(out.env.CUSTOM_ENV, undefined);
   assert.equal(out.env.PATH, "/x");
 });
+
+// ─────────────────────────────────────────────────────────────────
+//  D1-gov-5 — public-sector blocks the local spawn path
+// ─────────────────────────────────────────────────────────────────
+
+test("D1-gov-5: public-sector mode REFUSES local spawn (allowLocalExecutor=false)", async () => {
+  // Standard mode would silently return P0 base env. Public-sector
+  // mode must throw with the policy code so the caller (runner /
+  // route) can map to the right HTTP status.
+  try {
+    await buildSpawnEnv({
+      parentEnv: {},
+      profileId: null,
+      deploymentProfile: { publicSector: true, allowLocalExecutor: false },
+    });
+    assert.fail("expected throw");
+  } catch (err) {
+    assert.match(err.message, /local executor disabled/);
+    assert.equal(err.code, "PUBLIC_SECTOR_LOCAL_EXECUTOR_DISABLED");
+  }
+});
+
+test("D1-gov-5: standard mode (allowLocalExecutor=true) permits local spawn (no regression)", async () => {
+  const out = await buildSpawnEnv({
+    parentEnv: { PATH: "/x" },
+    profileId: null,
+    deploymentProfile: { publicSector: false, allowLocalExecutor: true },
+  });
+  assert.equal(out.mode, "fallback");
+  assert.equal(out.env.PATH, "/x");
+});
+
+test("D1-gov-5: public-sector blocks BEFORE profile lookup (defense in depth)", async () => {
+  // Even with a valid profile + valid credentials, public-sector
+  // must refuse — the local executor path is forbidden regardless
+  // of profile completeness. This catches the "operator builds a
+  // perfect profile then expects to spawn locally" mistake.
+  await assert.rejects(
+    () => buildSpawnEnv({
+      parentEnv: {},
+      profileId: "agency-claude",
+      profileStore: makeProfileStore([sampleProfile("agency-claude")]),
+      credentialStore: makeCredentialStore({
+        "agency-claude": { ANTHROPIC_API_KEY: "v" },
+      }),
+      deploymentProfile: { publicSector: true, allowLocalExecutor: false },
+    }),
+    { code: "PUBLIC_SECTOR_LOCAL_EXECUTOR_DISABLED" },
+  );
+});
+
+test("D1-gov-5: env-driven public-sector (no opts.deploymentProfile) still blocks", async () => {
+  // Production callers don't pass deploymentProfile — they expect
+  // resolveDeploymentProfile({ env: parentEnv }) to read the env.
+  // Verify the env path triggers the same block.
+  await assert.rejects(
+    () => buildSpawnEnv({
+      parentEnv: { HARNESS_DEPLOYMENT_PROFILE: "public-sector" },
+      profileId: null,
+    }),
+    { code: "PUBLIC_SECTOR_LOCAL_EXECUTOR_DISABLED" },
+  );
+});

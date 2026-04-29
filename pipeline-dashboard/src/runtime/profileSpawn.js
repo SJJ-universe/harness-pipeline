@@ -60,6 +60,13 @@
 "use strict";
 
 const { filterSensitiveEnv } = require("../security/envFilter");
+// Slice D1-gov-5 (Phase E1, 2026-04-29): refuse local spawn paths
+// when public-sector policy disables the local executor. Defense-
+// in-depth — the same assertion fires from the runners themselves
+// (D1-d) so a future refactor that bypasses profileSpawn still
+// gets caught.
+const { resolveDeploymentProfile } = require("../policy/deploymentProfile");
+const { assertLocalExecutorAllowed } = require("../policy/publicSectorPolicy");
 
 // Telemetry env names that the spawned CLI may read so it knows which
 // profile it ran under. These are NOT secret — purely identifying.
@@ -99,6 +106,17 @@ async function buildSpawnEnv(opts = {}) {
   const parentEnv = opts.parentEnv || {};
   const profileId = opts.profileId || null;
   const baseFilterOpts = opts.baseFilterOpts || {};
+
+  // ── 0. Public-sector gate (D1-gov-5) ───────────────────────
+  // The deploymentProfile resolves whether local-executor paths
+  // are permitted in this orchestrator's posture. assertLocalExecutorAllowed
+  // throws PUBLIC_SECTOR_LOCAL_EXECUTOR_DISABLED when public-sector
+  // mode forbids the local path. Tests inject a custom profile
+  // via opts.deploymentProfile; production callers omit it and we
+  // resolve from env.
+  const deploymentProfile = opts.deploymentProfile
+    || resolveDeploymentProfile({ env: parentEnv });
+  assertLocalExecutorAllowed(deploymentProfile);
 
   // ── 1. P0 base ───────────────────────────────────────────────
   const env = filterSensitiveEnv(parentEnv, baseFilterOpts);

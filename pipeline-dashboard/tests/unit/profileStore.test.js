@@ -431,3 +431,149 @@ test("D1-b: returned store handle is frozen (caller cannot swap upsert)", () => 
   assert.ok(Object.isFrozen(store));
   assert.throws(() => { store.upsert = () => "tampered"; }, /Cannot/);
 });
+
+// ─────────────────────────────────────────────────────────────────
+//  D1-gov-4 — public-sector schema enforcement on upsert
+// ─────────────────────────────────────────────────────────────────
+
+function publicSectorProfile(id = "agency-claude") {
+  return {
+    ...sampleProfile(id),
+    // Public-sector schema fields:
+    accountType: "agency_managed",
+    workspaceMode: "sandbox",
+    credentialBackend: "wincred",
+    dataClassification: "internal",
+    egressPolicyId: "agency-llm-egress",
+  };
+}
+
+test("D1-gov-4: standard mode does NOT enforce public-sector schema (no regression)", (t) => {
+  const file = tmpFile(t);
+  const store = createProfileStore({ filePath: file, env: {} }); // standard mode
+  // Existing standard-mode profile (no public-sector fields) must
+  // still upsert successfully — D1-gov-4 is purely additive in
+  // standard mode.
+  const created = store.upsert(sampleProfile("personal"));
+  assert.equal(created.id, "personal");
+  assert.equal(created.accountType, undefined,
+    "standard-mode profiles must not have accountType auto-populated");
+});
+
+test("D1-gov-4: public-sector mode enforces full agency schema", (t) => {
+  const file = tmpFile(t);
+  const store = createProfileStore({
+    filePath: file,
+    deploymentProfile: { publicSector: true },
+  });
+  // Valid public-sector profile passes:
+  const created = store.upsert(publicSectorProfile("agency-claude"));
+  assert.equal(created.accountType, "agency_managed");
+  assert.equal(created.workspaceMode, "sandbox");
+  assert.equal(created.credentialBackend, "wincred");
+  assert.equal(created.dataClassification, "internal");
+  assert.equal(created.egressPolicyId, "agency-llm-egress");
+});
+
+test("D1-gov-4 GOV-G02: public-sector REJECTS accountType=personal", (t) => {
+  const file = tmpFile(t);
+  const store = createProfileStore({
+    filePath: file,
+    deploymentProfile: { publicSector: true },
+  });
+  try {
+    store.upsert({ ...publicSectorProfile(), accountType: "personal" });
+    assert.fail("expected throw");
+  } catch (err) {
+    assert.equal(err.code, "PUBLIC_SECTOR_PROFILE_POLICY",
+      "error must carry machine-checkable code for the route layer");
+    assert.ok(Array.isArray(err.details));
+    assert.match(err.details.join("\n"), /personal/);
+  }
+});
+
+test("D1-gov-4 GOV-G04: public-sector REJECTS workspaceMode=local", (t) => {
+  const file = tmpFile(t);
+  const store = createProfileStore({
+    filePath: file,
+    deploymentProfile: { publicSector: true },
+  });
+  assert.throws(
+    () => store.upsert({ ...publicSectorProfile(), workspaceMode: "local" }),
+    { code: "PUBLIC_SECTOR_PROFILE_POLICY" },
+  );
+});
+
+test("D1-gov-4: public-sector REJECTS missing egressPolicyId", (t) => {
+  const file = tmpFile(t);
+  const store = createProfileStore({
+    filePath: file,
+    deploymentProfile: { publicSector: true },
+  });
+  assert.throws(
+    () => store.upsert({ ...publicSectorProfile(), egressPolicyId: "" }),
+    { code: "PUBLIC_SECTOR_PROFILE_POLICY" },
+  );
+});
+
+test("D1-gov-4 GOV-G03: public-sector REJECTS plaintext credentialBackend", (t) => {
+  const file = tmpFile(t);
+  const store = createProfileStore({
+    filePath: file,
+    deploymentProfile: { publicSector: true },
+  });
+  for (const backend of ["plaintext", "plaintext_dev_only"]) {
+    assert.throws(
+      () => store.upsert({ ...publicSectorProfile(), credentialBackend: backend }),
+      { code: "PUBLIC_SECTOR_PROFILE_POLICY" },
+      `must reject "${backend}"`,
+    );
+  }
+});
+
+test("D1-gov-4: public-sector violations are persisted as a NO-OP (no clobber)", (t) => {
+  const file = tmpFile(t);
+  const store = createProfileStore({
+    filePath: file,
+    deploymentProfile: { publicSector: true },
+  });
+  // Land a clean profile first.
+  store.upsert(publicSectorProfile("agency-claude"));
+  const before = store.list();
+  // Failed public-sector upsert must NOT touch persisted state.
+  assert.throws(
+    () => store.upsert({ ...publicSectorProfile("agency-rebel"), accountType: "personal" }),
+    { code: "PUBLIC_SECTOR_PROFILE_POLICY" },
+  );
+  const after = store.list();
+  assert.deepEqual(after, before, "failed public-sector upsert must not persist");
+});
+
+test("D1-gov-4: public-sector audit row carries accountType + workspaceMode", (t) => {
+  const file = tmpFile(t);
+  const ledger = makeLedger();
+  const store = createProfileStore({
+    filePath: file,
+    ledger,
+    deploymentProfile: { publicSector: true },
+  });
+  store.upsert(publicSectorProfile("agency-claude"));
+  const created = ledger.entries.find((e) => e.type === "profile_created");
+  assert.ok(created);
+  assert.equal(created.data.accountType, "agency_managed");
+  assert.equal(created.data.workspaceMode, "sandbox");
+  // Defensive: NO sensitive material in the audit data shape.
+  const text = JSON.stringify(created);
+  assert.ok(!/wincred/.test(text) || /credentialBackend/.test(text),
+    "credentialBackend is informational, not sensitive");
+});
+
+test("D1-gov-4: standard-mode profile_created audit has accountType=null + workspaceMode=null", (t) => {
+  const file = tmpFile(t);
+  const ledger = makeLedger();
+  const store = createProfileStore({ filePath: file, ledger, env: {} });
+  store.upsert(sampleProfile("personal"));
+  const created = ledger.entries.find((e) => e.type === "profile_created");
+  assert.equal(created.data.accountType, null);
+  assert.equal(created.data.workspaceMode, null);
+});

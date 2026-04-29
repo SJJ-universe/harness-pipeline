@@ -72,6 +72,10 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+// Slice D1-gov-3 (Phase E1, 2026-04-29): consult deployment profile so
+// public-sector mode hard-blocks plaintext fallback regardless of the
+// HARNESS_ALLOW_PLAINTEXT_SECRETS opt-in flag.
+const { resolveDeploymentProfile } = require("../policy/deploymentProfile");
 
 const APP_NAME = "HarnessPipeline";
 
@@ -203,6 +207,20 @@ function createCredentialStore(opts = {}) {
   const ledger = opts.ledger || null;
   const warn = opts.warn || ((...a) => console.warn(...a));
 
+  // Slice D1-gov-3 (Phase E1, 2026-04-29): public-sector deployment
+  // mode hard-blocks plaintext fallback. The deploymentProfile.allow
+  // PlaintextSecrets flag is the authoritative gate here — the env-
+  // var-only check we used to do (`HARNESS_ALLOW_PLAINTEXT_SECRETS=1`)
+  // would not catch a public-sector orchestrator that ALSO had the
+  // flag set (e.g. operator config drift). The deploymentProfile
+  // resolver already knows to ignore the opt-in flag in public-
+  // sector mode, so consulting that single source of truth here is
+  // both more correct and forwards-compatible with future modes.
+  // Tests can inject a custom profile via opts.deploymentProfile;
+  // production callers omit it and we resolve from env.
+  const deploymentProfile = opts.deploymentProfile
+    || resolveDeploymentProfile({ env });
+
   // Lazy load keytar unless caller supplied a stub. Pass `null` to
   // force the not-available code path (tests do this).
   let keytar = "keytar" in opts ? opts.keytar : loadKeytar();
@@ -214,9 +232,39 @@ function createCredentialStore(opts = {}) {
   if (keytar && typeof keytar.setPassword === "function") {
     backend = "keychain";
   } else {
-    const allowPlain = env.HARNESS_ALLOW_PLAINTEXT_SECRETS === "1";
+    // public-sector mode: hard-block plaintext fallback. Loud
+    // audit + warning so a forensic review can pinpoint the
+    // attempted opt-in.
+    if (deploymentProfile.publicSector) {
+      warn(
+        "[credentialStore] HARNESS_DEPLOYMENT_PROFILE=public-sector " +
+        "blocks plaintext credential backend regardless of " +
+        "HARNESS_ALLOW_PLAINTEXT_SECRETS. Install keytar (OS-keychain) " +
+        "or use a future Vault/KMS backend.",
+      );
+      backend = "none";
+      if (ledger) {
+        try {
+          ledger.append("system", {
+            type: "credential_backend_unavailable",
+            data: {
+              reason: "plaintext_blocked_in_public_sector",
+              hint: "install keytar for OS-keychain storage",
+            },
+          });
+        } catch (_) {}
+      }
+      // Fall through to the operations setup below — backend="none"
+      // makes setSecret throw fail-closed, getSecret return null, etc.
+    }
+
+    // Standard mode: existing fail-closed default with explicit
+    // opt-in, with NODE_ENV=production also blocking. Skip the
+    // entire block if backend is already decided (public-sector
+    // path above).
+    const allowPlain = deploymentProfile.allowPlaintextSecrets === true;
     const isProd = env.NODE_ENV === "production";
-    if (allowPlain && !isProd && fsPaths && fsPaths.appdataConfig) {
+    if (!backend && allowPlain && !isProd && fsPaths && fsPaths.appdataConfig) {
       backend = "plaintext";
       plaintextFile = path.join(fsPaths.appdataConfig, "credentials.json");
       warn(
@@ -233,7 +281,7 @@ function createCredentialStore(opts = {}) {
           });
         } catch (_) { /* ledger best-effort during boot */ }
       }
-    } else if (allowPlain && isProd) {
+    } else if (!backend && allowPlain && isProd) {
       // Production refuses the flag entirely — explicit "no, this is
       // not safe even if you ask" is part of fail-closed.
       warn(
@@ -249,7 +297,7 @@ function createCredentialStore(opts = {}) {
           });
         } catch (_) {}
       }
-    } else {
+    } else if (!backend) {
       // No keytar + no plaintext opt-in = fail-closed.
       backend = "none";
       if (ledger) {
