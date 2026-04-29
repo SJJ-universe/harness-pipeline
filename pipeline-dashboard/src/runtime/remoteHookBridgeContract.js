@@ -30,6 +30,27 @@
 //     them through a remote bridge requires a per-call approval flow
 //     that R3 will design. R2.5 is read-only.
 //
+// R3-e (Phase D R3) extends this contract additively:
+//
+//   - WRITE_TOOLS_REQUIRING_APPROVAL — Bash / Edit / Write are NOT in
+//     ALLOWED_TOOLS (R2.5 invariant preserved) but are recognized by
+//     the approval-gated path. Slice R3-e-d wires the sanitizer + the
+//     hook-router to honor this set; until then, every export here is
+//     dormant — adding the constants in this slice keeps the per-slice
+//     diff small and reviewable.
+//   - APPROVAL_AUDIT_VERBS — narrate the runtime approval flow on the
+//     audit chain (`runner_hook_approval_requested/granted/denied/timeout`).
+//     Distinct prefix from the existing R2.5 verbs so a forensic
+//     auditor can grep approval lifecycle without false positives on
+//     `runner_hook_rejected` (which only fires for sanitization-time
+//     rejections).
+//   - APPROVAL_RESOLUTIONS — bounded vocabulary for the manager's
+//     resolve states; the routes layer asserts against it.
+//   - WRITE_TOOL_DATA_KEYS — per-tool argument keys the approval card
+//     surfaces to the operator. Wire-format use is gated to slice
+//     R3-e-d (extending PAYLOAD_SCHEMAS); until then this is reference
+//     data only.
+//
 // Threat model: the runner's WS frame is untrusted input. The JWT
 // verdict's runId + hostIdentity are authoritative; the frame body's
 // runId or hostIdentity must NEVER be honored. This module's job is
@@ -66,6 +87,65 @@ const ALLOWED_HOOKS = Object.freeze([
  * flow before opening write tools.
  */
 const ALLOWED_TOOLS = Object.freeze(["Read", "Grep", "Glob"]);
+
+// ── 2b. Write tools — gated behind per-call approval (R3-e) ─────────
+
+/**
+ * Write-side tools that the bridge will dispatch ONLY after a per-call
+ * operator approval. Distinct set from `ALLOWED_TOOLS` so the R2.5
+ * read-only invariant is preserved verbatim — every test that pins
+ * ALLOWED_TOOLS to ["Read","Grep","Glob"] keeps passing.
+ *
+ * Slice R3-e-d wires the sanitizer + hook-router to recognize this
+ * set; until then these constants are dormant. Adding them here in
+ * R3-e-a keeps each per-slice diff small and reviewable.
+ *
+ * Why these three and not (e.g.) WebFetch / Task:
+ *
+ *   - Bash / Edit / Write are the on-disk side-effect carriers
+ *     operators routinely audit. Their args (command / file_path /
+ *     content) form a finite, reviewable approval surface.
+ *   - WebFetch / WebSearch hit external networks; an approval would
+ *     have to gate egress, which is the layer-2/3 concern (R3-b).
+ *   - Task spawns subagents — already a local-orchestrator-only
+ *     primitive; remote-driven Task is out of R3 scope.
+ */
+const WRITE_TOOLS_REQUIRING_APPROVAL = Object.freeze(["Bash", "Edit", "Write"]);
+
+/**
+ * Per-tool argument keys the approval payload surfaces to the
+ * operator. The approval card UI hashes the entire args record
+ * (sha256) for the R3-G15 "exact (tool, args-hash) tuple" gate, and
+ * displays the keys here as a readable summary.
+ *
+ * NOTE: this is not yet wired into PAYLOAD_SCHEMAS — slice R3-e-d
+ * extends the per-hook dataKeys to include these. Until then, the
+ * sanitizer will still drop write-tool args defensively.
+ */
+const WRITE_TOOL_DATA_KEYS = Object.freeze({
+  Bash: Object.freeze(["command", "description", "timeout", "run_in_background"]),
+  Edit: Object.freeze(["file_path", "old_string", "new_string", "replace_all"]),
+  Write: Object.freeze(["file_path", "content"]),
+});
+
+/**
+ * @param {string} tool
+ * @returns {boolean} true if tool requires per-call approval
+ */
+function isWriteToolRequiringApproval(tool) {
+  if (typeof tool !== "string") return false;
+  return WRITE_TOOLS_REQUIRING_APPROVAL.includes(tool);
+}
+
+/**
+ * @param {string} tool
+ * @returns {readonly string[] | undefined} the per-tool arg keys, or
+ *   undefined if the tool is not in the write-approval set.
+ */
+function getWriteToolDataKeys(tool) {
+  if (typeof tool !== "string") return undefined;
+  return WRITE_TOOL_DATA_KEYS[tool];
+}
 
 // ── 3. Per-hook payload schema ──────────────────────────────────────
 
@@ -221,6 +301,67 @@ const AUDIT_VERBS = Object.freeze([
   "runner_hook_dispatch_error",
 ]);
 
+// ── 6b. Approval audit verbs (R3-e) ─────────────────────────────────
+
+/**
+ * Approval-flow verbs emitted by the runtime when the hook-router
+ * gate-keeps a write-tool dispatch behind operator approval.
+ *
+ * Distinct prefix (`runner_hook_approval_*`) from the existing R2.5
+ * verbs: a forensic auditor grep-ing for `runner_hook_rejected` keeps
+ * getting only sanitization-time rejections, while approval lifecycle
+ * lands in its own grep window. Same audit chain, different verb
+ * family — exactly the same pattern GOV-PII-1 used to separate inline
+ * (pii_scan_*) from file-content (pii_file_scan_*) detections.
+ *
+ *   runner_hook_approval_requested — write-tool sanitized; manager
+ *                                    queued a pending request and
+ *                                    started the timeout timer.
+ *   runner_hook_approval_granted   — operator pressed "허용".
+ *                                    Caller will then dispatch and
+ *                                    `runner_hook_dispatched` /
+ *                                    `_dispatch_error` follows.
+ *   runner_hook_approval_denied    — operator pressed "거부". No
+ *                                    dispatch; the chain closes.
+ *   runner_hook_approval_timeout   — no operator response within
+ *                                    `HARNESS_REMOTE_APPROVAL_TIMEOUT_MS`
+ *                                    (default 30000). Treated as deny.
+ */
+const APPROVAL_AUDIT_VERBS = Object.freeze([
+  "runner_hook_approval_requested",
+  "runner_hook_approval_granted",
+  "runner_hook_approval_denied",
+  "runner_hook_approval_timeout",
+]);
+
+/**
+ * Bounded vocabulary for ApprovalManager.resolve states. The routes
+ * layer + manager assert against this set so a future contributor
+ * either reuses an existing resolution or extends this constant.
+ *
+ *   granted   — operator allow
+ *   denied    — operator deny
+ *   timeout   — TTL elapsed without operator response (treat as deny)
+ *   cancelled — caller bailed (run completed / WS dropped before
+ *               operator decided). Distinct from `denied` so the
+ *               audit trail can tell the two apart.
+ */
+const APPROVAL_RESOLUTIONS = Object.freeze([
+  "granted",
+  "denied",
+  "timeout",
+  "cancelled",
+]);
+
+/**
+ * Default timeout for an approval request, in milliseconds. Override
+ * via `HARNESS_REMOTE_APPROVAL_TIMEOUT_MS`. 30s is the operator-UX
+ * sweet spot the R3-0 plan §1.5 derived: long enough for a casual
+ * desk review, short enough that a stuck approval doesn't park a
+ * runner indefinitely.
+ */
+const DEFAULT_APPROVAL_TIMEOUT_MS = 30000;
+
 // ── 7. Reject reasons ───────────────────────────────────────────────
 
 /**
@@ -243,11 +384,18 @@ const REJECT_REASONS = Object.freeze([
 module.exports = {
   ALLOWED_HOOKS,
   ALLOWED_TOOLS,
+  WRITE_TOOLS_REQUIRING_APPROVAL,
+  WRITE_TOOL_DATA_KEYS,
+  isWriteToolRequiringApproval,
+  getWriteToolDataKeys,
   PAYLOAD_SCHEMAS,
   EXECUTOR_DISPATCH,
   BRIDGE_MODES,
   DEFAULT_BRIDGE_MODE,
   resolveBridgeMode,
   AUDIT_VERBS,
+  APPROVAL_AUDIT_VERBS,
+  APPROVAL_RESOLUTIONS,
+  DEFAULT_APPROVAL_TIMEOUT_MS,
   REJECT_REASONS,
 };
