@@ -280,3 +280,298 @@ test("create throws on bad inputs", () => {
     /no document available/
   );
 });
+
+// ─────────────────────────────────────────────────────────────────
+//  Slice D3-c (Phase E1.5, 2026-04-29) — account-status cells
+//
+//  Renders 4 new cells (profile / posture / bridge / remote) sourced
+//  from snapshot.accountStatus (D3-b slice fed by D3-a server-info
+//  poll). Each cell:
+//    - Always present (even pre-first-poll, shows "(loading)").
+//    - Tone:warn / tone:error on operationally-significant signals.
+//    - Title attribute carries operator-readable context.
+//
+//  No claude / codex cells in D3-c — those move to D3-d settings
+//  modal with explicit "Test" buttons.
+// ─────────────────────────────────────────────────────────────────
+
+function exampleAccountStatus(overrides = {}) {
+  return {
+    profile: {
+      activeId: "personal",
+      activeLabel: "Personal",
+      count: 1,
+      credentialBackend: "keychain",
+    },
+    deployment: {
+      mode: "standard",
+      publicSector: false,
+      allowLocalExecutor: true,
+      allowPlaintextSecrets: false,
+      requireSandboxWorkspace: false,
+      requirePiiScan: false,
+    },
+    bridge: { mode: "off" },
+    remote: { mode: "off", activeRunnerCount: 0 },
+    ...overrides,
+  };
+}
+
+// ── pre-first-poll: 4 (loading) cells render without throwing ──
+
+test("D3-c: 4 account-status cells render '(loading)' before first poll", () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore(); // accountStatus is null by default
+  create({ root, store, doc });
+
+  for (const label of ["profile", "posture", "bridge", "remote"]) {
+    const cell = findCellByLabel(root, label);
+    assert.ok(cell, label + " cell present even pre-first-poll");
+    assert.equal(cell.value._textContent, "(loading)");
+    // No tone — the placeholder is neutral.
+    assert.ok(!cell.value.classList.contains("is-warn"));
+    assert.ok(!cell.value.classList.contains("is-error"));
+  }
+});
+
+// ── profile cell ──
+
+test("D3-c profile cell: shows active label + credential-backend tooltip", () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  store.setAccountStatus(exampleAccountStatus());
+  create({ root, store, doc });
+
+  const profile = findCellByLabel(root, "profile");
+  assert.equal(profile.value._textContent, "Personal");
+  assert.equal(profile.cell.attributes.title, "credential backend: keychain");
+});
+
+test("D3-c profile cell: shows '(setup)' + warn tone when no active profile", () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  store.setAccountStatus(exampleAccountStatus({
+    profile: { activeId: null, activeLabel: null, count: 0, credentialBackend: null },
+  }));
+  create({ root, store, doc });
+
+  const profile = findCellByLabel(root, "profile");
+  assert.equal(profile.value._textContent, "(setup)");
+  assert.ok(profile.value.classList.contains("is-warn"),
+    "no-active-profile must surface as warn (operator nudge to setup-wizard)");
+  assert.match(profile.cell.attributes.title || "", /No active profile/);
+});
+
+test("D3-c profile cell: count > 1 shows '+N' suffix", () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  store.setAccountStatus(exampleAccountStatus({
+    profile: { activeId: "personal", activeLabel: "Personal", count: 3, credentialBackend: "keychain" },
+  }));
+  create({ root, store, doc });
+
+  const profile = findCellByLabel(root, "profile");
+  assert.equal(profile.value._textContent, "Personal (+2)",
+    "count=3 means active + 2 others → '+2'");
+});
+
+test("D3-c profile cell: falls back to activeId when activeLabel missing", () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  store.setAccountStatus(exampleAccountStatus({
+    profile: { activeId: "agency-x", activeLabel: null, count: 1, credentialBackend: "keychain" },
+  }));
+  create({ root, store, doc });
+
+  const profile = findCellByLabel(root, "profile");
+  assert.equal(profile.value._textContent, "agency-x",
+    "missing activeLabel must fall back to activeId — never empty");
+});
+
+// ── posture cell ──
+
+test("D3-c posture cell: standard → no tone", () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  store.setAccountStatus(exampleAccountStatus()); // standard by default
+  create({ root, store, doc });
+
+  const p = findCellByLabel(root, "posture");
+  assert.equal(p.value._textContent, "standard");
+  assert.ok(!p.value.classList.contains("is-error"));
+});
+
+test("D3-c posture cell: public-sector → error tone + flag summary tooltip", () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  store.setAccountStatus(exampleAccountStatus({
+    deployment: {
+      mode: "public-sector",
+      publicSector: true,
+      allowLocalExecutor: false,
+      allowPlaintextSecrets: false,
+      requireSandboxWorkspace: true,
+      requirePiiScan: true,
+    },
+  }));
+  create({ root, store, doc });
+
+  const p = findCellByLabel(root, "posture");
+  assert.equal(p.value._textContent, "public-sector");
+  assert.ok(p.value.classList.contains("is-error"),
+    "public-sector posture is high-salience — operators MUST notice if posture flips");
+  // Tooltip summarizes the active flags.
+  const title = p.cell.attributes.title || "";
+  assert.match(title, /sandbox-only/);
+  assert.match(title, /PII gate/);
+  assert.match(title, /no local executor/);
+});
+
+test("D3-c posture cell: plaintext OK shown as flag (operator should know)", () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  store.setAccountStatus(exampleAccountStatus({
+    deployment: {
+      mode: "standard",
+      publicSector: false,
+      allowLocalExecutor: true,
+      allowPlaintextSecrets: true, // dev opt-in
+      requireSandboxWorkspace: false,
+      requirePiiScan: false,
+    },
+  }));
+  create({ root, store, doc });
+
+  const p = findCellByLabel(root, "posture");
+  assert.match(p.cell.attributes.title || "", /plaintext OK/);
+});
+
+// ── bridge cell ──
+
+test("D3-c bridge cell: 'off' → no tone", () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  store.setAccountStatus(exampleAccountStatus());
+  create({ root, store, doc });
+
+  const b = findCellByLabel(root, "bridge");
+  assert.equal(b.value._textContent, "off");
+  assert.ok(!b.value.classList.contains("is-warn"));
+});
+
+test("D3-c bridge cell: 'report' → no tone (observability only)", () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  store.setAccountStatus(exampleAccountStatus({ bridge: { mode: "report" } }));
+  create({ root, store, doc });
+
+  const b = findCellByLabel(root, "bridge");
+  assert.equal(b.value._textContent, "report");
+  assert.ok(!b.value.classList.contains("is-warn"));
+});
+
+test("D3-c bridge cell: 'dispatch' → warn tone (active execution path)", () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  store.setAccountStatus(exampleAccountStatus({ bridge: { mode: "dispatch" } }));
+  create({ root, store, doc });
+
+  const b = findCellByLabel(root, "bridge");
+  assert.equal(b.value._textContent, "dispatch");
+  assert.ok(b.value.classList.contains("is-warn"),
+    "dispatch is the active-execution mode — warn tone surfaces R2.5 controlled bridge being on");
+});
+
+// ── remote cell ──
+
+test("D3-c remote cell: 'off' + 0 runners → no tone", () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  store.setAccountStatus(exampleAccountStatus());
+  create({ root, store, doc });
+
+  const r = findCellByLabel(root, "remote");
+  assert.equal(r.value._textContent, "off");
+  assert.ok(!r.value.classList.contains("is-warn"));
+});
+
+test("D3-c remote cell: 'on' + 2 runners → 'on (2)' + warn tone", () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  store.setAccountStatus(exampleAccountStatus({
+    remote: { mode: "on", activeRunnerCount: 2 },
+  }));
+  create({ root, store, doc });
+
+  const r = findCellByLabel(root, "remote");
+  assert.equal(r.value._textContent, "on (2)");
+  assert.ok(r.value.classList.contains("is-warn"),
+    "active remote runners → warn tone (operator sees remote is doing work)");
+  assert.match(r.cell.attributes.title || "", /2 active remote runners/);
+});
+
+test("D3-c remote cell: singular noun for activeRunnerCount=1", () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  store.setAccountStatus(exampleAccountStatus({
+    remote: { mode: "preview", activeRunnerCount: 1 },
+  }));
+  create({ root, store, doc });
+
+  const r = findCellByLabel(root, "remote");
+  assert.equal(r.value._textContent, "preview (1)");
+  assert.match(r.cell.attributes.title || "", /1 active remote runner$/,
+    "singular noun for count=1; plural for everything else");
+});
+
+// ── re-render on store update ──
+
+test("D3-c: setAccountStatus triggers re-render of all 4 cells", () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  // Pre-first-poll: all 4 cells show (loading).
+  create({ root, store, doc });
+  const beforeProfile = findCellByLabel(root, "profile");
+  assert.equal(beforeProfile.value._textContent, "(loading)");
+
+  // Drive the store as if /api/server/info returned account-status.
+  store.setAccountStatus(exampleAccountStatus({
+    deployment: {
+      mode: "public-sector",
+      publicSector: true,
+      allowLocalExecutor: false,
+      allowPlaintextSecrets: false,
+      requireSandboxWorkspace: true,
+      requirePiiScan: true,
+    },
+    bridge: { mode: "dispatch" },
+    remote: { mode: "on", activeRunnerCount: 3 },
+  }));
+
+  // Re-fetch — root is repainted in place.
+  const profile = findCellByLabel(root, "profile");
+  assert.equal(profile.value._textContent, "Personal");
+  const posture = findCellByLabel(root, "posture");
+  assert.equal(posture.value._textContent, "public-sector");
+  assert.ok(posture.value.classList.contains("is-error"));
+  const bridge = findCellByLabel(root, "bridge");
+  assert.equal(bridge.value._textContent, "dispatch");
+  assert.ok(bridge.value.classList.contains("is-warn"));
+  const remote = findCellByLabel(root, "remote");
+  assert.equal(remote.value._textContent, "on (3)");
+});
