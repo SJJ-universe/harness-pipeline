@@ -1,0 +1,8 @@
+{
+  "_comment": "Slice D0-a (Phase E1, 2026-04-28) — release manifest example. Trust scope: INTERNAL/PRIVATE only. SHA256 alone is not sufficient for public distribution; E3 Release Hygiene adds manifest signing.",
+  "version": "1.1.0",
+  "publishedAt": "2026-05-15T09:00:00Z",
+  "url": "https://github.com/SJJ-universe/harness-pipeline/releases/download/v1.1.0/harness-pipeline-1.1.0.zip",
+  "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "minNodeVersion": "24.0.0"
+}
