@@ -1,0 +1,46 @@
+# Slice D0 (Phase E1, 2026-04-29) — line-ending policy for launcher scripts.
+#
+# Without explicit rules, `core.autocrlf=true` (the default on most
+# Windows installs) flips LF to CRLF on checkout for *every* text file.
+# That's catastrophic for shell scripts: bash refuses to run a CRLF
+# script with `bad interpreter` errors, breaking the macOS / Linux
+# launchers (`harness-start.sh`, `install-version.sh`, `check-update.sh`).
+#
+# We pin the convention per-file-type so it survives any cloner's
+# personal `autocrlf` setting:
+
+# Default: autodetect text files, normalize internally to LF, leave
+# working-tree EOL up to platform.
+* text=auto
+
+# Windows scripts: must be CRLF on disk for cmd.exe / PowerShell.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+*.psm1 text eol=crlf
+
+# Unix scripts: must be LF on disk for bash / sh / zsh.
+*.sh text eol=lf
+
+# Source files: stay neutral (autocrlf=true cloners get CRLF, Linux
+# users get LF, internal storage is LF either way).
+*.js text
+*.mjs text
+*.cjs text
+*.json text
+*.md text
+*.yml text
+*.yaml text
+*.html text
+*.css text
+
+# Binary assets: never touched.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.zip binary
+*.gz binary
+*.woff binary
+*.woff2 binary
