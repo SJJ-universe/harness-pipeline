@@ -13,6 +13,7 @@
 
 const { spawn } = require("child_process");
 const dangerGate = require("../src/policy/dangerGate");
+const { filterSensitiveEnv } = require("../src/security/envFilter");
 
 const SECRET_PATTERNS = [
   /sk-[A-Za-z0-9_-]{20,}/g,
@@ -138,6 +139,13 @@ class CodexRunner {
           windowsHide: true,
           cwd: cwd || process.cwd(),
           shell: process.platform === "win32",
+          // Slice P0 (Phase E, 2026-04-28): never inherit raw process.env.
+          // Pre-P0 the env option was omitted entirely (Node default =
+          // parent env inheritance) which leaked HARNESS_TOKEN +
+          // RUNNER_BOOTSTRAP_TOKEN + ANTHROPIC_API_KEY + GITHUB_TOKEN to
+          // the codex child. Phase E D1's profileSpawn layers profile-
+          // scoped credential inject ON TOP of this base.
+          env: filterSensitiveEnv(process.env),
         });
       } catch (err) {
         const f = this._failure(`spawn failed (${spec.cmd}): ${err.message}`);

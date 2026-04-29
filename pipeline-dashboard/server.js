@@ -40,6 +40,10 @@ const builtInTemplates = require("./pipeline-templates.json");
 const { createTemplateStore } = require("./src/templates/templateStore");
 const { createAuthMiddleware, isLoopbackAddress, isLoopbackHost } = require("./src/security/auth");
 const { resolveInsideRoot } = require("./src/security/pathSandbox");
+// Slice P0 (Phase E, 2026-04-28): unified env filter for child-process spawns.
+// Used by PTY (allowKeys: ["HARNESS_TOKEN"]) and indirectly by claude-runner /
+// codex-runner (no allowKeys — HARNESS_TOKEN blocked from agent children).
+const { filterSensitiveEnv } = require("./src/security/envFilter");
 const {
   validateCodexTrigger,
   validateContextDiscover,
@@ -407,13 +411,12 @@ wss.on("connection", (ws, req) => {
           : "powershell.exe")
       : "bash";
 
-    // Terminal boundary hardening: filter sensitive env vars
-    const safeEnv = { ...process.env };
-    for (const key of Object.keys(safeEnv)) {
-      if (/TOKEN|SECRET|KEY|PASSWORD|CREDENTIAL/i.test(key) && key !== "HARNESS_TOKEN") {
-        delete safeEnv[key];
-      }
-    }
+    // Slice P0 (Phase E, 2026-04-28): unified through src/security/envFilter
+    // (was inline regex pre-P0). PTY allows HARNESS_TOKEN to pass — operator
+    // may type `curl http://127.0.0.1:4201/api/...` from the terminal and
+    // needs the token. All other sensitives (RUNNER_BOOTSTRAP_TOKEN,
+    // ANTHROPIC_API_KEY, GITHUB_TOKEN, etc.) stay blocked.
+    const safeEnv = filterSensitiveEnv(process.env, { allowKeys: ["HARNESS_TOKEN"] });
     const ptyProcess = pty.spawn(shell, [], {
       name: "xterm-color",
       cols: 120,

@@ -10,6 +10,7 @@
 
 const { spawn } = require("child_process");
 const dangerGate = require("../src/policy/dangerGate");
+const { filterSensitiveEnv } = require("../src/security/envFilter");
 
 function resolveCommand(cmd) {
   if (process.platform !== "win32") return cmd;
@@ -113,7 +114,12 @@ class ClaudeRunner {
           windowsHide: true,
           cwd: cwd || process.cwd(),
           shell: false,
-          env: process.env,
+          // Slice P0 (Phase E, 2026-04-28): never inherit raw process.env.
+          // HARNESS_TOKEN, RUNNER_BOOTSTRAP_TOKEN, ANTHROPIC_API_KEY,
+          // GITHUB_TOKEN, etc. all stripped before reaching the child.
+          // Phase E D1's profileSpawn will layer profile-scoped credential
+          // inject ON TOP of this base.
+          env: filterSensitiveEnv(process.env),
         });
       } catch (err) {
         const f = this._failure(`spawn failed (${spec.cmd}): ${err.message}`);
