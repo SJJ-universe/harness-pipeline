@@ -28,6 +28,8 @@ test("createMonitorStore returns the public action surface", () => {
     "pinEvent", "unpinEvent", "togglePinEvent",
     // Slice MB1
     "setRunDetail", "clearRunDetail",
+    // Slice D3-b
+    "setAccountStatus",
   ]) {
     assert.equal(typeof s[fn], "function", fn + " is exposed");
   }

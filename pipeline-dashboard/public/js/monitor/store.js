@@ -27,6 +27,15 @@
 //   pushEvent(envelope)            — append a normalized monitor event
 //                                     (max bounded to avoid leaks)
 //   bumpCounter(name, delta)       — global counters
+//
+// Slice D3-b (Phase E1.5, 2026-04-29):
+//   setAccountStatus({profile, deployment, bridge, remote})
+//                                  — single-action update for the
+//                                    /api/server/info account-status
+//                                    block (D3-a). One mutation per
+//                                    poll; the global-bar (D3-c) +
+//                                    settings-accounts modal (D3-d)
+//                                    subscribe and re-render.
 
 (function (root, factory) {
   const api = factory();
@@ -67,6 +76,18 @@
       // map carries the deeper per-run data so the timeline + inspector +
       // agent-tree can show live detail without hitting bootstrap again.
       runDetails: new Map(),
+      // Slice D3-b (Phase E1.5, 2026-04-29): account-status slice fed
+      // by the periodic /api/server/info refresh in legacy-bridge.
+      // Shape mirrors D3-a:
+      //   { profile:    { activeId, activeLabel, count, credentialBackend },
+      //     deployment: { mode, publicSector, allowLocalExecutor,
+      //                   allowPlaintextSecrets, requireSandboxWorkspace,
+      //                   requirePiiScan },
+      //     bridge:     { mode },
+      //     remote:     { mode, activeRunnerCount } }
+      // null until the first refresh lands; the global-bar shows
+      // "(loading)" placeholders until then.
+      accountStatus: null,
     };
   }
 
@@ -109,6 +130,17 @@
         // Slice MB1: runDetails map → plain object. Inner detail objects
         // are shared by reference (same convention as runs map).
         runDetails: Object.fromEntries(state.runDetails.entries()),
+        // Slice D3-b: shallow copy of the account-status block so a
+        // panel reading snapshot.accountStatus doesn't accidentally
+        // mutate the underlying state.
+        accountStatus: state.accountStatus
+          ? {
+              profile: state.accountStatus.profile ? { ...state.accountStatus.profile } : null,
+              deployment: state.accountStatus.deployment ? { ...state.accountStatus.deployment } : null,
+              bridge: state.accountStatus.bridge ? { ...state.accountStatus.bridge } : null,
+              remote: state.accountStatus.remote ? { ...state.accountStatus.remote } : null,
+            }
+          : null,
       };
     }
 
@@ -283,6 +315,47 @@
       return snapshot();
     }
 
+    // ── Slice D3-b: account-status slice ──────────────────────────
+    //
+    // Single-action update for the /api/server/info block fed by the
+    // legacy-bridge periodic refresh. We accept a partial object —
+    // any of the 4 sub-blocks may be missing or null and we keep the
+    // last known good value for that sub-block. Common case (legacy
+    // server without D3-a wired) all 4 will be present and stable-
+    // shape per D3-a's contract.
+    function setAccountStatus(input) {
+      if (input == null) {
+        // Explicit null clears the slice entirely (used on monitor
+        // close + tests).
+        if (state.accountStatus === null) return snapshot();
+        state.accountStatus = null;
+        _publish();
+        return snapshot();
+      }
+      if (typeof input !== "object") return snapshot();
+      // Defensive shallow copies of each sub-block. Keeps the previous
+      // value when the field isn't passed (preserves last-known-good
+      // through a partial poll response).
+      const prev = state.accountStatus || {};
+      const next = {
+        profile: "profile" in input
+          ? (input.profile && typeof input.profile === "object" ? { ...input.profile } : null)
+          : (prev.profile || null),
+        deployment: "deployment" in input
+          ? (input.deployment && typeof input.deployment === "object" ? { ...input.deployment } : null)
+          : (prev.deployment || null),
+        bridge: "bridge" in input
+          ? (input.bridge && typeof input.bridge === "object" ? { ...input.bridge } : null)
+          : (prev.bridge || null),
+        remote: "remote" in input
+          ? (input.remote && typeof input.remote === "object" ? { ...input.remote } : null)
+          : (prev.remote || null),
+      };
+      state.accountStatus = next;
+      _publish();
+      return snapshot();
+    }
+
     function clearRunDetail(runId) {
       // Specific runId clears just that entry; null/undefined clears all
       // (used on monitor close + tab refresh).
@@ -329,6 +402,8 @@
       // Slice MB1
       setRunDetail,
       clearRunDetail,
+      // Slice D3-b
+      setAccountStatus,
       // testing aid
       _internal,
     };

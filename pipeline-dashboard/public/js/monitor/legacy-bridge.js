@@ -218,6 +218,30 @@
         if (typeof store.setActiveChildren === "function" && Array.isArray(payload.activeChildren)) {
           store.setActiveChildren(payload.activeChildren);
         }
+        // Slice D3-b (Phase E1.5, 2026-04-29): account-status slice.
+        // Map the four blocks from /api/server/info onto store.setAccountStatus
+        // in a single mutation so subscribers re-render once per poll.
+        // Server returns stable-shape objects (D3-a contract) so we just
+        // pass them through. Skip when setAccountStatus isn't on the
+        // store (legacy in-tree consumers without D3-b).
+        if (typeof store.setAccountStatus === "function") {
+          // Only call when at least one of the four blocks is present;
+          // otherwise we'd clobber last-known-good with `null`s on a
+          // server that hasn't shipped D3-a yet.
+          const hasAccountFields =
+            (payload.profile && typeof payload.profile === "object")
+            || (payload.deployment && typeof payload.deployment === "object")
+            || (payload.bridge && typeof payload.bridge === "object")
+            || (payload.remote && typeof payload.remote === "object");
+          if (hasAccountFields) {
+            store.setAccountStatus({
+              profile: payload.profile || null,
+              deployment: payload.deployment || null,
+              bridge: payload.bridge || null,
+              remote: payload.remote || null,
+            });
+          }
+        }
         stats.refreshes++;
         return payload;
       } catch (_) {
