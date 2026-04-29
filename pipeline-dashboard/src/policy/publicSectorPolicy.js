@@ -158,6 +158,60 @@ function assertLocalExecutorAllowed(deploymentProfile) {
 }
 
 /**
+ * Slice GOV-SB-0 (Phase E1.5, 2026-04-29) — sandbox-workspace re-check.
+ *
+ * D1-gov-2's `validateProfileForPublicSector` already rejects profiles
+ * with `workspaceMode !== "sandbox"` at upsert time. This is the
+ * spawn-time twin assertion: even if a profile somehow ended up on
+ * disk with `workspaceMode === "local"` (older format / hand-edit /
+ * mid-flight posture flip from standard → public-sector), refuse to
+ * launch under it.
+ *
+ * Why a separate function from `assertLocalExecutorAllowed`:
+ *   - assertLocalExecutorAllowed gates the whole local-executor surface
+ *     (no profile required — fires even on the P0 fallback path).
+ *   - assertSandboxWorkspaceRequired needs the resolved profile object,
+ *     so it lives just past the profileStore.get() call inside
+ *     profileSpawn.
+ *   - Two distinct error codes let the audit row carry which gate
+ *     fired ("local executor surface" vs. "wrong workspace mode for
+ *     this profile") so an operator triaging a deny-by-policy can
+ *     fix the right thing.
+ *
+ * @param {object} profile
+ *   Resolved profile object from profileStore.get(profileId).
+ * @param {object} deploymentProfile
+ *   Result of `resolveDeploymentProfile()`. The relevant field is
+ *   `requireSandboxWorkspace` (true in public-sector mode).
+ * @throws Error with `code: "PUBLIC_SECTOR_SANDBOX_WORKSPACE_REQUIRED"`
+ *   when public-sector requires sandbox but the profile is local.
+ */
+function assertSandboxWorkspaceRequired(profile, deploymentProfile) {
+  if (!deploymentProfile || deploymentProfile.requireSandboxWorkspace !== true) {
+    return;
+  }
+  if (!profile || typeof profile !== "object") return;
+  if (profile.workspaceMode === REQUIRED_WORKSPACE_MODE) return;
+  const err = new Error(
+    `public-sector policy requires workspaceMode="${REQUIRED_WORKSPACE_MODE}" ` +
+    `but profile "${profile.id || "<unknown>"}" has workspaceMode="${profile.workspaceMode || "<unset>"}". ` +
+    `Recreate the profile with sandbox workspace, or set HARNESS_DEPLOYMENT_PROFILE=standard.`,
+  );
+  err.code = "PUBLIC_SECTOR_SANDBOX_WORKSPACE_REQUIRED";
+  throw err;
+}
+
+// Slice GOV-SB-0: stable set of error codes the runner-level audit
+// emitter recognizes. When err.code is one of these, the runner emits
+// a `local_executor_blocked` ledger row instead of just bubbling the
+// failure up. Frozen so a future caller can't extend the policy
+// vocabulary without an explicit code change.
+const POLICY_BLOCK_CODES = Object.freeze(new Set([
+  "PUBLIC_SECTOR_LOCAL_EXECUTOR_DISABLED",
+  "PUBLIC_SECTOR_SANDBOX_WORKSPACE_REQUIRED",
+]));
+
+/**
  * Convenience for routes that want a 400-shaped response on policy
  * failure. Returns null when validation passed, or a JSON-ready
  * object otherwise.
@@ -177,6 +231,7 @@ function buildPolicyErrorResponse(profile) {
 module.exports = {
   validateProfileForPublicSector,
   assertLocalExecutorAllowed,
+  assertSandboxWorkspaceRequired,
   buildPolicyErrorResponse,
   // Exposed for tests + downstream modules that need to know which
   // backends are considered "plaintext" (e.g., credentialStore can
@@ -184,4 +239,5 @@ module.exports = {
   PLAINTEXT_BACKENDS,
   REQUIRED_ACCOUNT_TYPE,
   REQUIRED_WORKSPACE_MODE,
+  POLICY_BLOCK_CODES,
 };

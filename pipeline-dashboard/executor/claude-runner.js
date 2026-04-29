@@ -23,7 +23,10 @@ const { buildSpawnEnv } = require("../src/runtime/profileSpawn");
 // bypasses profileSpawn (e.g. a hot-path optimization that builds
 // the env inline), the policy still gates the spawn.
 const { resolveDeploymentProfile } = require("../src/policy/deploymentProfile");
-const { assertLocalExecutorAllowed } = require("../src/policy/publicSectorPolicy");
+const {
+  assertLocalExecutorAllowed,
+  POLICY_BLOCK_CODES,
+} = require("../src/policy/publicSectorPolicy");
 
 function resolveCommand(cmd) {
   if (process.platform !== "win32") return cmd;
@@ -173,6 +176,29 @@ class ClaudeRunner {
             // can map to an HTTP status if needed.
             const f = this._failure(`spawn env build failed: ${err.message}`);
             if (err.code) f.code = err.code;
+            // Slice GOV-SB-0 (Phase E1.5, 2026-04-29): audit row when
+            // public-sector policy refused the spawn. The reason
+            // distinguishes "local-executor surface gated" from
+            // "wrong workspace mode for this profile" so an operator
+            // triaging the deny can fix the right thing. Audit data
+            // stays small + free of secret material — `profileId` and
+            // a stable `reason` code only.
+            if (this.ledger && err.code && POLICY_BLOCK_CODES.has(err.code)) {
+              try {
+                this.ledger.append("system", {
+                  type: "local_executor_blocked",
+                  data: {
+                    runner: "claude",
+                    reason: err.code,
+                    profileId: profileId
+                      || (this.profileStore && this.profileStore.getActiveId()
+                        ? this.profileStore.getActiveId()
+                        : null),
+                    policyMode: "public-sector",
+                  },
+                });
+              } catch (_) { /* best-effort */ }
+            }
             return resolve(f);
           }
 

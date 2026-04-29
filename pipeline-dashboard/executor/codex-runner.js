@@ -19,7 +19,10 @@ const { filterSensitiveEnv } = require("../src/security/envFilter");
 // rationale; mirror summary here for grep-friendliness.
 const { buildSpawnEnv } = require("../src/runtime/profileSpawn");
 const { resolveDeploymentProfile } = require("../src/policy/deploymentProfile");
-const { assertLocalExecutorAllowed } = require("../src/policy/publicSectorPolicy");
+const {
+  assertLocalExecutorAllowed,
+  POLICY_BLOCK_CODES,
+} = require("../src/policy/publicSectorPolicy");
 
 const SECRET_PATTERNS = [
   /sk-[A-Za-z0-9_-]{20,}/g,
@@ -174,6 +177,27 @@ class CodexRunner {
           } catch (err) {
             const f = this._failure(`spawn env build failed: ${err.message}`);
             if (err.code) f.code = err.code;
+            // Slice GOV-SB-0 (Phase E1.5, 2026-04-29): mirror of the
+            // ClaudeRunner audit emit — public-sector policy block
+            // turns into a stable `local_executor_blocked` ledger row
+            // so the auditor evidence path can read deny-by-policy
+            // events the same way for both runners.
+            if (this.ledger && err.code && POLICY_BLOCK_CODES.has(err.code)) {
+              try {
+                this.ledger.append("system", {
+                  type: "local_executor_blocked",
+                  data: {
+                    runner: "codex",
+                    reason: err.code,
+                    profileId: profileId
+                      || (this.profileStore && this.profileStore.getActiveId()
+                        ? this.profileStore.getActiveId()
+                        : null),
+                    policyMode: "public-sector",
+                  },
+                });
+              } catch (_) { /* best-effort */ }
+            }
             return resolve(f);
           }
 

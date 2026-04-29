@@ -385,3 +385,89 @@ test("D1-gov-5: env-driven public-sector (no opts.deploymentProfile) still block
     { code: "PUBLIC_SECTOR_LOCAL_EXECUTOR_DISABLED" },
   );
 });
+
+// ─────────────────────────────────────────────────────────────────
+//  Slice GOV-SB-0 — spawn-time sandbox-workspace re-check
+//
+//  D1-gov-2's validateProfileForPublicSector already rejects
+//  workspaceMode!="sandbox" at upsert time. GOV-SB-0 adds a second
+//  gate at spawn time so a profile that landed via a different code
+//  path (legacy file format, hand-edit, posture flip mid-process)
+//  still cannot launch a local executor under public-sector.
+//
+//  We exercise this with a hand-crafted deploymentProfile where
+//  allowLocalExecutor:true (so the FIRST gate doesn't fire) but
+//  requireSandboxWorkspace:true. The natural env-driven public-
+//  sector posture has both flags coupled, so the second gate is
+//  belt-and-suspenders for a future schema split.
+// ─────────────────────────────────────────────────────────────────
+
+test("GOV-SB-0: blocks profile workspaceMode=local at spawn even if local executor is allowed", async () => {
+  const localProfile = {
+    ...sampleProfile("local-leak", ["ANTHROPIC_API_KEY"]),
+    workspaceMode: "local",
+  };
+  await assert.rejects(
+    () => buildSpawnEnv({
+      parentEnv: {},
+      profileId: "local-leak",
+      profileStore: makeProfileStore([localProfile]),
+      credentialStore: makeCredentialStore({
+        "local-leak": { ANTHROPIC_API_KEY: "v" },
+      }),
+      // Custom posture: local executor allowed, but sandbox required.
+      // This is the future-proofing scenario.
+      deploymentProfile: {
+        publicSector: true,
+        allowLocalExecutor: true,
+        requireSandboxWorkspace: true,
+      },
+    }),
+    { code: "PUBLIC_SECTOR_SANDBOX_WORKSPACE_REQUIRED" },
+  );
+});
+
+test("GOV-SB-0: passes profile workspaceMode=sandbox at spawn (standard sandbox-only success)", async () => {
+  const sandboxProfile = {
+    ...sampleProfile("sandbox-ok", ["ANTHROPIC_API_KEY"]),
+    workspaceMode: "sandbox",
+  };
+  const out = await buildSpawnEnv({
+    parentEnv: { PATH: "/x" },
+    profileId: "sandbox-ok",
+    profileStore: makeProfileStore([sandboxProfile]),
+    credentialStore: makeCredentialStore({
+      "sandbox-ok": { ANTHROPIC_API_KEY: "sk-ok" },
+    }),
+    deploymentProfile: {
+      publicSector: true,
+      allowLocalExecutor: true,
+      requireSandboxWorkspace: true,
+    },
+  });
+  assert.equal(out.mode, "profile");
+  assert.equal(out.env.ANTHROPIC_API_KEY, "sk-ok");
+});
+
+test("GOV-SB-0: standard mode tolerates workspaceMode=local (no regression)", async () => {
+  // The sandbox re-check ONLY fires under public-sector posture.
+  // Standard mode users with local profiles must continue to work.
+  const localProfile = {
+    ...sampleProfile("personal", ["ANTHROPIC_API_KEY"]),
+    workspaceMode: "local",
+  };
+  const out = await buildSpawnEnv({
+    parentEnv: {},
+    profileId: "personal",
+    profileStore: makeProfileStore([localProfile]),
+    credentialStore: makeCredentialStore({
+      personal: { ANTHROPIC_API_KEY: "v" },
+    }),
+    deploymentProfile: {
+      publicSector: false,
+      allowLocalExecutor: true,
+      requireSandboxWorkspace: false,
+    },
+  });
+  assert.equal(out.mode, "profile");
+});
