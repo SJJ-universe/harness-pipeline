@@ -27,6 +27,13 @@ const {
   assertLocalExecutorAllowed,
   POLICY_BLOCK_CODES,
 } = require("../src/policy/publicSectorPolicy");
+// Slice GOV-PII-0 (Phase E1.5, 2026-04-29): inline PII gate runs
+// AFTER spawn env is built but BEFORE the actual spawn(). Public-
+// sector mode refuses the spawn when the prompt contains PII;
+// standard mode emits a warn-level audit but proceeds. The gate is
+// a pure decision function — the runner owns the audit emit + the
+// failure resolve.
+const { enforcePiiGate } = require("../src/security/piiGate");
 
 function resolveCommand(cmd) {
   if (process.platform !== "win32") return cmd;
@@ -225,6 +232,39 @@ class ClaudeRunner {
                 },
               });
             } catch (_) { /* best-effort */ }
+          }
+
+          // Slice GOV-PII-0: refuse the local provider dispatch when
+          // the prompt contains PII under public-sector posture.
+          // Standard mode emits a warn-level audit but proceeds.
+          // The gate is a pure function; the runner emits the audit
+          // row + resolves the failure.
+          const piiVerdict = enforcePiiGate(prompt, {
+            deploymentProfile: resolveDeploymentProfile(),
+            source: "claude_prompt",
+          });
+          if (this.ledger && piiVerdict.auditVerb) {
+            try {
+              this.ledger.append(runId || "system", {
+                type: piiVerdict.auditVerb,
+                data: {
+                  runner: "claude",
+                  runId: runId || null,
+                  ...piiVerdict.auditData,
+                },
+              });
+            } catch (_) { /* best-effort */ }
+          }
+          if (!piiVerdict.ok) {
+            const f = this._failure(
+              `blocked by PII scanner: types=${piiVerdict.scan.findings.map((x) => x.type).join(",")}`,
+            );
+            f.code = "PII_SCAN_BLOCKED";
+            // Run-registry housekeeping: we created a runId for this
+            // attempt but never spawned. Mark it complete with the
+            // failure so the registry doesn't leak.
+            if (runId) this.runRegistry?.complete(runId, f);
+            return resolve(f);
           }
 
           let child;

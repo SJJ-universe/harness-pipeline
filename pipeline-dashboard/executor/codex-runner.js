@@ -23,6 +23,10 @@ const {
   assertLocalExecutorAllowed,
   POLICY_BLOCK_CODES,
 } = require("../src/policy/publicSectorPolicy");
+// Slice GOV-PII-0 (Phase E1.5, 2026-04-29): mirror of ClaudeRunner.
+// PII gate fires after env is built and before the codex stdin
+// write. See claude-runner.js for the full design rationale.
+const { enforcePiiGate } = require("../src/security/piiGate");
 
 const SECRET_PATTERNS = [
   /sk-[A-Za-z0-9_-]{20,}/g,
@@ -222,6 +226,34 @@ class CodexRunner {
                 },
               });
             } catch (_) { /* best-effort */ }
+          }
+
+          // Slice GOV-PII-0: same gate as ClaudeRunner. Public-sector
+          // refuses the spawn when the prompt contains PII; standard
+          // mode emits a warn-level audit but proceeds.
+          const piiVerdict = enforcePiiGate(prompt, {
+            deploymentProfile: resolveDeploymentProfile(),
+            source: "codex_prompt",
+          });
+          if (this.ledger && piiVerdict.auditVerb) {
+            try {
+              this.ledger.append(runId || "system", {
+                type: piiVerdict.auditVerb,
+                data: {
+                  runner: "codex",
+                  runId: runId || null,
+                  ...piiVerdict.auditData,
+                },
+              });
+            } catch (_) { /* best-effort */ }
+          }
+          if (!piiVerdict.ok) {
+            const f = this._failure(
+              `blocked by PII scanner: types=${piiVerdict.scan.findings.map((x) => x.type).join(",")}`,
+            );
+            f.code = "PII_SCAN_BLOCKED";
+            if (runId) this.runRegistry?.complete(runId, f);
+            return resolve(f);
           }
 
           let child;
