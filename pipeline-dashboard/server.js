@@ -589,6 +589,31 @@ const _eb = createEventBroadcaster({ clients });
 const broadcast = _eb.broadcast;
 const eventReplayBuffer = _eb.eventReplayBuffer;
 
+// Slice R3-e-c (Phase D R3, 2026-04-29): per-call approval manager.
+// One instance, shared by /api/approvals routes (this slice) and the
+// hook-router approval gate (slice R3-e-d). Wired NOW so the route
+// mount below has the same instance the gate will eventually call.
+//
+// auditFn -> evidenceLedger.append("system", {type, data}) so every
+//   runner_hook_approval_{requested,granted,denied,timeout} verb
+//   lands in the signed + sanitized chain alongside R2.5's
+//   runner_hook_routed family.
+//
+// broadcastFn -> broadcast({type, data}) so dashboard clients see
+//   approval_requested + approval_resolved events in real time. The
+//   monitor store slice (UX-2-a) translates these into pendingApprovals.
+const { ApprovalManager } = require("./src/runtime/approvalManager");
+const _approvalManager = new ApprovalManager({
+  auditFn: (verb, data) => {
+    try { evidenceLedger.append("system", { type: verb, data }); }
+    catch (_) { /* never break the manager on ledger faults */ }
+  },
+  broadcastFn: (type, data) => {
+    try { broadcast({ type, data }); }
+    catch (_) { /* never break the manager on WS faults */ }
+  },
+});
+
 // Token tracking stub — kept for eventRoutes /api/reset compatibility
 const tokenUsage = {};
 
@@ -1007,6 +1032,17 @@ app.use("/api", createSecurityRoutes({
   ledger: evidenceLedger,
   deploymentProfile: _deploymentProfile,
 }));
+
+// Slice R3-e-c (Phase D R3, 2026-04-29): approval HTTP API.
+// Mounted under /api/approvals. Three endpoints:
+//   GET  /api/approvals/pending
+//   POST /api/approvals/:id/grant   body: {deciderId?, reason?}
+//   POST /api/approvals/:id/deny    body: {deciderId?, reason?}
+// The audit chain entries fire from the manager's auditFn (wired
+// above); the routes only translate HTTP into manager calls. 404 on
+// unknown / already-resolved approvalIds keeps the chain clean.
+const { createApprovalRoutes } = require("./src/routes/approvalRoutes");
+app.use("/api", createApprovalRoutes({ approvalManager: _approvalManager }));
 
 // MB4-b (Phase D Round 2, 2026-04-27): the ~270 lines of
 // runGeneralPipeline + finalizeGeneralRun + 3 prompt builders that
