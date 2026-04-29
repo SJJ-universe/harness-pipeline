@@ -2,7 +2,7 @@
 
 ## Current Score
 
-**107 / 118** (Phase 2.5 multi-run + Phase 3-S security + Phase D MA0~MA7 monitor shell + Phase D Round 2 MB1~MB6 backfill + Phase D Round 2.5 MC1~MC5 live wiring + MA7 UI-3 rewrite readiness + Phase D Round MD readiness automation + Phase D Round ME CI hygiene + Phase D Round MF P4 design RFC + Phase D Round MG P4 implementation RFC + **Phase D R1 a~i + e + g + g+ — full remote runner subsystem** + **Phase D R1-k1/k2/k3 — external review correctness round** + **Phase D R2 — single-runner deployment evaluation (live verified)** + **Phase D R2.5 — controlled remote execution bridge with allowlist + sanitization + full audit narrative** + **Phase E1 D0-a~e — productization launcher (harness-start.bat/.sh + atomic install + https-only manifest URL + port-squat defense)** + **Phase E1 D1-a~g — profile + credential + spawn rewiring + public-sector policy baseline + audit sanitizer** + **Phase E1.5 GOV-SB-0 — sandbox-only execution + local_executor_blocked audit emission** + **Phase E1.5 GOV-PII-0 — KR-focused inline PII gate with public-sector block / standard warn**; MD2 extended Testability cap 10 → 11; R1-j extended Safety cap 15 → 16; R2 extended Safety cap 16 → 17; R2.5 extends Safety cap 17 → 18; D0-e extends Config/portability cap 5 → 8; D1-g extends Config/portability cap 8 → 10 — operator runs Claude/Codex with their OWN agency account; **E1.5 introduces a new Public-sector readiness cap 3 with score 2 — sandbox-only enforcement + inline PII gate live-verified, deep-scan + auditor evidence + signed distribution deferred to later GOV-* slices**)
+**108 / 118** (Phase 2.5 multi-run + Phase 3-S security + Phase D MA0~MA7 monitor shell + Phase D Round 2 MB1~MB6 backfill + Phase D Round 2.5 MC1~MC5 live wiring + MA7 UI-3 rewrite readiness + Phase D Round MD readiness automation + Phase D Round ME CI hygiene + Phase D Round MF P4 design RFC + Phase D Round MG P4 implementation RFC + **Phase D R1 a~i + e + g + g+ — full remote runner subsystem** + **Phase D R1-k1/k2/k3 — external review correctness round** + **Phase D R2 — single-runner deployment evaluation (live verified)** + **Phase D R2.5 — controlled remote execution bridge with allowlist + sanitization + full audit narrative** + **Phase E1 D0-a~e — productization launcher (harness-start.bat/.sh + atomic install + https-only manifest URL + port-squat defense)** + **Phase E1 D1-a~g — profile + credential + spawn rewiring + public-sector policy baseline + audit sanitizer** + **Phase E1.5 GOV-SB-0 — sandbox-only execution + local_executor_blocked audit emission** + **Phase E1.5 GOV-PII-0 — KR-focused inline PII gate with public-sector block / standard warn** + **Phase E1.5 D2-a~d — first-run setup wizard with cliProbe + 3-tier providerProbe + 5-endpoint setupRoutes + interactive Node wizard with standard / public-sector dual tracks**; MD2 extended Testability cap 10 → 11; R1-j extended Safety cap 15 → 16; R2 extended Safety cap 16 → 17; R2.5 extends Safety cap 17 → 18; D0-e extends Config/portability cap 5 → 8; D1-g extends Config/portability cap 8 → 10; **D2 fills Config/portability cap 9 → 10 — operator double-clicks `harness-start.bat`, the wizard discovers Claude/Codex CLIs, builds an agency-managed or personal profile, and sets it active**; **E1.5 introduces a new Public-sector readiness cap 3 with score 2 — sandbox-only enforcement + inline PII gate live-verified, deep-scan + auditor evidence + signed distribution deferred to later GOV-* slices**)
 
 Trajectory:
 - v3.1 hardening — 87
@@ -29,6 +29,7 @@ Trajectory:
 - **Phase E1 D1-a/b/c/d/e/f/g + D1-gov-1..5** (profile + credential + spawn rewiring + public-sector policy baseline + EvidenceLedger sanitizer — `src/security/credentialStore.js` (fail-closed by default, keytar OS-keychain or HARNESS_ALLOW_PLAINTEXT_SECRETS=1 dev escape, `credential_set/_deleted/_plaintext_fallback/_backend_unavailable` audit verbs, profileId+key sanitation), `src/runtime/profileStore.js` (atomic temp+rename writes, schema-version mismatch loud-fail, BOM tolerance, `profile_created/_updated/_deleted/_switched` audit, agency-layer fields when public-sector), `src/runtime/profileSpawn.js` (4-layer env composition: P0 base → profile lookup → credential injection → telemetry env, refuse partial-credential spawn), `src/policy/deploymentProfile.js` + `src/policy/publicSectorPolicy.js` (HARNESS_DEPLOYMENT_PROFILE resolver — public-sector flips every fail-closed flag together; validateProfileForPublicSector + assertLocalExecutorAllowed), runner integration in claude-runner.js + codex-runner.js (async IIFE wraps `_tryExec` body so `await buildSpawnEnv` fits between `dangerGate` and `spawn()`; defense-in-depth `assertLocalExecutorAllowed` from runner itself + inside profileSpawn; emits `profile_spawn_env_built`), `src/routes/profileRoutes.js` (CRUD + active-run-gated /switch returning 409 + `profile_switch_blocked` audit + secret KEY-only listing/setting/deleting + public-sector violation → 400 with structured details), `src/security/auditSanitizer.js` (recursive secret-name redaction with SAFE_KEY_NAMES allowlist, prototype-pollution skip, cycle protection, depth limit; threaded through EvidenceLedger.append BEFORE hashing so chain + signature cover the sanitized form), server.js wires the full stack including `evidenceLedger` with `sanitizer: sanitizeAuditData` and `createProfileRoutes` with `isActiveRun: () => childRegistry.snapshot().length > 0`. End-to-end live verified: `harness-start.bat` boots → `GET /api/profiles` returns `{profiles:[], activeProfileId:null}`) — **105/115** (Config/portability cap extended 8 → 10 — captures the shift from "operator double-clicks the launcher" to "operator runs Claude/Codex with their own agency account through profile + credential management"; +137 unit, +26 integration tests)
 - **Phase E1.5 GOV-SB-0** (sandbox-only execution at runtime — `src/policy/publicSectorPolicy.js` adds `assertSandboxWorkspaceRequired(profile, deploymentProfile)` as a SECOND spawn-time gate so a profile with `workspaceMode != "sandbox"` can never launch under public-sector posture even if it landed via a legacy file format / hand-edit / mid-process posture flip; `POLICY_BLOCK_CODES` frozen Set of {`PUBLIC_SECTOR_LOCAL_EXECUTOR_DISABLED`, `PUBLIC_SECTOR_SANDBOX_WORKSPACE_REQUIRED`} that the runner audit-emitter consults; `src/runtime/profileSpawn.js` calls the new gate immediately after `profileStore.get()` so a profile lookup that succeeds under standard mode still gets policy-checked under public-sector before any credentials inject; `executor/claude-runner.js` + `executor/codex-runner.js` emit a stable `local_executor_blocked` audit row carrying `{runner, reason, profileId, policyMode}` whenever an `err.code` lands in `POLICY_BLOCK_CODES` — D1-f sanitizer is a defense-in-depth backstop on the audit data shape; +9 unit + 6 integration tests, all green) — **106/116** (Public-sector readiness cap 3, score 1 — sandbox-only enforcement is now live-verified at three layers: profileStore upsert validation (D1-gov-2), profileSpawn re-check (GOV-SB-0), and runner-level defense-in-depth with stable audit emission (GOV-SB-0). The cap leaves 2 stars for GOV-PII-0 (next slice) + later GOV-PII-1 deep-scan / GOV-AUDIT-0 evidence export)
 - **Phase E1.5 GOV-PII-0** (inline KR-focused PII gate before provider dispatch — `src/security/piiScanner.js` (333-line fast detector: 주민등록번호 with check-digit + birth-date + gender-code validation, Korean mobile/landline phone, email, credit card with Luhn; PATTERNS frozen registry; samples ALREADY redacted at the scanner level so audit chain never carries raw PII; 4KB scan completes in <1ms, spec ceiling 50ms) + `src/security/piiGate.js` (159-line pure decision function — `enforcePiiGate(text, {deploymentProfile, source})` returns `{ok, blocked, scan, reason, auditVerb, auditData}`; public-sector → `pii_scan_blocked` row + spawn refused; standard → `pii_scan_warn` row + spawn proceeds; fail-closed on either `requirePiiScanBeforeProviderDispatch=true` OR `scannerFailurePolicy="block"` signal) + runner integration in claude-runner.js + codex-runner.js (gate fires inline immediately after `buildSpawnEnv` and before `spawn()`; verdict's auditVerb decides which row fires; on block resolves with `code: "PII_SCAN_BLOCKED"` and unwinds runRegistry start). +49 unit + 6 integration tests, all green; counts 1455 → 1504 unit / 300 → 306 integration. Live-verified end-to-end via `gov-pii-block.test.js`: standard mode + KRN prompt → spawn proceeds + `pii_scan_warn` audit, public-sector + KRN prompt → spawn refused + audit) — **107/118** (Public-sector readiness 1 → 2; remaining 1 star reserved for GOV-PII-1 deep-scan when an attachment lands on disk; `pii_scan_blocked` is now the second public-sector audit verb on the deny path, joining `local_executor_blocked` from GOV-SB-0)
+- **Phase E1.5 D2-a/b/c/d** (first-run setup wizard — `src/runtime/cliProbe.js` cross-platform `where`/`which` with strict CLI-name allowlist + shell:false baseline + 5s default timeout; `src/runtime/providerProbe.js` 3-tier probe (installed → authenticated → canRun) with public-sector defense-in-depth refusal, frozen ERROR_CODES + PROBE_MODES + TIER_TIMEOUT_MS + RUNNER_CONFIG (claude/codex), version + accountLabel parsers, fail-closed `RATE_LIMITED` detection on tier 3; `src/routes/setupRoutes.js` 5-endpoint HTTP API (`POST /api/setup/{probe-node, probe-cli, probe-provider, probe-workspace, finalize}`) with tier-3-requires-consent gate, profileId 404, profileStore-not-wired 503, public-sector violation 400 with `details[]`, active-run 409 + `setup_finalize_blocked` audit; `scripts/setup-wizard.js` 608-line interactive Node wizard with **standard track** (8 steps: Node/Claude CLI/Codex CLI/profile/workspace/optional auth tests/finalize) and **public-sector track** (skips local CLI discovery; collects agency-managed accountType + sandbox workspaceMode + dataClassification + egressPolicyId; REQUIRES three operator acknowledgments — sandbox runner configured / PII scanner active / trusted internal release — before finalize); `scripts/setup-wizard.{ps1,sh}` thin wrappers (35-40 lines each) that resolve sibling .js + Node sanity check + arg pass-through. End-to-end verified via stub fetch + stub prompt across both tracks. +52 unit / +24 integration / +17 smoke tests, all green) — **108/118** (Config/portability cap 9 → 10 fully filled — D0-e was 6/8, D1-g lifted cap to 10 with 9/10 score, D2 closes the last point with the operator-facing wizard. Public-sector readiness stays 2/3 — the wizard's public-sector track collects fields and acknowledgments but doesn't yet probe sandbox-runner connectivity or perform deep-scan; those live behind future GOV-* slices)
 - **Phase E1 D0-a/b/c/d/e** (productization launcher — `harness-start.bat` UTF-8 BOM + CRLF Windows entry / `harness-start.sh` Mac-Linux entry / `scripts/launcher/{install-version,check-update}.{ps1,sh}` thin shells / `scripts/launcher/launcher-cli.js` ~250-line Node bridge that PowerShell + bash share for SHA256 + semver + path resolution + manifest validation + URL scheme check + health discriminator. D0-a `configPaths.js` + `launcherManifest.js` (43 unit tests). D0-b/c/d ship the platform shells + 16 smoke tests + operator guide. D0-e closes 4 production-readiness gaps: https-only manifest URL with `HARNESS_ALLOW_INSECURE_MANIFEST_URL=1` escape hatch; bash sites unified through `manifest-field` (no more inline `node -e require(...)` quoting fragility); atomic install via `<Version>.partial-<ts>` staging + `.install-complete` sentinel last; `/api/health` discriminator `app:"HarnessPipeline" + healthVersion:1` + `verify-health` CLI so port-squat services can't trick the launcher into "already running" treatment. cmd.exe trap catalog grew during D0-b: `::` inside `( ... )` blocks → use `rem`; `set /p var=<file` inside parens → use `for /f "usebackq"`; `timeout /t 1` aborts under redirected stdin → use `ping -n 2`; unescaped `)` in `echo` lines inside `( ... )` blocks → escape via `^)`. `.gitattributes` pins `*.bat`/`*.ps1` → CRLF and `*.sh` → LF so Windows cloners with `core.autocrlf=true` don't break the bash launchers) — **104/113** (Config/portability cap extended 5 → 8 — captures the qualitative shift from "developer runs `node start.js` from a checked-out repo" to "operator double-clicks `harness-start.bat` from a release zip")
 
 Target after Phase 3 (D platformization): **103+**.
@@ -476,20 +477,20 @@ GOV-PII-0 deferred for false-positive control) OR GOV-AUDIT-0
 (auditor evidence export) — whichever lands first in a future
 public-sector hardening round.
 
-| Area | Pre-E1.5 max | Post-E1.5 max | Score |
-| --- | ---: | ---: | ---: |
-| Pipeline orchestration and phase model | 15 | 15 | 15 |
-| State, artifacts, and quality gates | 15 | 15 | 15 |
-| Dual-agent integration | 10 | 10 | 10 |
-| Directive control and tool gating | 10 | 10 | 9 |
-| Safety and security boundary | 18 | 18 | 18 |
-| Observability and runtime proof | 10 | 10 | 10 |
-| Testability and regression suite | 11 | 11 | 11 |
-| Config, portability, onboarding | 10 | 10 | 9 |
-| UI feedback loop | 7 | 7 | 6 |
-| Maintainability and modularity | 8 | 8 | 6 |
-| **Public-sector readiness** | **0** | **3** | **2** |
-| **Total** | **115** | **118** | **107** |
+| Area | Pre-E1.5 max | Post-E1.5 max | Pre-D2 score | **Post-D2 score** |
+| --- | ---: | ---: | ---: | ---: |
+| Pipeline orchestration and phase model | 15 | 15 | 15 | 15 |
+| State, artifacts, and quality gates | 15 | 15 | 15 | 15 |
+| Dual-agent integration | 10 | 10 | 10 | 10 |
+| Directive control and tool gating | 10 | 10 | 9 | 9 |
+| Safety and security boundary | 18 | 18 | 18 | 18 |
+| Observability and runtime proof | 10 | 10 | 10 | 10 |
+| Testability and regression suite | 11 | 11 | 11 | 11 |
+| Config, portability, onboarding | 10 | 10 | 9 | **10** |
+| UI feedback loop | 7 | 7 | 6 | 6 |
+| Maintainability and modularity | 8 | 8 | 6 | 6 |
+| Public-sector readiness | 0 | 3 | 2 | 2 |
+| **Total** | **115** | **118** | **107** | **108** |
 
 ## Phase D R2 progress (single-runner deployment evaluation)
 
@@ -1116,7 +1117,121 @@ E1.5 cap movement (105 → 107):
 Test counts cumulative across E1.5: 1446 → 1504 unit (+58),
 294 → 306 integration (+12). All gates green.
 
-## What 107 means
+## Phase E1.5 D2 progress (Setup Wizard — D2-a, D2-b, D2-c, D2-d)
+
+D1 closed the profile + credential layer; D0 closed the launcher.
+D2 closes the gap between them: an OPERATOR-FACING wizard that
+discovers Claude/Codex CLIs, builds a profile, and sets it active.
+Two tracks (standard / public-sector) so the same wizard handles
+both deployment postures.
+
+- **D2-a — `src/runtime/cliProbe.js`** (cross-platform CLI discovery):
+    - `discoverCli(name, opts)` resolves a CLI binary path on the
+      user's system using `where` (Windows) / `which` (POSIX).
+    - Strict CLI-name allowlist (`/^[A-Za-z][A-Za-z0-9_.-]*$/`)
+      refuses paths, traversal, shell metacharacters, leading
+      dot/digit/dash. `shell: false` on every spawn so a hypothetical
+      bypass cannot open a shell.
+    - 5s default timeout (configurable). CRLF + LF parsing. Multi-hit
+      via `paths` field (where/which can return multiple matches).
+    - Stable failure shape mirrors success shape (operator UX:
+      every response carries the same 7 fields).
+    - +24 unit tests covering input rejection (no spawn ever fires
+      for refused names), cross-platform dispatch, parsing, timeout,
+      spawn errors, return shape lock.
+
+- **D2-b — `src/runtime/providerProbe.js`** (3-tier probe):
+    - `probeProvider({runner, mode, profile, ...})` answers three
+      escalating questions: installed (tier 1) → authenticated
+      (tier 2) → canRun (tier 3, SPENDS tokens).
+    - Each tier short-circuits on previous-tier failure so a missing
+      CLI never reaches the auth or model-call paths. Tier 1 strips
+      parent secrets via `filterSensitiveEnv`; tier 2/3 consume
+      `buildSpawnEnv` (D1-c) so the layered env model stays the
+      single source of truth.
+    - Public-sector defense: `assertLocalExecutorAllowed` refuses ALL
+      tiers under public-sector posture → `errorCode:
+      "PUBLIC_SECTOR_BLOCKED"` (the wizard's public-sector track uses
+      a different probe surface).
+    - Frozen vocabulary via ERROR_CODES + PROBE_MODES + TIER_TIMEOUT_MS
+      + RUNNER_CONFIG (claude/codex CLI shape table).
+    - +21 unit tests covering runner validation, public-sector
+      refusal, each tier (installed/auth/canRun), version + account
+      label parsing, rate-limit detection, spawn errors, mode short-
+      circuiting.
+
+- **D2-c — `src/routes/setupRoutes.js`** (5 HTTP endpoints):
+    - `POST /api/setup/probe-node` — Node ≥ 24 check.
+    - `POST /api/setup/probe-cli` — `{name}` → discoverCli.
+    - `POST /api/setup/probe-provider` — `{runner, mode?, profileId?,
+      consentToTier3?}` → providerProbe. Tier 3 requires explicit
+      consent in body (400 otherwise) — even if the wizard
+      accidentally passes mode=tier1+2+3 without consent.
+    - `POST /api/setup/probe-workspace` — `{workspacePath}` →
+      write-then-delete probe. Auto-creates the directory if missing.
+    - `POST /api/setup/finalize` — `{profile, setActive?}` →
+      profileStore.upsert + (optional) profileStore.switch. Active-run
+      gate fires regardless of setActive (409 + `setup_finalize_blocked`
+      audit). Public-sector violation surfaces `details[]` from
+      validateProfileForPublicSector.
+    - server.js extracts `_isActiveRun` closure so /profiles AND /setup
+      share the same childRegistry.snapshot() check.
+    - +24 integration tests, including stub injection points for
+      cliProbeImpl + probeProviderImpl + probeWorkspaceImpl + ledger.
+
+- **D2-d — `scripts/setup-wizard.{js,ps1,sh}`** (interactive wizard):
+    - 608-line Node script holds all interactive logic (JSON parsing
+      + Read-Host in pure shell scripts is painful — PowerShell has
+      ConvertFrom-Json but bash needs jq).
+    - .ps1/.sh are 35-40 line wrappers: minimum-Node sanity, resolve
+      sibling .js, hand off via @args / "$@" + exec. Operators
+      discover the .ps1/.sh by name; the actual flow lives in the
+      shared .js (precedent: launcher-cli.js).
+    - **Standard track** 8 steps: Node check → Claude CLI (required)
+      → Codex CLI (optional) → profile fields → workspace probe →
+      optional Claude auth test → optional Codex auth test → finalize.
+    - **Public-sector track** SKIPS local CLI discovery (sandbox runner
+      is the authoritative provider in agency deployments). Collects
+      agency-managed accountType + sandbox workspaceMode +
+      dataClassification + egressPolicyId. REQUIRES three operator
+      acknowledgments before finalize: sandbox runner configured /
+      PII scanner active / trusted internal release. Each
+      acknowledgment defaults to NO and rejecting the release ack
+      aborts with exit 1 (public-sector deployments must come from
+      a signed/internal channel, not a public download).
+    - Track selection: `--standard` / `--public-sector` flag wins,
+      else `HARNESS_DEPLOYMENT_PROFILE=public-sector` env, else
+      default standard.
+    - Audit verbs: `setup_finalize_ok` (success), `setup_finalize_blocked`
+      (active-run gate refused). Both ride the signed + sanitized
+      ledger chain that D1-f set up.
+    - +28 unit tests (parseArgs/resolvers/postJson/main with stub fetch
+      + stub prompt) + 17 smoke tests (.ps1/.sh wrapper contracts +
+      POSIX exec bit + cross-wrapper sanity).
+
+D2 cap movement (107 → 108):
+  Config / portability cap was extended to 10 in D1-g, with a 9/10
+  score (the +1 covered "operator runs Claude/Codex with their own
+  agency account"). D2 closes the remaining 1 point: the operator
+  experience is now end-to-end — double-click `harness-start.bat`
+  → first-run wizard discovers CLIs / collects profile fields /
+  finalizes via /api/setup/finalize / sets active. Standard and
+  public-sector tracks share the same wizard process so a single
+  installation supports both deployment postures.
+
+Public-sector readiness stays 2/3:
+  D2's public-sector wizard track collects agency profile fields
+  and operator acknowledgments but doesn't yet PROBE sandbox-runner
+  connectivity or perform deep-scan / auditor evidence export.
+  Those live behind future GOV-* slices (GOV-PII-1 deep-scan,
+  GOV-AUDIT-0 auditor evidence, GOV-RELEASE-0 signed/offline
+  distribution, GOV-SANDBOX-PROBE for runner connectivity).
+
+Test counts cumulative across D2: 1504 → 1577 unit (+73),
+306 → 330 integration (+24), smoke +17 (existing 1505 + new 17).
+All gates green.
+
+## What 108 means
 
 Single-user local harness with multi-run isolation, hardened external-input boundaries, AND a monitoring-first opt-in console with live data flow + agent observability + per-run detail contract + flow-level readiness rubric + behavior-verified readiness scoring + auto-derived doc trust + dispatcher-driven extraction pattern + CI-enforced regression protection + **a complete remote-execution design RFC** + **a complete implementation RFC with concrete tech decisions for runtime / image / JWT / ledger / control plane / network egress / bootstrap / failure recovery** + **the orchestrator-side primitives of remote mode actually shipped — JWT module + signed audit ledger + runner registry + handshake/heartbeat/hook routes + Dockerfile + server.js wiring + 6th readiness rubric category (remote-isolation, behavior-verified)** + **the runner-host primitives that complete the remote subsystem — WS path-aware demux + connection-lifecycle handler + `RunnerAgent` Node entrypoint + WS message protocol + `childRegistry` remote projection + readiness Star 3 upgraded to live runner→orchestrator round-trip** + **external-review correctness hardening — composite-key remote children with stop-path ownership verify + hook success audit-chain entries + runner-agent env validation that fails fast on bad numeric env** + **R2 single-runner deployment evaluation completed — all MF1 §4.1 gates G1-G9 verified live on the operator's Docker Desktop with repeatable probe scripts; 8 latent bugs surfaced and fixed** + **R2.5 controlled remote execution bridge — sanitized hooks now drive the local executor under an opt-in feature flag, with allowlist (5 hooks × 3 read-only tools), pure sanitizer with prototype-pollution resistance, and a 5-verb audit narrative (routed → rejected | sanitized → dispatched | dispatch_error). G4 hook ingress auth lifted from "partial PASS" to "full PASS"; runner-claimed runs are first-class in `/api/monitor/runs/:runId`**. The next-round work splits into two complementary axes: **R3 multi-runner pool + Linux host** for the layer 2/3 egress enforcement R2-4 left open, and a **per-call approval flow** before opening Bash / Write / Edit through the bridge. **R3-0 (plan) + R3-a (two-network topology) + R3-c (multi-runner pool primitives) landed**. R3-0 locked the gates; R3-a closes R2-4's dashboard host port gap (orchestrator dual-homed; strict override flips runner bridge only); R3-c ships the multi-runner pool primitives at registry + monitor layer (`selectFreshRunner` LEAST_LOADED + FIFO tie-break, `pruneStaleRunners` observation, `getAssignment` public surface, handshake collision detection with new `host_in_use` reason and `runner_handshake_collision` audit, `RunnerStaleMonitor` periodic prune wired into server.js with single-emit `runner_host_lost` audit row + dedupe-on-recovery + idle-host skip + ledger-failure resilience). R3-G01 + R3-G02 + R3-G06 + R3-G07 + R3-G09 + R3-G10 are GREEN. R3-G08 fairness algo verified by unit + integration; live deployment evidence deferred to R3-e. **R3-d (graceful shutdown polish) landed** — `src/server/shutdown.js` walks `wss.clients` on SIGTERM/SIGINT, sends `ws.close(1000, "orchestrator_shutdown")` to runner-bound connections; `runnerAgent.js` differentiates clean-1000 from 1006-crash and 1011/1008-fatal. **Phase E1 D0 (a-e) closed the productization launcher** — operator can install from a release zip, double-click `harness-start.bat` (or `./harness-start.sh`), and the launcher fetches/SHA256-verifies/atomic-installs/launches/health-checks/opens-browser, with https-only manifest URL, port-squat defense via `app:"HarnessPipeline"` discriminator, atomic install via `.install-complete` sentinel, and a `verify-health` CLI that distinguishes our server from any 200-OK responder. Config/portability cap extended 5 → 8 to capture the audience shift from "developer with `git clone`" to "operator with a download". Next: **R3-b** (Linux host nftables L2 + dnsmasq L3, requires Linux host), **R3-e** (per-call approval for write-side tools), and the **D1 profile + credential layer** that makes the harness usable with the operator's own Claude/Codex account instead of the developer-supplied env vars.
 
