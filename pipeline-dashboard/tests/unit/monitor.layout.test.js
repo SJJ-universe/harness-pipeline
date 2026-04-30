@@ -905,7 +905,11 @@ test("UI-H1: mode='advanced' mounts run-tree, run-summary, timeline, etc.", asyn
   assert.ok(agentTreeMounted, "agent-tree must mount in advanced mode");
 });
 
-test("UI-H1: mode='simple' mounts simple-shell-mount placeholder, NOT shell-body", async () => {
+test("UI-H1: mode='simple' mounts simple-shell-mount, NOT shell-body", async () => {
+  // UI-H6 update: placeholder removed in favor of the SimpleShell
+  // orchestrator which mounts cards directly. Without panels.simpleShell
+  // injected, the orchestrator is unavailable → no cards but the
+  // mount region is still attached.
   const doc = makeStubDoc();
   const root = doc.createElement("div");
   const store = createMonitorStore();
@@ -914,14 +918,16 @@ test("UI-H1: mode='simple' mounts simple-shell-mount placeholder, NOT shell-body
     hydrate: () => Promise.resolve({ snapshot: store.snapshot(), raw: {} }),
     doc,
     mode: "simple",
+    // No simpleShell panel registered — verifies graceful no-op.
+    panels: {},
   });
   await handle.hydrationPromise;
   assert.equal(handle._mode, "simple");
-  // Simple mount present, advanced shell-body absent
   assert.equal(root._findAllByClass("simple-shell-mount").length, 1);
   assert.equal(root._findAllByClass("shell-body").length, 0);
   assert.equal(root._findAllByClass("shell-dock").length, 0);
-  assert.equal(root._findAllByClass("simple-shell-placeholder").length, 1);
+  // simpleShellHandle null when panels.simpleShell missing
+  assert.equal(handle._simpleShellHandle, null);
 });
 
 test("UI-H1: mode='simple' does NOT mount run-tree / timeline / agent-tree", async () => {

@@ -486,6 +486,15 @@
        modes. layout.js also writes data-posture on documentElement
        so harness-shell.css freezes animations under public-sector. -->
   <script src="js/monitor/panels/security-status-card.js"></script>
+  <!-- Slice UI-H6 (Phase D / Phase E1.5, 2026-04-30): Simple shell
+       + 4 operator-friendly cards. Mounted by layout.js when
+       mode==="simple"; advanced mode keeps the existing 9-panel
+       layout. -->
+  <script src="js/monitor/panels/now-doing-card.js"></script>
+  <script src="js/monitor/panels/pending-approvals-card.js"></script>
+  <script src="js/monitor/panels/recent-results-card.js"></script>
+  <script src="js/monitor/panels/connection-status-card.js"></script>
+  <script src="js/monitor/shells/simple-shell.js"></script>
   <script src="js/monitor/layout.js"></script>
   <script>
   (function () {

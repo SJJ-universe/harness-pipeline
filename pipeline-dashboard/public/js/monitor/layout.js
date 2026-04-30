@@ -362,18 +362,46 @@
       root.appendChild(dualConsoleMount);
       root.appendChild(shellDock);
     } else {
-      // Simple shell placeholder. UI-H6 will replace this with the
-      // 5-card layout. For now operators see a "Simple mode is loading"
-      // hint so they know they're on the right page.
+      // Slice UI-H6: simple shell with 4 operator-friendly cards.
+      // The orchestrator (HarnessMonitorSimpleShell) mounts:
+      //   [지금 AI가 하는 일]  [승인 필요]
+      //   [최근 결과]          [연결 상태]
+      // The 5th security-status card lives in its own region above
+      // the simple shell (mounted earlier as securityStatusMount).
       const simpleMount = _doc.createElement("div");
       simpleMount.className = "simple-shell-mount";
       simpleMount.setAttribute("role", "region");
       simpleMount.setAttribute("aria-label", "Simple dashboard");
-      const placeholder = _doc.createElement("div");
-      placeholder.className = "simple-shell-placeholder";
-      placeholder.textContent = "Simple Mode (UI-H6 will populate cards)";
-      simpleMount.appendChild(placeholder);
       root.appendChild(simpleMount);
+
+      const SimpleShell = _resolvePanel(panels, "simpleShell", "HarnessMonitorSimpleShell");
+      if (SimpleShell && typeof SimpleShell.mount === "function") {
+        try {
+          simpleShellHandle = SimpleShell.mount({
+            root: simpleMount,
+            store,
+            doc: _doc,
+            panels,
+            onApprovalsClick() {
+              // Scroll to approval card region (always present
+              // above the shell-body, gets the operator's eye).
+              if (approvalMount && typeof approvalMount.scrollIntoView === "function") {
+                try { approvalMount.scrollIntoView({ behavior: "smooth" }); }
+                catch (_) { /* defensive */ }
+              }
+            },
+            onOpenSettings() {
+              if (settingsMount.classList.contains("is-hidden")) {
+                settingsMount.classList.remove("is-hidden");
+              } else {
+                settingsMount.classList.add("is-hidden");
+              }
+            },
+          });
+        } catch (err) {
+          showError("simple shell: " + (err && err.message ? err.message : "init failed"), "simpleShell");
+        }
+      }
     }
     root.appendChild(settingsMount);
 
@@ -573,6 +601,7 @@
     let bottomDockHandle = null;
     let agentTreeHandle = null;
     let dualConsoleHandle = null;
+    let simpleShellHandle = null;
 
     if (_mode === "advanced") {
       // ── Slice MA4: mount the run-tree (left rail) + run-summary (centre) ──
@@ -750,6 +779,9 @@
         try { inspectorHandle && inspectorHandle.destroy && inspectorHandle.destroy(); } catch (_) {}
         try { bottomDockHandle && bottomDockHandle.destroy && bottomDockHandle.destroy(); } catch (_) {}
         try { agentTreeHandle && agentTreeHandle.destroy && agentTreeHandle.destroy(); } catch (_) {}
+        // Slice UI-H6: tear down simple shell first (its inner card
+        // handles unsubscribe individually).
+        try { simpleShellHandle && simpleShellHandle.destroy && simpleShellHandle.destroy(); } catch (_) {}
         // Slice UI-H3: tear down the dual-agent-console.
         try { dualConsoleHandle && dualConsoleHandle.destroy && dualConsoleHandle.destroy(); } catch (_) {}
         // Slice UI-H2: tear down the harness-track panel.
@@ -807,6 +839,8 @@
       // Slice UI-H5: security-status region + handle exposed for tests.
       _securityStatusMount: securityStatusMount,
       _securityStatusHandle: securityStatusHandle,
+      // Slice UI-H6: simple-shell handle exposed for tests.
+      _simpleShellHandle: simpleShellHandle,
       // Slice UI-H1: shell-mode + mode-toggle exposed for tests.
       _mode,
       _modeToggleMount: modeToggleMount,
