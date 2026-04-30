@@ -1057,6 +1057,30 @@ app.use("/api", createSecurityRoutes({
 const { createApprovalRoutes } = require("./src/routes/approvalRoutes");
 app.use("/api", createApprovalRoutes({ approvalManager: _approvalManager }));
 
+// Slice UI-H4 (Phase D / Phase E1.5, 2026-04-30): review session
+// HTTP API. Five endpoints under /api/review-sessions/* per UI Plan
+// §UX-H4. Backs the Claude→Codex→Claude review relay flow.
+//
+// Manager wired with auditFn → evidenceLedger.append("system", ...)
+// + broadcastFn → broadcast({type, data}) so the audit chain + WS
+// stream both narrate session lifecycle in lockstep.
+const { ReviewSessionManager } = require("./src/runtime/reviewSessionManager");
+const _reviewSessionManager = new ReviewSessionManager({
+  auditFn: (verb, data) => {
+    try { evidenceLedger.append("system", { type: verb, data }); }
+    catch (_) { /* never break the manager on ledger faults */ }
+  },
+  broadcastFn: (type, data) => {
+    try { broadcast({ type, data }); }
+    catch (_) { /* never break the manager on WS faults */ }
+  },
+});
+const { createReviewSessionRoutes } = require("./src/routes/reviewSessionRoutes");
+app.use("/api", createReviewSessionRoutes({
+  reviewSessionManager: _reviewSessionManager,
+  deploymentProfile: _deploymentProfile,
+}));
+
 // MB4-b (Phase D Round 2, 2026-04-27): the ~270 lines of
 // runGeneralPipeline + finalizeGeneralRun + 3 prompt builders that
 // lived here have been lifted to src/server/generalPipelineRunner.js.
