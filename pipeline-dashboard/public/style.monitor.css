@@ -1949,3 +1949,151 @@ body.monitor-active {
 .monitor-shell .wo-dismiss:hover {
   color: var(--hsh-bronze, #C9A66B);
 }
+
+/* Slice UI-H9 (2026-04-30): run-viewer drill-down modal */
+.monitor-shell .rrc-row-clickable {
+  cursor: pointer;
+}
+.monitor-shell .rrc-row-clickable:hover {
+  background: rgba(201, 166, 107, 0.08);
+}
+.monitor-shell .rrc-row-clickable:focus-visible {
+  outline: 2px solid var(--hsh-bronze, #C9A66B);
+  outline-offset: -2px;
+}
+
+.rv-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  z-index: 9000;
+  padding: 40px 16px 16px 16px;
+  overflow-y: auto;
+}
+.rv-overlay.rv-hidden { display: none; }
+
+.rv-modal {
+  width: min(720px, 100%);
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  background: var(--hsh-surface, #1B1A18);
+  color: var(--hsh-text, #E8E6E1);
+  border: 1px solid var(--hsh-border, rgba(255, 255, 255, 0.18));
+  border-radius: var(--hsh-radius, 4px);
+  font-family: var(--hsh-font, ui-monospace, monospace);
+}
+.rv-header {
+  position: sticky;
+  top: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--hsh-border, rgba(255, 255, 255, 0.18));
+  background: var(--hsh-surface, #1B1A18);
+}
+.rv-title {
+  margin: 0;
+  font-size: var(--hsh-fs-lg, 13px);
+}
+.rv-close {
+  background: transparent;
+  border: none;
+  color: var(--hsh-text-dim, rgba(232, 230, 225, 0.6));
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  font-family: inherit;
+}
+.rv-close:hover { color: var(--hsh-bronze, #C9A66B); }
+.rv-body { padding: 12px 14px; }
+
+.rv-section {
+  border: 1px solid var(--hsh-border, rgba(255, 255, 255, 0.12));
+  border-radius: var(--hsh-radius, 3px);
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+.rv-section-title {
+  margin: 0 0 8px 0;
+  font-size: var(--hsh-fs-md, 11px);
+  font-weight: 600;
+  color: var(--hsh-text-dim, rgba(232, 230, 225, 0.7));
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.rv-kv {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 0;
+  font-size: var(--hsh-fs-md, 11px);
+}
+.rv-kv-label { color: var(--hsh-text-dim, rgba(232, 230, 225, 0.6)); }
+.rv-kv-value { color: var(--hsh-text, #E8E6E1); font-family: var(--hsh-font-mono, ui-monospace, monospace); }
+
+.rv-empty,
+.rv-loading,
+.rv-error {
+  padding: 6px 0;
+  font-size: var(--hsh-fs-md, 11px);
+  color: var(--hsh-text-dim, rgba(232, 230, 225, 0.6));
+}
+.rv-error { color: var(--hsh-orange, #E89B4B); }
+
+.rv-audit-summary {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: var(--hsh-fs-md, 11px);
+}
+.rv-chain-badge {
+  padding: 2px 8px;
+  border-radius: var(--hsh-radius, 3px);
+  font-size: var(--hsh-fs-sm, 10px);
+}
+.rv-chain-ok { background: rgba(155, 216, 166, 0.16); color: var(--hsh-green-pass, #9BD8A6); }
+.rv-chain-broken { background: rgba(232, 75, 75, 0.18); color: var(--hsh-red, #E84B4B); }
+.rv-audit-counts { color: var(--hsh-text-dim, rgba(232, 230, 225, 0.6)); }
+
+.rv-audit-list,
+.rv-review-list,
+.rv-approval-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.rv-audit-row,
+.rv-review-row,
+.rv-approval-row {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 3px 6px;
+  border-radius: var(--hsh-radius, 3px);
+  font-size: var(--hsh-fs-md, 11px);
+  font-family: var(--hsh-font-mono, ui-monospace, monospace);
+}
+.rv-audit-row:nth-child(odd),
+.rv-review-row:nth-child(odd),
+.rv-approval-row:nth-child(odd) { background: rgba(255, 255, 255, 0.02); }
+.rv-audit-time { color: var(--hsh-text-dim, rgba(232, 230, 225, 0.6)); flex-shrink: 0; }
+.rv-audit-type { color: var(--hsh-text, #E8E6E1); }
+.rv-review-state,
+.rv-approval-tool { color: var(--hsh-bronze, #C9A66B); flex-shrink: 0; }
+.rv-more {
+  margin-top: 6px;
+  padding: 2px 6px;
+  font-size: var(--hsh-fs-sm, 10px);
+  color: var(--hsh-text-dim, rgba(232, 230, 225, 0.5));
+}

@@ -21,7 +21,7 @@
     } catch (_) { return ""; }
   }
 
-  function create({ root, store, doc } = {}) {
+  function create({ root, store, doc, onSelectRun } = {}) {
     if (!root || typeof root.appendChild !== "function") {
       throw new Error("recent-results-card.create: root must be an element");
     }
@@ -102,6 +102,25 @@
           : "·";
         meta.textContent = `${verifyStr} ${timeStr}`;
         li.appendChild(meta);
+
+        // Slice UI-H9-c (2026-04-30): row click → run-viewer drill-down.
+        if (typeof onSelectRun === "function") {
+          li.classList.add("rrc-row-clickable");
+          li.setAttribute("role", "button");
+          li.setAttribute("tabindex", "0");
+          const fire = () => {
+            try { onSelectRun(run.id); } catch (_) { /* defensive */ }
+          };
+          li.addEventListener("click", fire);
+          li.addEventListener("keydown", (ev) => {
+            if (!ev) return;
+            const key = ev.key || ev.code;
+            if (key === "Enter" || key === " " || key === "Space" || key === "Spacebar") {
+              if (typeof ev.preventDefault === "function") ev.preventDefault();
+              fire();
+            }
+          });
+        }
 
         list.appendChild(li);
       }

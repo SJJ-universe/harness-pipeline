@@ -427,6 +427,28 @@
       simpleMount.setAttribute("aria-label", "Simple dashboard");
       root.appendChild(simpleMount);
 
+      // Slice UI-H9-c (2026-04-30): run-viewer drill-down modal mount.
+      // The viewer attaches a hidden overlay to this node; recent-
+      // results card row clicks call runViewerHandle.open(runId).
+      const runViewerMount = _doc.createElement("div");
+      runViewerMount.className = "run-viewer-mount";
+      root.appendChild(runViewerMount);
+
+      const RunViewer = _resolvePanel(panels, "runViewer", "HarnessMonitorRunViewer");
+      if (RunViewer && typeof RunViewer.create === "function") {
+        try {
+          runViewerHandle = RunViewer.create({
+            root: runViewerMount,
+            store,
+            doc: _doc,
+            fetchImpl,
+            headers,
+          });
+        } catch (err) {
+          showError("run viewer: " + (err && err.message ? err.message : "init failed"), "runViewer");
+        }
+      }
+
       const SimpleShell = _resolvePanel(panels, "simpleShell", "HarnessMonitorSimpleShell");
       if (SimpleShell && typeof SimpleShell.mount === "function") {
         try {
@@ -435,6 +457,14 @@
             store,
             doc: _doc,
             panels,
+            // Slice UI-H9: hand the runId off to the viewer modal.
+            onSelectRun(runId) {
+              try {
+                if (runViewerHandle && typeof runViewerHandle.open === "function") {
+                  runViewerHandle.open(runId);
+                }
+              } catch (_) { /* defensive */ }
+            },
             onApprovalsClick() {
               // Scroll to approval card region (always present
               // above the shell-body, gets the operator's eye).
@@ -701,6 +731,9 @@
     let agentTreeHandle = null;
     let dualConsoleHandle = null;
     let simpleShellHandle = null;
+    // Slice UI-H9: run-viewer drill-down modal handle, mounted only
+    // in simple mode (the source of recent-results clicks).
+    let runViewerHandle = null;
 
     if (_mode === "advanced") {
       // ── Slice MA4: mount the run-tree (left rail) + run-summary (centre) ──
@@ -898,6 +931,9 @@
         // Slice UI-H6: tear down simple shell first (its inner card
         // handles unsubscribe individually).
         try { simpleShellHandle && simpleShellHandle.destroy && simpleShellHandle.destroy(); } catch (_) {}
+        // Slice UI-H9: tear down the run-viewer modal AFTER simple-shell
+        // so a row click can never land on a torn-down viewer.
+        try { runViewerHandle && runViewerHandle.destroy && runViewerHandle.destroy(); } catch (_) {}
         // Slice UI-H3: tear down the dual-agent-console.
         try { dualConsoleHandle && dualConsoleHandle.destroy && dualConsoleHandle.destroy(); } catch (_) {}
         // Slice UI-H2: tear down the harness-track panel.

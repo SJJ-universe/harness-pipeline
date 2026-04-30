@@ -1122,6 +1122,14 @@ app.use("/api", createReviewSessionRoutes({
   deploymentProfile: _deploymentProfile,
 }));
 
+// Slice UI-H9-a (Phase D / Phase E1.5, 2026-04-30): audit read API
+// powering the recent-results drill-down view. Read-only — operator
+// inspects the evidence ledger for a specific run; no write surface.
+// GOV-AUDIT-0 (next round) will layer auditor-bundle export on top
+// of this same endpoint family.
+const { createAuditRoutes } = require("./src/routes/auditRoutes");
+app.use("/api", createAuditRoutes({ evidenceLedger }));
+
 // MB4-b (Phase D Round 2, 2026-04-27): the ~270 lines of
 // runGeneralPipeline + finalizeGeneralRun + 3 prompt builders that
 // lived here have been lifted to src/server/generalPipelineRunner.js.

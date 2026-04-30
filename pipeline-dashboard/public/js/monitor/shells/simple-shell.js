@@ -41,6 +41,7 @@
     onOpenSettings,          // toggle settings modal visibility
     onOpenSetupWizard,       // UI-H8: launch setup wizard guide / modal
     onCreatePersonal,        // UI-H8: quick-create personal profile
+    onSelectRun,             // UI-H9: open run-viewer for a runId
     storage,                 // UI-H8: localStorage shim for tests
   } = {}) {
     if (!root || typeof root.appendChild !== "function") {
@@ -105,8 +106,10 @@
     _mount("pendingApprovals", "HarnessMonitorPendingApprovalsCard", _makeCell(), {
       onClick: onApprovalsClick,
     });
-    // Card 3: 최근 결과
-    _mount("recentResults", "HarnessMonitorRecentResultsCard", _makeCell());
+    // Card 3: 최근 결과 (clickable rows when onSelectRun is wired)
+    _mount("recentResults", "HarnessMonitorRecentResultsCard", _makeCell(), {
+      onSelectRun,
+    });
     // Card 4: Claude / Codex 연결 상태
     _mount("connectionStatus", "HarnessMonitorConnectionStatusCard", _makeCell(), {
       onOpenSettings,
