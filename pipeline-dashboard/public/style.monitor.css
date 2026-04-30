@@ -1866,3 +1866,86 @@ body.monitor-active {
     grid-template-columns: 1fr;
   }
 }
+
+/* Slice UI-H8 (2026-04-30): welcome overlay banner */
+.monitor-shell .ss-welcome-mount {
+  margin-bottom: 12px;
+}
+
+.monitor-shell .wo-banner {
+  position: relative;
+  padding: 14px 18px 14px 18px;
+  border-radius: var(--hsh-radius, 4px);
+  border: 1px solid var(--hsh-border, rgba(255, 255, 255, 0.18));
+  background: rgba(201, 166, 107, 0.08); /* bronze tint */
+  color: var(--hsh-text, #E8E6E1);
+}
+
+.monitor-shell .wo-first-visit {
+  border-color: var(--hsh-bronze, #C9A66B);
+}
+
+.monitor-shell .wo-no-active {
+  border-color: var(--hsh-orange, #E89B4B);
+  background: rgba(232, 155, 75, 0.06);
+}
+
+.monitor-shell .wo-hidden { display: none; }
+
+.monitor-shell .wo-title {
+  margin: 0 0 6px 0;
+  font-size: var(--hsh-fs-lg, 13px);
+  font-weight: 600;
+  font-family: inherit;
+}
+
+.monitor-shell .wo-lede {
+  margin: 0 0 10px 0;
+  font-size: var(--hsh-fs-md, 11px);
+  color: var(--hsh-text-dim, rgba(232, 230, 225, 0.7));
+  line-height: 1.5;
+}
+
+.monitor-shell .wo-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.monitor-shell .wo-action {
+  padding: 6px 14px;
+  border-radius: var(--hsh-radius, 3px);
+  border: 1px solid var(--hsh-border, rgba(255, 255, 255, 0.18));
+  background: transparent;
+  color: var(--hsh-text, #E8E6E1);
+  font-size: var(--hsh-fs-md, 11px);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.monitor-shell .wo-action-primary {
+  border-color: var(--hsh-bronze, #C9A66B);
+  background: rgba(201, 166, 107, 0.18);
+}
+
+.monitor-shell .wo-action:hover {
+  border-color: var(--hsh-bronze, #C9A66B);
+  background: rgba(201, 166, 107, 0.12);
+}
+
+.monitor-shell .wo-dismiss {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  background: transparent;
+  border: none;
+  color: var(--hsh-text-dim, rgba(232, 230, 225, 0.6));
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.monitor-shell .wo-dismiss:hover {
+  color: var(--hsh-bronze, #C9A66B);
+}

@@ -450,6 +450,52 @@
                 settingsMount.classList.add("is-hidden");
               }
             },
+            // Slice UI-H8: welcome-overlay callbacks. The setup-wizard
+            // CTA opens the settings modal at the "프로필 추가" tab so
+            // the operator can either run the CLI wizard or fill in
+            // the inline form directly. The quick-create CTA POSTs
+            // a minimal "personal" profile and switches to it.
+            onOpenSetupWizard() {
+              settingsMount.classList.remove("is-hidden");
+              // Emit a custom event so settings-accounts can scroll
+              // to / focus its "프로필 추가" form. The settings panel
+              // is free to ignore this event (defensive).
+              try {
+                const ev = new CustomEvent("harness:openSetupWizard");
+                settingsMount.dispatchEvent(ev);
+              } catch (_) { /* defensive */ }
+            },
+            onCreatePersonal() {
+              const reqHeaders = Object.assign(
+                { "content-type": "application/json" },
+                headers || {}
+              );
+              const body = JSON.stringify({ id: "personal", label: "Personal" });
+              fetchImpl("/api/profiles", { method: "POST", headers: reqHeaders, body })
+                .then(function (res) {
+                  if (!res || !res.ok) throw new Error("profile_create_failed");
+                  return res.json();
+                })
+                .then(function () {
+                  return fetchImpl("/api/profiles/personal/switch", {
+                    method: "POST", headers: reqHeaders,
+                  });
+                })
+                .then(function () {
+                  // Trigger an immediate /api/server/info pull so the
+                  // bridge updates accountStatus.profile.activeId and
+                  // the welcome-overlay re-classifies as "ready".
+                  // Falls back to the regular 5-second poll otherwise.
+                  try {
+                    if (bridgeHandle && typeof bridgeHandle.refresh === "function") {
+                      bridgeHandle.refresh();
+                    }
+                  } catch (_) { /* defensive */ }
+                })
+                .catch(function (err) {
+                  showError("프로필 생성 실패: " + (err && err.message ? err.message : "오류"), "welcomeOverlay");
+                });
+            },
           });
         } catch (err) {
           showError("simple shell: " + (err && err.message ? err.message : "init failed"), "simpleShell");
