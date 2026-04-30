@@ -360,6 +360,34 @@ function cmdManifestField(args) {
   process.exit(0);
 }
 
+// Slice GOV-RELEASE-0 (2026-04-30): manifest signature verification.
+// Used by the launcher when HARNESS_REQUIRE_SIGNED_MANIFEST=1 OR the
+// manifest contains a `signature` field (auto-detect). The trust
+// store path is taken from --trust-store or HARNESS_TRUST_STORE env.
+function cmdVerifyManifestSignature(args) {
+  const manifestPath = args[0];
+  if (!manifestPath) fail("verify-manifest-signature: missing <path>", 2);
+  const trustPathIdx = args.indexOf("--trust-store");
+  const trustPath = (trustPathIdx >= 0 && args[trustPathIdx + 1])
+    || process.env.HARNESS_TRUST_STORE;
+  if (!trustPath) fail("verify-manifest-signature: --trust-store or HARNESS_TRUST_STORE required", 2);
+  let manifest, parsedTrust;
+  try { manifest = JSON.parse(require("fs").readFileSync(manifestPath, "utf-8")); }
+  catch (err) { fail(`cannot read manifest: ${err.message}`, 2); }
+  try { parsedTrust = JSON.parse(require("fs").readFileSync(trustPath, "utf-8")); }
+  catch (err) { fail(`cannot read trust store: ${err.message}`, 2); }
+  const { verifyManifestSignature, loadTrustStore } = require("../../src/security/manifestSigner");
+  const ts = loadTrustStore(parsedTrust);
+  if (!ts.ok) fail(`trust store invalid: ${ts.reason}`, 2);
+  const result = verifyManifestSignature({ manifest, trustStore: ts.trustStore });
+  if (result.ok) {
+    process.stdout.write(`signature OK: keyId=${result.keyId}${result.keyLabel ? ` label=${result.keyLabel}` : ""}\n`);
+    process.exit(0);
+  }
+  process.stderr.write(`signature FAIL: ${result.reason}${result.detail ? " (" + result.detail + ")" : ""}\n`);
+  process.exit(1);
+}
+
 const COMMANDS = {
   "validate-manifest": cmdValidateManifest,
   "verify-sha256": cmdVerifySha256,
@@ -370,6 +398,8 @@ const COMMANDS = {
   "manifest-field": cmdManifestField,
   "validate-manifest-url": cmdValidateManifestUrl,
   "verify-health": cmdVerifyHealth,
+  // GOV-RELEASE-0
+  "verify-manifest-signature": cmdVerifyManifestSignature,
 };
 
 function main() {
@@ -388,6 +418,7 @@ function main() {
       "  manifest-field <path> <field>",
       "  validate-manifest-url <url>",
       "  verify-health <url>",
+      "  verify-manifest-signature <path> [--trust-store <path>]",
       "",
     ].join("\n"));
     process.exit(0);
