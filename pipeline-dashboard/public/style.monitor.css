@@ -1169,3 +1169,134 @@ body.monitor-active {
   letter-spacing: var(--hsh-ls-mono, 0.06em);
   text-transform: uppercase;
 }
+
+/* ── Slice UI-H2: Harness Track panel ── */
+
+.monitor-shell .harness-track-region-mount {
+  display: block;
+  background: linear-gradient(180deg, #0F1013 0%, #0A0B0D 75%, #07080A 100%);
+  border-bottom: 1px solid var(--hsh-border, rgba(255, 255, 255, 0.06));
+}
+
+.monitor-shell .harness-track-region {
+  position: relative;
+  height: 92px;
+  overflow: hidden;
+}
+
+/* Lane labels row at top */
+.monitor-shell .ht-lanes {
+  display: flex;
+  position: absolute;
+  top: 6px;
+  left: 0;
+  right: 0;
+  height: 16px;
+  padding: 0 24px;
+}
+
+.monitor-shell .ht-lane {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-family: var(--hsh-font-mono, ui-monospace, monospace);
+  font-size: var(--hsh-fs-xs, 9px);
+  letter-spacing: var(--hsh-ls-mono-wide, 0.12em);
+  color: var(--hsh-text-faint, rgba(232, 230, 225, 0.28));
+  font-weight: 400;
+  transition: color 0.25s;
+}
+
+.monitor-shell .ht-lane.is-passed {
+  color: var(--hsh-text-dim, rgba(232, 230, 225, 0.6));
+}
+
+.monitor-shell .ht-lane.is-current {
+  color: var(--hsh-bronze, #C9A66B);
+  font-weight: 600;
+}
+
+.monitor-shell .ht-lane-gate {
+  font-size: 7px;
+  color: rgba(201, 166, 107, 0.4);
+}
+
+.monitor-shell .ht-lane-gate.is-active {
+  color: var(--hsh-bronze, #C9A66B);
+}
+
+/* Track + ground line + horse */
+.monitor-shell .ht-track {
+  position: absolute;
+  top: 24px;
+  left: 24px;
+  right: 24px;
+  bottom: 16px;
+  display: flex;
+}
+
+/* Horse marker */
+.monitor-shell .ht-horse {
+  position: absolute;
+  bottom: 0;
+  font-size: 28px;
+  line-height: 1;
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.6))
+          drop-shadow(0 0 8px rgba(201, 166, 107, 0.18));
+  transition: left var(--hsh-dur-slow, 1.05s) var(--hsh-ease-snap, cubic-bezier(.45, .05, .55, .95));
+  pointer-events: none;
+}
+
+.monitor-shell .ht-horse-state-rearing {
+  /* Pulse the horse so the rearing state reads even on still images */
+  animation: var(--hsh-anim-pulse, hsh-pulse 1.4s ease-in-out infinite);
+}
+
+.monitor-shell .ht-horse-state-waiting,
+.monitor-shell .ht-horse-state-idle {
+  animation: none;
+}
+
+/* Rear callout — appears above horse during gate-rearing */
+.monitor-shell .ht-callout {
+  position: absolute;
+  top: -24px;
+  background: var(--hsh-bg-shell, #0B0C0E);
+  border: 1px solid var(--hsh-bronze, #C9A66B);
+  padding: 5px 10px;
+  border-radius: var(--hsh-radius-md, 4px);
+  font-family: var(--hsh-font-mono, ui-monospace, monospace);
+  font-size: var(--hsh-fs-sm, 10px);
+  color: var(--hsh-bronze, #C9A66B);
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  animation: var(--hsh-anim-rear-callout, hsh-rear-callout 0.25s ease-out);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+/* Status pill in upper-right */
+.monitor-shell .ht-status {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: var(--hsh-font-mono, ui-monospace, monospace);
+  font-size: var(--hsh-fs-sm, 10px);
+  color: var(--hsh-text-dim, rgba(232, 230, 225, 0.55));
+  letter-spacing: 0.06em;
+  background: rgba(11, 12, 14, 0.85);
+  padding: 5px 10px;
+  border: 0.5px solid var(--hsh-border, rgba(255, 255, 255, 0.1));
+  border-radius: var(--hsh-radius, 3px);
+  white-space: nowrap;
+  transition: all 0.3s;
+  pointer-events: none;
+}
+
+.monitor-shell .ht-status.is-rearing {
+  color: var(--hsh-bronze, #C9A66B);
+  border-color: var(--hsh-bronze, #C9A66B);
+}

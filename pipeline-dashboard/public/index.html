@@ -467,6 +467,13 @@
        script can read HarnessMonitorMode.resolveMode synchronously. -->
   <script src="js/monitor/mode.js"></script>
   <script src="js/monitor/panels/mode-toggle.js"></script>
+  <!-- Slice UI-H2 (Phase D / Phase E1.5, 2026-04-30): Harness Track
+       panel — galloping horse pipeline visualization tied to actual
+       run state. Pure state machine (horse-state-machine.js) +
+       UMD panel (panels/harness-track.js). Reads from store; never
+       fakes progress (unknown phase → "관찰 중" placeholder). -->
+  <script src="js/monitor/horse-state-machine.js"></script>
+  <script src="js/monitor/panels/harness-track.js"></script>
   <script src="js/monitor/layout.js"></script>
   <script>
   (function () {

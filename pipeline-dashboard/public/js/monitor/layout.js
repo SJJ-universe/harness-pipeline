@@ -306,10 +306,27 @@
     approvalMount.setAttribute("role", "region");
     approvalMount.setAttribute("aria-label", "Pending approvals");
 
+    // Slice UI-H2 (Phase D / E1.5, 2026-04-30): Harness Track region.
+    // Galloping-horse pipeline visualization tied to the selected
+    // run's actual phase (per UI Plan §"가져올 요소 §Harness Track
+    // Animation"). Reads selectedRun.phase + pendingApprovals +
+    // runDetails.verifyStatus + accountStatus.deployment.publicSector
+    // (the last drives reduced-motion mode for public-sector posture).
+    const harnessTrackMount = _doc.createElement("div");
+    harnessTrackMount.className = "harness-track-region-mount";
+    harnessTrackMount.setAttribute("role", "region");
+    harnessTrackMount.setAttribute("aria-label", "Harness pipeline track");
+
     root.innerHTML = "";
     root.appendChild(globalBarRoot);
     root.appendChild(modeToggleMount);
     root.appendChild(errorBox);
+    // Slice UI-H2: harness-track sits between approval region (so
+    // operator-blocking approvals stay above-the-fold) and the
+    // shell-body / simple-mount. In simple mode it's the primary
+    // status visual; in advanced mode it's a compact summary above
+    // the rail + center workspace.
+    root.appendChild(harnessTrackMount);
     root.appendChild(approvalMount);
     // Slice UI-H1: shell-body + shell-dock are advanced-only. Simple
     // mode renders a placeholder until UI-H6 fills out the cards.
@@ -401,6 +418,25 @@
         // Never break the layout if the mode-toggle panel fails to
         // mount — the rest of the monitor still works without it.
         showError("mode toggle: " + (err && err.message ? err.message : "init failed"), "modeToggle");
+      }
+    }
+
+    // ── Slice UI-H2: mount the harness-track panel ──
+    // Always-live subscription to the store. Renders the 7-lane
+    // pipeline + horse marker + rear-callout for approval/verify gates.
+    // Public-sector posture (snapshot.accountStatus.deployment.publicSector)
+    // forces reduced-motion / idle state.
+    let harnessTrackHandle = null;
+    const HarnessTrack = _resolvePanel(panels, "harnessTrack", "HarnessMonitorHarnessTrack");
+    if (HarnessTrack) {
+      try {
+        harnessTrackHandle = HarnessTrack.create({
+          root: harnessTrackMount,
+          store,
+          doc: _doc,
+        });
+      } catch (err) {
+        showError("harness track: " + (err && err.message ? err.message : "init failed"), "harnessTrack");
       }
     }
 
@@ -629,6 +665,8 @@
         try { inspectorHandle && inspectorHandle.destroy && inspectorHandle.destroy(); } catch (_) {}
         try { bottomDockHandle && bottomDockHandle.destroy && bottomDockHandle.destroy(); } catch (_) {}
         try { agentTreeHandle && agentTreeHandle.destroy && agentTreeHandle.destroy(); } catch (_) {}
+        // Slice UI-H2: tear down the harness-track panel.
+        try { harnessTrackHandle && harnessTrackHandle.destroy && harnessTrackHandle.destroy(); } catch (_) {}
         // Slice UX-2-c: tear down the approval card before the bridge.
         try { approvalHandle && approvalHandle.destroy && approvalHandle.destroy(); } catch (_) {}
         // Slice D3-d: tear down the settings panel before the bridge.
@@ -665,6 +703,9 @@
       // Slice UX-2-c: approval region + handle exposed for tests.
       _approvalMount: approvalMount,
       _approvalHandle: approvalHandle,
+      // Slice UI-H2: harness-track region + handle exposed for tests.
+      _harnessTrackMount: harnessTrackMount,
+      _harnessTrackHandle: harnessTrackHandle,
       // Slice UI-H1: shell-mode + mode-toggle exposed for tests.
       _mode,
       _modeToggleMount: modeToggleMount,
