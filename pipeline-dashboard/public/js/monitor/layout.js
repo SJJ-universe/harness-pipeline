@@ -317,6 +317,16 @@
     harnessTrackMount.setAttribute("role", "region");
     harnessTrackMount.setAttribute("aria-label", "Harness pipeline track");
 
+    // Slice UI-H3 (Phase D / E1.5, 2026-04-30): Dual Agent Console
+    // mount region. Claude on the left, Codex on the right; read-only
+    // stream view. UI-H4 wires structured-action input via the
+    // review-relay backend. Mounted in advanced mode only — simple
+    // mode focuses on operator-friendly cards (UI-H6).
+    const dualConsoleMount = _doc.createElement("div");
+    dualConsoleMount.className = "dual-agent-console-mount";
+    dualConsoleMount.setAttribute("role", "region");
+    dualConsoleMount.setAttribute("aria-label", "Dual agent console");
+
     root.innerHTML = "";
     root.appendChild(globalBarRoot);
     root.appendChild(modeToggleMount);
@@ -332,6 +342,10 @@
     // mode renders a placeholder until UI-H6 fills out the cards.
     if (_mode === "advanced") {
       root.appendChild(shellBody);
+      // Slice UI-H3: dual-agent-console sits between shell-body and
+      // shell-dock so the operator's primary stream view is always
+      // close to the run rail / center workspace.
+      root.appendChild(dualConsoleMount);
       root.appendChild(shellDock);
     } else {
       // Simple shell placeholder. UI-H6 will replace this with the
@@ -502,6 +516,7 @@
     let inspectorHandle = null;
     let bottomDockHandle = null;
     let agentTreeHandle = null;
+    let dualConsoleHandle = null;
 
     if (_mode === "advanced") {
       // ── Slice MA4: mount the run-tree (left rail) + run-summary (centre) ──
@@ -579,6 +594,20 @@
             if (typeof store.selectItem === "function") store.selectItem(kind, payload);
           },
         });
+      }
+
+      // ── Slice UI-H3: dual-agent-console (Claude + Codex stream) ──
+      const DualConsole = _resolvePanel(panels, "dualAgentConsole", "HarnessMonitorDualAgentConsole");
+      if (DualConsole) {
+        try {
+          dualConsoleHandle = DualConsole.create({
+            root: dualConsoleMount,
+            store,
+            doc: _doc,
+          });
+        } catch (err) {
+          showError("dual console: " + (err && err.message ? err.message : "init failed"), "dualConsole");
+        }
       }
     }
 
@@ -665,6 +694,8 @@
         try { inspectorHandle && inspectorHandle.destroy && inspectorHandle.destroy(); } catch (_) {}
         try { bottomDockHandle && bottomDockHandle.destroy && bottomDockHandle.destroy(); } catch (_) {}
         try { agentTreeHandle && agentTreeHandle.destroy && agentTreeHandle.destroy(); } catch (_) {}
+        // Slice UI-H3: tear down the dual-agent-console.
+        try { dualConsoleHandle && dualConsoleHandle.destroy && dualConsoleHandle.destroy(); } catch (_) {}
         // Slice UI-H2: tear down the harness-track panel.
         try { harnessTrackHandle && harnessTrackHandle.destroy && harnessTrackHandle.destroy(); } catch (_) {}
         // Slice UX-2-c: tear down the approval card before the bridge.
@@ -706,6 +737,9 @@
       // Slice UI-H2: harness-track region + handle exposed for tests.
       _harnessTrackMount: harnessTrackMount,
       _harnessTrackHandle: harnessTrackHandle,
+      // Slice UI-H3: dual-agent-console region + handle exposed for tests.
+      _dualConsoleMount: dualConsoleMount,
+      _dualConsoleHandle: dualConsoleHandle,
       // Slice UI-H1: shell-mode + mode-toggle exposed for tests.
       _mode,
       _modeToggleMount: modeToggleMount,

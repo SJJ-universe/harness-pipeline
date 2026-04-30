@@ -474,6 +474,12 @@
        fakes progress (unknown phase → "관찰 중" placeholder). -->
   <script src="js/monitor/horse-state-machine.js"></script>
   <script src="js/monitor/panels/harness-track.js"></script>
+  <!-- Slice UI-H3 (Phase D / Phase E1.5, 2026-04-30): Dual Agent
+       Console — read-only stream view. Claude on the left, Codex
+       on the right. Operator input flows via UI-H4 review relay,
+       NOT raw stdin (CSP-safe + policy-safe). -->
+  <script src="js/monitor/event-filters.js"></script>
+  <script src="js/monitor/panels/dual-agent-console.js"></script>
   <script src="js/monitor/layout.js"></script>
   <script>
   (function () {

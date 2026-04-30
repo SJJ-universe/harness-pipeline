@@ -1300,3 +1300,146 @@ body.monitor-active {
   color: var(--hsh-bronze, #C9A66B);
   border-color: var(--hsh-bronze, #C9A66B);
 }
+
+/* ── Slice UI-H3: Dual Agent Console ── */
+
+.monitor-shell .dual-agent-console-mount {
+  display: block;
+  background: var(--hsh-bg-card, #101115);
+  border-top: 1px solid var(--hsh-border, rgba(255, 255, 255, 0.06));
+  border-bottom: 1px solid var(--hsh-border, rgba(255, 255, 255, 0.06));
+}
+
+.monitor-shell .dual-agent-console {
+  display: flex;
+  flex-direction: column;
+  min-height: 220px;
+  max-height: 340px;
+}
+
+.monitor-shell .dac-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  flex: 1;
+  background: var(--hsh-border, rgba(255, 255, 255, 0.06));
+  min-height: 0;
+}
+
+.monitor-shell .dac-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--hsh-bg-card, #101115);
+}
+
+.monitor-shell .dac-tabs {
+  display: flex;
+  gap: 1px;
+  background: var(--hsh-border, rgba(255, 255, 255, 0.06));
+  padding: 4px 8px 0;
+}
+
+.monitor-shell .dac-tab {
+  background: transparent;
+  color: var(--hsh-text-dim, rgba(232, 230, 225, 0.6));
+  border: 0.5px solid var(--hsh-border, rgba(255, 255, 255, 0.08));
+  border-bottom: none;
+  padding: 4px 12px;
+  font-size: var(--hsh-fs-md, 11px);
+  font-family: var(--hsh-font-mono, ui-monospace, monospace);
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  border-radius: 3px 3px 0 0;
+  transition: all 0.2s;
+}
+
+.monitor-shell .dac-tab:hover:not(.is-disabled) {
+  color: var(--hsh-text, #E8E6E1);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.monitor-shell .dac-tab.is-active {
+  color: var(--hsh-bronze, #C9A66B);
+  background: var(--hsh-bg-card, #101115);
+  border-bottom-color: var(--hsh-bg-card, #101115);
+}
+
+.monitor-shell .dac-tabs-right .dac-tab.is-active {
+  color: var(--hsh-codex-blue, #7FA9CB);
+}
+
+.monitor-shell .dac-tab.is-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.monitor-shell .dac-pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.monitor-shell .dac-pane-header {
+  padding: 6px 12px;
+  border-bottom: 0.5px solid var(--hsh-border, rgba(255, 255, 255, 0.06));
+  font-size: var(--hsh-fs-sm, 10px);
+  font-family: var(--hsh-font-mono, ui-monospace, monospace);
+  letter-spacing: var(--hsh-ls-mono, 0.06em);
+  color: var(--hsh-text-dim, rgba(232, 230, 225, 0.6));
+}
+
+.monitor-shell .dac-pane-title {
+  display: inline-block;
+}
+
+.monitor-shell .dac-pane-body {
+  flex: 1;
+  overflow: auto;
+  padding: 8px 12px;
+  font-family: var(--hsh-font-mono, ui-monospace, monospace);
+  font-size: var(--hsh-fs-md, 11px);
+  line-height: 1.6;
+  color: var(--hsh-text, #E8E6E1);
+}
+
+.monitor-shell .dac-empty {
+  color: var(--hsh-text-mute, rgba(232, 230, 225, 0.4));
+  font-style: italic;
+  padding: 16px 0;
+  text-align: center;
+}
+
+.monitor-shell .dac-line {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 1px 0;
+}
+
+.monitor-shell .dac-line-ts {
+  color: var(--hsh-text-faint, rgba(232, 230, 225, 0.28));
+  font-size: 10px;
+  flex-shrink: 0;
+  width: 64px;
+}
+
+.monitor-shell .dac-line-text {
+  color: var(--hsh-text, #E8E6E1);
+  flex: 1;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.monitor-shell .dac-footer {
+  padding: 6px 12px;
+  background: var(--hsh-bg-shell, #0B0C0E);
+  font-size: var(--hsh-fs-xs, 9px);
+  font-family: var(--hsh-font-mono, ui-monospace, monospace);
+  color: var(--hsh-text-mute, rgba(232, 230, 225, 0.4));
+  letter-spacing: 0.06em;
+  text-align: center;
+  border-top: 0.5px solid var(--hsh-border, rgba(255, 255, 255, 0.06));
+}
