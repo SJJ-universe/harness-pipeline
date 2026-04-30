@@ -1,0 +1,283 @@
+/* Slice UI-H0 (Phase D / Phase E1.5, 2026-04-30) — design-token layer.
+ *
+ * Single source of truth for the SJ Harness Dashboard visual vocabulary
+ * extracted from the mockup at C:\Users\SJ\Downloads\web page\sj-harness-
+ * dashboard\. The mockup itself uses React/Babel/CDN + Google Fonts —
+ * which we explicitly DON'T adopt (per docs/ui-h-redesign-plan.md
+ * §0.2). This file extracts the design tokens (color, typography,
+ * density, motion) into CSS custom properties that the production
+ * UMD-pattern panels can consume.
+ *
+ * Loading order in public/index.html:
+ *
+ *   1. <link rel="stylesheet" href="css/harness-shell.css">  <-- this file
+ *   2. <link rel="stylesheet" href="style.css">              (legacy)
+ *   3. <link rel="stylesheet" href="style.monitor.css">      (monitor shell)
+ *
+ * Tokens declared on :root so every selector can consume them, including
+ * panels mounted into the legacy app's DOM (which doesn't have the
+ * .monitor-shell scope).
+ *
+ * Theming policy:
+ *
+ *   - Dark only for now. A light theme would re-declare tokens under
+ *     a `[data-theme="light"]` selector; that's a follow-up round.
+ *   - Public-sector posture (UI-H5) overrides motion tokens to
+ *     reduced-motion-equivalents under `[data-posture="public-sector"]`.
+ *   - prefers-reduced-motion media query sets the same overrides.
+ *
+ * Backwards compatibility:
+ *
+ *   - Existing style.monitor.css uses `var(--bg-card, #161b22)` style
+ *     with hex fallbacks. Those fallbacks stay so a panel rendering
+ *     before this stylesheet loads still has a sane visual.
+ *   - No selectors here override any existing rules. Tokens are
+ *     additive; consumers opt in.
+ */
+
+:root {
+  /* ── 1. Color palette ────────────────────────────────────────── */
+
+  /* Background layers */
+  --hsh-bg-base:   #08090B;       /* page background */
+  --hsh-bg-shell:  #0B0C0E;       /* shell + header */
+  --hsh-bg-card:   #101115;       /* cards + monitor regions */
+  --hsh-bg-rail:   #0F1013;       /* pipeline rail (left column) */
+  --hsh-bg-elev:   #1c2333;       /* elevated cards (existing var --bg-node) */
+  --hsh-bg-input:  rgba(255, 255, 255, 0.04);
+
+  /* Text */
+  --hsh-text:      #E8E6E1;       /* primary text */
+  --hsh-text-dim:  rgba(232, 230, 225, 0.6);
+  --hsh-text-mute: rgba(232, 230, 225, 0.4);
+  --hsh-text-faint: rgba(232, 230, 225, 0.28);
+
+  /* Borders */
+  --hsh-border:        rgba(255, 255, 255, 0.06);
+  --hsh-border-strong: rgba(255, 255, 255, 0.18);
+  --hsh-border-hairline: rgba(255, 255, 255, 0.05);
+
+  /* Accent — bronze for primary, blue for Codex */
+  --hsh-bronze:        #C9A66B;        /* Claude / primary CTA / harness gate */
+  --hsh-bronze-soft:   rgba(201, 166, 107, 0.14);
+  --hsh-bronze-faint:  rgba(201, 166, 107, 0.05);
+  --hsh-codex-blue:    #7FA9CB;        /* Codex / Verifier */
+  --hsh-codex-soft:    rgba(127, 169, 203, 0.14);
+
+  /* Semantic — finding tiers + status */
+  --hsh-green-pass:    #9BD8A6;        /* verify pass / done */
+  --hsh-red-danger:    #E55B5B;        /* critical findings + denied */
+  --hsh-orange:        #E89B4B;        /* high findings + warnings */
+  --hsh-yellow:        #D9C24A;        /* medium findings */
+  --hsh-purple:        #BC8CFF;        /* subagent + pinned */
+
+  /* Soft variants for backgrounds + selected states */
+  --hsh-green-soft:    rgba(155, 216, 166, 0.12);
+  --hsh-red-soft:      rgba(229, 91, 91, 0.18);
+  --hsh-orange-soft:   rgba(232, 155, 75, 0.18);
+  --hsh-yellow-soft:   rgba(217, 194, 74, 0.14);
+  --hsh-purple-soft:   rgba(188, 140, 255, 0.18);
+
+  /* ── 2. Typography ──────────────────────────────────────────── */
+
+  /* System-font stack — no Google Fonts. Operators self-host
+   * Pretendard etc. if they want; we don't bundle. */
+  --hsh-font-body: system-ui, -apple-system, "Segoe UI",
+                   "Apple SD Gothic Neo", "Noto Sans KR",
+                   "Malgun Gothic", sans-serif;
+  --hsh-font-mono: ui-monospace, "Cascadia Code", "Consolas",
+                   "Menlo", "Liberation Mono", monospace;
+  --hsh-font-serif: Georgia, "Apple SD Gothic Neo",
+                    "Noto Serif KR", serif;
+
+  /* Type scale (px) */
+  --hsh-fs-xs:  9px;     /* lane labels, micro-tags */
+  --hsh-fs-sm:  10px;    /* monospace meta */
+  --hsh-fs-md:  11px;    /* secondary text */
+  --hsh-fs-base: 13px;   /* default UI */
+  --hsh-fs-lg:  14px;    /* card titles */
+  --hsh-fs-xl:  17px;    /* shell brand */
+  --hsh-fs-display: 22px; /* finding counts */
+
+  /* Letter spacing for monospace labels */
+  --hsh-ls-tight:  -0.01em;
+  --hsh-ls-mono:   0.06em;
+  --hsh-ls-mono-wide: 0.1em;
+
+  /* ── 3. Density ─────────────────────────────────────────────── */
+
+  --hsh-radius-sm:   2px;
+  --hsh-radius:      3px;
+  --hsh-radius-md:   4px;     /* cards */
+  --hsh-radius-pill: 999px;
+
+  --hsh-space-1: 4px;
+  --hsh-space-2: 8px;
+  --hsh-space-3: 12px;
+  --hsh-space-4: 16px;
+  --hsh-space-5: 20px;
+  --hsh-space-6: 24px;
+
+  /* Border weights */
+  --hsh-bw-hairline: 0.5px;
+  --hsh-bw-thin:     1px;
+  --hsh-bw-thick:    2px;
+
+  /* Common shadows */
+  --hsh-shadow-card: 0 0 0 1px var(--hsh-border);
+  --hsh-shadow-glow-bronze: 0 0 8px rgba(201, 166, 107, 0.18);
+  --hsh-shadow-glow-codex:  0 0 8px rgba(127, 169, 203, 0.18);
+  --hsh-shadow-horse: 0 4px 6px rgba(0, 0, 0, 0.6);
+
+  /* ── 4. Motion ──────────────────────────────────────────────── */
+
+  /* Animation curves */
+  --hsh-ease-snap: cubic-bezier(.45, .05, .55, .95);
+  --hsh-ease-out:  ease-out;
+
+  /* Default durations */
+  --hsh-dur-fast: 0.15s;
+  --hsh-dur-base: 0.25s;
+  --hsh-dur-slow: 1.05s;        /* harness-track lane glide */
+
+  /* Pulse used by active-stage indicator + status pill */
+  --hsh-anim-pulse: hsh-pulse 1.4s ease-in-out infinite;
+  /* Slide used by progress strip in active stage card */
+  --hsh-anim-slide: hsh-slide 1.6s ease-in-out infinite;
+  /* Caret used by codex live console */
+  --hsh-anim-caret: hsh-caret-blink 1s steps(1) infinite;
+  /* Rear callout — harness gate fires */
+  --hsh-anim-rear-callout: hsh-rear-callout 0.25s ease-out;
+}
+
+/* ── 5. Public-sector / reduced-motion overrides ───────────────── */
+
+/* Both the operator's `prefers-reduced-motion` setting AND the
+ * deployment posture flag (set by UI-H5 via document.documentElement
+ * .dataset.posture = "public-sector") freeze every animation. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --hsh-anim-pulse: none;
+    --hsh-anim-slide: none;
+    --hsh-anim-caret: none;
+    --hsh-anim-rear-callout: none;
+    --hsh-dur-fast: 0s;
+    --hsh-dur-base: 0s;
+    --hsh-dur-slow: 0s;
+  }
+}
+
+[data-posture="public-sector"] {
+  --hsh-anim-pulse: none;
+  --hsh-anim-slide: none;
+  --hsh-anim-caret: none;
+  --hsh-anim-rear-callout: none;
+  --hsh-dur-fast: 0s;
+  --hsh-dur-base: 0s;
+  --hsh-dur-slow: 0s;
+}
+
+/* ── 6. Keyframes ───────────────────────────────────────────────── */
+
+@keyframes hsh-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%      { transform: scale(.55); opacity: .5; }
+}
+
+@keyframes hsh-slide {
+  0%   { left: -40%; }
+  100% { left: 100%; }
+}
+
+@keyframes hsh-caret-blink {
+  50% { opacity: 0; }
+}
+
+@keyframes hsh-rear-callout {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── 7. Utility classes (panels opt in) ─────────────────────────── */
+
+.hsh-card {
+  background: var(--hsh-bg-card);
+  border-radius: var(--hsh-radius-md);
+  border: var(--hsh-bw-hairline) solid var(--hsh-border);
+  padding: var(--hsh-space-3) var(--hsh-space-4);
+  color: var(--hsh-text);
+}
+
+.hsh-card-title {
+  font-size: var(--hsh-fs-sm);
+  color: var(--hsh-text-dim);
+  font-family: var(--hsh-font-mono);
+  letter-spacing: var(--hsh-ls-mono-wide);
+  text-transform: uppercase;
+  margin: 0 0 var(--hsh-space-3);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.hsh-pill {
+  padding: var(--hsh-space-1) var(--hsh-space-3);
+  border-radius: var(--hsh-radius-pill);
+  font-size: var(--hsh-fs-md);
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hsh-space-2);
+}
+
+.hsh-pill--bronze {
+  background: var(--hsh-bronze-soft);
+  color: var(--hsh-bronze);
+}
+
+.hsh-pill--codex {
+  background: var(--hsh-codex-soft);
+  color: var(--hsh-codex-blue);
+}
+
+.hsh-pill--green {
+  background: var(--hsh-green-soft);
+  color: var(--hsh-green-pass);
+}
+
+.hsh-pill--red {
+  background: var(--hsh-red-soft);
+  color: var(--hsh-red-danger);
+}
+
+.hsh-pill__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: var(--hsh-radius-pill);
+  background: currentColor;
+  animation: var(--hsh-anim-pulse);
+}
+
+.hsh-mono {
+  font-family: var(--hsh-font-mono);
+}
+
+.hsh-text-mute {
+  color: var(--hsh-text-mute);
+}
+
+.hsh-text-dim {
+  color: var(--hsh-text-dim);
+}
+
+/* Visually-hidden — for ARIA labels when needed */
+.hsh-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

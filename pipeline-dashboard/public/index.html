@@ -4,6 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SJ Harness Engine</title>
+  <!-- Slice UI-H0 (Phase D / Phase E1.5, 2026-04-30): design-token
+       layer for the SJ Harness Dashboard mockup integration. Loads
+       BEFORE style.css + style.monitor.css so every selector can
+       consume `--hsh-*` custom properties. Tokens are additive —
+       backwards-compatible with existing `var(--bg-card, #161b22)`-
+       style hex fallbacks. See docs/ui-dashboard-design-notes.md. -->
+  <link rel="stylesheet" href="css/harness-shell.css" />
   <link rel="stylesheet" href="style.css" />
   <!-- Slice MA3 (Phase D, 2026-04-27): monitor shell stylesheet. Scoped
        under .monitor-shell so it only affects the new shell DOM (default
