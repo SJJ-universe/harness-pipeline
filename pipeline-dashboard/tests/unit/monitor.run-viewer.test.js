@@ -399,3 +399,331 @@ test("UI-H9-b: destroy removes overlay from root + subsequent open is no-op", ()
   handle.open("r2");
   assert.equal(root.children.length, 0);
 });
+
+// ── UI-H10: sealed-bundle export ─────────────────────────────────
+
+test("UI-H10: _formatExportError maps server codes to Korean copy", () => {
+  // Frozen vocabulary the server emits — mismatched mapping leaves
+  // operators staring at raw codes ("not_found" instead of the
+  // Korean line). Pin every documented code.
+  assert.match(runViewer._formatExportError("not_found"), /감사 봉투가 없습니다/);
+  assert.match(runViewer._formatExportError("invalid_run_id"), /잘못된 실행 ID/);
+  assert.match(runViewer._formatExportError("bundle_failed"), /감사 봉투 생성/);
+  assert.match(runViewer._formatExportError("ledger_unavailable"), /ledger/);
+  assert.match(runViewer._formatExportError("network_error"), /네트워크/);
+  assert.match(runViewer._formatExportError("download_unavailable"), /브라우저/);
+  assert.match(runViewer._formatExportError("empty_response"), /비어/);
+  assert.match(runViewer._formatExportError("http_error"), /서버에서/);
+  // Unknown code falls through to a generic but Korean line — never
+  // a raw English code.
+  assert.match(runViewer._formatExportError("totally_made_up"), /감사 봉투/);
+});
+
+test("UI-H10: _filenameTimestamp produces YYYYMMDDHHMM (no separators)", () => {
+  const ts = runViewer._filenameTimestamp(new Date(2026, 3, 30, 9, 5, 0));
+  // YYYYMMDDHHMM = 12 chars, all digits.
+  assert.match(ts, /^\d{12}$/);
+  // Local-TZ: month is 0-indexed → April = 04. Rest pads.
+  assert.equal(ts.slice(4, 6), "04");
+  assert.equal(ts.slice(6, 8), "30");
+});
+
+test("UI-H10: export button renders inside audit section after fetch resolves", async () => {
+  const root = makeRoot();
+  const store = createMonitorStore();
+  store.upsertRun("r1", {});
+  const handle = runViewer.create({
+    root, store, doc: makeStubDoc(),
+    fetchImpl: makeFetch({
+      ok: true, status: 200,
+      async json() { return { entries: [], total: 0, returned: 0, chain: { valid: true } }; },
+    }),
+  });
+  handle.open("r1");
+  await new Promise((r) => setTimeout(r, 0));
+  await new Promise((r) => setTimeout(r, 0));
+  const btn = root._findOneByClass("rv-export-btn");
+  assert.ok(btn, "export button renders after audit fetch resolves");
+  // Standard mode label (no public-sector prefix)
+  assert.equal(btn.textContent, "감사 봉투 내보내기");
+  // Public-sector specific class is NOT applied in standard mode
+  assert.equal(btn.classList.contains("rv-export-btn-public-sector"), false);
+  // aria-label always set (a11y)
+  assert.equal(btn.getAttribute("aria-label"), "감사 봉투 다운로드");
+});
+
+test("UI-H10: public-sector posture switches button label + adds bronze class + tooltip", async () => {
+  const root = makeRoot();
+  const store = createMonitorStore();
+  store.upsertRun("r1", {});
+  store.setAccountStatus({ deployment: { mode: "public-sector", publicSector: true } });
+  const handle = runViewer.create({
+    root, store, doc: makeStubDoc(),
+    fetchImpl: makeFetch({
+      ok: true, status: 200,
+      async json() { return { entries: [], total: 0, returned: 0, chain: { valid: true } }; },
+    }),
+  });
+  handle.open("r1");
+  await new Promise((r) => setTimeout(r, 0));
+  await new Promise((r) => setTimeout(r, 0));
+  const btn = root._findOneByClass("rv-export-btn");
+  assert.ok(btn);
+  assert.match(btn.textContent, /공공기관/);
+  assert.ok(btn.classList.contains("rv-export-btn-public-sector"));
+  // Offline-verify tooltip is set so the auditor sees "what to run on
+  // disk" without leaving the UI.
+  assert.match(btn.getAttribute("title") || "", /verify-auditor-bundle/);
+  // The hint line under the button advertises the seal.
+  const hint = root._findOneByClass("rv-export-hint");
+  assert.ok(hint);
+  assert.match(hint.textContent, /HMAC/);
+});
+
+test("UI-H10: clicking export → calls download impl + records success state", async () => {
+  const root = makeRoot();
+  const store = createMonitorStore();
+  store.upsertRun("r1", {});
+  let downloadCalls = 0;
+  let downloadArgs = null;
+  let exportSuccessCalls = 0;
+  // Two fetch responses: 1) audit fetch (entries empty), 2) export POST.
+  // The runViewer fetches audit on open; we intercept and switch the
+  // response on the SECOND call.
+  let callIdx = 0;
+  const fetchStub = async (url) => {
+    callIdx += 1;
+    if (callIdx === 1) {
+      return { ok: true, status: 200, async json() { return { entries: [], total: 0, returned: 0, chain: { valid: true } }; } };
+    }
+    // Second call must be the export POST.
+    assert.match(url, /\/api\/audit\/runs\/r1\/export/);
+    return {
+      ok: true, status: 200,
+      async json() {
+        return { ok: true, bundle: { schema: "x", totalEntries: 7, runId: "r1" } };
+      },
+    };
+  };
+  const handle = runViewer.create({
+    root, store, doc: makeStubDoc(),
+    fetchImpl: fetchStub,
+    downloadImpl(arg) { downloadCalls += 1; downloadArgs = arg; },
+    onExportSuccess() { exportSuccessCalls += 1; },
+  });
+  handle.open("r1");
+  await new Promise((r) => setTimeout(r, 0));
+  await new Promise((r) => setTimeout(r, 0));
+  const btn = root._findOneByClass("rv-export-btn");
+  btn._click();
+  // Export is async; wait for the chain to settle.
+  await new Promise((r) => setTimeout(r, 0));
+  await new Promise((r) => setTimeout(r, 0));
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(downloadCalls, 1);
+  assert.match(downloadArgs.filename, /^audit-r1-\d{12}\.json$/);
+  assert.equal(downloadArgs.bundle.totalEntries, 7);
+  assert.equal(exportSuccessCalls, 1);
+  // Success banner now visible
+  const successLine = root._findOneByClass("rv-export-success");
+  assert.ok(successLine);
+  assert.match(successLine.textContent, /다운로드됨/);
+});
+
+test("UI-H10: server 404 → maps to '감사 봉투가 없습니다' Korean error", async () => {
+  const root = makeRoot();
+  const store = createMonitorStore();
+  store.upsertRun("r1", {});
+  let callIdx = 0;
+  const fetchStub = async () => {
+    callIdx += 1;
+    if (callIdx === 1) {
+      return { ok: true, status: 200, async json() { return { entries: [], total: 0, returned: 0, chain: { valid: true } }; } };
+    }
+    return { ok: false, status: 404, async json() { return { ok: false, error: "not_found" }; } };
+  };
+  const handle = runViewer.create({
+    root, store, doc: makeStubDoc(),
+    fetchImpl: fetchStub,
+    downloadImpl() { /* should NOT be called on error */ throw new Error("download triggered on error"); },
+  });
+  handle.open("r1");
+  await new Promise((r) => setTimeout(r, 0));
+  await new Promise((r) => setTimeout(r, 0));
+  const btn = root._findOneByClass("rv-export-btn");
+  btn._click();
+  await new Promise((r) => setTimeout(r, 0));
+  await new Promise((r) => setTimeout(r, 0));
+  const errLine = root._findOneByClass("rv-export-error");
+  assert.ok(errLine);
+  assert.match(errLine.textContent, /감사 봉투가 없습니다/);
+  // No success banner on failure
+  assert.equal(root._findOneByClass("rv-export-success"), null);
+});
+
+test("UI-H10: network failure → 'network_error' code surfaces", async () => {
+  const root = makeRoot();
+  const store = createMonitorStore();
+  store.upsertRun("r1", {});
+  let callIdx = 0;
+  const fetchStub = async () => {
+    callIdx += 1;
+    if (callIdx === 1) {
+      return { ok: true, status: 200, async json() { return { entries: [], total: 0, returned: 0, chain: { valid: true } }; } };
+    }
+    throw new Error("connection refused");
+  };
+  const handle = runViewer.create({
+    root, store, doc: makeStubDoc(),
+    fetchImpl: fetchStub,
+  });
+  handle.open("r1");
+  await new Promise((r) => setTimeout(r, 0));
+  await new Promise((r) => setTimeout(r, 0));
+  const btn = root._findOneByClass("rv-export-btn");
+  btn._click();
+  await new Promise((r) => setTimeout(r, 0));
+  await new Promise((r) => setTimeout(r, 0));
+  const errLine = root._findOneByClass("rv-export-error");
+  assert.ok(errLine);
+  assert.match(errLine.textContent, /네트워크/);
+});
+
+test("UI-H10: download_unavailable when window/Blob/URL absent", async () => {
+  const root = makeRoot();
+  const store = createMonitorStore();
+  store.upsertRun("r1", {});
+  let callIdx = 0;
+  const fetchStub = async () => {
+    callIdx += 1;
+    if (callIdx === 1) {
+      return { ok: true, status: 200, async json() { return { entries: [] }; } };
+    }
+    return { ok: true, status: 200, async json() { return { ok: true, bundle: { totalEntries: 1 } }; } };
+  };
+  const handle = runViewer.create({
+    root, store, doc: makeStubDoc(),
+    fetchImpl: fetchStub,
+    // Explicitly null windowImpl + no downloadImpl override → triggers
+    // the "no Blob / no URL" defensive path.
+    windowImpl: null,
+  });
+  handle.open("r1");
+  await new Promise((r) => setTimeout(r, 0));
+  await new Promise((r) => setTimeout(r, 0));
+  const btn = root._findOneByClass("rv-export-btn");
+  btn._click();
+  await new Promise((r) => setTimeout(r, 0));
+  await new Promise((r) => setTimeout(r, 0));
+  const errLine = root._findOneByClass("rv-export-error");
+  assert.ok(errLine);
+  assert.match(errLine.textContent, /브라우저/);
+});
+
+test("UI-H10: button disabled while export in flight; second click ignored", async () => {
+  const root = makeRoot();
+  const store = createMonitorStore();
+  store.upsertRun("r1", {});
+  let downloadCalls = 0;
+  // Fetch resolves on next microtask — gives us a window to assert
+  // the button is disabled mid-flight.
+  let resolveExport;
+  let callIdx = 0;
+  const fetchStub = async () => {
+    callIdx += 1;
+    if (callIdx === 1) {
+      return { ok: true, status: 200, async json() { return { entries: [] }; } };
+    }
+    return new Promise((resolve) => {
+      resolveExport = () => resolve({
+        ok: true, status: 200,
+        async json() { return { ok: true, bundle: { totalEntries: 1 } }; },
+      });
+    });
+  };
+  const handle = runViewer.create({
+    root, store, doc: makeStubDoc(),
+    fetchImpl: fetchStub,
+    downloadImpl() { downloadCalls += 1; },
+  });
+  handle.open("r1");
+  await new Promise((r) => setTimeout(r, 0));
+  await new Promise((r) => setTimeout(r, 0));
+  const btn = root._findOneByClass("rv-export-btn");
+  btn._click();
+  // Yield once so the in-flight render fires, leaving exportState.exporting=true.
+  await new Promise((r) => setTimeout(r, 0));
+  const inflightBtn = root._findOneByClass("rv-export-btn");
+  assert.equal(inflightBtn.attributes.disabled, "disabled");
+  assert.match(inflightBtn.textContent, /내보내는 중/);
+  // Second click while in-flight is ignored — fetchStub stays at 2 calls.
+  inflightBtn._click();
+  resolveExport();
+  await new Promise((r) => setTimeout(r, 0));
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(downloadCalls, 1, "second click during in-flight must not double-download");
+});
+
+test("UI-H10: close clears export banner so reopening starts fresh", async () => {
+  const root = makeRoot();
+  const store = createMonitorStore();
+  store.upsertRun("r1", {});
+  let callIdx = 0;
+  const fetchStub = async () => {
+    callIdx += 1;
+    if (callIdx === 1 || callIdx === 3) {
+      return { ok: true, status: 200, async json() { return { entries: [] }; } };
+    }
+    // Export call → success
+    return { ok: true, status: 200, async json() { return { ok: true, bundle: { totalEntries: 1 } }; } };
+  };
+  const handle = runViewer.create({
+    root, store, doc: makeStubDoc(),
+    fetchImpl: fetchStub,
+    downloadImpl() { /* no-op */ },
+  });
+  handle.open("r1");
+  await new Promise((r) => setTimeout(r, 0));
+  await new Promise((r) => setTimeout(r, 0));
+  root._findOneByClass("rv-export-btn")._click();
+  await new Promise((r) => setTimeout(r, 0));
+  await new Promise((r) => setTimeout(r, 0));
+  // Banner present
+  assert.ok(root._findOneByClass("rv-export-success"));
+  handle.close();
+  // Re-open same run — banner must be gone, exportState reset.
+  handle.open("r1");
+  await new Promise((r) => setTimeout(r, 0));
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(root._findOneByClass("rv-export-success"), null);
+  // _state() reflects the reset.
+  assert.equal(handle._state().exportState.success, null);
+  assert.equal(handle._state().exportState.error, null);
+});
+
+test("UI-H10: _exportNow test hook drives flow without DOM click", async () => {
+  // Confirms the synthetic test API is wired so future toast/preview
+  // tests don't have to synthesize click events.
+  const root = makeRoot();
+  const store = createMonitorStore();
+  store.upsertRun("r1", {});
+  let callIdx = 0;
+  const fetchStub = async () => {
+    callIdx += 1;
+    if (callIdx === 1) {
+      return { ok: true, status: 200, async json() { return { entries: [] }; } };
+    }
+    return { ok: true, status: 200, async json() { return { ok: true, bundle: { totalEntries: 1 } }; } };
+  };
+  let downloadCalls = 0;
+  const handle = runViewer.create({
+    root, store, doc: makeStubDoc(),
+    fetchImpl: fetchStub,
+    downloadImpl() { downloadCalls += 1; },
+  });
+  handle.open("r1");
+  await new Promise((r) => setTimeout(r, 0));
+  await handle._exportNow("r1");
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(downloadCalls, 1);
+});

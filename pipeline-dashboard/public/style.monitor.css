@@ -2097,3 +2097,65 @@ body.monitor-active {
   font-size: var(--hsh-fs-sm, 10px);
   color: var(--hsh-text-dim, rgba(232, 230, 225, 0.5));
 }
+
+/* ── UI-H10: sealed evidence export ──────────────────────────────────
+ * The export row sits between the audit summary line and the entry
+ * list so a glance at the audit section shows both "what's the chain
+ * doing?" (badge) + "where do I take this evidence?" (button). The
+ * button uses the existing surface tokens; the public-sector variant
+ * borrows the bronze accent that already marks public-sector
+ * affordances elsewhere (rv-review-state, rv-approval-tool).
+ */
+.rv-export-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 6px 0 10px;
+  font-size: var(--hsh-fs-sm, 10px);
+}
+.rv-export-btn {
+  appearance: none;
+  border: 1px solid var(--hsh-border, rgba(232, 230, 225, 0.18));
+  background: var(--hsh-surface-2, rgba(255, 255, 255, 0.04));
+  color: var(--hsh-text, #E8E6E1);
+  padding: 4px 12px;
+  border-radius: var(--hsh-radius, 3px);
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+.rv-export-btn:hover:not([disabled]) {
+  background: var(--hsh-surface-3, rgba(255, 255, 255, 0.08));
+  border-color: var(--hsh-text-dim, rgba(232, 230, 225, 0.4));
+}
+.rv-export-btn:focus-visible {
+  outline: 2px solid var(--hsh-accent, #9BD8A6);
+  outline-offset: 2px;
+}
+.rv-export-btn[disabled] {
+  opacity: 0.6;
+  cursor: progress;
+}
+/* Public-sector variant: bronze accent + slightly thicker border so
+ * the auditor-grade copy reads "yes, this is the formal export". */
+.rv-export-btn-public-sector {
+  border: 1px solid var(--hsh-bronze, #C9A66B);
+  color: var(--hsh-bronze, #C9A66B);
+  background: rgba(201, 166, 107, 0.08);
+}
+.rv-export-btn-public-sector:hover:not([disabled]) {
+  background: rgba(201, 166, 107, 0.16);
+  border-color: var(--hsh-bronze, #C9A66B);
+}
+.rv-export-error {
+  color: var(--hsh-red, #E84B4B);
+}
+.rv-export-success {
+  color: var(--hsh-green-pass, #9BD8A6);
+}
+.rv-export-hint {
+  color: var(--hsh-text-dim, rgba(232, 230, 225, 0.5));
+  font-style: italic;
+}

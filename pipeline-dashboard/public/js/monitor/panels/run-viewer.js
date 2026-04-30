@@ -1,4 +1,5 @@
 // Slice UI-H9-b (Phase D / Phase E1.5, 2026-04-30) — run drill-down viewer.
+// Slice UI-H10 (Phase E Round 2, 2026-04-30) — sealed evidence export.
 //
 // Modal-style panel that opens when the operator clicks a row in the
 // "최근 결과" simple-shell card. Aggregates four data planes for a
@@ -9,6 +10,12 @@
 //   3. Review sessions     — store.reviewSessions filtered by runId
 //   4. Approvals (live)    — store.pendingApprovals filtered by runId
 //
+// UI-H10 adds an EXPORT button to the audit section. POST
+// /api/audit/runs/:runId/export → JSON Blob → URL.createObjectURL →
+// `<a download>` click. Filename = audit-<runId>-<YYYYMMDDHHMM>.json.
+// Public-sector posture switches the button to a bronze accent + an
+// offline-verify hint tooltip.
+//
 // What this does NOT do:
 //   - No write surface. The viewer is read-only; resolved approvals
 //     are not shown (the live `pendingApprovals` slice only carries
@@ -16,7 +23,10 @@
 //     resolved approvals via the audit chain itself, not a side query.
 //   - No PII history scan. Past PII findings live only in audit verbs
 //     `pii_*`; they appear naturally in the audit-chain panel.
-//   - No CSV/sealed-bundle export. That's GOV-AUDIT-0 next round.
+//   - No CSV / multi-run export. The window-bundle endpoint
+//     (POST /api/audit/export with windowFromAt/windowToAt) is for
+//     auditor workflows that span multiple runs; the per-run drill
+//     down sticks to one runId at a time.
 //
 // Modal lifecycle: caller invokes `handle.open(runId)` → fetch fires,
 // modal becomes visible; caller invokes `handle.close()` (or operator
@@ -52,11 +62,49 @@
     return text.slice(0, max - 1) + "…";
   }
 
+  // UI-H10: filename timestamp (local TZ) for the downloaded bundle.
+  // Format YYYYMMDDHHMM with no separators so the filename stays safe
+  // across Windows / macOS / Linux file systems.
+  function _filenameTimestamp(now) {
+    const d = (now instanceof Date) ? now : new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    return d.getFullYear()
+      + pad(d.getMonth() + 1)
+      + pad(d.getDate())
+      + pad(d.getHours())
+      + pad(d.getMinutes());
+  }
+
+  // UI-H10: server-error code → 한국어 운영자 메시지. _formatReviewError
+  // (review-session lifecycle) is intentionally NOT reused — the export
+  // surface has its own vocabulary that may diverge later (e.g. when
+  // sealed bundles add per-key cosign output).
+  function _formatExportError(code) {
+    const mapping = {
+      not_found: "이 실행에는 감사 봉투가 없습니다.",
+      invalid_run_id: "잘못된 실행 ID입니다.",
+      bundle_failed: "감사 봉투 생성에 실패했습니다.",
+      ledger_unavailable: "감사 ledger를 사용할 수 없습니다.",
+      network_error: "네트워크 오류 — 다시 시도해 주세요.",
+      download_unavailable: "이 브라우저는 다운로드 기능을 지원하지 않습니다.",
+      empty_response: "서버 응답이 비어 있습니다.",
+      http_error: "서버에서 오류가 반환되었습니다.",
+    };
+    if (typeof code === "string" && mapping[code]) return mapping[code];
+    return "감사 봉투 내보내기에 실패했습니다.";
+  }
+
   function create({
     root, store, doc,
     fetchImpl,
     headers,
     onClose,
+    // UI-H10 injection points (defaults read from globals when unset).
+    // Tests pass stubs; production runs let runtime resolve.
+    windowImpl,    // for URL.createObjectURL + Blob (defaults to window/self)
+    downloadImpl,  // override the <a>.click() trigger (default: real DOM click)
+    nowFn,         // clock injection for filename timestamp
+    onExportSuccess, // optional callback for tests + future toast hooks
   } = {}) {
     if (!root || typeof root.appendChild !== "function") {
       throw new Error("run-viewer.create: root must be an element");
@@ -70,6 +118,17 @@
     let openRunId = null;
     let auditState = null; // { loading, error, data }
     let unsubscribe = null;
+    // UI-H10 export state. exporting=true while POST in flight; error
+    // carries the frozen code from _formatExportError; success is set
+    // briefly after a download triggers so the operator sees the
+    // offline-verify hint. _successTimer self-clears the success
+    // banner after 6s so a stale "다운로드 완료" doesn't linger.
+    let exportState = { exporting: false, error: null, success: null };
+    let _successTimer = null;
+    const _winImpl = windowImpl
+      || (typeof window !== "undefined" ? window : null)
+      || (typeof self !== "undefined" ? self : null);
+    const _now = (typeof nowFn === "function") ? nowFn : () => new Date();
 
     // Modal scaffold (created lazily when first opened so the
     // closed state never paints DOM).
@@ -197,6 +256,63 @@
       summary.appendChild(counts);
       sec.appendChild(summary);
 
+      // ── UI-H10: sealed evidence export ─────────────────────────
+      // Posture detection from store.accountStatus.deployment. The
+      // public-sector branch hard-codes a stronger label + bronze tone
+      // CSS class so the operator can never miss the "this is the
+      // auditor-grade copy" signal in a screenshot.
+      const snap = store.snapshot();
+      const dep = (snap.accountStatus && snap.accountStatus.deployment) || null;
+      const isPublicSector = !!(dep && dep.publicSector === true);
+      const exportRow = _doc.createElement("div");
+      exportRow.className = "rv-export-row";
+      const exportBtn = _doc.createElement("button");
+      exportBtn.type = "button";
+      exportBtn.className = "rv-export-btn"
+        + (isPublicSector ? " rv-export-btn-public-sector" : "");
+      exportBtn.textContent = isPublicSector
+        ? "🛡 감사 봉투 내보내기 (공공기관)"
+        : "감사 봉투 내보내기";
+      exportBtn.setAttribute("aria-label", "감사 봉투 다운로드");
+      if (isPublicSector) {
+        exportBtn.setAttribute("title",
+          "오프라인 검증: node scripts/verify-auditor-bundle.js <파일>");
+      }
+      if (exportState.exporting) {
+        exportBtn.setAttribute("disabled", "disabled");
+        exportBtn.textContent = "내보내는 중…";
+      }
+      exportBtn.addEventListener("click", () => {
+        // Snapshot openRunId at click time — the audit fetch may be
+        // for a different runId if the modal got reopened mid-flight.
+        if (openRunId) _exportBundle(openRunId);
+      });
+      exportRow.appendChild(exportBtn);
+
+      // Status line — error / success / offline-verify hint.
+      if (exportState.error) {
+        const errLine = _doc.createElement("span");
+        errLine.className = "rv-export-error";
+        errLine.setAttribute("role", "alert");
+        errLine.textContent = _formatExportError(exportState.error);
+        exportRow.appendChild(errLine);
+      } else if (exportState.success) {
+        const okLine = _doc.createElement("span");
+        okLine.className = "rv-export-success";
+        okLine.setAttribute("role", "status");
+        const filename = exportState.success.filename || "감사 봉투";
+        okLine.textContent = isPublicSector
+          ? `${filename} 다운로드됨 — 오프라인 검증: node scripts/verify-auditor-bundle.js <파일>`
+          : `${filename} 다운로드됨`;
+        exportRow.appendChild(okLine);
+      } else if (isPublicSector) {
+        const hint = _doc.createElement("span");
+        hint.className = "rv-export-hint";
+        hint.textContent = "공공기관 모드 — 봉투는 HMAC-SHA256 봉인됩니다.";
+        exportRow.appendChild(hint);
+      }
+      sec.appendChild(exportRow);
+
       const list = _doc.createElement("ul");
       list.className = "rv-audit-list";
       list.setAttribute("role", "list");
@@ -309,6 +425,135 @@
       bodyEl.appendChild(_renderAudit());
     }
 
+    // ── UI-H10: export wiring ────────────────────────────────────
+    // Sealed-bundle download: POST /api/audit/runs/:runId/export →
+    // { ok, bundle } → JSON Blob → URL.createObjectURL → <a download>.
+    // _exportBundle owns the network + state plumbing; _triggerDownload
+    // owns the DOM mechanics so tests can substitute downloadImpl
+    // without touching real Blob/URL globals.
+
+    function _scheduleSuccessClear() {
+      if (_successTimer) {
+        try { clearTimeout(_successTimer); } catch (_) {}
+        _successTimer = null;
+      }
+      // Auto-clear the success banner after 6s. If the operator keeps
+      // the modal open we don't want a stale "다운로드 완료" lingering.
+      try {
+        _successTimer = setTimeout(() => {
+          if (destroyed) return;
+          if (exportState.success) {
+            exportState = { exporting: false, error: null, success: null };
+            _render();
+          }
+        }, 6000);
+      } catch (_) { /* defensive — non-Node test envs without setTimeout */ }
+    }
+
+    function _triggerDownload(filename, bundle) {
+      // Override hook for tests + future toast/preview integrations.
+      if (typeof downloadImpl === "function") {
+        try { downloadImpl({ filename, bundle }); return true; }
+        catch (_) { return false; }
+      }
+      // Real browser path.
+      if (!_winImpl || !_winImpl.URL || typeof _winImpl.URL.createObjectURL !== "function") {
+        return false;
+      }
+      const BlobCtor = (_winImpl && _winImpl.Blob)
+        || (typeof Blob !== "undefined" ? Blob : null);
+      if (!BlobCtor) return false;
+      let url;
+      try {
+        const blob = new BlobCtor([JSON.stringify(bundle, null, 2)], { type: "application/json" });
+        url = _winImpl.URL.createObjectURL(blob);
+      } catch (_) {
+        return false;
+      }
+      const a = _doc.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.style && (a.style.display = "none");
+      // Some test stubs can append/click but never paint — guard each
+      // step. In a real browser the synthetic click() invokes the
+      // download dialog; revokeObjectURL frees the blob 1s later
+      // (longer than any sane click handler).
+      try { root.appendChild(a); } catch (_) {}
+      try { typeof a.click === "function" && a.click(); } catch (_) {}
+      try { root.removeChild(a); } catch (_) {}
+      try { setTimeout(() => { try { _winImpl.URL.revokeObjectURL(url); } catch (_) {} }, 1000); } catch (_) {}
+      return true;
+    }
+
+    async function _exportBundle(runId) {
+      if (destroyed) return;
+      if (exportState.exporting) return;
+      exportState = { exporting: true, error: null, success: null };
+      _render();
+      if (typeof _fetch !== "function") {
+        exportState = { exporting: false, error: "network_error", success: null };
+        _render();
+        return;
+      }
+      let res;
+      try {
+        const reqHeaders = Object.assign(
+          { "Content-Type": "application/json" }, headers || {},
+        );
+        res = await _fetch(
+          "/api/audit/runs/" + encodeURIComponent(runId) + "/export",
+          { method: "POST", headers: reqHeaders, body: "{}" },
+        );
+      } catch (_) {
+        exportState = { exporting: false, error: "network_error", success: null };
+        _render();
+        return;
+      }
+      if (!res) {
+        exportState = { exporting: false, error: "network_error", success: null };
+        _render();
+        return;
+      }
+      if (!res.ok) {
+        // Try to map server's frozen error code; fall back to http_error.
+        let code = "http_error";
+        try {
+          const errBody = typeof res.json === "function" ? await res.json() : null;
+          if (errBody && typeof errBody.error === "string") code = errBody.error;
+        } catch (_) { /* defensive */ }
+        exportState = { exporting: false, error: code, success: null };
+        _render();
+        return;
+      }
+      let body = null;
+      try { body = typeof res.json === "function" ? await res.json() : null; }
+      catch (_) { body = null; }
+      if (!body || !body.bundle) {
+        exportState = { exporting: false, error: "empty_response", success: null };
+        _render();
+        return;
+      }
+      const filename = `audit-${runId}-${_filenameTimestamp(_now())}.json`;
+      const ok = _triggerDownload(filename, body.bundle);
+      if (!ok) {
+        exportState = { exporting: false, error: "download_unavailable", success: null };
+        _render();
+        return;
+      }
+      exportState = {
+        exporting: false,
+        error: null,
+        success: { at: Date.now(), filename, runId },
+      };
+      _render();
+      _scheduleSuccessClear();
+      try {
+        if (typeof onExportSuccess === "function") {
+          onExportSuccess({ filename, runId, bundle: body.bundle });
+        }
+      } catch (_) { /* defensive */ }
+    }
+
     async function _fetchAudit(runId) {
       auditState = { loading: true, error: null, data: null };
       _render();
@@ -358,6 +603,14 @@
       if (unsubscribe) { unsubscribe(); unsubscribe = null; }
       openRunId = null;
       auditState = null;
+      // UI-H10: clear export banner on close so re-opening any run
+      // starts fresh. The success-clear timer is also cancelled to
+      // prevent a leaked render after close.
+      exportState = { exporting: false, error: null, success: null };
+      if (_successTimer) {
+        try { clearTimeout(_successTimer); } catch (_) {}
+        _successTimer = null;
+      }
       if (overlay) {
         overlay.classList.add("rv-hidden");
         if (bodyEl) bodyEl.innerHTML = "";
@@ -371,6 +624,10 @@
       destroy() {
         destroyed = true;
         if (unsubscribe) { unsubscribe(); unsubscribe = null; }
+        if (_successTimer) {
+          try { clearTimeout(_successTimer); } catch (_) {}
+          _successTimer = null;
+        }
         if (overlay && overlay.parentNode === root) {
           try { root.removeChild(overlay); } catch (_) {}
         }
@@ -378,9 +635,13 @@
         modal = null;
         bodyEl = null;
       },
-      _state() { return { openRunId, auditState }; },
+      _state() { return { openRunId, auditState, exportState }; },
+      // UI-H10: test hook — kick off an export without a click. Tests
+      // (and a future toast preview) can drive the export flow without
+      // synthesizing DOM events.
+      _exportNow(runId) { return _exportBundle(runId || openRunId); },
     };
   }
 
-  return { create, _formatTime, _truncate };
+  return { create, _formatTime, _truncate, _formatExportError, _filenameTimestamp };
 });
