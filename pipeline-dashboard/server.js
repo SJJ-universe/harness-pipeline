@@ -806,6 +806,25 @@ const claudeRunner = new ClaudeRunner({
   reviewSessionManager: _reviewSessionManager,
 });
 
+// Slice UI-H7-f (Phase D / Phase E1.5, 2026-04-30): server-side
+// review-session spawn dispatcher. Lives between the routes layer
+// (state machine + posture gate) and the runners (chunk pipeline).
+// Per-session in-flight tracking + dispatch failure audit. The
+// dispatcher's `auditFn` writes to evidenceLedger so a forensic
+// auditor's grep for `review_session_dispatch_*` lands in the
+// signed chain.
+const { ReviewSpawnDispatcher } = require("./src/runtime/reviewSpawnDispatcher");
+const _reviewSpawnDispatcher = new ReviewSpawnDispatcher({
+  reviewSessionManager: _reviewSessionManager,
+  codexRunner,
+  claudeRunner,
+  auditFn: (verb, data) => {
+    try { evidenceLedger.append("system", { type: verb, data }); }
+    catch (_) { /* never break the dispatcher on ledger faults */ }
+  },
+  deploymentProfile: _deploymentProfile,
+});
+
 // generalRunRef.active is set by pipelineRoutes — see above
 // Slice Y (Phase 2.5): the global singleton PipelineState / checkpointStore
 // were shared across every run the orchestrator created, so concurrent runs
@@ -1090,9 +1109,16 @@ app.use("/api", createApprovalRoutes({ approvalManager: _approvalManager }));
 // upstream so claude-runner + codex-runner can hold a reference at
 // construction time. Look for `_reviewSessionManager =` near the
 // runner construction. This block now only handles route mount.
+//
+// Slice UI-H7-f note (2026-04-30): the dispatcher is now also
+// constructed upstream and injected here so POST /:id/send-codex
+// + /:id/hand-back-claude actually trigger codex/claude runners
+// with the reviewSessionId hint. See `_reviewSpawnDispatcher =`
+// near the runner construction.
 const { createReviewSessionRoutes } = require("./src/routes/reviewSessionRoutes");
 app.use("/api", createReviewSessionRoutes({
   reviewSessionManager: _reviewSessionManager,
+  reviewSpawnDispatcher: _reviewSpawnDispatcher,
   deploymentProfile: _deploymentProfile,
 }));
 

@@ -35,6 +35,16 @@
 // affects this surface: when wired, a future GOV-* slice can refuse
 // local-Bash follow-ups (UI-H5). For now the manager stays pure;
 // routes layer carries the policy signal.
+//
+// Slice UI-H7-f (Phase D / Phase E1.5, 2026-04-30): the routes now
+// hand off to a `reviewSpawnDispatcher` after the manager state-
+// machine update succeeds. The dispatcher kicks off the actual
+// codex / claude runner spawn with the reviewSessionId hint so
+// stdout chunks pipe back to manager.recordCodexChunk /
+// recordClaudeChunk. The dispatcher is OPTIONAL — when not wired
+// (e.g., legacy callers, future UI-H4-only tests) the routes still
+// transition state + return 200 the way they always did. Adding
+// the dispatcher closes UI-H4's deferred work.
 
 "use strict";
 
@@ -46,6 +56,13 @@ function createReviewSessionRoutes(deps = {}) {
   const router = express.Router();
   const manager = deps.reviewSessionManager;
   const deploymentProfile = deps.deploymentProfile || null;
+  // UI-H7-f: optional spawn dispatcher. When provided, the routes
+  // call dispatcher.dispatchCodex / dispatchClaude / dispatchFollowUpCodex
+  // immediately after the manager state transition. Errors from the
+  // dispatcher (already_in_flight / runner_unavailable / posture)
+  // surface to the operator via HTTP status — but state transitions
+  // already happened, so the manager + UI know about the attempt.
+  const dispatcher = deps.reviewSpawnDispatcher || null;
 
   router.use(express.json({ limit: "32kb" }));
   router.use((_req, _res, next) => {
@@ -93,23 +110,46 @@ function createReviewSessionRoutes(deps = {}) {
 
   // ── POST /:id/send-codex ─────────────────────────────────────
 
-  router.post("/review-sessions/:id/send-codex", (req, res) => {
+  router.post("/review-sessions/:id/send-codex", async (req, res) => {
     const id = String(req.params.id || "");
     const body = req.body && typeof req.body === "object" ? req.body : {};
+    let session;
+    // 1. State transition first
     try {
-      const session = manager.sendCodex(id, {
+      session = manager.sendCodex(id, {
         instruction: body.instruction,
         contextEvents: body.contextEvents,
       });
-      res.json({ ok: true, session, dispatchedAt: Date.now() });
     } catch (err) {
-      _emitError(res, err);
+      return _emitError(res, err);
     }
+    // 2. UI-H7-f: kick off the actual Codex spawn if dispatcher is
+    //    wired. Failures here are reported to the operator with
+    //    HTTP status, but the manager state transition has already
+    //    happened — the UI will see AWAITING_CRITIQUE state and the
+    //    failure audit row. Operator can retry by archiving the
+    //    session and starting a new one.
+    let dispatchAck = null;
+    if (dispatcher) {
+      try {
+        dispatchAck = await dispatcher.dispatchCodex(id, {
+          instruction: body.instruction,
+        });
+      } catch (err) {
+        return _emitDispatchError(res, err, { session });
+      }
+    }
+    res.json({
+      ok: true, session,
+      dispatchedAt: dispatchAck ? dispatchAck.startedAt : Date.now(),
+      runner: dispatchAck ? dispatchAck.runner : null,
+      dispatched: !!dispatchAck,
+    });
   });
 
   // ── POST /:id/follow-up ──────────────────────────────────────
 
-  router.post("/review-sessions/:id/follow-up", (req, res) => {
+  router.post("/review-sessions/:id/follow-up", async (req, res) => {
     const id = String(req.params.id || "");
     const body = req.body && typeof req.body === "object" ? req.body : {};
 
@@ -131,20 +171,39 @@ function createReviewSessionRoutes(deps = {}) {
       });
     }
 
+    let session;
     try {
-      const session = manager.followUp(id, {
+      session = manager.followUp(id, {
         question: body.question,
         target: body.target,
       });
-      res.json({ ok: true, session });
     } catch (err) {
-      _emitError(res, err);
+      return _emitError(res, err);
     }
+    // UI-H7-f: kick off Codex follow-up spawn when target=codex AND
+    // dispatcher is wired. Claude follow-ups don't spawn here — they
+    // go through hand-back-claude. (Public-sector blocks claude
+    // already at the route gate above.)
+    let dispatchAck = null;
+    if (dispatcher && body.target !== "claude") {
+      try {
+        dispatchAck = await dispatcher.dispatchFollowUpCodex(id, {
+          question: body.question,
+        });
+      } catch (err) {
+        return _emitDispatchError(res, err, { session });
+      }
+    }
+    res.json({
+      ok: true, session,
+      dispatched: !!dispatchAck,
+      dispatchedAt: dispatchAck ? dispatchAck.startedAt : null,
+    });
   });
 
   // ── POST /:id/hand-back-claude ──────────────────────────────
 
-  router.post("/review-sessions/:id/hand-back-claude", (req, res) => {
+  router.post("/review-sessions/:id/hand-back-claude", async (req, res) => {
     const id = String(req.params.id || "");
     const body = req.body && typeof req.body === "object" ? req.body : {};
 
@@ -164,15 +223,35 @@ function createReviewSessionRoutes(deps = {}) {
       });
     }
 
+    let session;
     try {
-      const session = manager.handBackClaude(id, {
+      session = manager.handBackClaude(id, {
         instruction: body.instruction,
         includeCritique: body.includeCritique !== false,
       });
-      res.json({ ok: true, session, dispatchedAt: Date.now() });
     } catch (err) {
-      _emitError(res, err);
+      return _emitError(res, err);
     }
+    // UI-H7-f: kick off Claude spawn after state transition. The
+    // dispatcher does its own posture defense-in-depth check + the
+    // route gate above provides the primary block. Both must agree.
+    let dispatchAck = null;
+    if (dispatcher) {
+      try {
+        dispatchAck = await dispatcher.dispatchClaude(id, {
+          instruction: body.instruction,
+          includeCritique: body.includeCritique !== false,
+        });
+      } catch (err) {
+        return _emitDispatchError(res, err, { session });
+      }
+    }
+    res.json({
+      ok: true, session,
+      dispatchedAt: dispatchAck ? dispatchAck.startedAt : Date.now(),
+      runner: dispatchAck ? dispatchAck.runner : null,
+      dispatched: !!dispatchAck,
+    });
   });
 
   // ── POST /:id/archive (Slice UI-H7-c) ────────────────────────
@@ -227,6 +306,33 @@ function _emitError(res, err) {
   }
   // Unknown — bubble as 500.
   return res.status(500).json({ ok: false, error: "review_session_error", message: err && err.message ? err.message : "unknown" });
+}
+
+// UI-H7-f: dispatcher-error mapper. Different shape from manager
+// errors (different code prefix `dispatch_*`) so the operator
+// dashboard can distinguish "session state machine refused" from
+// "spawn dispatcher refused" at decision time. Manager state
+// transition is still successful at this point — we include the
+// updated session snapshot in the response so the UI doesn't lose
+// state visibility.
+function _emitDispatchError(res, err, context) {
+  const code = err && err.code ? String(err.code) : "dispatch_error";
+  const session = context && context.session ? context.session : null;
+  const status =
+    code === "dispatch_session_not_found"        ? 404 :
+    code === "dispatch_invalid_input"            ? 400 :
+    code === "dispatch_session_invalid_state"    ? 409 :
+    code === "dispatch_already_in_flight"        ? 409 :
+    code === "dispatch_local_executor_disabled"  ? 409 :
+    code === "dispatch_runner_unavailable"       ? 503 :
+                                                    500;
+  return res.status(status).json({
+    ok: false,
+    error: code,
+    message: err && err.message ? err.message : "dispatch failure",
+    session,  // operator UI keeps state visibility
+    stateTransitioned: !!session,
+  });
 }
 
 module.exports = {
