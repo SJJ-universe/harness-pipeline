@@ -25,12 +25,24 @@
 #   HARNESS_NO_BROWSER=1    - skip auto-open (CI / headless smoke)
 #   HARNESS_PORT            - default 4201
 #   HARNESS_HOST            - default 127.0.0.1
+#   HARNESS_TRUST_STORE     - explicit trust-store.json path for the
+#                             E3-F1 manifest signature gate. Falls back
+#                             to HARNESS_CONFIG_DIR, OS default, or
+#                             portable bundled location.
+#   HARNESS_DEPLOYMENT_PROFILE=public-sector
+#                             switches signature gate to fail-closed
+#                             with NO escape. Public-sector ignores the
+#                             dev opt-in below.
+#   HARNESS_ALLOW_UNSIGNED_MANIFEST=1
+#                             dev-only escape: install unsigned manifest
+#                             with LOUD warning + audit
+#                             launcher_signature_bypass entry. Public-
+#                             sector ignores. NEVER set in production.
 #
-# Trust scope reminder (per Phase E plan §O-D0):
-#   INTERNAL / PRIVATE distribution only. SHA256 trust-on-first-use only
-#   proves the bytes match the manifest — public-release safety arrives
-#   in E3 Release Hygiene with manifest signing. Until then, only run
-#   release zips received via a trusted internal channel.
+# Trust scope (per Phase E plan §O-D0 + §S-E3-F1, 2026-04-30):
+#   E3-F1 promotes the install path to PRODUCTION FAIL-CLOSED. The gate
+#   logic lives in scripts/launcher/install-version.sh; this launcher
+#   surfaces the resolved trust-store path for boot-time visibility.
 
 set -euo pipefail
 
@@ -75,6 +87,28 @@ fi
 
 # --- 4. Installer mode: delegate to install-version.sh ------------------
 if [[ "$MODE" == "installer" ]]; then
+  # E3-F1-c: pre-flight visibility of the signature gate (informational).
+  # The actual enforcement lives in install-version.sh; this echoes
+  # the resolved posture + trust-store so the operator sees what the
+  # install will demand BEFORE manifest fetch.
+  POSTURE="standard"
+  [[ "${HARNESS_DEPLOYMENT_PROFILE:-}" == "public-sector" ]] && POSTURE="public-sector"
+  echo "[harness-start] signature gate posture: $POSTURE"
+  if [[ "${HARNESS_ALLOW_UNSIGNED_MANIFEST:-}" == "1" ]]; then
+    if [[ "$POSTURE" == "public-sector" ]]; then
+      echo "[harness-start] WARNING: HARNESS_ALLOW_UNSIGNED_MANIFEST=1 is IGNORED under public-sector posture."
+    else
+      echo "[harness-start] WARNING: HARNESS_ALLOW_UNSIGNED_MANIFEST=1 set (dev escape; never use in production)."
+    fi
+  fi
+  # Resolve trust-store path for visibility. Failure is non-fatal — the
+  # gate inside install-version.sh will surface the real error.
+  TRUST_RESOLVED="$(node "$SCRIPT_DIR/scripts/launcher/launcher-cli.js" resolve-trust-store-path 2>/dev/null || true)"
+  if [[ -n "$TRUST_RESOLVED" ]]; then
+    TRUST_INFO="$(echo "$TRUST_RESOLVED" | node -e 'let s="";process.stdin.on("data",d=>s+=d);process.stdin.on("end",()=>{try{const r=JSON.parse(s);process.stdout.write(`${r.path} (source=${r.source}, exists=${r.exists})`);}catch(e){}})' 2>/dev/null || true)"
+    [[ -n "$TRUST_INFO" ]] && echo "[harness-start] trust store: $TRUST_INFO"
+  fi
+
   bash "$SCRIPT_DIR/scripts/launcher/install-version.sh" \
     --manifest-url "$HARNESS_MANIFEST_URL"
   rc=$?

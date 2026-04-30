@@ -80,6 +80,24 @@ function Invoke-LauncherCli {
     return @{ ExitCode = $LASTEXITCODE; Output = $output }
 }
 
+function Invoke-LauncherCliTolerant {
+    # Like Invoke-LauncherCli, but suppresses native stderr so callers
+    # can read structured stdout JSON without $ErrorActionPreference=Stop
+    # tripping on a native-exe stderr line. Used for verify-manifest-
+    # signature where soft failures still emit JSON to stdout (the only
+    # source we need to read), and for resolve-trust-store-path where
+    # the stderr stream is unused.
+    param([string[]]$CliArgs)
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $output = & node $LauncherCli @CliArgs 2>$null
+        return @{ ExitCode = $LASTEXITCODE; Output = $output }
+    } finally {
+        $ErrorActionPreference = $prev
+    }
+}
+
 # --- 1. Resolve data dir + version dir layout ------------------------------
 # Prefer the explicit -DataDir parameter > HARNESS_DATA_DIR env > OS default.
 # Surfacing the resolution origin helps when an operator wonders why a USB
@@ -158,6 +176,141 @@ $ZipUrl = $manifest.url
 $ExpectedSha = $manifest.sha256
 
 Write-Step "manifest OK: version=$Version url=$ZipUrl"
+
+# --- 3.5. Manifest signature gate (Slice E3-F1-b/d, 2026-04-30) ---------
+# Production fail-closed: install path requires a verifiable signature
+# unless the operator explicitly opts into a dev escape (and even that
+# opt-in is ignored under public-sector posture).
+#
+# Decision matrix (mirrored exactly in install-version.sh):
+#   signed + known keyId       → PASS  (audit launcher_signature_verified)
+#   unsigned + any mode        → FAIL 37 (default fail-closed)
+#   signed + unknown keyId     → FAIL 38 (operator must add the key)
+#   signed + trust-store missing → FAIL 37 (operator must place trust file)
+#   HARNESS_ALLOW_UNSIGNED_MANIFEST=1
+#       standard mode → PASS with audit launcher_signature_bypass + LOUD warn
+#       public-sector → escape ignored → FAIL 37
+#
+# Audit lines are emitted to stdout with the prefix `[launcher-signature]`
+# so harness-start.bat can capture and forward them; future server-side
+# audit ingestion can tail this stream.
+$publicSector = ($env:HARNESS_DEPLOYMENT_PROFILE -eq 'public-sector')
+$allowUnsigned = ($env:HARNESS_ALLOW_UNSIGNED_MANIFEST -eq '1')
+# Public-sector mode IGNORES the dev escape — defense-in-depth so a
+# misconfigured public-sector deployment cannot drift to standard
+# permissive behavior via env var.
+$effectiveAllowUnsigned = $allowUnsigned -and (-not $publicSector)
+
+$manifestHasSignature = $false
+if ($manifest.PSObject.Properties['signature']) {
+    if ($manifest.signature) { $manifestHasSignature = $true }
+}
+
+function Write-AuditLine {
+    param([string]$Verb, [string]$Body = "")
+    # Frozen prefix the operator can grep + the launcher can forward to
+    # the audit chain on next server boot.
+    if ($Body) {
+        Write-Output "[launcher-signature] $Verb $Body"
+    } else {
+        Write-Output "[launcher-signature] $Verb"
+    }
+}
+
+function Write-DevEscapeBanner {
+    param([string]$Reason)
+    # Loud, multi-line banner so the operator never quietly drifts. The
+    # banner goes to stderr so it doesn't get captured into pipelines as
+    # "regular output". $ErrorActionPreference=Stop is at script-level;
+    # we use Write-Host to bypass the error stream and the WhatIf gate.
+    Write-Host "============================================================" -ForegroundColor Yellow
+    Write-Host "[launcher-signature] BYPASS — manifest signature not verified" -ForegroundColor Yellow
+    Write-Host "  reason: $Reason" -ForegroundColor Yellow
+    Write-Host "  HARNESS_ALLOW_UNSIGNED_MANIFEST=1 — proceeding without verify." -ForegroundColor Yellow
+    Write-Host "  This is dev-only. NEVER set this in production." -ForegroundColor Yellow
+    Write-Host "============================================================" -ForegroundColor Yellow
+}
+
+if (-not $manifestHasSignature) {
+    # --- Path A: unsigned manifest -------------------------------------
+    if ($publicSector) {
+        Write-AuditLine 'launcher_signature_failed' 'reason=signature_missing posture=public-sector'
+        Write-Error "manifest is unsigned and posture=public-sector — refusing"
+        exit 37
+    }
+    if ($effectiveAllowUnsigned) {
+        Write-DevEscapeBanner 'unsigned_manifest_dev_escape'
+        Write-AuditLine 'launcher_signature_bypass' 'reason=dev_escape_explicit'
+        Write-Step 'signature gate: BYPASSED (dev escape).'
+    } else {
+        Write-AuditLine 'launcher_signature_failed' 'reason=signature_missing'
+        Write-Error "manifest is unsigned — production install requires a signed manifest. Set HARNESS_ALLOW_UNSIGNED_MANIFEST=1 to override (dev only)."
+        exit 37
+    }
+} else {
+    # --- Path B: signed manifest, must verify --------------------------
+    Write-Step "resolving trust store path..."
+    $resolveResult = Invoke-LauncherCliTolerant -CliArgs @('resolve-trust-store-path')
+    if ($resolveResult.ExitCode -ne 0) {
+        Write-AuditLine 'launcher_signature_failed' 'reason=resolver_error'
+        Write-Error "resolve-trust-store-path failed (rc=$($resolveResult.ExitCode))"
+        exit 37
+    }
+    $trustResolved = $null
+    try {
+        $trustResolved = ($resolveResult.Output -join "`n") | ConvertFrom-Json
+    } catch {
+        Write-AuditLine 'launcher_signature_failed' 'reason=resolver_parse_error'
+        Write-Error "resolve-trust-store-path produced unparseable JSON"
+        exit 37
+    }
+    Write-Step "trust store: $($trustResolved.path) (source=$($trustResolved.source), exists=$($trustResolved.exists))"
+
+    if (-not $trustResolved.exists) {
+        # Trust file is needed but doesn't exist. Public-sector never
+        # allows escape; standard mode allows escape under explicit env.
+        if ($publicSector) {
+            Write-AuditLine 'launcher_signature_failed' "reason=trust_store_unavailable path=$($trustResolved.path) posture=public-sector"
+            Write-Error "trust store missing in public-sector mode — refusing"
+            exit 37
+        }
+        if ($effectiveAllowUnsigned) {
+            Write-DevEscapeBanner 'trust_store_missing_dev_escape'
+            Write-AuditLine 'launcher_signature_bypass' "reason=trust_store_missing_dev_escape path=$($trustResolved.path)"
+            Write-Step 'signature gate: BYPASSED (dev escape, no trust store).'
+        } else {
+            Write-AuditLine 'launcher_signature_failed' "reason=trust_store_unavailable path=$($trustResolved.path)"
+            Write-Error "trust store missing at $($trustResolved.path) — set HARNESS_TRUST_STORE or place trust-store.json at that location."
+            exit 37
+        }
+    } else {
+        # Trust file present — verify the signature.
+        Write-Step "verifying manifest signature..."
+        $verifyResult = Invoke-LauncherCliTolerant -CliArgs @(
+            'verify-manifest-signature', $ManifestFile, '--trust-store', $trustResolved.path
+        )
+        $verifyData = $null
+        if ($verifyResult.Output) {
+            try {
+                $verifyData = ($verifyResult.Output -join "`n") | ConvertFrom-Json
+            } catch { }
+        }
+        if ($verifyResult.ExitCode -eq 0 -and $verifyData -and $verifyData.ok) {
+            Write-AuditLine 'launcher_signature_verified' "keyId=$($verifyData.keyId) label=$($verifyData.keyLabel) trustStore=$($verifyData.trustStorePath)"
+            Write-Step "signature gate: VERIFIED keyId=$($verifyData.keyId)"
+        } else {
+            $reason = if ($verifyData -and $verifyData.reason) { $verifyData.reason } else { 'verify_failed' }
+            if ($reason -eq 'unknown_key_id') {
+                Write-AuditLine 'launcher_signature_failed' "reason=unknown_key_id keyId=$($verifyData.keyId)"
+                Write-Error "signature key ($($verifyData.keyId)) is not in the trust store — operator must add the publisher's key"
+                exit 38
+            }
+            Write-AuditLine 'launcher_signature_failed' "reason=$reason"
+            Write-Error "signature verification failed: $reason"
+            exit 37
+        }
+    }
+}
 
 # --- 4. Resolve install dir + sweep stale partial dirs --------------------
 # Slice D0-e: atomic install. Previously we extracted directly into

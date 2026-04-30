@@ -17,7 +17,9 @@
 # Exit codes (mirror install-version.ps1):
 #   30 launcher-cli.js missing                  31 manifest fetch failed
 #   32 manifest schema invalid                  33 zip download failed
-#   34 SHA256 mismatch (zip quarantined)         0 success
+#   34 SHA256 mismatch (zip quarantined)        35 manifest URL not https
+#   36 unzip not available                      37 signature gate failed
+#   38 signature key not in trust store          0 success
 
 set -euo pipefail
 
@@ -111,6 +113,141 @@ VERSION="$(node "$LAUNCHER_CLI" manifest-field "$MANIFEST_FILE" version)"
 ZIP_URL="$(node "$LAUNCHER_CLI" manifest-field "$MANIFEST_FILE" url)"
 EXPECTED_SHA="$(node "$LAUNCHER_CLI" manifest-field "$MANIFEST_FILE" sha256)"
 echo "[install-version] manifest OK: version=$VERSION url=$ZIP_URL"
+
+# --- 4.5. Manifest signature gate (Slice E3-F1-b/d, 2026-04-30) ---------
+# Production fail-closed: install path requires a verifiable signature
+# unless the operator explicitly opts into a dev escape (and even that
+# opt-in is ignored under public-sector posture).
+#
+# Decision matrix (mirrored exactly in install-version.ps1):
+#   signed + known keyId       → PASS  (audit launcher_signature_verified)
+#   unsigned + any mode        → FAIL 37 (default fail-closed)
+#   signed + unknown keyId     → FAIL 38 (operator must add the key)
+#   signed + trust-store missing → FAIL 37 (operator must place trust file)
+#   HARNESS_ALLOW_UNSIGNED_MANIFEST=1
+#       standard mode → PASS with audit launcher_signature_bypass + LOUD warn
+#       public-sector → escape ignored → FAIL 37
+#
+# Audit lines emit to stdout with prefix `[launcher-signature]` so
+# harness-start.sh can capture and forward to a future server-side
+# audit ingestion path.
+PUBLIC_SECTOR=0
+[[ "${HARNESS_DEPLOYMENT_PROFILE:-}" == "public-sector" ]] && PUBLIC_SECTOR=1
+ALLOW_UNSIGNED=0
+[[ "${HARNESS_ALLOW_UNSIGNED_MANIFEST:-}" == "1" ]] && ALLOW_UNSIGNED=1
+# Public-sector mode IGNORES the dev escape (defense-in-depth).
+EFFECTIVE_ALLOW_UNSIGNED=0
+if [[ $ALLOW_UNSIGNED -eq 1 && $PUBLIC_SECTOR -eq 0 ]]; then
+  EFFECTIVE_ALLOW_UNSIGNED=1
+fi
+
+# Detect whether the manifest carries a non-null `signature` object.
+# `manifest-field` exits 1 + stderr if the field is absent; for null
+# it prints the literal "null". A non-null object is JSON-serialized.
+MANIFEST_SIGNED=0
+SIG_FIELD=""
+if SIG_FIELD="$(node "$LAUNCHER_CLI" manifest-field "$MANIFEST_FILE" signature 2>/dev/null)"; then
+  if [[ -n "$SIG_FIELD" && "$SIG_FIELD" != "null" ]]; then
+    MANIFEST_SIGNED=1
+  fi
+fi
+
+# Helper for emitting structured audit lines that future ledger
+# ingestion can grep without ambiguity. The verb vocabulary
+# (launcher_signature_verified / _bypass / _failed) is frozen.
+audit_line() {
+  local verb="$1"
+  local body="${2:-}"
+  if [[ -n "$body" ]]; then
+    echo "[launcher-signature] $verb $body"
+  else
+    echo "[launcher-signature] $verb"
+  fi
+}
+
+dev_escape_banner() {
+  local reason="$1"
+  echo "============================================================" >&2
+  echo "[launcher-signature] BYPASS — manifest signature not verified" >&2
+  echo "  reason: $reason" >&2
+  echo "  HARNESS_ALLOW_UNSIGNED_MANIFEST=1 — proceeding without verify." >&2
+  echo "  This is dev-only. NEVER set this in production." >&2
+  echo "============================================================" >&2
+}
+
+if [[ $MANIFEST_SIGNED -eq 0 ]]; then
+  # --- Path A: unsigned manifest -------------------------------------
+  if [[ $PUBLIC_SECTOR -eq 1 ]]; then
+    audit_line 'launcher_signature_failed' 'reason=signature_missing posture=public-sector'
+    echo "[install-version] unsigned manifest in public-sector mode — refusing" >&2
+    exit 37
+  fi
+  if [[ $EFFECTIVE_ALLOW_UNSIGNED -eq 1 ]]; then
+    dev_escape_banner 'unsigned_manifest_dev_escape'
+    audit_line 'launcher_signature_bypass' 'reason=dev_escape_explicit'
+    echo "[install-version] signature gate: BYPASSED (dev escape)."
+  else
+    audit_line 'launcher_signature_failed' 'reason=signature_missing'
+    echo "[install-version] manifest is unsigned — production install requires a signed manifest. Set HARNESS_ALLOW_UNSIGNED_MANIFEST=1 to override (dev only)." >&2
+    exit 37
+  fi
+else
+  # --- Path B: signed manifest, must verify --------------------------
+  echo "[install-version] resolving trust store path..."
+  RESOLVED_JSON="$(node "$LAUNCHER_CLI" resolve-trust-store-path)"
+  RESOLVE_RC=$?
+  if [[ $RESOLVE_RC -ne 0 ]]; then
+    audit_line 'launcher_signature_failed' 'reason=resolver_error'
+    echo "[install-version] resolve-trust-store-path failed (rc=$RESOLVE_RC)" >&2
+    exit 37
+  fi
+  TRUST_PATH="$(echo "$RESOLVED_JSON" | node -e 'let s="";process.stdin.on("data",d=>s+=d);process.stdin.on("end",()=>{try{process.stdout.write(String(JSON.parse(s).path||""))}catch{}})')"
+  TRUST_SOURCE="$(echo "$RESOLVED_JSON" | node -e 'let s="";process.stdin.on("data",d=>s+=d);process.stdin.on("end",()=>{try{process.stdout.write(String(JSON.parse(s).source||""))}catch{}})')"
+  TRUST_EXISTS="$(echo "$RESOLVED_JSON" | node -e 'let s="";process.stdin.on("data",d=>s+=d);process.stdin.on("end",()=>{try{process.stdout.write(String(JSON.parse(s).exists||"false"))}catch{}})')"
+  echo "[install-version] trust store: $TRUST_PATH (source=$TRUST_SOURCE, exists=$TRUST_EXISTS)"
+
+  if [[ "$TRUST_EXISTS" != "true" ]]; then
+    if [[ $PUBLIC_SECTOR -eq 1 ]]; then
+      audit_line 'launcher_signature_failed' "reason=trust_store_unavailable path=$TRUST_PATH posture=public-sector"
+      echo "[install-version] trust store missing in public-sector mode — refusing" >&2
+      exit 37
+    fi
+    if [[ $EFFECTIVE_ALLOW_UNSIGNED -eq 1 ]]; then
+      dev_escape_banner 'trust_store_missing_dev_escape'
+      audit_line 'launcher_signature_bypass' "reason=trust_store_missing_dev_escape path=$TRUST_PATH"
+      echo "[install-version] signature gate: BYPASSED (dev escape, no trust store)."
+    else
+      audit_line 'launcher_signature_failed' "reason=trust_store_unavailable path=$TRUST_PATH"
+      echo "[install-version] trust store missing at $TRUST_PATH — set HARNESS_TRUST_STORE or place trust-store.json at that location." >&2
+      exit 37
+    fi
+  else
+    echo "[install-version] verifying manifest signature..."
+    VERIFY_OUT=""
+    set +e  # tolerate non-zero — we read JSON to decide
+    VERIFY_OUT="$(node "$LAUNCHER_CLI" verify-manifest-signature "$MANIFEST_FILE" --trust-store "$TRUST_PATH" 2>/dev/null)"
+    VERIFY_RC=$?
+    set -e
+    VERIFY_OK="$(echo "$VERIFY_OUT" | node -e 'let s="";process.stdin.on("data",d=>s+=d);process.stdin.on("end",()=>{try{process.stdout.write(String(JSON.parse(s).ok))}catch{process.stdout.write("")}})')"
+    if [[ $VERIFY_RC -eq 0 && "$VERIFY_OK" == "true" ]]; then
+      VERIFY_KEYID="$(echo "$VERIFY_OUT" | node -e 'let s="";process.stdin.on("data",d=>s+=d);process.stdin.on("end",()=>{try{process.stdout.write(String(JSON.parse(s).keyId||""))}catch{}})')"
+      VERIFY_LABEL="$(echo "$VERIFY_OUT" | node -e 'let s="";process.stdin.on("data",d=>s+=d);process.stdin.on("end",()=>{try{process.stdout.write(String(JSON.parse(s).keyLabel||""))}catch{}})')"
+      audit_line 'launcher_signature_verified' "keyId=$VERIFY_KEYID label=$VERIFY_LABEL trustStore=$TRUST_PATH"
+      echo "[install-version] signature gate: VERIFIED keyId=$VERIFY_KEYID"
+    else
+      VERIFY_REASON="$(echo "$VERIFY_OUT" | node -e 'let s="";process.stdin.on("data",d=>s+=d);process.stdin.on("end",()=>{try{process.stdout.write(String(JSON.parse(s).reason||"verify_failed"))}catch{process.stdout.write("verify_failed")}})')"
+      if [[ "$VERIFY_REASON" == "unknown_key_id" ]]; then
+        VERIFY_KEYID="$(echo "$VERIFY_OUT" | node -e 'let s="";process.stdin.on("data",d=>s+=d);process.stdin.on("end",()=>{try{process.stdout.write(String(JSON.parse(s).keyId||""))}catch{}})')"
+        audit_line 'launcher_signature_failed' "reason=unknown_key_id keyId=$VERIFY_KEYID"
+        echo "[install-version] signature key ($VERIFY_KEYID) is not in the trust store — operator must add the publisher's key" >&2
+        exit 38
+      fi
+      audit_line 'launcher_signature_failed' "reason=$VERIFY_REASON"
+      echo "[install-version] signature verification failed: $VERIFY_REASON" >&2
+      exit 37
+    fi
+  fi
+fi
 
 # --- 5. Resolve install dir + sweep stale partials (Slice D0-e atomic) --
 # Same atomic-install logic as install-version.ps1 — see that file for

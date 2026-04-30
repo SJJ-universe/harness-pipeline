@@ -363,29 +363,91 @@ function cmdManifestField(args) {
 // Slice GOV-RELEASE-0 (2026-04-30): manifest signature verification.
 // Used by the launcher when HARNESS_REQUIRE_SIGNED_MANIFEST=1 OR the
 // manifest contains a `signature` field (auto-detect). The trust
-// store path is taken from --trust-store or HARNESS_TRUST_STORE env.
+// store path is resolved via `trust-store-path.js` (Slice E3-F1-a)
+// from --trust-store flag, HARNESS_TRUST_STORE env, HARNESS_CONFIG_DIR,
+// OS default, or portable install (in priority order). Sharing the
+// resolver with the future TRUST-STORE-0 management UI keeps "where
+// the trust file lives" answer the same on both sides.
 function cmdVerifyManifestSignature(args) {
   const manifestPath = args[0];
   if (!manifestPath) fail("verify-manifest-signature: missing <path>", 2);
-  const trustPathIdx = args.indexOf("--trust-store");
-  const trustPath = (trustPathIdx >= 0 && args[trustPathIdx + 1])
-    || process.env.HARNESS_TRUST_STORE;
-  if (!trustPath) fail("verify-manifest-signature: --trust-store or HARNESS_TRUST_STORE required", 2);
+  const trustFlagIdx = args.indexOf("--trust-store");
+  const cliFlag = (trustFlagIdx >= 0 && args[trustFlagIdx + 1]) || null;
+  const installFlagIdx = args.indexOf("--install-dir");
+  const installDir = (installFlagIdx >= 0 && args[installFlagIdx + 1]) || null;
+
+  const { resolveTrustStorePath } = require("./trust-store-path");
+  const resolved = resolveTrustStorePath({ cliFlag, installDir });
+  if (!resolved.exists) {
+    // Caller of verify-manifest-signature MUST point at an existing
+    // trust file. The matrix in install-version.{ps1,sh} chooses what
+    // to do when the trust file is missing (fail-closed by default).
+    process.stderr.write(`verify-manifest-signature: trust store not found at ${resolved.path} (source=${resolved.source})\n`);
+    process.exit(2);
+  }
+
   let manifest, parsedTrust;
-  try { manifest = JSON.parse(require("fs").readFileSync(manifestPath, "utf-8")); }
+  try { manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8")); }
   catch (err) { fail(`cannot read manifest: ${err.message}`, 2); }
-  try { parsedTrust = JSON.parse(require("fs").readFileSync(trustPath, "utf-8")); }
-  catch (err) { fail(`cannot read trust store: ${err.message}`, 2); }
+  try { parsedTrust = JSON.parse(fs.readFileSync(resolved.path, "utf-8")); }
+  catch (err) { fail(`cannot read trust store at ${resolved.path}: ${err.message}`, 2); }
   const { verifyManifestSignature, loadTrustStore } = require("../../src/security/manifestSigner");
   const ts = loadTrustStore(parsedTrust);
   if (!ts.ok) fail(`trust store invalid: ${ts.reason}`, 2);
   const result = verifyManifestSignature({ manifest, trustStore: ts.trustStore });
   if (result.ok) {
-    process.stdout.write(`signature OK: keyId=${result.keyId}${result.keyLabel ? ` label=${result.keyLabel}` : ""}\n`);
+    // stdout in machine-parseable form for install-version.{ps1,sh}'s
+    // launcher_signature_verified audit emission. Source path is
+    // included so forensics can tell which trust file ratified.
+    process.stdout.write(JSON.stringify({
+      ok: true,
+      keyId: result.keyId,
+      keyLabel: result.keyLabel || null,
+      trustStorePath: resolved.path,
+      trustStoreSource: resolved.source,
+    }) + "\n");
     process.exit(0);
   }
-  process.stderr.write(`signature FAIL: ${result.reason}${result.detail ? " (" + result.detail + ")" : ""}\n`);
+  // Distinguish unknown_key_id from other failures so install-version
+  // can map to its dedicated exit-38 code (vs 37 for everything else).
+  // We deliberately do NOT write to stderr here — PowerShell 5.1 with
+  // $ErrorActionPreference=Stop crashes on a native exe's stderr line,
+  // and the stderr text would just duplicate the JSON message field.
+  // The launcher script reads exit code + parses stdout JSON.
+  process.stdout.write(JSON.stringify({
+    ok: false,
+    reason: result.reason,
+    detail: result.detail || null,
+    message: `signature FAIL: ${result.reason}${result.detail ? " (" + result.detail + ")" : ""}`,
+    keyId: result.keyId || null,
+    trustStorePath: resolved.path,
+    trustStoreSource: resolved.source,
+  }) + "\n");
   process.exit(1);
+}
+
+// Slice E3-F1-a (Phase E, 2026-04-30): expose trust-store path resolution
+// to PowerShell + bash. The launcher scripts need to know "where would
+// a trust file live, and is one there now?" before they decide what to
+// do under the F1 fail-closed matrix. Centralizing in launcher-cli
+// matches the existing pattern (resolve-paths, version-install-dir).
+//
+// stdout is the resolver's full result as JSON so the calling shell
+// can branch on `source` (forensics) and `exists` (matrix decision).
+function cmdResolveTrustStorePath(args) {
+  let cliFlag = null;
+  let installDir = null;
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--trust-store" && i + 1 < args.length) {
+      cliFlag = args[i + 1]; i += 1;
+    } else if (args[i] === "--install-dir" && i + 1 < args.length) {
+      installDir = args[i + 1]; i += 1;
+    }
+  }
+  const { resolveTrustStorePath } = require("./trust-store-path");
+  const resolved = resolveTrustStorePath({ cliFlag, installDir });
+  process.stdout.write(JSON.stringify(resolved, null, 2) + "\n");
+  process.exit(0);
 }
 
 const COMMANDS = {
@@ -398,8 +460,9 @@ const COMMANDS = {
   "manifest-field": cmdManifestField,
   "validate-manifest-url": cmdValidateManifestUrl,
   "verify-health": cmdVerifyHealth,
-  // GOV-RELEASE-0
+  // GOV-RELEASE-0 + E3-F1
   "verify-manifest-signature": cmdVerifyManifestSignature,
+  "resolve-trust-store-path": cmdResolveTrustStorePath,
 };
 
 function main() {
@@ -418,7 +481,8 @@ function main() {
       "  manifest-field <path> <field>",
       "  validate-manifest-url <url>",
       "  verify-health <url>",
-      "  verify-manifest-signature <path> [--trust-store <path>]",
+      "  verify-manifest-signature <path> [--trust-store <path>] [--install-dir <path>]",
+      "  resolve-trust-store-path [--trust-store <path>] [--install-dir <path>]",
       "",
     ].join("\n"));
     process.exit(0);

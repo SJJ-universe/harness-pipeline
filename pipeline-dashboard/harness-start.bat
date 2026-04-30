@@ -30,13 +30,29 @@
 ::   HARNESS_NO_BROWSER=1    - skip auto-open (CI / headless smoke)
 ::   HARNESS_PORT            - default 4201 (matches server.js default)
 ::   HARNESS_HOST            - default 127.0.0.1
+::   HARNESS_TRUST_STORE     - explicit trust-store.json path for the
+::                             E3-F1 manifest signature gate. If unset,
+::                             the resolver falls back to HARNESS_CONFIG_DIR
+::                             then OS default (%APPDATA%\HarnessPipeline\)
+::                             then portable bundled fallback.
+::   HARNESS_DEPLOYMENT_PROFILE=public-sector
+::                             switches signature gate to fail-closed
+::                             with NO escape (the dev opt-in below is
+::                             ignored under public-sector posture).
+::   HARNESS_ALLOW_UNSIGNED_MANIFEST=1
+::                             dev-only escape: install unsigned manifest
+::                             with LOUD warning + audit
+::                             launcher_signature_bypass entry. NEVER set
+::                             this in production. Public-sector ignores.
 ::
-:: Trust scope reminder (per Phase E plan §O-D0):
-::   This launcher is for INTERNAL / PRIVATE distribution. SHA256
-::   trust-on-first-use only proves the bytes match the manifest, not that
-::   the manifest itself is authentic. Public release safety arrives in
-::   E3 Release Hygiene (manifest signing). Until then, only run zips you
-::   received via a trusted internal channel.
+:: Trust scope (per Phase E plan §O-D0 + §S-E3-F1, 2026-04-30):
+::   E3-F1 (Slice "Launcher Signature Gate") promotes the install path
+::   to PRODUCTION FAIL-CLOSED: an unsigned manifest, an unknown signing
+::   key, or a missing trust store all fail with exit 37/38 unless the
+::   operator opts in via HARNESS_ALLOW_UNSIGNED_MANIFEST=1 in standard
+::   mode. Public-sector mode never honors that escape. The gate logic
+::   itself lives in scripts\launcher\install-version.ps1 — the .bat
+::   surfaces the resolved trust-store path for boot-time visibility.
 :: ============================================================================
 
 setlocal EnableExtensions EnableDelayedExpansion
@@ -113,6 +129,26 @@ if exist "%SCRIPT_DIR%server.js" (
 :: which it then tries to parse as a drive letter, spamming "not
 :: recognized" errors to stderr even when the block is skipped.
 if "%MODE%"=="installer" (
+    rem E3-F1-c: pre-flight visibility of the signature gate. This is
+    rem informational — the actual gate enforcement happens inside
+    rem install-version.ps1. We surface the deployment posture + the
+    rem resolved trust-store path so a first-time operator sees what
+    rem the install will demand BEFORE the manifest is fetched.
+    set "POSTURE=standard"
+    if /i "%HARNESS_DEPLOYMENT_PROFILE%"=="public-sector" set "POSTURE=public-sector"
+    echo [harness-start] signature gate posture: !POSTURE!
+    if /i "%HARNESS_ALLOW_UNSIGNED_MANIFEST%"=="1" (
+        if "!POSTURE!"=="public-sector" (
+            echo [harness-start] WARNING: HARNESS_ALLOW_UNSIGNED_MANIFEST=1 is IGNORED under public-sector posture.
+        ) else (
+            echo [harness-start] WARNING: HARNESS_ALLOW_UNSIGNED_MANIFEST=1 set ^(dev escape; never use in production^).
+        )
+    )
+    rem Resolve trust-store path for visibility. Failure is non-fatal —
+    rem install-version will surface the actual error if the gate trips.
+    for /f "tokens=*" %%t in ('node "%SCRIPT_DIR%scripts\launcher\launcher-cli.js" resolve-trust-store-path 2^>nul ^| node -e "let s=''; process.stdin.on('data',d=>s+=d); process.stdin.on('end',()=>{try{const r=JSON.parse(s);process.stdout.write(`${r.path} (source=${r.source}, exists=${r.exists})`);}catch(e){}})"') do set "TRUST_INFO=%%t"
+    if "!TRUST_INFO!" NEQ "" echo [harness-start] trust store: !TRUST_INFO!
+
     powershell.exe -NoProfile -ExecutionPolicy Bypass ^
         -File "%SCRIPT_DIR%scripts\launcher\install-version.ps1" ^
         -ManifestUrl "%HARNESS_MANIFEST_URL%"
