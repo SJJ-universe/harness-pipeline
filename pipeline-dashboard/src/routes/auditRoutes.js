@@ -38,6 +38,7 @@
 "use strict";
 
 const express = require("express");
+const auditorBundle = require("../runtime/auditorBundle");
 
 const DEFAULT_LIMIT = 256;
 const MAX_LIMIT = 1024;
@@ -48,6 +49,8 @@ const AUDIT_ERROR_CODES = Object.freeze({
   invalid_run_id: "invalid_run_id",
   not_found: "not_found",
   ledger_unavailable: "ledger_unavailable",
+  invalid_window: "invalid_window",
+  bundle_failed: "bundle_failed",
 });
 
 function _writeError(res, status, code, extra = null) {
@@ -76,7 +79,7 @@ function _parseLimit(raw) {
   return Math.min(Math.floor(n), MAX_LIMIT);
 }
 
-function createAuditRoutes({ evidenceLedger } = {}) {
+function createAuditRoutes({ evidenceLedger, sealKey, deploymentProfile } = {}) {
   if (!evidenceLedger || typeof evidenceLedger.read !== "function" || typeof evidenceLedger.verifyChain !== "function") {
     // Don't fail boot — return a stub router that 503s every call.
     // This preserves the rest of the harness if a future refactor
@@ -147,6 +150,75 @@ function createAuditRoutes({ evidenceLedger } = {}) {
     }
 
     return res.json({ ok: true, runId, ...result });
+  });
+
+  // ── GOV-AUDIT-0 — sealed evidence bundle export ───────────────────
+  //
+  //   POST /api/audit/runs/:runId/export
+  //     Body: { limit? }
+  //     Returns the JSON bundle directly (no Content-Disposition).
+  //     The drill-down UI saves the response body as a file via
+  //     URL.createObjectURL on the client side.
+  //
+  //   POST /api/audit/export
+  //     Body: { windowFromAt, windowToAt, limit? }
+  //     Spans every run with a ledger.jsonl, filtered by entry.at
+  //     within [windowFromAt, windowToAt].
+  //
+  // The seal key is the ledger's HMAC key (HKDF info="audit-ledger")
+  // — whoever already trusts the orchestrator's audit chain trusts
+  // the bundle seal too. When sealKey is null (single-orchestrator
+  // local install with no remote-mode token) the bundle still ships
+  // with chain hashes, but `seal.alg === "none"`.
+
+  router.post("/audit/runs/:runId/export", express.json({ limit: "8kb" }), (req, res) => {
+    const runId = _validateRunId(req.params.runId);
+    if (!runId) return _writeError(res, 400, AUDIT_ERROR_CODES.invalid_run_id);
+    const body = req.body || {};
+    let bundle;
+    try {
+      bundle = auditorBundle.buildByRun({
+        evidenceLedger,
+        runId,
+        deployment: deploymentProfile || null,
+        sealKey: sealKey || null,
+        limit: body.limit,
+      });
+    } catch (err) {
+      const msg = err && err.message ? err.message : "unknown";
+      return _writeError(res, 500, AUDIT_ERROR_CODES.bundle_failed, { detail: msg });
+    }
+    if (bundle.totalEntries === 0) {
+      return _writeError(res, 404, AUDIT_ERROR_CODES.not_found, { runId });
+    }
+    return res.json({ ok: true, bundle });
+  });
+
+  router.post("/audit/export", express.json({ limit: "8kb" }), (req, res) => {
+    const body = req.body || {};
+    if (typeof evidenceLedger.listRuns !== "function") {
+      return _writeError(res, 503, AUDIT_ERROR_CODES.ledger_unavailable);
+    }
+    let bundle;
+    try {
+      bundle = auditorBundle.buildByWindow({
+        evidenceLedger,
+        windowFromAt: body.windowFromAt,
+        windowToAt: body.windowToAt,
+        deployment: deploymentProfile || null,
+        sealKey: sealKey || null,
+        limit: body.limit,
+      });
+    } catch (err) {
+      const msg = err && err.message ? err.message : "unknown";
+      // Distinguish window-validation errors vs internal failures so
+      // the operator UI can surface the right message.
+      if (/window|required/.test(msg)) {
+        return _writeError(res, 400, AUDIT_ERROR_CODES.invalid_window, { detail: msg });
+      }
+      return _writeError(res, 500, AUDIT_ERROR_CODES.bundle_failed, { detail: msg });
+    }
+    return res.json({ ok: true, bundle });
   });
 
   return router;

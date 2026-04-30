@@ -362,3 +362,25 @@ test("R1-c: VERIFY_CHAIN_REASONS keys are stable + frozen", () => {
   ]);
   assert.equal(Object.isFrozen(VERIFY_CHAIN_REASONS), true);
 });
+
+test("GOV-AUDIT-0: listRuns returns sorted runIds that have ledger.jsonl", () => {
+  const dir = tmpDir();
+  try {
+    const ledger = new EvidenceLedger({ rootDir: dir });
+    ledger.append("run-zeta", { type: "x", data: {} });
+    ledger.append("run-alpha", { type: "x", data: {} });
+    ledger.append("run-beta", { type: "x", data: {} });
+    // An empty subdir without ledger.jsonl is silently skipped
+    fs.mkdirSync(path.join(dir, "no-ledger-dir"));
+    const result = ledger.listRuns();
+    assert.deepEqual(result, ["run-alpha", "run-beta", "run-zeta"]);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("GOV-AUDIT-0: listRuns returns [] when rootDir does not exist", () => {
+  const dir = path.join(os.tmpdir(), "ledger-doesnotexist-" + Math.random().toString(36).slice(2));
+  const ledger = new EvidenceLedger({ rootDir: dir });
+  assert.deepEqual(ledger.listRuns(), []);
+});

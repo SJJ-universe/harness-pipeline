@@ -1124,11 +1124,23 @@ app.use("/api", createReviewSessionRoutes({
 
 // Slice UI-H9-a (Phase D / Phase E1.5, 2026-04-30): audit read API
 // powering the recent-results drill-down view. Read-only — operator
-// inspects the evidence ledger for a specific run; no write surface.
-// GOV-AUDIT-0 (next round) will layer auditor-bundle export on top
-// of this same endpoint family.
+// inspects the evidence ledger for a specific run.
+//
+// Slice GOV-AUDIT-0 (Phase E1.5, 2026-04-30): same router exposes
+// sealed evidence-bundle export (POST /api/audit/runs/:runId/export
+// + POST /api/audit/export). The seal key is the ledger's HMAC key
+// derived via HKDF info="audit-ledger" so the bundle inherits the
+// existing trust root. When the orchestrator runs in local-only mode
+// (no HARNESS_TOKEN configured for remote runners) the bundle still
+// ships unsealed — chain hashes alone are enough for an internal
+// auditor; sealed bundles are for cross-org / agency-to-agency
+// transmission.
 const { createAuditRoutes } = require("./src/routes/auditRoutes");
-app.use("/api", createAuditRoutes({ evidenceLedger }));
+app.use("/api", createAuditRoutes({
+  evidenceLedger,
+  sealKey: (_remoteRunner && _remoteRunner.ledgerKey) || null,
+  deploymentProfile: _deploymentProfile,
+}));
 
 // MB4-b (Phase D Round 2, 2026-04-27): the ~270 lines of
 // runGeneralPipeline + finalizeGeneralRun + 3 prompt builders that

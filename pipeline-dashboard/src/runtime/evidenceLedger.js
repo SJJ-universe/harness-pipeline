@@ -155,6 +155,29 @@ class EvidenceLedger {
     }).filter(Boolean);
   }
 
+  // Slice GOV-AUDIT-0 (Phase E1.5, 2026-04-30): enumerate every runId
+  // that has a ledger.jsonl file under rootDir. Used by the auditor-
+  // bundle byWindow mode to span the audit chain across all runs in
+  // a date range.
+  //
+  // Defensive: rootDir may not exist (fresh install). Subdirs without
+  // a ledger.jsonl (e.g. an artifact-only directory) are skipped so
+  // the result is exactly "runs the ledger has anything for".
+  listRuns() {
+    if (!fs.existsSync(this.rootDir)) return [];
+    const out = [];
+    let entries;
+    try { entries = fs.readdirSync(this.rootDir); }
+    catch (_) { return []; }
+    for (const name of entries) {
+      try {
+        const p = path.join(this.rootDir, name, "ledger.jsonl");
+        if (fs.existsSync(p)) out.push(name);
+      } catch (_) { /* defensive: skip unreadable subdir */ }
+    }
+    return out.sort();
+  }
+
   verify(runId) {
     const entries = this.read(runId);
     if (entries.length === 0) return { valid: true, entries: 0, errors: [] };

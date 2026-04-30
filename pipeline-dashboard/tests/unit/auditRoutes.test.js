@@ -287,4 +287,136 @@ test("UI-H9-a: AUDIT_ERROR_CODES is frozen", () => {
   assert.equal(AUDIT_ERROR_CODES.invalid_run_id, "invalid_run_id");
   assert.equal(AUDIT_ERROR_CODES.not_found, "not_found");
   assert.equal(AUDIT_ERROR_CODES.ledger_unavailable, "ledger_unavailable");
+  assert.equal(AUDIT_ERROR_CODES.invalid_window, "invalid_window");
+  assert.equal(AUDIT_ERROR_CODES.bundle_failed, "bundle_failed");
+});
+
+// ── GOV-AUDIT-0: POST /api/audit/runs/:runId/export ─────────────
+
+async function postJSON(url, body) {
+  return new Promise((resolve, reject) => {
+    const u = new URL(url);
+    const data = JSON.stringify(body || {});
+    const req = http.request({
+      hostname: u.hostname, port: u.port, path: u.pathname,
+      method: "POST",
+      headers: { "content-type": "application/json", "content-length": Buffer.byteLength(data) },
+    }, (res) => {
+      let chunks = "";
+      res.on("data", (c) => { chunks += c; });
+      res.on("end", () => {
+        try { resolve({ status: res.statusCode, body: JSON.parse(chunks) }); }
+        catch (err) { reject(err); }
+      });
+    });
+    req.on("error", reject);
+    req.write(data);
+    req.end();
+  });
+}
+
+test("GOV-AUDIT-0: POST export ships JSON bundle for runId with entries", async () => {
+  const entries = [{ eventId: "e1", type: "review_session_created", at: "2026-04-30T00:00:00Z" }];
+  const ledger = makeStubLedger({
+    entriesByRun: { run1: entries },
+    verifyByRun: { run1: { valid: true, entries: 1 } },
+  });
+  ledger.listRuns = () => ["run1"];
+  const harness = await startApp({ evidenceLedger: ledger });
+  try {
+    const { status, body } = await postJSON(`${harness.base}/api/audit/runs/run1/export`, {});
+    assert.equal(status, 200);
+    assert.equal(body.ok, true);
+    assert.equal(body.bundle.schema, "harness-auditor-bundle/v1");
+    assert.equal(body.bundle.mode, "byRun");
+    assert.equal(body.bundle.scope.runId, "run1");
+    assert.equal(body.bundle.totalEntries, 1);
+  } finally {
+    await harness.close();
+  }
+});
+
+test("GOV-AUDIT-0: POST export 404 when no entries for runId", async () => {
+  const ledger = makeStubLedger();
+  ledger.listRuns = () => [];
+  const harness = await startApp({ evidenceLedger: ledger });
+  try {
+    const { status, body } = await postJSON(`${harness.base}/api/audit/runs/empty/export`, {});
+    assert.equal(status, 404);
+    assert.equal(body.error, AUDIT_ERROR_CODES.not_found);
+  } finally {
+    await harness.close();
+  }
+});
+
+test("GOV-AUDIT-0: POST export 400 on invalid runId", async () => {
+  const ledger = makeStubLedger();
+  ledger.listRuns = () => [];
+  const harness = await startApp({ evidenceLedger: ledger });
+  try {
+    const longId = "x".repeat(129);
+    const { status, body } = await postJSON(`${harness.base}/api/audit/runs/${longId}/export`, {});
+    assert.equal(status, 400);
+    assert.equal(body.error, AUDIT_ERROR_CODES.invalid_run_id);
+  } finally {
+    await harness.close();
+  }
+});
+
+test("GOV-AUDIT-0: POST export bundle includes seal when sealKey configured", async () => {
+  const entries = [{ eventId: "e1", type: "x", at: "2026-04-30T00:00:00Z" }];
+  const ledger = makeStubLedger({
+    entriesByRun: { run1: entries },
+    verifyByRun: { run1: { valid: true, entries: 1 } },
+  });
+  ledger.listRuns = () => ["run1"];
+  const sealKey = Buffer.from("aa".repeat(32), "hex");
+  const harness = await startApp({ evidenceLedger: ledger, sealKey });
+  try {
+    const { body } = await postJSON(`${harness.base}/api/audit/runs/run1/export`, {});
+    assert.equal(body.bundle.seal.alg, "HMAC-SHA256");
+    assert.match(body.bundle.seal.value, /^[0-9a-f]{64}$/);
+  } finally {
+    await harness.close();
+  }
+});
+
+test("GOV-AUDIT-0: POST window export 400 when both bounds missing", async () => {
+  const ledger = makeStubLedger();
+  ledger.listRuns = () => [];
+  const harness = await startApp({ evidenceLedger: ledger });
+  try {
+    const { status, body } = await postJSON(`${harness.base}/api/audit/export`, {});
+    assert.equal(status, 400);
+    assert.equal(body.error, AUDIT_ERROR_CODES.invalid_window);
+  } finally {
+    await harness.close();
+  }
+});
+
+test("GOV-AUDIT-0: POST window export filters across runs by entry.at", async () => {
+  const ledger = {
+    read: (runId) => ({
+      r1: [{ eventId: "r1-1", at: "2026-04-30T00:00:00Z", type: "x" }],
+      r2: [
+        { eventId: "r2-1", at: "2026-04-30T01:00:00Z", type: "y" },
+        { eventId: "r2-2", at: "2026-05-15T00:00:00Z", type: "y" }, // outside
+      ],
+    })[runId] || [],
+    verifyChain: (runId) => ({ valid: true, entries: ({ r1: 1, r2: 2 })[runId] || 0 }),
+    listRuns: () => ["r1", "r2"],
+  };
+  const harness = await startApp({ evidenceLedger: ledger });
+  try {
+    const { status, body } = await postJSON(`${harness.base}/api/audit/export`, {
+      windowFromAt: "2026-04-30T00:00:00Z",
+      windowToAt: "2026-04-30T23:59:59Z",
+    });
+    assert.equal(status, 200);
+    assert.equal(body.bundle.mode, "byWindow");
+    assert.equal(body.bundle.totalEntries, 2);
+    assert.deepEqual(body.bundle.entries.map((e) => e.eventId), ["r1-1", "r2-1"]);
+  } finally {
+    await harness.close();
+  }
 });
