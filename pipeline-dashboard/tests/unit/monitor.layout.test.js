@@ -863,6 +863,242 @@ test("UX-2-c: approvalCard.create that throws surfaces error but layout survives
   assert.equal(handle._approvalHandle, null);
 });
 
+// ── Slice UI-H1: shell mode foundation ─────────────────────────
+
+test("UI-H1: default mode is 'advanced' (preserves existing behavior)", async () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  const handle = mount({
+    root, store, normalize,
+    hydrate: () => Promise.resolve({ snapshot: store.snapshot(), raw: {} }),
+    doc,
+    // mode omitted — should default to "advanced"
+  });
+  await handle.hydrationPromise;
+  assert.equal(handle._mode, "advanced");
+  // Shell-body is mounted in advanced mode
+  assert.equal(root._findAllByClass("shell-body").length, 1);
+  assert.equal(root._findAllByClass("shell-dock").length, 1);
+  assert.equal(root._findAllByClass("simple-shell-mount").length, 0);
+});
+
+test("UI-H1: mode='advanced' mounts run-tree, run-summary, timeline, etc.", async () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  let runTreeMounted = false, timelineMounted = false, agentTreeMounted = false;
+  const handle = mount({
+    root, store, normalize,
+    hydrate: () => Promise.resolve({ snapshot: store.snapshot(), raw: {} }),
+    doc,
+    mode: "advanced",
+    panels: {
+      runTree: { create: () => { runTreeMounted = true; return { destroy() {} }; } },
+      timeline: { create: () => { timelineMounted = true; return { destroy() {} }; } },
+      agentTree: { create: () => { agentTreeMounted = true; return { destroy() {} }; } },
+    },
+  });
+  await handle.hydrationPromise;
+  assert.ok(runTreeMounted, "run-tree must mount in advanced mode");
+  assert.ok(timelineMounted, "timeline must mount in advanced mode");
+  assert.ok(agentTreeMounted, "agent-tree must mount in advanced mode");
+});
+
+test("UI-H1: mode='simple' mounts simple-shell-mount placeholder, NOT shell-body", async () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  const handle = mount({
+    root, store, normalize,
+    hydrate: () => Promise.resolve({ snapshot: store.snapshot(), raw: {} }),
+    doc,
+    mode: "simple",
+  });
+  await handle.hydrationPromise;
+  assert.equal(handle._mode, "simple");
+  // Simple mount present, advanced shell-body absent
+  assert.equal(root._findAllByClass("simple-shell-mount").length, 1);
+  assert.equal(root._findAllByClass("shell-body").length, 0);
+  assert.equal(root._findAllByClass("shell-dock").length, 0);
+  assert.equal(root._findAllByClass("simple-shell-placeholder").length, 1);
+});
+
+test("UI-H1: mode='simple' does NOT mount run-tree / timeline / agent-tree", async () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  let runTreeMounted = false, timelineMounted = false, agentTreeMounted = false;
+  const handle = mount({
+    root, store, normalize,
+    hydrate: () => Promise.resolve({ snapshot: store.snapshot(), raw: {} }),
+    doc,
+    mode: "simple",
+    panels: {
+      runTree: { create: () => { runTreeMounted = true; return { destroy() {} }; } },
+      timeline: { create: () => { timelineMounted = true; return { destroy() {} }; } },
+      agentTree: { create: () => { agentTreeMounted = true; return { destroy() {} }; } },
+    },
+  });
+  await handle.hydrationPromise;
+  assert.equal(runTreeMounted, false);
+  assert.equal(timelineMounted, false);
+  assert.equal(agentTreeMounted, false);
+});
+
+test("UI-H1: mode='simple' STILL mounts global-bar, mode-toggle, approval-card, settings", async () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  let globalBarMounted = false, approvalMounted = false, settingsMounted = false;
+  const handle = mount({
+    root, store, normalize,
+    hydrate: () => Promise.resolve({ snapshot: store.snapshot(), raw: {} }),
+    doc,
+    mode: "simple",
+    panels: {
+      globalBar: { create: () => { globalBarMounted = true; return { destroy() {} }; } },
+      approvalCard: { create: () => { approvalMounted = true; return { destroy() {} }; } },
+      settingsAccounts: { create: () => { settingsMounted = true; return { destroy() {} }; } },
+    },
+  });
+  await handle.hydrationPromise;
+  assert.ok(globalBarMounted, "global-bar mounts in simple mode");
+  assert.ok(approvalMounted, "approval-card mounts in simple mode");
+  assert.ok(settingsMounted, "settings-accounts mounts in simple mode");
+});
+
+test("UI-H1: mode='legacy' short-circuits — no shell DOM, no panels", async () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  let anyPanelMounted = false;
+  const stubPanel = {
+    create: () => { anyPanelMounted = true; return { destroy() {} }; },
+  };
+  const handle = mount({
+    root, store, normalize,
+    hydrate: () => Promise.resolve({ snapshot: store.snapshot(), raw: {} }),
+    doc,
+    mode: "legacy",
+    panels: {
+      globalBar: stubPanel, runTree: stubPanel, timeline: stubPanel,
+      agentTree: stubPanel, approvalCard: stubPanel,
+    },
+  });
+  await handle.hydrationPromise;
+  assert.equal(handle._mode, "legacy");
+  assert.equal(anyPanelMounted, false, "legacy mode mounts no panels");
+  assert.equal(root.children.length, 0, "legacy mode leaves DOM untouched");
+  // Shell classes NOT applied
+  assert.equal(root.classList.contains("monitor-shell"), false);
+  assert.equal(root.classList.contains("is-active"), false);
+  // Body class NOT applied
+  assert.equal(doc.body.classList.contains("monitor-active"), false);
+});
+
+test("UI-H1: legacy mode destroy() is safe (no panels to tear down)", async () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  const handle = mount({
+    root, store, normalize, doc, mode: "legacy",
+    hydrate: () => Promise.resolve({ snapshot: store.snapshot(), raw: {} }),
+  });
+  await handle.hydrationPromise;
+  assert.doesNotThrow(() => handle.destroy());
+});
+
+test("UI-H1: invalid mode falls back to 'advanced' (defensive)", async () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  const handle = mount({
+    root, store, normalize,
+    hydrate: () => Promise.resolve({ snapshot: store.snapshot(), raw: {} }),
+    doc,
+    mode: "garbage",
+  });
+  await handle.hydrationPromise;
+  assert.equal(handle._mode, "advanced");
+  assert.equal(root._findAllByClass("shell-body").length, 1);
+});
+
+test("UI-H1: mode-toggle region is mounted in BOTH simple AND advanced", async () => {
+  for (const mode of ["simple", "advanced"]) {
+    const doc = makeStubDoc();
+    const root = doc.createElement("div");
+    const store = createMonitorStore();
+    const handle = mount({
+      root, store, normalize,
+      hydrate: () => Promise.resolve({ snapshot: store.snapshot(), raw: {} }),
+      doc,
+      mode,
+    });
+    await handle.hydrationPromise;
+    const region = root._findAllByClass("mode-toggle-mount");
+    assert.equal(region.length, 1, `mode-toggle-mount should exist in ${mode}`);
+    assert.equal(handle._modeToggleMount, region[0]);
+  }
+});
+
+test("UI-H1: panels.modeToggle override is invoked + handle exposed", async () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  let captured = null;
+  const stubModeToggle = {
+    create(opts) { captured = opts; return { destroy() { captured = null; } }; },
+  };
+  const handle = mount({
+    root, store, normalize,
+    hydrate: () => Promise.resolve({ snapshot: store.snapshot(), raw: {} }),
+    doc, mode: "advanced",
+    panels: { modeToggle: stubModeToggle },
+  });
+  await handle.hydrationPromise;
+  assert.ok(captured, "modeToggle.create was invoked");
+  assert.equal(captured.root, handle._modeToggleMount);
+  assert.equal(captured.currentMode, "advanced");
+  // destroy unmounts the panel
+  handle.destroy();
+  assert.equal(captured, null);
+});
+
+test("UI-H1: modeToggle.create that throws surfaces error but layout survives", async () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  const stubModeToggle = {
+    create() { throw new Error("toggle init blew up"); },
+  };
+  const handle = mount({
+    root, store, normalize,
+    hydrate: () => Promise.resolve({ snapshot: store.snapshot(), raw: {} }),
+    doc,
+    panels: { modeToggle: stubModeToggle },
+  });
+  await handle.hydrationPromise;
+  // Layout did NOT crash
+  assert.ok(handle._errorBox);
+  // mode-toggle handle is null after failed mount
+  assert.equal(handle._modeToggleHandle, null);
+});
+
+test("UI-H1: mode-X class added to root + body for theme + density adjustments", async () => {
+  const doc = makeStubDoc();
+  const root = doc.createElement("div");
+  const store = createMonitorStore();
+  const handle = mount({
+    root, store, normalize,
+    hydrate: () => Promise.resolve({ snapshot: store.snapshot(), raw: {} }),
+    doc, mode: "simple",
+  });
+  await handle.hydrationPromise;
+  assert.ok(root.classList.contains("mode-simple"));
+  assert.ok(doc.body.classList.contains("monitor-mode-simple"));
+});
+
 test("MC1: bootstrap-time selectedRunId triggers an initial detail fetch", async () => {
   const doc = makeStubDoc();
   const root = doc.createElement("div");

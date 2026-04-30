@@ -120,10 +120,92 @@ test("D3-a: /api/server/info ALWAYS exposes profile/deployment/bridge/remote (ba
     assert.equal(body.remote.mode, "off");
     assert.equal(body.remote.activeRunnerCount, 0);
 
+    // Slice UI-H1: monitor.envDefault is always present.
+    assert.ok(body.monitor, "monitor field is always present");
+    assert.equal(typeof body.monitor.envDefault, "string");
+
     // No regression on MA0 / R2.5-e fields.
     assert.deepEqual(body.activeChildren, []);
     assert.deepEqual(body.hookStats, {});
   } finally { server.close(); }
+});
+
+// ─────────────────────────────────────────────────────────────────
+//  Slice UI-H1 — MONITOR BLOCK
+// ─────────────────────────────────────────────────────────────────
+
+test("UI-H1: monitor.envDefault defaults to 'simple' when HARNESS_MONITOR_MODE unset", async () => {
+  const saved = process.env.HARNESS_MONITOR_MODE;
+  delete process.env.HARNESS_MONITOR_MODE;
+  try {
+    const { server, port } = await startApp({});
+    try {
+      const { body } = await get(port, "/api/server/info");
+      assert.equal(body.monitor.envDefault, "simple");
+    } finally { server.close(); }
+  } finally {
+    if (saved !== undefined) process.env.HARNESS_MONITOR_MODE = saved;
+  }
+});
+
+test("UI-H1: monitor.envDefault echoes HARNESS_MONITOR_MODE=advanced", async () => {
+  const saved = process.env.HARNESS_MONITOR_MODE;
+  process.env.HARNESS_MONITOR_MODE = "advanced";
+  try {
+    const { server, port } = await startApp({});
+    try {
+      const { body } = await get(port, "/api/server/info");
+      assert.equal(body.monitor.envDefault, "advanced");
+    } finally { server.close(); }
+  } finally {
+    if (saved === undefined) delete process.env.HARNESS_MONITOR_MODE;
+    else process.env.HARNESS_MONITOR_MODE = saved;
+  }
+});
+
+test("UI-H1: monitor.envDefault accepts 'legacy' as a valid mode", async () => {
+  const saved = process.env.HARNESS_MONITOR_MODE;
+  process.env.HARNESS_MONITOR_MODE = "legacy";
+  try {
+    const { server, port } = await startApp({});
+    try {
+      const { body } = await get(port, "/api/server/info");
+      assert.equal(body.monitor.envDefault, "legacy");
+    } finally { server.close(); }
+  } finally {
+    if (saved === undefined) delete process.env.HARNESS_MONITOR_MODE;
+    else process.env.HARNESS_MONITOR_MODE = saved;
+  }
+});
+
+test("UI-H1: monitor.envDefault falls back to 'simple' for garbage env values", async () => {
+  const saved = process.env.HARNESS_MONITOR_MODE;
+  process.env.HARNESS_MONITOR_MODE = "pro";  // not in valid set
+  try {
+    const { server, port } = await startApp({});
+    try {
+      const { body } = await get(port, "/api/server/info");
+      assert.equal(body.monitor.envDefault, "simple");
+    } finally { server.close(); }
+  } finally {
+    if (saved === undefined) delete process.env.HARNESS_MONITOR_MODE;
+    else process.env.HARNESS_MONITOR_MODE = saved;
+  }
+});
+
+test("UI-H1: monitor.envDefault is case-insensitive (trims + lowercases)", async () => {
+  const saved = process.env.HARNESS_MONITOR_MODE;
+  process.env.HARNESS_MONITOR_MODE = "  ADVANCED  ";
+  try {
+    const { server, port } = await startApp({});
+    try {
+      const { body } = await get(port, "/api/server/info");
+      assert.equal(body.monitor.envDefault, "advanced");
+    } finally { server.close(); }
+  } finally {
+    if (saved === undefined) delete process.env.HARNESS_MONITOR_MODE;
+    else process.env.HARNESS_MONITOR_MODE = saved;
+  }
 });
 
 // ─────────────────────────────────────────────────────────────────

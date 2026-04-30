@@ -125,6 +125,18 @@
     // Slice MC1: per-run detail hydrate override (tests) + TTL config.
     runDetailHydrate,
     runDetailTtlMs = 30000,
+    // Slice UI-H1 (Phase D / Phase E1.5, 2026-04-30): shell mode.
+    //
+    //   "advanced" (default) — existing 9-panel layout (today's behavior)
+    //   "simple"             — operator-friendly skeleton (UI-H6 fills cards)
+    //   "legacy"             — bypass the monitor shell entirely; the
+    //                          legacy app.js DOM is untouched
+    //
+    // Resolved by callers via HarnessMonitorMode.resolveMode (URL >
+    // localStorage > envDefault > "simple"). Mount accepts the resolved
+    // value; defaults to "advanced" so existing tests + ?monitor=1
+    // direct mounts keep their behavior.
+    mode = "advanced",
   } = {}) {
     if (!root || typeof root.appendChild !== "function") {
       throw new Error("HarnessMonitorLayout.mount: root must be an element");
@@ -137,13 +149,34 @@
       throw new Error("HarnessMonitorLayout.mount: no document available");
     }
 
+    // Slice UI-H1: legacy mode short-circuits the shell mount entirely.
+    // The existing app.js view is shown unmodified — exactly today's
+    // pre-monitor behavior. Operators who explicitly set ?mode=legacy
+    // (or HARNESS_MONITOR_MODE=legacy) are opting out of every UI-H
+    // surface; this branch is the operator's escape hatch.
+    if (mode === "legacy") {
+      return {
+        hydrationPromise: Promise.resolve({ mode: "legacy", legacy: true }),
+        destroy() { /* nothing to tear down — DOM untouched */ },
+        _mode: "legacy",
+      };
+    }
+
+    // Sanitize: anything other than "simple" / "advanced" / "legacy"
+    // collapses to "advanced" (the historical default). Garbage from a
+    // future caller can't trap the operator on a broken mode.
+    const _validModes = ["simple", "advanced"];
+    const _mode = _validModes.includes(mode) ? mode : "advanced";
+
     // ── Activate the shell + push the existing dashboard down ──
     root.classList.add("monitor-shell");
     root.classList.add("is-active");
+    root.classList.add("mode-" + _mode);
     if (typeof root.removeAttribute === "function") root.removeAttribute("hidden");
     const body = _doc.body || (root.ownerDocument && root.ownerDocument.body);
     if (body && body.classList && typeof body.classList.add === "function") {
       body.classList.add("monitor-active");
+      body.classList.add("monitor-mode-" + _mode);
     }
 
     // ── Build the skeleton ──
@@ -151,6 +184,18 @@
     globalBarRoot.className = "global-bar";
     globalBarRoot.setAttribute("role", "region");
     globalBarRoot.setAttribute("aria-label", "Monitor global bar");
+
+    // Slice UI-H1: mode-toggle region. Sibling of the global-bar so
+    // the existing global-bar panel doesn't have to know about modes
+    // (low coupling). Mounted in BOTH simple AND advanced — operators
+    // can switch from either side. Legacy mode short-circuits before
+    // this code runs (nothing to mount; the legacy app.js handles its
+    // own UI).
+    const modeToggleMount = _doc.createElement("div");
+    modeToggleMount.className = "mode-toggle-mount";
+    modeToggleMount.setAttribute("role", "region");
+    modeToggleMount.setAttribute("aria-label", "Monitor mode selector");
+
     const errorBox = _doc.createElement("div");
     errorBox.className = "gb-error";
     errorBox.setAttribute("hidden", "");
@@ -263,10 +308,28 @@
 
     root.innerHTML = "";
     root.appendChild(globalBarRoot);
+    root.appendChild(modeToggleMount);
     root.appendChild(errorBox);
     root.appendChild(approvalMount);
-    root.appendChild(shellBody);
-    root.appendChild(shellDock);
+    // Slice UI-H1: shell-body + shell-dock are advanced-only. Simple
+    // mode renders a placeholder until UI-H6 fills out the cards.
+    if (_mode === "advanced") {
+      root.appendChild(shellBody);
+      root.appendChild(shellDock);
+    } else {
+      // Simple shell placeholder. UI-H6 will replace this with the
+      // 5-card layout. For now operators see a "Simple mode is loading"
+      // hint so they know they're on the right page.
+      const simpleMount = _doc.createElement("div");
+      simpleMount.className = "simple-shell-mount";
+      simpleMount.setAttribute("role", "region");
+      simpleMount.setAttribute("aria-label", "Simple dashboard");
+      const placeholder = _doc.createElement("div");
+      placeholder.className = "simple-shell-placeholder";
+      placeholder.textContent = "Simple Mode (UI-H6 will populate cards)";
+      simpleMount.appendChild(placeholder);
+      root.appendChild(simpleMount);
+    }
     root.appendChild(settingsMount);
 
     // Slice MB4-a: keyed error sources so hydrate's success-path doesn't
@@ -322,6 +385,25 @@
       });
     }
 
+    // ── Slice UI-H1: mount the mode-toggle panel ──
+    // Mounted in BOTH simple AND advanced modes. Operators can switch
+    // from either side; clicking persists to localStorage + reloads.
+    let modeToggleHandle = null;
+    const ModeToggle = _resolvePanel(panels, "modeToggle", "HarnessMonitorModeToggle");
+    if (ModeToggle) {
+      try {
+        modeToggleHandle = ModeToggle.create({
+          root: modeToggleMount,
+          currentMode: _mode,
+          doc: _doc,
+        });
+      } catch (err) {
+        // Never break the layout if the mode-toggle panel fails to
+        // mount — the rest of the monitor still works without it.
+        showError("mode toggle: " + (err && err.message ? err.message : "init failed"), "modeToggle");
+      }
+    }
+
     // Slice UX-2-c (Phase D R3 + E1.5, 2026-04-29): mount the approval
     // card panel into the dedicated region. Always-live subscription
     // to the store; renders cards as approval_requested broadcasts
@@ -370,87 +452,98 @@
       }
     }
 
-    // ── Slice MA4: mount the run-tree (left rail) + run-summary (centre) ──
-    // Slice MA6: run-tree mounts to .run-tree-mount inside the rail
-    // section instead of the whole rail (agent-tree gets its own
-    // sibling section below).
+    // ── Advanced-only panels (run-tree / run-summary / timeline /
+    //    inspector / bottom-dock / agent-tree) ──
+    //
+    // Slice UI-H1: these panels mount only when _mode === "advanced".
+    // Simple mode renders a placeholder via `simpleMount` above; UI-H6
+    // populates that with operator-friendly cards. The shell-body /
+    // shell-dock DOM nodes don't exist in simple mode, so attempting
+    // to mount these panels there would fail — gate the mounts.
     let runTreeHandle = null;
-    const RunTree = _resolvePanel(panels, "runTree", "HarnessMonitorRunTree");
-    if (RunTree) {
-      runTreeHandle = RunTree.create({
-        root: runTreeMount,
-        store,
-        doc: _doc,
-        onSelect(runId) {
-          // Wire to the store so the run-summary panel re-renders on its
-          // own subscription. We don't carry selection state in layout —
-          // the store is the single source of truth.
-          if (typeof store.selectRun === "function") store.selectRun(runId);
-          // Slice MC1: pull the server-authoritative detail (findings +
-          // children + subagents + replayMeta) so agent-tree + run-
-          // summary light up with real data instead of stale bootstrap.
-          _ensureRunDetailHydrated(runId);
-        },
-      });
-    }
-
     let runSummaryHandle = null;
-    const RunSummary = _resolvePanel(panels, "runSummary", "HarnessMonitorRunSummary");
-    if (RunSummary) {
-      runSummaryHandle = RunSummary.create({
-        root: cwSummary,    // MA5: was centerWs; now mounts to cw-summary subregion
-        store,
-        doc: _doc,
-      });
-    }
-
-    // ── Slice MA5: timeline (centre bottom), inspector (right), bottom-dock (below) ──
     let timelineHandle = null;
-    const Timeline = _resolvePanel(panels, "timeline", "HarnessMonitorTimeline");
-    if (Timeline) {
-      timelineHandle = Timeline.create({
-        root: cwTimeline,
-        store,
-        doc: _doc,
-        onSelect(env) {
-          if (typeof store.selectItem === "function") store.selectItem("event", env);
-        },
-      });
-    }
-
     let inspectorHandle = null;
-    const Inspector = _resolvePanel(panels, "inspector", "HarnessMonitorInspector");
-    if (Inspector) {
-      inspectorHandle = Inspector.create({
-        root: rightInspector,
-        store,
-        doc: _doc,
-      });
-    }
-
     let bottomDockHandle = null;
-    const BottomDock = _resolvePanel(panels, "bottomDock", "HarnessMonitorBottomDock");
-    if (BottomDock) {
-      bottomDockHandle = BottomDock.create({
-        root: shellDock,
-        store,
-        doc: _doc,
-      });
-    }
-
-    // ── Slice MA6: agent-tree (left rail bottom) ──
     let agentTreeHandle = null;
-    const AgentTree = _resolvePanel(panels, "agentTree", "HarnessMonitorAgentTree");
-    if (AgentTree) {
-      agentTreeHandle = AgentTree.create({
-        root: agentTreeMount,
-        store,
-        doc: _doc,
-        onSelect(kind, payload) {
-          // child / subagent → store.selectItem, inspector picks it up.
-          if (typeof store.selectItem === "function") store.selectItem(kind, payload);
-        },
-      });
+
+    if (_mode === "advanced") {
+      // ── Slice MA4: mount the run-tree (left rail) + run-summary (centre) ──
+      // Slice MA6: run-tree mounts to .run-tree-mount inside the rail
+      // section instead of the whole rail (agent-tree gets its own
+      // sibling section below).
+      const RunTree = _resolvePanel(panels, "runTree", "HarnessMonitorRunTree");
+      if (RunTree) {
+        runTreeHandle = RunTree.create({
+          root: runTreeMount,
+          store,
+          doc: _doc,
+          onSelect(runId) {
+            // Wire to the store so the run-summary panel re-renders on its
+            // own subscription. We don't carry selection state in layout —
+            // the store is the single source of truth.
+            if (typeof store.selectRun === "function") store.selectRun(runId);
+            // Slice MC1: pull the server-authoritative detail (findings +
+            // children + subagents + replayMeta) so agent-tree + run-
+            // summary light up with real data instead of stale bootstrap.
+            _ensureRunDetailHydrated(runId);
+          },
+        });
+      }
+
+      const RunSummary = _resolvePanel(panels, "runSummary", "HarnessMonitorRunSummary");
+      if (RunSummary) {
+        runSummaryHandle = RunSummary.create({
+          root: cwSummary,    // MA5: was centerWs; now mounts to cw-summary subregion
+          store,
+          doc: _doc,
+        });
+      }
+
+      // ── Slice MA5: timeline (centre bottom), inspector (right), bottom-dock (below) ──
+      const Timeline = _resolvePanel(panels, "timeline", "HarnessMonitorTimeline");
+      if (Timeline) {
+        timelineHandle = Timeline.create({
+          root: cwTimeline,
+          store,
+          doc: _doc,
+          onSelect(env) {
+            if (typeof store.selectItem === "function") store.selectItem("event", env);
+          },
+        });
+      }
+
+      const Inspector = _resolvePanel(panels, "inspector", "HarnessMonitorInspector");
+      if (Inspector) {
+        inspectorHandle = Inspector.create({
+          root: rightInspector,
+          store,
+          doc: _doc,
+        });
+      }
+
+      const BottomDock = _resolvePanel(panels, "bottomDock", "HarnessMonitorBottomDock");
+      if (BottomDock) {
+        bottomDockHandle = BottomDock.create({
+          root: shellDock,
+          store,
+          doc: _doc,
+        });
+      }
+
+      // ── Slice MA6: agent-tree (left rail bottom) ──
+      const AgentTree = _resolvePanel(panels, "agentTree", "HarnessMonitorAgentTree");
+      if (AgentTree) {
+        agentTreeHandle = AgentTree.create({
+          root: agentTreeMount,
+          store,
+          doc: _doc,
+          onSelect(kind, payload) {
+            // child / subagent → store.selectItem, inspector picks it up.
+            if (typeof store.selectItem === "function") store.selectItem(kind, payload);
+          },
+        });
+      }
     }
 
     // ── Slice MB4-a: install the legacy bridge BEFORE hydration so any
@@ -528,6 +621,8 @@
       hydrationPromise,
       destroy() {
         try { panelHandle && panelHandle.destroy && panelHandle.destroy(); } catch (_) {}
+        // Slice UI-H1: tear down mode-toggle alongside the global-bar.
+        try { modeToggleHandle && modeToggleHandle.destroy && modeToggleHandle.destroy(); } catch (_) {}
         try { runTreeHandle && runTreeHandle.destroy && runTreeHandle.destroy(); } catch (_) {}
         try { runSummaryHandle && runSummaryHandle.destroy && runSummaryHandle.destroy(); } catch (_) {}
         try { timelineHandle && timelineHandle.destroy && timelineHandle.destroy(); } catch (_) {}
@@ -570,6 +665,10 @@
       // Slice UX-2-c: approval region + handle exposed for tests.
       _approvalMount: approvalMount,
       _approvalHandle: approvalHandle,
+      // Slice UI-H1: shell-mode + mode-toggle exposed for tests.
+      _mode,
+      _modeToggleMount: modeToggleMount,
+      _modeToggleHandle: modeToggleHandle,
       // MB4-a hooks
       _bridgeHandle: bridgeHandle,
       // MC1 hooks — tests inspect dedupe/TTL state directly

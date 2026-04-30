@@ -118,6 +118,14 @@ function createServerControlRoutes({
       deployment,
       bridge,
       remote,
+      // Slice UI-H1 (Phase D / E1.5, 2026-04-30): monitor shell mode
+      // default. Read from HARNESS_MONITOR_MODE env at request time.
+      // Resolution priority on the client:
+      //   URL ?mode= > localStorage > envDefault (this) > "simple"
+      // Operators set this in the deployment env (e.g.,
+      // public-sector-secure deployments may want HARNESS_MONITOR_MODE=
+      // simple as default; power-user dev boxes may set "advanced").
+      monitor: _summarizeMonitor(),
     });
   });
 
@@ -129,6 +137,17 @@ function createServerControlRoutes({
 // Each summarizer returns a STABLE-SHAPE object even when the dep is
 // missing. The monitor shell can render `body.profile.count` without
 // having to defensively check `body.profile != null` first.
+
+// Slice UI-H1 (Phase D / Phase E1.5, 2026-04-30): monitor shell mode
+// default. Reads HARNESS_MONITOR_MODE env at request time and returns
+// a normalized value. Garbage values fall through to "simple" (the
+// operator-friendly default per docs/ui-h-redesign-plan.md §2.2).
+function _summarizeMonitor() {
+  const VALID = ["simple", "advanced", "legacy"];
+  const raw = String(process.env.HARNESS_MONITOR_MODE || "").trim().toLowerCase();
+  const envDefault = VALID.includes(raw) ? raw : "simple";
+  return { envDefault };
+}
 
 function _summarizeProfile({ profileStore, credentialStore }) {
   const out = {
@@ -215,6 +234,7 @@ module.exports = {
   // Helpers exposed for unit tests
   _summarizeProfile,
   _summarizeDeployment,
+  _summarizeMonitor,
   _summarizeBridge,
   _summarizeRemote,
 };

@@ -460,6 +460,13 @@
        requests from remote runners with PII context badges. CSP-safe
        (external src). -->
   <script src="js/monitor/panels/approval-card.js"></script>
+  <!-- Slice UI-H1 (Phase D / Phase E1.5, 2026-04-30): shell mode
+       foundation. mode.js resolves URL ?mode= > localStorage >
+       envDefault > "simple"; mode-toggle panel lets the operator
+       switch via pill buttons. Loaded BEFORE layout.js so the init
+       script can read HarnessMonitorMode.resolveMode synchronously. -->
+  <script src="js/monitor/mode.js"></script>
+  <script src="js/monitor/panels/mode-toggle.js"></script>
   <script src="js/monitor/layout.js"></script>
   <script>
   (function () {
@@ -489,12 +496,33 @@
       }
 
       var store = window.HarnessMonitorStore.createMonitorStore();
+
+      // Slice UI-H1: resolve shell mode (URL > localStorage > envDefault
+      // > "simple"). The envDefault arrives via /api/server/info's
+      // monitor.envDefault field, but we resolve mode synchronously
+      // here from URL + localStorage first; the bridge's first
+      // refresh() will fold envDefault in for next-load. For the
+      // current page-load, anything not URL/localStorage falls back
+      // to "simple" (operator-friendly default per the plan).
+      var resolvedMode = "simple";
+      try {
+        if (window.HarnessMonitorMode && typeof window.HarnessMonitorMode.resolveMode === "function") {
+          resolvedMode = window.HarnessMonitorMode.resolveMode({
+            location: window.location,
+            storage: window.localStorage,
+            // envDefault: TBD — bridge fills it in async, doesn't
+            // affect this page-load's mode selection.
+          });
+        }
+      } catch (_) { resolvedMode = "simple"; }
+
       var handle = window.HarnessMonitorLayout.mount({
         root: rootEl,
         store: store,
         normalize: window.HarnessMonitorNormalizer.normalize,
+        mode: resolvedMode,
       });
-      window.__HarnessMonitor = { store: store, handle: handle };
+      window.__HarnessMonitor = { store: store, handle: handle, mode: resolvedMode };
     } catch (e) {
       try { console.error("[monitor] init failed:", e && e.message ? e.message : e); } catch (_) {}
     }
