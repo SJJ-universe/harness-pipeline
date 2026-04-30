@@ -759,6 +759,24 @@ const credentialStore = createCredentialStore({
   ledger: evidenceLedger,
 });
 
+// Slice TRUST-STORE-0-d (Phase E Round 2, 2026-04-30): manifest-signing
+// trust store. The launcher install path (E3-F1) reads the file the
+// operator manages here. Resolver shared with the launcher so both
+// agree on path under any env (HARNESS_TRUST_STORE / HARNESS_CONFIG_DIR
+// / OS default / portable install). Routes mounted further below.
+const { resolveTrustStorePath } = require("./src/runtime/trustStorePath");
+const { createTrustStore } = require("./src/runtime/trustStore");
+const _trustStoreResolved = resolveTrustStorePath({
+  // Explicit installDir hint = REPO_ROOT so the portable-install
+  // fallback finds a bundled trust-store.json next to harness-start.
+  // The resolver's existing priority chain still honors env overrides.
+  installDir: REPO_ROOT,
+});
+const trustStore = createTrustStore({
+  filePath: _trustStoreResolved.path,
+  ledger: evidenceLedger,
+});
+
 // Slice UI-H7-d (Phase D / Phase E1.5, 2026-04-30): the
 // reviewSessionManager is created upstream of the runners now (was
 // created at line ~1067 in MA4). Moved here so claude-runner +
@@ -1059,6 +1077,22 @@ app.use("/api", createProfileRoutes({
   credentialStore,
   ledger: evidenceLedger,
   isActiveRun: _isActiveRun,
+}));
+
+// Slice TRUST-STORE-0-c/d (Phase E Round 2, 2026-04-30): trust-store
+// management routes. Mounted under /api/trust-store. Public-sector
+// posture switches DELETE to a 2-step confirm flow + injects audit
+// emission via evidenceLedger so trust_store_* verbs land in the
+// signed chain. Standard posture omits the second step but still
+// emits the same key_added / _updated / _removed verbs.
+const { createTrustStoreRoutes } = require("./src/routes/trustStoreRoutes");
+app.use("/api", createTrustStoreRoutes({
+  trustStore,
+  audit: (verb, data) => {
+    try { evidenceLedger.append("system", { type: verb, data }); }
+    catch (_) { /* never break the route on ledger faults */ }
+  },
+  deploymentProfile: _deploymentProfile,
 }));
 
 // Slice D2-c (Phase E1.5, 2026-04-29): setup-wizard HTTP API. Mounted

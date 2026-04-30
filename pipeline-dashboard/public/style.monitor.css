@@ -2159,3 +2159,167 @@ body.monitor-active {
   color: var(--hsh-text-dim, rgba(232, 230, 225, 0.5));
   font-style: italic;
 }
+
+/* ── Slice TRUST-STORE-0-e: trust-store section in settings-accounts ──
+ * Styled with the same visual language as the run-viewer audit section
+ * (bronze accent for public-sector, red for warnings, green for OK).
+ * Only the new sa-trust-* classes are defined here — the surrounding
+ * sa-* container classes are intentionally unstyled and inherit from
+ * the modal frame.
+ */
+.sa-trust-store {
+  margin-top: 16px;
+  padding: 12px;
+  border: 1px solid var(--hsh-border, rgba(232, 230, 225, 0.18));
+  border-radius: var(--hsh-radius, 3px);
+  background: var(--hsh-surface-2, rgba(255, 255, 255, 0.02));
+}
+.sa-trust-store-public-sector {
+  border-color: var(--hsh-bronze, #C9A66B);
+}
+.sa-trust-header { margin-bottom: 8px; }
+.sa-trust-title {
+  font-size: var(--hsh-fs-lg, 13px);
+  margin: 0 0 4px;
+  color: var(--hsh-text, #E8E6E1);
+}
+.sa-trust-store-public-sector .sa-trust-title {
+  color: var(--hsh-bronze, #C9A66B);
+}
+.sa-trust-sub {
+  margin: 0;
+  font-size: var(--hsh-fs-sm, 10px);
+  color: var(--hsh-text-dim, rgba(232, 230, 225, 0.5));
+}
+.sa-trust-warn {
+  margin: 8px 0;
+  padding: 6px 10px;
+  background: rgba(232, 75, 75, 0.16);
+  color: var(--hsh-red, #E84B4B);
+  border-radius: var(--hsh-radius, 3px);
+  font-size: var(--hsh-fs-md, 11px);
+  font-weight: 600;
+}
+.sa-trust-error {
+  margin: 8px 0;
+  padding: 6px 10px;
+  background: rgba(232, 75, 75, 0.10);
+  color: var(--hsh-red, #E84B4B);
+  border-radius: var(--hsh-radius, 3px);
+  font-size: var(--hsh-fs-sm, 10px);
+}
+.sa-trust-confirm {
+  margin: 8px 0;
+  padding: 8px 10px;
+  background: rgba(201, 166, 107, 0.10);
+  border: 1px solid var(--hsh-bronze, #C9A66B);
+  border-radius: var(--hsh-radius, 3px);
+}
+.sa-trust-confirm p {
+  margin: 0 0 6px;
+  font-size: var(--hsh-fs-md, 11px);
+}
+.sa-trust-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sa-trust-empty {
+  padding: 6px 8px;
+  color: var(--hsh-text-dim, rgba(232, 230, 225, 0.5));
+  font-size: var(--hsh-fs-sm, 10px);
+  font-style: italic;
+}
+.sa-trust-row {
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: var(--hsh-radius, 3px);
+  font-size: var(--hsh-fs-md, 11px);
+}
+.sa-trust-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.sa-trust-row-id {
+  font-family: var(--hsh-font-mono, ui-monospace, monospace);
+  color: var(--hsh-text-dim, rgba(232, 230, 225, 0.6));
+  margin-right: 6px;
+}
+.sa-trust-row-label {
+  flex: 1 0 auto;
+  color: var(--hsh-text, #E8E6E1);
+}
+.sa-trust-row-meta {
+  margin-top: 4px;
+  font-size: var(--hsh-fs-sm, 10px);
+  color: var(--hsh-text-dim, rgba(232, 230, 225, 0.5));
+}
+.sa-trust-row-label-input,
+.sa-trust-pk-input,
+.sa-trust-label-input {
+  background: var(--hsh-surface-1, rgba(0, 0, 0, 0.30));
+  border: 1px solid var(--hsh-border, rgba(232, 230, 225, 0.18));
+  color: var(--hsh-text, #E8E6E1);
+  padding: 4px 6px;
+  border-radius: var(--hsh-radius, 3px);
+  font-family: inherit;
+  font-size: inherit;
+}
+.sa-trust-pk-input {
+  width: 100%;
+  font-family: var(--hsh-font-mono, ui-monospace, monospace);
+  resize: vertical;
+}
+.sa-trust-label-input {
+  width: 100%;
+  margin-top: 6px;
+}
+.sa-trust-add {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--hsh-border, rgba(232, 230, 225, 0.18));
+}
+.sa-trust-add-title {
+  font-size: var(--hsh-fs-md, 11px);
+  margin: 0 0 4px;
+  color: var(--hsh-text, #E8E6E1);
+}
+.sa-trust-add-hint {
+  margin: 0 0 6px;
+  font-size: var(--hsh-fs-sm, 10px);
+  color: var(--hsh-text-dim, rgba(232, 230, 225, 0.5));
+}
+.sa-trust-btn {
+  appearance: none;
+  border: 1px solid var(--hsh-border, rgba(232, 230, 225, 0.18));
+  background: var(--hsh-surface-2, rgba(255, 255, 255, 0.04));
+  color: var(--hsh-text, #E8E6E1);
+  padding: 4px 10px;
+  border-radius: var(--hsh-radius, 3px);
+  font-family: inherit;
+  font-size: var(--hsh-fs-sm, 10px);
+  cursor: pointer;
+}
+.sa-trust-btn:hover:not([disabled]) {
+  background: var(--hsh-surface-3, rgba(255, 255, 255, 0.08));
+}
+.sa-trust-btn[disabled] {
+  opacity: 0.6;
+  cursor: progress;
+}
+.sa-trust-btn-primary {
+  margin-top: 8px;
+  border-color: var(--hsh-text-dim, rgba(232, 230, 225, 0.4));
+}
+.sa-trust-btn-danger {
+  border-color: var(--hsh-red, #E84B4B);
+  color: var(--hsh-red, #E84B4B);
+}
+.sa-trust-btn-danger:hover:not([disabled]) {
+  background: rgba(232, 75, 75, 0.12);
+}
