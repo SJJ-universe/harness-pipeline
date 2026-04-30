@@ -759,6 +759,25 @@ const credentialStore = createCredentialStore({
   ledger: evidenceLedger,
 });
 
+// Slice UI-H7-d (Phase D / Phase E1.5, 2026-04-30): the
+// reviewSessionManager is created upstream of the runners now (was
+// created at line ~1067 in MA4). Moved here so claude-runner +
+// codex-runner can hold a reference at construction time. The actual
+// route mount + audit/broadcast wiring still happens at the original
+// location — see comment block there. This split is safe because
+// the manager doesn't depend on routes; routes depend on the manager.
+const { ReviewSessionManager } = require("./src/runtime/reviewSessionManager");
+const _reviewSessionManager = new ReviewSessionManager({
+  auditFn: (verb, data) => {
+    try { evidenceLedger.append("system", { type: verb, data }); }
+    catch (_) { /* never break the manager on ledger faults */ }
+  },
+  broadcastFn: (type, data) => {
+    try { broadcast({ type, data }); }
+    catch (_) { /* never break the manager on WS faults */ }
+  },
+});
+
 const codexRunner = new CodexRunner({
   runRegistry,
   repoRoot: REPO_ROOT,
@@ -769,6 +788,10 @@ const codexRunner = new CodexRunner({
   profileStore,
   credentialStore,
   ledger: evidenceLedger,
+  // UI-H7-d: when an exec opts.reviewSessionId is provided, codex
+  // stdout chunks pipe to manager.recordCodexChunk + close emits
+  // recordCritiqueReceived.
+  reviewSessionManager: _reviewSessionManager,
 });
 const claudeRunner = new ClaudeRunner({
   runRegistry,
@@ -779,6 +802,8 @@ const claudeRunner = new ClaudeRunner({
   profileStore,
   credentialStore,
   ledger: evidenceLedger,
+  // UI-H7-d: claude-side mirror.
+  reviewSessionManager: _reviewSessionManager,
 });
 
 // generalRunRef.active is set by pipelineRoutes — see above
@@ -1061,20 +1086,10 @@ app.use("/api", createApprovalRoutes({ approvalManager: _approvalManager }));
 // HTTP API. Five endpoints under /api/review-sessions/* per UI Plan
 // §UX-H4. Backs the Claude→Codex→Claude review relay flow.
 //
-// Manager wired with auditFn → evidenceLedger.append("system", ...)
-// + broadcastFn → broadcast({type, data}) so the audit chain + WS
-// stream both narrate session lifecycle in lockstep.
-const { ReviewSessionManager } = require("./src/runtime/reviewSessionManager");
-const _reviewSessionManager = new ReviewSessionManager({
-  auditFn: (verb, data) => {
-    try { evidenceLedger.append("system", { type: verb, data }); }
-    catch (_) { /* never break the manager on ledger faults */ }
-  },
-  broadcastFn: (type, data) => {
-    try { broadcast({ type, data }); }
-    catch (_) { /* never break the manager on WS faults */ }
-  },
-});
+// Slice UI-H7-d note (2026-04-30): the manager itself was hoisted
+// upstream so claude-runner + codex-runner can hold a reference at
+// construction time. Look for `_reviewSessionManager =` near the
+// runner construction. This block now only handles route mount.
 const { createReviewSessionRoutes } = require("./src/routes/reviewSessionRoutes");
 app.use("/api", createReviewSessionRoutes({
   reviewSessionManager: _reviewSessionManager,

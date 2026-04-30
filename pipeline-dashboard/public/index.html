@@ -479,6 +479,11 @@
        on the right. Operator input flows via UI-H4 review relay,
        NOT raw stdin (CSP-safe + policy-safe). -->
   <script src="js/monitor/event-filters.js"></script>
+  <!-- Slice UI-H7-b (Phase D / Phase E1.5, 2026-04-30): review-session
+       HTTP client. Powers the dual-agent-console action row. Loaded
+       BEFORE dual-agent-console so the panel can find
+       window.HarnessReviewSessionClient. -->
+  <script src="js/monitor/review-session-client.js"></script>
   <script src="js/monitor/panels/dual-agent-console.js"></script>
   <!-- Slice UI-H5 (Phase D / Phase E1.5, 2026-04-30): security-status
        card. Surfaces posture / sandbox / PII / approval pending

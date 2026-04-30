@@ -80,6 +80,13 @@ class CodexRunner {
     // Audit handle for emitting profile_spawn_env_built when profile-
     // mode is active.
     ledger = null,
+    // Slice UI-H7-d (Phase D / Phase E1.5, 2026-04-30): review-session
+    // manager handle. When wired AND opts.reviewSessionId is provided,
+    // exec() pipes stdout chunks to manager.recordCodexChunk() and
+    // emits manager.recordCritiqueReceived() on close. Same pattern as
+    // ClaudeRunner — see executor/claude-runner.js for the full
+    // rationale. When either is absent, the runner behaves as before.
+    reviewSessionManager = null,
   } = {}) {
     this.codexCommand = codexCommand;
     this.fallbackCommands = fallbackCommands || [
@@ -103,6 +110,7 @@ class CodexRunner {
     this.profileStore = profileStore;
     this.credentialStore = credentialStore;
     this.ledger = ledger;
+    this.reviewSessionManager = reviewSessionManager;
     this._resolvedSpec = null;
   }
 
@@ -135,7 +143,16 @@ class CodexRunner {
   }
 
   _tryExec(spec, prompt, opts = {}) {
-    const { timeoutMs, cwd, phaseId = null, iteration = 0, source = "phase", profileId } = opts;
+    const {
+      timeoutMs, cwd, phaseId = null, iteration = 0,
+      source = "phase", profileId,
+      // UI-H7-d: optional review-session hint. When present and the
+      // runner has a reviewSessionManager wired, stdout chunks pipe
+      // to manager.recordCodexChunk(reviewSessionId, {text}) and
+      // close emits manager.recordCritiqueReceived(reviewSessionId,
+      // {summary}). All wrapped in try/catch — never break the spawn.
+      reviewSessionId = null,
+    } = opts;
     return new Promise((resolve) => {
       // Slice D1-d (Phase E1, 2026-04-29): wrap the body in an async
       // IIFE so we can `await buildSpawnEnv(...)` between dangerGate
@@ -332,6 +349,14 @@ class CodexRunner {
             try { child.kill(); } catch (_) {}
           }, timeoutMs || this.defaultTimeoutMs);
 
+          // UI-H7-d: when both reviewSessionId + manager are present,
+          // pipe each chunk to recordCodexChunk. Defensive try/catch
+          // so a manager-side bug never breaks the spawn.
+          const _hasReviewHint =
+            reviewSessionId
+            && this.reviewSessionManager
+            && typeof this.reviewSessionManager.recordCodexChunk === "function";
+
           child.stdout.on("data", (chunk) => {
             const text = chunk.toString();
             if (finalOutBytes < this.maxFinalStdoutBytes) {
@@ -344,6 +369,13 @@ class CodexRunner {
             liveOut += text;
             if (liveOut.length + liveErr.length >= this.flushBytes) flush();
             else scheduleFlush();
+            if (_hasReviewHint) {
+              try {
+                this.reviewSessionManager.recordCodexChunk(
+                  reviewSessionId, { text },
+                );
+              } catch (_) { /* never break spawn on manager fault */ }
+            }
           });
 
           child.stderr.on("data", (chunk) => {
@@ -401,6 +433,29 @@ class CodexRunner {
               findings: this._extractFindings(stdout),
               _enoent: enoentLike,
             };
+            // UI-H7-d: emit recordCritiqueReceived only on successful close,
+            // and only when the review-session hint flow is active. The
+            // codex runner already extracts summary + findings via
+            // _extractSummary / _extractFindings — pass them through so
+            // the manager's severityCounts mirror the CLI critique parser.
+            // Defensive try/catch so a manager-side bug never breaks the
+            // result resolution.
+            if (
+              code === 0
+              && reviewSessionId
+              && this.reviewSessionManager
+              && typeof this.reviewSessionManager.recordCritiqueReceived === "function"
+            ) {
+              try {
+                this.reviewSessionManager.recordCritiqueReceived(
+                  reviewSessionId,
+                  {
+                    summary: result.summary || stdout.slice(0, 1024),
+                    severityCounts: _severityCountsFromFindings(result.findings),
+                  },
+                );
+              } catch (_) { /* never break result on manager fault */ }
+            }
             if (runId) this.runRegistry?.complete(runId, result);
             resolve(result);
           });
@@ -446,4 +501,28 @@ class CodexRunner {
   }
 }
 
-module.exports = { CodexRunner, defaultRedact, SECRET_PATTERNS };
+// UI-H7-d helper: convert _extractFindings output into the
+// severityCounts shape the reviewSessionManager expects:
+//   { critical, high, medium, low, note }
+// "note" is always 0 here — _extractFindings doesn't recognize it
+// (the regex only matches critical|high|medium|low), but the manager
+// stores it for consistency with other producers.
+function _severityCountsFromFindings(findings) {
+  const out = { critical: 0, high: 0, medium: 0, low: 0, note: 0 };
+  if (!Array.isArray(findings)) return out;
+  for (const f of findings) {
+    if (f && typeof f.severity === "string"
+        && Object.prototype.hasOwnProperty.call(out, f.severity)) {
+      out[f.severity]++;
+    }
+  }
+  return out;
+}
+
+module.exports = {
+  CodexRunner,
+  defaultRedact,
+  SECRET_PATTERNS,
+  // UI-H7-d test export
+  _severityCountsFromFindings,
+};

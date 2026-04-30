@@ -88,6 +88,11 @@
       // every approval_requested / approval_resolved that reached
       // the store.
       approvalSyncs: 0,
+      // Slice UI-H7-a: count review-session lifecycle + chunk syncs.
+      // Increments on every review_session_* / codex_stream_chunk /
+      // claude_stream_chunk / critique_received / handoff_to_claude_*
+      // that reached the store.
+      reviewSyncs: 0,
     };
     let unsubscribeTap = null;
     let intervalId = null;
@@ -195,8 +200,137 @@
       return false;
     }
 
+    // Slice UI-H7-a: review-session lifecycle + stream-chunk events
+    // → store.upsertReviewSession / store.appendReviewChunk.
+    //
+    // Returns true when the event was a known review-session type
+    // and was consumed. Stream chunks are HIGH volume and have their
+    // own slice (reviewStreams), so the bridge skips pushEvent for
+    // them. Lifecycle events are also consumed exclusively (the
+    // dual-agent-console reads reviewSessions, not the events ring).
+    //
+    // We treat ALL review-session-scoped events as consumed so the
+    // events ring (timeline) stays clean of relay noise. The
+    // dedicated review-relay panel (H7-c) is the single surface for
+    // review history.
+    function _syncReviewSessionFromEvent(event) {
+      if (!event || typeof event !== "object") return false;
+      const type = event.type;
+      const data = (event.data && typeof event.data === "object") ? event.data : {};
+      const sessionId = data.sessionId;
+      // Reject early when this isn't a review-session event. Every
+      // review broadcast carries `sessionId` per the manager contract.
+      if (typeof sessionId !== "string" || !sessionId) return false;
+
+      const now = Date.now();
+      switch (type) {
+        case "review_session_created": {
+          // Two semantic uses (per manager source):
+          //   - On create:    { sessionId, source, runId, label, createdAt }
+          //   - On sendCodex: { sessionId, state, dispatchedAt }
+          // We merge both; later events overwrite earlier fields.
+          if (typeof store.upsertReviewSession !== "function") return true;
+          const partial = { sessionId };
+          if (data.source !== undefined)     partial.source = data.source;
+          if (data.runId !== undefined)      partial.runId = data.runId;
+          if (data.label !== undefined)      partial.label = data.label;
+          if (data.createdAt !== undefined)  partial.createdAt = data.createdAt;
+          if (data.state !== undefined)      partial.state = data.state;
+          partial.lastActivityAt = data.dispatchedAt
+            || data.createdAt || now;
+          if (partial.state === undefined && data.createdAt !== undefined) {
+            // First-create payload — initialise state.
+            partial.state = "created";
+          }
+          try { store.upsertReviewSession(sessionId, partial); }
+          catch (_) { /* defensive */ }
+          stats.reviewSyncs++;
+          return true;
+        }
+        case "codex_stream_chunk": {
+          if (typeof store.appendReviewChunk !== "function") return true;
+          try {
+            store.appendReviewChunk(sessionId, "codex", {
+              chunk: data.chunk, seq: data.seq, ts: data.ts || now,
+            });
+          } catch (_) { /* defensive */ }
+          stats.reviewSyncs++;
+          return true;
+        }
+        case "claude_stream_chunk": {
+          if (typeof store.appendReviewChunk !== "function") return true;
+          try {
+            store.appendReviewChunk(sessionId, "claude", {
+              chunk: data.chunk, seq: data.seq, ts: data.ts || now,
+            });
+          } catch (_) { /* defensive */ }
+          stats.reviewSyncs++;
+          return true;
+        }
+        case "critique_received": {
+          if (typeof store.upsertReviewSession !== "function") return true;
+          try {
+            store.upsertReviewSession(sessionId, {
+              state: "critique_received",
+              critiqueSummary: data.summary || null,
+              critiqueSeverityCounts: data.severityCounts || null,
+              lastActivityAt: data.receivedAt || now,
+            });
+          } catch (_) { /* defensive */ }
+          stats.reviewSyncs++;
+          return true;
+        }
+        case "handoff_to_claude_requested": {
+          if (typeof store.upsertReviewSession !== "function") return true;
+          try {
+            store.upsertReviewSession(sessionId, {
+              state: "awaiting_claude",
+              includeCritique: !!data.includeCritique,
+              lastActivityAt: data.dispatchedAt || now,
+            });
+          } catch (_) { /* defensive */ }
+          stats.reviewSyncs++;
+          return true;
+        }
+        case "handoff_to_claude_completed": {
+          if (typeof store.upsertReviewSession !== "function") return true;
+          try {
+            store.upsertReviewSession(sessionId, {
+              state: "claude_received",
+              claudeSummary: data.summary
+                ? { summary: data.summary, completedAt: data.completedAt || now }
+                : null,
+              lastActivityAt: data.completedAt || now,
+            });
+          } catch (_) { /* defensive */ }
+          stats.reviewSyncs++;
+          return true;
+        }
+        case "review_session_archived": {
+          if (typeof store.upsertReviewSession !== "function") return true;
+          try {
+            store.upsertReviewSession(sessionId, {
+              state: "archived",
+              archivedAt: data.archivedAt || now,
+              archiveReason: data.reason || null,
+              lastActivityAt: data.archivedAt || now,
+            });
+          } catch (_) { /* defensive */ }
+          stats.reviewSyncs++;
+          return true;
+        }
+        default:
+          return false;
+      }
+    }
+
     // ── 1. Wildcard tap → store.pushEvent + run sync ──
     function _onLegacyEvent(event) {
+      // Slice UI-H7-a: review-session events take precedence — they
+      // have their own slice (reviewSessions / reviewStreams). Skip
+      // pushEvent + run sync for them so high-volume stream chunks
+      // don't pollute the events ring.
+      if (_syncReviewSessionFromEvent(event)) return;
       // Slice UX-2-a: approval events take precedence — they have
       // their own slice (pendingApprovals) and don't go through the
       // generic events ring. Skip pushEvent + run sync for them.
@@ -319,6 +453,8 @@
       // Slice MC2: test hook so unit tests can drive the sync function
       // directly without going through the dispatcher tap.
       _syncRunFromEvent,
+      // Slice UI-H7-a: same test-hook discipline.
+      _syncReviewSessionFromEvent,
     };
   }
 

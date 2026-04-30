@@ -26,6 +26,11 @@
 //   GET /api/review-sessions
 //     Resp: 200 { sessions: [...] }
 //
+//   Slice UI-H7-c (2026-04-30):
+//   POST /api/review-sessions/:id/archive
+//     Body: { reason?: string }
+//     Resp: 200 { ok, session } | 404
+//
 // Public-sector posture (deploymentProfile.publicSector === true)
 // affects this surface: when wired, a future GOV-* slice can refuse
 // local-Bash follow-ups (UI-H5). For now the manager stays pure;
@@ -165,6 +170,38 @@ function createReviewSessionRoutes(deps = {}) {
         includeCritique: body.includeCritique !== false,
       });
       res.json({ ok: true, session, dispatchedAt: Date.now() });
+    } catch (err) {
+      _emitError(res, err);
+    }
+  });
+
+  // ── POST /:id/archive (Slice UI-H7-c) ────────────────────────
+  //
+  // Operator-driven archive. Idempotent: archiving an already-archived
+  // session returns 200 with the same snapshot rather than 409. Audit
+  // chain still emits review_session_archived once on the first call
+  // (manager.archive returns null on the second call, which we treat
+  // as "no-op" without re-emitting).
+  router.post("/review-sessions/:id/archive", (req, res) => {
+    const id = String(req.params.id || "");
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const reason = typeof body.reason === "string" && body.reason.length > 0
+      ? body.reason.slice(0, 1024) : "operator-archive";
+    const existing = manager.get(id);
+    if (!existing) {
+      return res.status(404).json({ ok: false, error: "session_not_found" });
+    }
+    if (existing.state === "archived") {
+      // Idempotent — no-op on already-archived.
+      return res.json({ ok: true, session: existing, alreadyArchived: true });
+    }
+    try {
+      const session = manager.archive(id, { reason });
+      if (!session) {
+        // Race: between get + archive call, the session vanished.
+        return res.status(404).json({ ok: false, error: "session_not_found" });
+      }
+      res.json({ ok: true, session });
     } catch (err) {
       _emitError(res, err);
     }

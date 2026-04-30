@@ -69,6 +69,14 @@ class ClaudeRunner {
     // entries on successful profile-mode spawn. Optional — no audit
     // emitted when absent.
     ledger = null,
+    // Slice UI-H7-d (Phase D / Phase E1.5, 2026-04-30): review-session
+    // manager handle. When wired AND opts.reviewSessionId is provided,
+    // exec() pipes stdout chunks to manager.recordClaudeChunk() and
+    // emits manager.recordClaudeReceived() on close. When either is
+    // absent, the runner behaves as before (no review-session events).
+    // The hint flow: dashboard click → route handler → spawn hint →
+    // manager updates state + WS broadcasts → store + dual-agent-console.
+    reviewSessionManager = null,
   } = {}) {
     this.claudeCommand = claudeCommand;
     this.fallbackCommands = fallbackCommands || [
@@ -83,6 +91,7 @@ class ClaudeRunner {
     this.profileStore = profileStore;
     this.credentialStore = credentialStore;
     this.ledger = ledger;
+    this.reviewSessionManager = reviewSessionManager;
     this._resolvedSpec = null;
   }
 
@@ -115,7 +124,15 @@ class ClaudeRunner {
   }
 
   _tryExec(spec, prompt, opts = {}) {
-    const { timeoutMs, cwd, onChild, explicitConfirmation = false, profileId } = opts;
+    const {
+      timeoutMs, cwd, onChild, explicitConfirmation = false, profileId,
+      // UI-H7-d: optional review-session hint. When present and the
+      // runner has a reviewSessionManager wired, stdout chunks pipe
+      // to manager.recordClaudeChunk(reviewSessionId, {text}) and
+      // close emits manager.recordClaudeReceived(reviewSessionId,
+      // {summary}). All wrapped in try/catch — never break the spawn.
+      reviewSessionId = null,
+    } = opts;
     return new Promise((resolve) => {
       // Slice D1-d (Phase E1, 2026-04-29): wrap the body in an async
       // IIFE so we can `await buildSpawnEnv(...)` between dangerGate
@@ -299,7 +316,23 @@ class ClaudeRunner {
             try { child.kill(); } catch (_) {}
           }, timeoutMs || this.defaultTimeoutMs);
 
-          child.stdout.on("data", (c) => out.push(c));
+          // UI-H7-d: when both reviewSessionId + manager are present,
+          // pipe each chunk to recordClaudeChunk. Defensive try/catch
+          // so a manager-side bug never breaks the spawn.
+          const _hasReviewHint =
+            reviewSessionId
+            && this.reviewSessionManager
+            && typeof this.reviewSessionManager.recordClaudeChunk === "function";
+          child.stdout.on("data", (c) => {
+            out.push(c);
+            if (_hasReviewHint) {
+              try {
+                this.reviewSessionManager.recordClaudeChunk(
+                  reviewSessionId, { text: c.toString("utf-8") },
+                );
+              } catch (_) { /* never break spawn on manager fault */ }
+            }
+          });
           child.stderr.on("data", (c) => errChunks.push(c));
 
           child.on("error", (err) => {
@@ -338,6 +371,24 @@ class ClaudeRunner {
               text: stdout.trim(),
               _enoent: enoentLike,
             };
+            // UI-H7-d: emit recordClaudeReceived only on successful close,
+            // and only when the review-session hint flow is active. The
+            // summary mirrors the trimmed text up to MAX_SUMMARY_LENGTH
+            // (manager truncates internally). Defensive try/catch so a
+            // manager-side bug never breaks the result resolution.
+            if (
+              code === 0
+              && reviewSessionId
+              && this.reviewSessionManager
+              && typeof this.reviewSessionManager.recordClaudeReceived === "function"
+            ) {
+              try {
+                this.reviewSessionManager.recordClaudeReceived(
+                  reviewSessionId,
+                  { summary: result.text.slice(0, 1024) },
+                );
+              } catch (_) { /* never break result on manager fault */ }
+            }
             if (runId) this.runRegistry?.complete(runId, result);
             resolve(result);
           });

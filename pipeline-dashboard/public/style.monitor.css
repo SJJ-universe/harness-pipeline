@@ -1444,6 +1444,114 @@ body.monitor-active {
   border-top: 0.5px solid var(--hsh-border, rgba(255, 255, 255, 0.06));
 }
 
+/* ── Slice UI-H7-c: Dual Agent Console action row ── */
+
+.monitor-shell .dac-action-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--hsh-bg-shell, #0B0C0E);
+  border-top: 0.5px solid var(--hsh-border, rgba(255, 255, 255, 0.06));
+  font-family: var(--hsh-font-sans, system-ui, sans-serif);
+  flex-wrap: wrap;
+}
+
+.monitor-shell .dac-session-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: var(--hsh-bg-card, #101115);
+  border: 0.5px solid var(--hsh-border, rgba(255, 255, 255, 0.06));
+  border-radius: var(--hsh-radius-sm, 3px);
+  font-size: var(--hsh-fs-xs, 11px);
+  color: var(--hsh-text-strong, rgba(232, 230, 225, 0.9));
+  letter-spacing: 0.02em;
+}
+
+.monitor-shell .dac-session-indicator[data-state="archived"] {
+  color: var(--hsh-text-mute, rgba(232, 230, 225, 0.4));
+}
+
+.monitor-shell .dac-session-indicator[data-state="awaiting_critique"],
+.monitor-shell .dac-session-indicator[data-state="awaiting_claude"] {
+  border-left: 2px solid var(--hsh-bronze, #C9A66B);
+}
+
+.monitor-shell .dac-session-indicator[data-state="critique_received"],
+.monitor-shell .dac-session-indicator[data-state="claude_received"] {
+  border-left: 2px solid var(--hsh-success, #6BA47C);
+}
+
+.monitor-shell .dac-action-buttons {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.monitor-shell .dac-action-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  background: var(--hsh-bg-card, #101115);
+  border: 0.5px solid var(--hsh-border, rgba(255, 255, 255, 0.12));
+  border-radius: var(--hsh-radius-sm, 3px);
+  color: var(--hsh-text, rgba(232, 230, 225, 0.7));
+  font-family: var(--hsh-font-sans, system-ui, sans-serif);
+  font-size: var(--hsh-fs-xs, 11px);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.monitor-shell .dac-action-btn:hover:not(.is-disabled) {
+  background: var(--hsh-bg-hover, #1A1B20);
+  border-color: var(--hsh-bronze, #C9A66B);
+  color: var(--hsh-text-strong, rgba(232, 230, 225, 0.95));
+}
+
+.monitor-shell .dac-action-btn.is-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.monitor-shell .dac-action-start {
+  border-left: 2px solid var(--hsh-accent, #6B9AC9);
+}
+
+.monitor-shell .dac-action-send-codex,
+.monitor-shell .dac-action-followup-codex {
+  border-left: 2px solid var(--hsh-bronze, #C9A66B);
+}
+
+.monitor-shell .dac-action-hand-back {
+  border-left: 2px solid var(--hsh-success, #6BA47C);
+}
+
+.monitor-shell .dac-action-archive {
+  border-left: 2px solid var(--hsh-text-mute, rgba(232, 230, 225, 0.4));
+}
+
+.monitor-shell .dac-posture-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: auto;
+  padding: 4px 10px;
+  background: rgba(155, 38, 38, 0.18);
+  border: 0.5px solid rgba(155, 38, 38, 0.5);
+  border-radius: var(--hsh-radius-sm, 3px);
+  font-size: var(--hsh-fs-xs, 11px);
+  font-weight: 500;
+  color: rgba(232, 230, 225, 0.9);
+}
+
+[data-posture="public-sector"] .monitor-shell .dac-posture-badge {
+  background: rgba(155, 38, 38, 0.24);
+}
+
 /* ── Slice UI-H5: Security Status card ── */
 
 .monitor-shell .security-status-card-region {

@@ -107,6 +107,53 @@
     return null;
   }
 
+  // Slice UI-H7-e (Phase D / Phase E1.5, 2026-04-30): map review-session
+  // client errors to operator-friendly Korean messages. Falls back to
+  // the raw err.message + code for unknown error codes so an unknown
+  // code still surfaces something. Pure function — exported for tests.
+  function _formatReviewError(err) {
+    if (!err) return "알 수 없는 오류가 발생했습니다.";
+    const code = err.code ? String(err.code) : "review_session_error";
+    const msgMap = {
+      // 가장 중요한 운영 차단: 공공기관 모드 + 로컬 실행 불허
+      public_sector_local_executor_disabled:
+        "🛡 공공기관 모드: 로컬 Claude 실행이 차단되어 있습니다. 샌드박스 runner를 사용하거나 Codex 비평까지만 진행하세요.",
+      // 세션 상태 머신 위반 (서버 409 invalid_state)
+      invalid_state:
+        "현재 세션 상태에서는 이 작업을 수행할 수 없습니다. 세션 상태를 확인하세요.",
+      // 입력 검증 실패
+      invalid_input:
+        "입력 값이 올바르지 않습니다. 명령어를 다시 입력하세요.",
+      review_session_invalid_input:
+        "입력 값이 올바르지 않습니다. 명령어를 다시 입력하세요.",
+      review_session_input_too_long:
+        "입력 값이 너무 깁니다. 8KB 이하로 줄여 주세요.",
+      // 세션을 찾을 수 없음 (이미 archive 됐거나 잘못된 ID)
+      session_not_found:
+        "세션을 찾을 수 없습니다. 이미 보관됐거나 만료된 세션일 수 있습니다.",
+      // 매니저 미동작 (서버 부팅 안 됐거나 dependency 미주입)
+      service_unavailable:
+        "Review relay 서비스가 응답하지 않습니다. 잠시 후 다시 시도하세요.",
+      review_session_manager_unavailable:
+        "Review relay 서비스가 응답하지 않습니다. 잠시 후 다시 시도하세요.",
+      // 네트워크 실패
+      network_error:
+        "네트워크 오류로 요청을 보내지 못했습니다. 연결 상태를 확인하세요.",
+      // 서버 내부 오류
+      server_error:
+        "서버 내부 오류가 발생했습니다. 다시 시도하거나 관리자에게 문의하세요.",
+      review_session_error:
+        "Review relay 작업이 실패했습니다. 다시 시도하세요.",
+    };
+    if (Object.prototype.hasOwnProperty.call(msgMap, code)) {
+      return msgMap[code];
+    }
+    // Unknown code — fall back to raw message + code so it's
+    // still actionable.
+    const raw = err.message || "Review relay 작업 실패";
+    return `${raw} (${code})`;
+  }
+
   function mount({
     root,
     store,
@@ -125,6 +172,12 @@
     // Slice MC1: per-run detail hydrate override (tests) + TTL config.
     runDetailHydrate,
     runDetailTtlMs = 30000,
+    // Slice UI-H7-c: review-session HTTP client. When provided, the
+    // dual-agent-console renders its action row + binds buttons. When
+    // null/undefined, dual-agent-console falls back to the original
+    // read-only stream view + footer (UI-H3 behavior). Browser falls
+    // back to window.HarnessReviewSessionClient.
+    reviewSessionClient,
     // Slice UI-H1 (Phase D / Phase E1.5, 2026-04-30): shell mode.
     //
     //   "advanced" (default) — existing 9-panel layout (today's behavior)
@@ -681,14 +734,31 @@
         });
       }
 
-      // ── Slice UI-H3: dual-agent-console (Claude + Codex stream) ──
+      // ── Slice UI-H3 + UI-H7-c: dual-agent-console (Claude + Codex stream + action row) ──
       const DualConsole = _resolvePanel(panels, "dualAgentConsole", "HarnessMonitorDualAgentConsole");
       if (DualConsole) {
+        // UI-H7-c: resolve review-session client. Test path uses the
+        // explicit `reviewSessionClient` mount option; browser falls
+        // back to window.HarnessReviewSessionClient (loaded via
+        // <script src="js/monitor/review-session-client.js">).
+        const _client = reviewSessionClient
+          || (typeof window !== "undefined" && window.HarnessReviewSessionClient)
+          || null;
         try {
           dualConsoleHandle = DualConsole.create({
             root: dualConsoleMount,
             store,
             doc: _doc,
+            client: _client,
+            onError: (err) => {
+              // UI-H7-c + UI-H7-e: surface client errors via the
+              // existing global-bar error box + a console.warn
+              // fallback. Public-sector 409 + network failures map
+              // to operator-friendly Korean messages so the toast
+              // reads naturally instead of "(error_code) http_status".
+              const friendlyMsg = _formatReviewError(err);
+              showError(friendlyMsg, "reviewSession");
+            },
           });
         } catch (err) {
           showError("dual console: " + (err && err.message ? err.message : "init failed"), "dualConsole");
@@ -854,5 +924,10 @@
     };
   }
 
-  return { mount };
+  return {
+    mount,
+    // Slice UI-H7-e: exposed for unit tests so the friendly message
+    // table is verifiable without driving a full mount.
+    _formatReviewError,
+  };
 });

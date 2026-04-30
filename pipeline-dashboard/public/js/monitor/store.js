@@ -36,6 +36,21 @@
 //                                    poll; the global-bar (D3-c) +
 //                                    settings-accounts modal (D3-d)
 //                                    subscribe and re-render.
+//
+// Slice UI-H7-a (Phase D / Phase E1.5, 2026-04-30):
+//   review-session slice for the Claude→Codex→Claude review relay.
+//   - reviewSessions: Map<sessionId, partialSession>
+//   - selectedReviewSessionId: string | null (operator focus)
+//   - reviewStreams: Map<sessionId, { codex, claude, lastSeq, summaries }>
+//   Actions: upsertReviewSession / removeReviewSession / selectReviewSession
+//            / appendReviewChunk / setReviewSessionsList / clearReviewSessions.
+//   Volume policy: chunk events go through appendReviewChunk only (NOT
+//   the events ring); the reviewStreams maps cap each stream at
+//   MAX_REVIEW_CHUNKS so a runaway Codex/Claude doesn't bloat the
+//   snapshot. The dual-agent-console action row (UI-H7-c) renders this
+//   slice; lifecycle events (review_session_created / critique_received
+//   / handoff_to_claude_* / review_session_archived) update partial
+//   session state via upsertReviewSession.
 
 (function (root, factory) {
   const api = factory();
@@ -43,6 +58,11 @@
   if (typeof window !== "undefined") root.HarnessMonitorStore = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
   const DEFAULT_MAX_EVENTS = 200;
+  // Slice UI-H7-a — per-session per-side stream cap so a runaway
+  // Codex/Claude doesn't blow snapshot size unbounded. 500 chunks is
+  // generous (typical critique = 30-50 chunks; rare reviews can hit
+  // 100-200) yet keeps the worst case bounded at ~500KB per session.
+  const DEFAULT_MAX_REVIEW_CHUNKS = 500;
 
   /**
    * Slice UX-2-a — copy each samples-array so caller mutation of
@@ -147,12 +167,36 @@
       // resolution). Both Simple-Mode card + Advanced-Mode panel
       // read this slice.
       pendingApprovals: new Map(),
+      // Slice UI-H7-a (Phase D / E1.5): review-session slice.
+      //   reviewSessions: Map<sessionId, partial>
+      //     Partial shape mirrors reviewSessionManager._snapshot but
+      //     the bridge fills it incrementally (lifecycle broadcasts
+      //     don't carry full history). The action-row panel (H7-c)
+      //     hits /api/review-sessions/:id when the operator opens a
+      //     session for the first time to fetch the canonical history.
+      //   selectedReviewSessionId: which session the dual-agent
+      //     console action row is currently focused on.
+      //   reviewStreams: Map<sessionId, { codex:[], claude:[],
+      //                                   lastSeq, critiqueSummary,
+      //                                   claudeSummary }>
+      //     Per-side chunk buffers. Each chunk is { chunk, seq, ts }.
+      //     Capped at DEFAULT_MAX_REVIEW_CHUNKS per side so the
+      //     snapshot stays bounded regardless of session length.
+      reviewSessions: new Map(),
+      selectedReviewSessionId: null,
+      reviewStreams: new Map(),
     };
   }
 
-  function createMonitorStore({ maxEvents = DEFAULT_MAX_EVENTS } = {}) {
+  function createMonitorStore({
+    maxEvents = DEFAULT_MAX_EVENTS,
+    maxReviewChunks = DEFAULT_MAX_REVIEW_CHUNKS,
+  } = {}) {
     if (!Number.isFinite(maxEvents) || maxEvents < 1) {
       throw new Error("createMonitorStore: maxEvents must be >= 1");
+    }
+    if (!Number.isFinite(maxReviewChunks) || maxReviewChunks < 1) {
+      throw new Error("createMonitorStore: maxReviewChunks must be >= 1");
     }
     let state = freshState();
     const subscribers = new Set();
@@ -206,7 +250,38 @@
         pendingApprovals: Array.from(state.pendingApprovals.values())
           .map((r) => _shallowCloneApproval(r))
           .sort((a, b) => (a.requestedAt || 0) - (b.requestedAt || 0)),
+        // Slice UI-H7-a: review-session slice.
+        //   reviewSessions: array sorted by lastActivityAt desc
+        //     (matches reviewSessionManager.list() ordering)
+        //   selectedReviewSessionId: focused session for the action row
+        //   reviewStreams: object keyed by sessionId
+        //     value = { codex, claude, lastSeq, critiqueSummary,
+        //               claudeSummary } — chunks are shallow-copied
+        //     so a panel rendering them can't mutate stored buffers.
+        reviewSessions: Array.from(state.reviewSessions.values())
+          .map((s) => ({ ...s }))
+          .sort((a, b) => (b.lastActivityAt || 0) - (a.lastActivityAt || 0)),
+        selectedReviewSessionId: state.selectedReviewSessionId,
+        reviewStreams: _snapshotReviewStreams(state.reviewStreams),
       };
+    }
+
+    function _snapshotReviewStreams(streams) {
+      const out = {};
+      for (const [sid, s] of streams.entries()) {
+        out[sid] = {
+          codex: s.codex.slice(),
+          claude: s.claude.slice(),
+          lastSeq: s.lastSeq || 0,
+          critiqueSummary: s.critiqueSummary
+            ? { ...s.critiqueSummary,
+                severityCounts: s.critiqueSummary.severityCounts
+                  ? { ...s.critiqueSummary.severityCounts } : null }
+            : null,
+          claudeSummary: s.claudeSummary ? { ...s.claudeSummary } : null,
+        };
+      }
+      return out;
     }
 
     function subscribe(fn) {
@@ -456,6 +531,142 @@
       return snapshot();
     }
 
+    // ── Slice UI-H7-a: review-session actions ────────────────────
+
+    function _ensureReviewStream(sessionId) {
+      let s = state.reviewStreams.get(sessionId);
+      if (!s) {
+        s = {
+          codex: [], claude: [],
+          lastSeq: 0,
+          critiqueSummary: null,
+          claudeSummary: null,
+        };
+        state.reviewStreams.set(sessionId, s);
+      }
+      return s;
+    }
+
+    function upsertReviewSession(sessionId, partial) {
+      // Tolerant input — broadcast envelope or REST GET response can
+      // drive this. Defensive: ignore non-string sessionId.
+      if (typeof sessionId !== "string" || sessionId.length === 0) return snapshot();
+      if (partial && typeof partial !== "object") return snapshot();
+      const prev = state.reviewSessions.get(sessionId) || { sessionId };
+      const merged = Object.assign({}, prev, partial || {}, { sessionId });
+      // Some lifecycle events (handoff_to_claude_completed) carry a
+      // claudeSummary field that should land on the streams slice
+      // alongside session state. Mirror once per upsert so the
+      // dual-agent-console can read either reviewSessions or streams.
+      if (partial && partial.claudeSummary !== undefined) {
+        const s = _ensureReviewStream(sessionId);
+        s.claudeSummary = partial.claudeSummary
+          ? { ...partial.claudeSummary } : null;
+      }
+      if (partial && partial.critiqueSummary !== undefined) {
+        const s = _ensureReviewStream(sessionId);
+        s.critiqueSummary = partial.critiqueSummary
+          ? { summary: partial.critiqueSummary,
+              severityCounts: partial.critiqueSeverityCounts
+                ? { ...partial.critiqueSeverityCounts } : null }
+          : null;
+      }
+      // Default lastActivityAt for clarity if caller didn't set one.
+      if (typeof merged.lastActivityAt !== "number") {
+        merged.lastActivityAt = Date.now();
+      }
+      state.reviewSessions.set(sessionId, merged);
+      _publish();
+      return snapshot();
+    }
+
+    function removeReviewSession(sessionId) {
+      if (typeof sessionId !== "string") return snapshot();
+      const had = state.reviewSessions.has(sessionId)
+        || state.reviewStreams.has(sessionId);
+      if (!had) return snapshot();
+      state.reviewSessions.delete(sessionId);
+      state.reviewStreams.delete(sessionId);
+      if (state.selectedReviewSessionId === sessionId) {
+        state.selectedReviewSessionId = null;
+      }
+      _publish();
+      return snapshot();
+    }
+
+    function selectReviewSession(sessionId) {
+      // null is allowed (deselect). Unknown id is allowed (operator may
+      // pick a session from a list before lifecycle event lands).
+      if (sessionId !== null && (typeof sessionId !== "string" || !sessionId)) {
+        return snapshot();
+      }
+      state.selectedReviewSessionId = sessionId;
+      _publish();
+      return snapshot();
+    }
+
+    function appendReviewChunk(sessionId, side, chunk) {
+      if (typeof sessionId !== "string" || !sessionId) return snapshot();
+      if (side !== "codex" && side !== "claude") return snapshot();
+      if (!chunk || typeof chunk !== "object") return snapshot();
+      const text = typeof chunk.chunk === "string" ? chunk.chunk : "";
+      if (text.length === 0) return snapshot();
+      const s = _ensureReviewStream(sessionId);
+      const entry = {
+        chunk: text,
+        seq: Number.isFinite(chunk.seq) ? chunk.seq : (s.lastSeq + 1),
+        ts: Number.isFinite(chunk.ts) ? chunk.ts : Date.now(),
+      };
+      s[side].push(entry);
+      // Cap each side independently — ring eviction.
+      if (s[side].length > maxReviewChunks) {
+        s[side].splice(0, s[side].length - maxReviewChunks);
+      }
+      // Track the highest seq across both sides so caller can detect
+      // gaps if they ever care.
+      if (entry.seq > s.lastSeq) s.lastSeq = entry.seq;
+      _publish();
+      return snapshot();
+    }
+
+    function setReviewSessionsList(list) {
+      // Replace the entire reviewSessions Map with the provided list.
+      // Used by the API client (UI-H7-b) on initial /api/review-sessions
+      // hydrate. Keeps reviewStreams intact (chunks live across list
+      // refreshes — list refresh updates lifecycle metadata, not stream
+      // bodies).
+      if (!Array.isArray(list)) return snapshot();
+      const next = new Map();
+      for (const session of list) {
+        if (!session || typeof session !== "object") continue;
+        const sid = session.sessionId;
+        if (typeof sid !== "string" || !sid) continue;
+        next.set(sid, { ...session });
+      }
+      state.reviewSessions = next;
+      // If the previously selected session is no longer in the list,
+      // null out the selection (defensive — caller can re-select).
+      if (state.selectedReviewSessionId
+          && !state.reviewSessions.has(state.selectedReviewSessionId)) {
+        state.selectedReviewSessionId = null;
+      }
+      _publish();
+      return snapshot();
+    }
+
+    function clearReviewSessions() {
+      // Used by reset() and on monitor close.
+      const had = state.reviewSessions.size > 0
+        || state.reviewStreams.size > 0
+        || state.selectedReviewSessionId !== null;
+      if (!had) return snapshot();
+      state.reviewSessions.clear();
+      state.reviewStreams.clear();
+      state.selectedReviewSessionId = null;
+      _publish();
+      return snapshot();
+    }
+
     function clearRunDetail(runId) {
       // Specific runId clears just that entry; null/undefined clears all
       // (used on monitor close + tab refresh).
@@ -508,10 +719,17 @@
       upsertApproval,
       resolveApproval,
       clearApprovals,
+      // Slice UI-H7-a: review-session slice
+      upsertReviewSession,
+      removeReviewSession,
+      selectReviewSession,
+      appendReviewChunk,
+      setReviewSessionsList,
+      clearReviewSessions,
       // testing aid
       _internal,
     };
   }
 
-  return { createMonitorStore, DEFAULT_MAX_EVENTS };
+  return { createMonitorStore, DEFAULT_MAX_EVENTS, DEFAULT_MAX_REVIEW_CHUNKS };
 });

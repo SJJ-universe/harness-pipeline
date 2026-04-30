@@ -264,6 +264,98 @@ test("UI-H4: POST /:id/hand-back-claude transitions to awaiting_claude", async (
   } finally { await ctx.close(); }
 });
 
+// ── Slice UI-H7-c: archive route ────────────────────────────────
+
+test("UI-H7-c: POST /:id/archive transitions to archived + emits audit", async () => {
+  const auditCalls = [];
+  const manager = new ReviewSessionManager({
+    auditFn: (verb, data) => { auditCalls.push({ verb, data }); },
+  });
+  const ctx = await spinRouter({ manager });
+  try {
+    const create = await fetch(`${ctx.base}/api/review-sessions`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ label: "test-archive" }),
+    });
+    const { session } = await create.json();
+    const res = await fetch(`${ctx.base}/api/review-sessions/${session.sessionId}/archive`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ reason: "test-archive-reason" }),
+    });
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.equal(body.ok, true);
+    assert.equal(body.session.state, "archived");
+    assert.equal(body.session.archiveReason, "test-archive-reason");
+
+    // Audit verb emitted exactly once
+    const archiveVerbs = auditCalls.filter((a) => a.verb === "review_session_archived");
+    assert.equal(archiveVerbs.length, 1);
+  } finally { await ctx.close(); }
+});
+
+test("UI-H7-c: POST /:id/archive idempotent on already-archived session", async () => {
+  const auditCalls = [];
+  const manager = new ReviewSessionManager({
+    auditFn: (verb, data) => { auditCalls.push({ verb, data }); },
+  });
+  const ctx = await spinRouter({ manager });
+  try {
+    const create = await fetch(`${ctx.base}/api/review-sessions`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ label: "idempotent" }),
+    });
+    const { session } = await create.json();
+    // First archive
+    const r1 = await fetch(`${ctx.base}/api/review-sessions/${session.sessionId}/archive`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: "{}",
+    });
+    assert.equal(r1.status, 200);
+    const b1 = await r1.json();
+    assert.equal(b1.alreadyArchived, undefined);
+
+    // Second archive — same response, but alreadyArchived flag
+    const r2 = await fetch(`${ctx.base}/api/review-sessions/${session.sessionId}/archive`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: "{}",
+    });
+    assert.equal(r2.status, 200);
+    const b2 = await r2.json();
+    assert.equal(b2.alreadyArchived, true);
+    assert.equal(b2.session.state, "archived");
+
+    // Audit verb fired exactly once across both calls
+    const archiveVerbs = auditCalls.filter((a) => a.verb === "review_session_archived");
+    assert.equal(archiveVerbs.length, 1);
+  } finally { await ctx.close(); }
+});
+
+test("UI-H7-c: POST /:id/archive 404 for unknown session", async () => {
+  const ctx = await spinRouter();
+  try {
+    const res = await fetch(`${ctx.base}/api/review-sessions/nope/archive`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: "{}",
+    });
+    assert.equal(res.status, 404);
+    const body = await res.json();
+    assert.equal(body.error, "session_not_found");
+  } finally { await ctx.close(); }
+});
+
+test("UI-H7-c: POST /:id/archive default reason when body empty", async () => {
+  const ctx = await spinRouter();
+  try {
+    const create = await fetch(`${ctx.base}/api/review-sessions`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: "{}",
+    });
+    const { session } = await create.json();
+    const res = await fetch(`${ctx.base}/api/review-sessions/${session.sessionId}/archive`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: "{}",
+    });
+    const body = await res.json();
+    assert.equal(body.session.archiveReason, "operator-archive");
+  } finally { await ctx.close(); }
+});
+
 // ── Public-sector posture ────────────────────────────────────────
 
 test("UI-H4: public-sector + allowLocalExecutor=false rejects hand-back-claude with 409", async () => {
