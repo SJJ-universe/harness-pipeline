@@ -35,7 +35,7 @@ infrastructure must be solid before approval flow lands.
 | **R3-a** | Two-network topology — operator-facing bridge + runner-internal bridge | R2 eval §3 row "Strict mode breaks dashboard host port" |
 | **R3-b** | Linux host egress enforcement — MG1 §7 L2 (nftables) + L3 (dnsmasq) | R2 eval §3 row "nftables + dnsmasq layers not exercised" |
 | **R3-c** | Multi-runner pool — registry expansion + scheduling/claim semantics + monitor visibility | MG1 §6 control plane (env-only, heartbeat-driven); R2.5 eval §6 single-runner limitation |
-| **R3-d** | Graceful shutdown polish — clean WS close 1000 from orchestrator | R2 eval §3 row "WS close 1000 not used" |
+| **R3-d** ✅ | Graceful shutdown polish — clean WS close 1000 from orchestrator (DONE 2026-04-29; see §1.4 callout) | R2 eval §3 row "WS close 1000 not used" |
 | **R3-e** | Per-call approval flow — open Bash / Write / Edit through a separate decision channel | R2.5 eval §6 row "Tool allowlist explicitly excludes write-side tools" |
 
 ### 0.2 Non-goals (deferred to R4 or Phase 3)
@@ -196,9 +196,11 @@ replication.
 **Evidence**: Either Docker Desktop (3-container compose with 3
 runner replicas) or Linux host. Both OK.
 
-### 1.4 R3-d — Graceful shutdown polish
+### 1.4 R3-d — Graceful shutdown polish ✅ DONE (2026-04-29)
 
-**Problem**: R1 doesn't distinguish "I'm going down cleanly" from
+> **✅ STATUS: GENUINELY COMPLETE.** Implementation lives in `server.js:294-345` (gracefulShutdown function — walks `wss.clients`, sends `ws.close(1000, "orchestrator_shutdown")` to runner-bound connections marked `_isRunnerWs`, then SIGTERM via `childRegistry.killAll` + 1s grace + SIGKILL) + `src/runner/runnerAgent.js:131-143` (clean stop() emits close 1000 + state machine differentiates 1000 vs 1006 vs 1011/1008). Signal handlers wired at `server.js:1212-1213` (process.on SIGINT/SIGTERM → gracefulShutdown). Tests: `tests/integration/runner-shutdown.test.js` (9/9 green) cover both R3-G11 (clean close 1000) and R3-G12 (crash-vs-clean distinguishable). No separate `src/server/shutdown.js` file is needed — the architecture chose to keep it inside server.js. R3 closeout cap counts R3-d under "operational primitives, no rubric move" (per scorecard line 27 R3-c trajectory entry).
+
+**Problem (historical)**: R1 doesn't distinguish "I'm going down cleanly" from
 "I crashed". The runner correctly treats 1006/abnormal as transient
 (reconnect with exponential backoff) but receives the same close
 code on `kill -9 <orchestrator-pid>` and on `Ctrl+C`. A clean WS
@@ -504,7 +506,7 @@ R3 is COMPLETE when:
 | **R3-a** | NOT STARTED | R3-0 | Docker Desktop | 1-2 | `docs/reports/<date>-r3-a-two-network.md` |
 | **R3-b** | NOT STARTED | R3-a + Linux host | **Linux host** probes | 2-3 | `docs/reports/<date>-r3-b-linux-host-eval.md` |
 | **R3-c** | NOT STARTED | R3-b strongly recommended | Either | 3-4 | `docs/reports/<date>-r3-c-multi-runner-pool.md` |
-| **R3-d** | NOT STARTED | R3-c | Either + in-process | 1-2 | inline in R3-c report or its own |
+| **R3-d** | ✅ DONE 2026-04-29 | R3-c | server.js:294-345 + runnerAgent.js:131-143 + tests/integration/runner-shutdown.test.js (9/9) | 1-2 | inline in R3-c report (no separate shutdown.js needed) |
 | **R3-e** | NOT STARTED | R3-d | Operator workflow | 4-6 | `docs/reports/<date>-r3-e-per-call-approval.md` |
 | **R3 closeout** | NOT STARTED | All sub-rounds | aggregate | 1 | `docs/reports/<date>-r3-closeout-eval.md` |
 
@@ -596,16 +598,16 @@ does the second handshake ALSO emit a warning to the first runner?
 - **Tentative**: fail by default; `HARNESS_REMOTE_FALLBACK=1`
   re-runs locally with restart-from-`/work/in`. Lock in R3-c PR.
 
-### 9.4 R3-d
+### 9.4 R3-d ✅ RESOLVED (2026-04-29)
 
 **Q8**: Does the orchestrator wait for runner WS close ack before
 exiting, or fire-and-forget?
-- Wait: cleaner audit trail, but adds shutdown latency.
-- Fire-and-forget: faster shutdown, but audit may miss the
-  `runner_ws_closed_remote` entry.
-- **Tentative**: fire-and-forget with 2s grace. Each WS gets close
-  1000 sent + 2s timeout for ack; whichever comes first wins. Lock
-  in R3-d PR.
+- **DECIDED**: fire-and-forget with 1s grace. server.js:294-345 sends
+  close 1000 to all `_isRunnerWs` connections, then SIGTERM via
+  childRegistry, then a setTimeout(1000) before SIGKILL + process.exit(0).
+  No ACK wait — each runner's runnerAgent.js handles 1000 vs 1006
+  client-side and exits accordingly. Audit chain captures the close
+  emission via the existing graceful shutdown audit verbs.
 
 ### 9.5 R3-e
 
@@ -678,7 +680,7 @@ trajectory through R3:
 | R3-a | 103/112 → 103/112 | Operational fix; no cap movement |
 | R3-b | 103/112 → 104/112 (+1 to Safety, within cap if extended to 19) OR 103/112 if cap not extended | Linux host L2/L3 verified would be a qualitatively new property |
 | R3-c | depends on R3-b | Pool semantics |
-| R3-d | small / none | Polish |
+| R3-d ✅ | 103/112 (no cap movement) | DONE 2026-04-29 — graceful shutdown wired in server.js:294-345 + runnerAgent.js:131-143; tests/integration/runner-shutdown.test.js 9/9 green; counted as operational primitives under R3-c trajectory entry |
 | R3-e | depends on UX results | Write-tool surface opening |
 
 Conservative estimate: end of R3 = **104-106/112**. Aggressive: 107.
