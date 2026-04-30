@@ -327,6 +327,16 @@
     dualConsoleMount.setAttribute("role", "region");
     dualConsoleMount.setAttribute("aria-label", "Dual agent console");
 
+    // Slice UI-H5 (Phase D / E1.5, 2026-04-30): security-status card
+    // mount region. Surfaces posture + sandbox + PII + approval
+    // pending. Mounted in BOTH simple AND advanced modes — public-
+    // sector deployments need to know their defense layers
+    // regardless of which shell they prefer.
+    const securityStatusMount = _doc.createElement("div");
+    securityStatusMount.className = "security-status-card-region";
+    securityStatusMount.setAttribute("role", "region");
+    securityStatusMount.setAttribute("aria-label", "Security status");
+
     root.innerHTML = "";
     root.appendChild(globalBarRoot);
     root.appendChild(modeToggleMount);
@@ -338,6 +348,10 @@
     // the rail + center workspace.
     root.appendChild(harnessTrackMount);
     root.appendChild(approvalMount);
+    // Slice UI-H5: security-status card sits between approvalMount
+    // and the body, so operators on either shell mode see the
+    // defense layer summary above-the-fold.
+    root.appendChild(securityStatusMount);
     // Slice UI-H1: shell-body + shell-dock are advanced-only. Simple
     // mode renders a placeholder until UI-H6 fills out the cards.
     if (_mode === "advanced") {
@@ -452,6 +466,48 @@
       } catch (err) {
         showError("harness track: " + (err && err.message ? err.message : "init failed"), "harnessTrack");
       }
+    }
+
+    // ── Slice UI-H5: mount the security-status card (BOTH modes) ──
+    let securityStatusHandle = null;
+    const SecurityStatusCard = _resolvePanel(panels, "securityStatusCard", "HarnessMonitorSecurityStatusCard");
+    if (SecurityStatusCard) {
+      try {
+        securityStatusHandle = SecurityStatusCard.create({
+          root: securityStatusMount,
+          store,
+          doc: _doc,
+        });
+      } catch (err) {
+        showError("security status: " + (err && err.message ? err.message : "init failed"), "securityStatus");
+      }
+    }
+
+    // ── Slice UI-H5: posture-aware [data-posture] on documentElement ──
+    // Subscribes to accountStatus.deployment.publicSector and writes
+    // the attribute to <html> so the harness-shell.css overrides
+    // (animation freeze, public-sector visual mode) fire globally.
+    // The legacy app.js view (mode === "legacy") doesn't reach this
+    // code; it gets standard motion regardless of posture (the
+    // monitor shell's job is to apply posture visuals).
+    const _docEl = _doc.documentElement
+      || (root.ownerDocument && root.ownerDocument.documentElement)
+      || (typeof document !== "undefined" ? document.documentElement : null);
+    let _postureUnsubscribe = null;
+    if (_docEl && typeof _docEl.setAttribute === "function") {
+      function _applyPosture(snap) {
+        const dep = snap && snap.accountStatus && snap.accountStatus.deployment;
+        const isPublicSector = !!(dep && dep.publicSector === true);
+        try {
+          if (isPublicSector) {
+            _docEl.setAttribute("data-posture", "public-sector");
+          } else {
+            _docEl.setAttribute("data-posture", "standard");
+          }
+        } catch (_) { /* defensive */ }
+      }
+      _applyPosture(store.snapshot());
+      _postureUnsubscribe = store.subscribe(_applyPosture);
     }
 
     // Slice UX-2-c (Phase D R3 + E1.5, 2026-04-29): mount the approval
@@ -698,6 +754,14 @@
         try { dualConsoleHandle && dualConsoleHandle.destroy && dualConsoleHandle.destroy(); } catch (_) {}
         // Slice UI-H2: tear down the harness-track panel.
         try { harnessTrackHandle && harnessTrackHandle.destroy && harnessTrackHandle.destroy(); } catch (_) {}
+        // Slice UI-H5: tear down security-status card + posture watcher.
+        try { securityStatusHandle && securityStatusHandle.destroy && securityStatusHandle.destroy(); } catch (_) {}
+        try { _postureUnsubscribe && _postureUnsubscribe(); } catch (_) {}
+        try {
+          if (_docEl && typeof _docEl.removeAttribute === "function") {
+            _docEl.removeAttribute("data-posture");
+          }
+        } catch (_) {}
         // Slice UX-2-c: tear down the approval card before the bridge.
         try { approvalHandle && approvalHandle.destroy && approvalHandle.destroy(); } catch (_) {}
         // Slice D3-d: tear down the settings panel before the bridge.
@@ -740,6 +804,9 @@
       // Slice UI-H3: dual-agent-console region + handle exposed for tests.
       _dualConsoleMount: dualConsoleMount,
       _dualConsoleHandle: dualConsoleHandle,
+      // Slice UI-H5: security-status region + handle exposed for tests.
+      _securityStatusMount: securityStatusMount,
+      _securityStatusHandle: securityStatusHandle,
       // Slice UI-H1: shell-mode + mode-toggle exposed for tests.
       _mode,
       _modeToggleMount: modeToggleMount,

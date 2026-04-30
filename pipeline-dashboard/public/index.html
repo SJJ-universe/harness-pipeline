@@ -480,6 +480,12 @@
        NOT raw stdin (CSP-safe + policy-safe). -->
   <script src="js/monitor/event-filters.js"></script>
   <script src="js/monitor/panels/dual-agent-console.js"></script>
+  <!-- Slice UI-H5 (Phase D / Phase E1.5, 2026-04-30): security-status
+       card. Surfaces posture / sandbox / PII / approval pending
+       summary at-a-glance. Mounted in BOTH simple AND advanced
+       modes. layout.js also writes data-posture on documentElement
+       so harness-shell.css freezes animations under public-sector. -->
+  <script src="js/monitor/panels/security-status-card.js"></script>
   <script src="js/monitor/layout.js"></script>
   <script>
   (function () {
