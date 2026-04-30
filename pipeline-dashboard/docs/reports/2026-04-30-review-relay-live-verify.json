@@ -1,0 +1,69 @@
+{
+  "schema": "live-verify-review-relay/v1",
+  "startedAt": "2026-04-30T04:58:20.613Z",
+  "options": {
+    "base": "http://127.0.0.1:4201",
+    "label": "LV-test-create-only",
+    "posture": "standard",
+    "withFollowup": false,
+    "withHandback": false
+  },
+  "steps": [
+    {
+      "name": "health",
+      "pass": true,
+      "response": {
+        "status": "ok",
+        "app": "HarnessPipeline",
+        "healthVersion": 1,
+        "uptime": 21.9460998,
+        "terminal": true
+      }
+    },
+    {
+      "name": "server-info",
+      "pass": true,
+      "postureMatch": true
+    },
+    {
+      "name": "create-session",
+      "pass": true,
+      "sessionId": "1f2973fb-10f6-4778-8d4c-5c71eed77763"
+    },
+    {
+      "name": "send-codex",
+      "pass": true,
+      "dispatched": true,
+      "runner": "codex",
+      "state": "awaiting_critique"
+    },
+    {
+      "name": "poll-critique-received",
+      "pass": false,
+      "finalState": "awaiting_critique",
+      "timedOut": true
+    }
+  ],
+  "sessionId": "1f2973fb-10f6-4778-8d4c-5c71eed77763",
+  "critiqueReceivedElapsedMs": null,
+  "serverInfo": {
+    "profile": {
+      "activeId": null,
+      "activeLabel": null,
+      "count": 0,
+      "credentialBackend": "none"
+    },
+    "deployment": {
+      "mode": "standard",
+      "publicSector": false,
+      "allowLocalExecutor": true,
+      "allowPlaintextSecrets": false,
+      "requireSandboxWorkspace": false,
+      "requirePiiScan": false
+    },
+    "postureMatch": true
+  },
+  "verdict": "FAIL_CRITIQUE_TIMEOUT",
+  "completedAt": "2026-04-30T04:58:26.694Z",
+  "exitCode": 1
+}
