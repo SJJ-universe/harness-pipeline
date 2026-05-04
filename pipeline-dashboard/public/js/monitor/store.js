@@ -242,6 +242,21 @@
               deployment: state.accountStatus.deployment ? { ...state.accountStatus.deployment } : null,
               bridge: state.accountStatus.bridge ? { ...state.accountStatus.bridge } : null,
               remote: state.accountStatus.remote ? { ...state.accountStatus.remote } : null,
+              // Slice UI-FirstRun-b: providerStatus is a panel-set
+              // slice (settings-accounts modal calls setProviderStatus
+              // after probe-provider returns). Stays null until the
+              // operator runs a Test action — first-run classifier
+              // tolerates missing.
+              providerStatus: state.accountStatus.providerStatus
+                ? {
+                    claude: state.accountStatus.providerStatus.claude
+                      ? { ...state.accountStatus.providerStatus.claude }
+                      : null,
+                    codex: state.accountStatus.providerStatus.codex
+                      ? { ...state.accountStatus.providerStatus.codex }
+                      : null,
+                  }
+                : null,
             }
           : null,
         // Slice UX-2-a: defensive shallow copy of each pending
@@ -490,8 +505,57 @@
         remote: "remote" in input
           ? (input.remote && typeof input.remote === "object" ? { ...input.remote } : null)
           : (prev.remote || null),
+        // Slice UI-FirstRun-b: providerStatus is panel-set, NOT
+        // populated by /api/server/info polling. setAccountStatus
+        // preserves the existing slice unless caller explicitly
+        // passes providerStatus (rare — most callers won't include).
+        providerStatus: "providerStatus" in input
+          ? (input.providerStatus && typeof input.providerStatus === "object" ? { ...input.providerStatus } : null)
+          : (prev.providerStatus || null),
       };
       state.accountStatus = next;
+      _publish();
+      return snapshot();
+    }
+
+    // Slice UI-FirstRun-b: dedicated mutator for the providerStatus
+    // slice — settings-accounts panel calls this after a successful
+    // (or failed) probe-provider response so the first-run classifier
+    // can drop out of the "untested" branch into provider-missing /
+    // provider-not-authenticated / ready as appropriate.
+    //
+    // Input shape: {claude?: {installed, authenticated, ...}, codex?: {...}}
+    // Partial input merges over previous (operator who only tests Claude
+    // doesn't wipe Codex's last-known status).
+    function setProviderStatus(input) {
+      if (input == null) {
+        // Explicit null clears the slice.
+        if (!state.accountStatus || !state.accountStatus.providerStatus) {
+          return snapshot();
+        }
+        state.accountStatus = { ...state.accountStatus, providerStatus: null };
+        _publish();
+        return snapshot();
+      }
+      if (typeof input !== "object") return snapshot();
+      const prev = state.accountStatus || {};
+      const prevPS = prev.providerStatus || {};
+      const nextPS = {
+        claude: "claude" in input
+          ? (input.claude && typeof input.claude === "object" ? { ...input.claude } : null)
+          : (prevPS.claude || null),
+        codex: "codex" in input
+          ? (input.codex && typeof input.codex === "object" ? { ...input.codex } : null)
+          : (prevPS.codex || null),
+      };
+      state.accountStatus = {
+        // Preserve other accountStatus blocks
+        profile: prev.profile || null,
+        deployment: prev.deployment || null,
+        bridge: prev.bridge || null,
+        remote: prev.remote || null,
+        providerStatus: nextPS,
+      };
       _publish();
       return snapshot();
     }
@@ -715,6 +779,8 @@
       clearRunDetail,
       // Slice D3-b
       setAccountStatus,
+      // Slice UI-FirstRun-b: providerStatus sub-slice (panel-set after probe)
+      setProviderStatus,
       // Slice UX-2-a: pending-approval slice (R3-e + GOV-APPROVAL-0)
       upsertApproval,
       resolveApproval,
