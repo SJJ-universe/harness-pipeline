@@ -156,6 +156,16 @@
       // null until the first refresh lands; the global-bar shows
       // "(loading)" placeholders until then.
       accountStatus: null,
+      // Slice SMART-0-c (Phase 2 SMART arc, 2026-05-04): decisionContext
+      // is the SMART arc's primary input — pure projection of operator-
+      // attention state (8 booleans + counts + posture + sources).
+      // Populated by the legacy-bridge polling /api/decision-context
+      // every 5s. Null until the first poll lands; SMART panels
+      // gracefully degrade (no recommendations / no hard gates fire).
+      // Snapshot returns a defensively shallow-copied frozen-ish
+      // structure (the inner objects are frozen by the route's
+      // buildContext).
+      decisionContext: null,
       // Slice UX-2-a (R3-e + GOV-APPROVAL-0): pending operator
       // approvals for write-tool dispatches. Map<approvalId, request>
       // where request mirrors the manager's snapshot:
@@ -257,6 +267,25 @@
                       : null,
                   }
                 : null,
+            }
+          : null,
+        // Slice SMART-0-c: decisionContext snapshot. The inner
+        // booleans / counts / posture / sources objects are already
+        // frozen by buildContext on the server; we shallow-copy the
+        // outer envelope here so a panel can't mutate the cached
+        // snapshot identity.
+        decisionContext: state.decisionContext
+          ? {
+              schema: state.decisionContext.schema,
+              timestamp: state.decisionContext.timestamp,
+              booleans: state.decisionContext.booleans
+                ? { ...state.decisionContext.booleans } : null,
+              counts: state.decisionContext.counts
+                ? { ...state.decisionContext.counts } : null,
+              posture: state.decisionContext.posture
+                ? { ...state.decisionContext.posture } : null,
+              sources: state.decisionContext.sources
+                ? { ...state.decisionContext.sources } : null,
             }
           : null,
         // Slice UX-2-a: defensive shallow copy of each pending
@@ -560,6 +589,45 @@
       return snapshot();
     }
 
+    // ── Slice SMART-0-c: decisionContext slice mutator ───────────
+
+    // Replaces the cached decisionContext snapshot. Input is the
+    // exact response body from GET /api/decision-context (validated
+    // by schema check below). null clears the slice (e.g. on monitor
+    // close + tests).
+    function setDecisionContext(input) {
+      if (input == null) {
+        if (state.decisionContext === null) return snapshot();
+        state.decisionContext = null;
+        _publish();
+        return snapshot();
+      }
+      // Validate schema marker so a stray response shape doesn't
+      // pollute the slice. The route always emits this constant.
+      if (!input || typeof input !== "object" ||
+          input.schema !== "harness-decision-context/v1") {
+        return snapshot();
+      }
+      // Defensive shallow clone of each sub-block. Inner objects
+      // are frozen by the route's buildContext, so identity-pinning
+      // is fine; we just need to prevent caller-side mutation of
+      // the slice's outer envelope.
+      state.decisionContext = {
+        schema: input.schema,
+        timestamp: input.timestamp,
+        booleans: input.booleans && typeof input.booleans === "object"
+          ? { ...input.booleans } : null,
+        counts: input.counts && typeof input.counts === "object"
+          ? { ...input.counts } : null,
+        posture: input.posture && typeof input.posture === "object"
+          ? { ...input.posture } : null,
+        sources: input.sources && typeof input.sources === "object"
+          ? { ...input.sources } : null,
+      };
+      _publish();
+      return snapshot();
+    }
+
     // ── Slice UX-2-a: pending-approval actions ───────────────────
 
     function upsertApproval(request) {
@@ -781,6 +849,8 @@
       setAccountStatus,
       // Slice UI-FirstRun-b: providerStatus sub-slice (panel-set after probe)
       setProviderStatus,
+      // Slice SMART-0-c: decisionContext slice mutator (legacy-bridge polling)
+      setDecisionContext,
       // Slice UX-2-a: pending-approval slice (R3-e + GOV-APPROVAL-0)
       upsertApproval,
       resolveApproval,

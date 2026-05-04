@@ -24,11 +24,17 @@ function fakeResponse({ ok = true, status = 200, body = {} } = {}) {
 
 function fakeFetch(response) {
   let lastCall = null;
+  const allCalls = [];
   const fn = async (url, opts) => {
     lastCall = { url, opts };
-    return typeof response === "function" ? response() : response;
+    allCalls.push(lastCall);
+    return typeof response === "function" ? response(url) : response;
   };
   fn.lastCall = () => lastCall;
+  // Slice SMART-0-c: tests that need to assert about a specific URL
+  // (vs the overall last fetch) use .calls() / .findCall(url).
+  fn.calls = () => allCalls.slice();
+  fn.findCall = (url) => allCalls.find((c) => c.url === url) || null;
   return fn;
 }
 
@@ -148,8 +154,12 @@ test("scheduled interval calls /api/server/info with Accept header", async () =>
   });
   assert.equal(ctl.scheduled.length, 1);
   await ctl.fire();
-  const call = _fetch.lastCall();
-  assert.equal(call.url, "/api/server/info");
+  // Slice SMART-0-c: interval now triggers TWO fetches per tick
+  // (server/info + decision-context). Find the server/info call
+  // explicitly rather than relying on lastCall (decision-context
+  // fires last and would shadow the assertion).
+  const call = _fetch.findCall("/api/server/info");
+  assert.ok(call, "scheduled interval must fetch /api/server/info");
   assert.equal(call.opts.headers.Accept, "application/json");
   // Server summary applied.
   const snap = store.snapshot();

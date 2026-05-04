@@ -49,6 +49,11 @@
 })(typeof window !== "undefined" ? window : globalThis, function () {
   const DEFAULT_REFRESH_MS = 5000;
   const DEFAULT_INFO_URL = "/api/server/info";
+  // Slice SMART-0-c (Phase 2 SMART arc, 2026-05-04): decision-context
+  // endpoint polled alongside /api/server/info on the same interval.
+  // SMART panels (recommendations / hard gates / etc) read the
+  // resulting store.decisionContext slice.
+  const DEFAULT_DECISION_CONTEXT_URL = "/api/decision-context";
 
   function install({
     store,
@@ -59,6 +64,7 @@
     clearIntervalFn = null,      // clearInterval in browser
     refreshIntervalMs = DEFAULT_REFRESH_MS,
     infoUrl = DEFAULT_INFO_URL,
+    decisionContextUrl = DEFAULT_DECISION_CONTEXT_URL,
     headers = {},
   } = {}) {
     if (!store || typeof store.pushEvent !== "function") {
@@ -81,6 +87,11 @@
       eventsDropped: 0,
       refreshes: 0,
       refreshErrors: 0,
+      // Slice SMART-0-c: separate counters for the decision-context
+      // poll so its error rate can be inspected without conflating
+      // with /api/server/info errors.
+      decisionContextRefreshes: 0,
+      decisionContextErrors: 0,
       // Slice MC2: count run-summary upserts so tests + readiness
       // checks can verify lifecycle event handling.
       runSyncs: 0,
@@ -428,8 +439,49 @@
         return null;
       }
     }
+    // ── Slice SMART-0-c: periodic /api/decision-context refresh ──
+    //
+    // Independent error handling from refresh() so a transient
+    // /api/server/info hiccup doesn't break decision-context
+    // updates and vice-versa. SMART panels read store.decisionContext
+    // populated here.
+    async function refreshDecisionContext() {
+      if (typeof _fetch !== "function") return null;
+      if (typeof store.setDecisionContext !== "function") {
+        // Older store builds without the slice — silently skip.
+        return null;
+      }
+      try {
+        const res = await _fetch(decisionContextUrl, {
+          method: "GET",
+          headers: { Accept: "application/json", ...headers },
+        });
+        if (!res || typeof res.ok !== "boolean" || !res.ok) {
+          stats.decisionContextErrors++;
+          return null;
+        }
+        const payload = typeof res.json === "function" ? await res.json() : null;
+        if (!payload || typeof payload !== "object") {
+          stats.decisionContextErrors++;
+          return null;
+        }
+        // setDecisionContext does its own schema check; bad payload
+        // shape becomes a no-op there. Stats still tick as success
+        // (we got HTTP 200 with parseable JSON).
+        store.setDecisionContext(payload);
+        stats.decisionContextRefreshes++;
+        return payload;
+      } catch (_) {
+        stats.decisionContextErrors++;
+        return null;
+      }
+    }
+
     if (typeof _setInterval === "function" && refreshIntervalMs > 0) {
-      intervalId = _setInterval(() => { refresh(); }, refreshIntervalMs);
+      intervalId = _setInterval(() => {
+        refresh();
+        refreshDecisionContext();
+      }, refreshIntervalMs);
       // Don't run an initial refresh here — the layout's hydrate already
       // populates the store on mount. The first interval tick takes over
       // 5s later, which keeps boot-time noise low.
@@ -449,6 +501,10 @@
     return {
       destroy,
       refresh,
+      // Slice SMART-0-c: dedicated decision-context refresh so tests
+      // (and operator scripts) can trigger the SMART arc input
+      // independently of the /api/server/info refresh.
+      refreshDecisionContext,
       stats: () => ({ ...stats }),
       // Slice MC2: test hook so unit tests can drive the sync function
       // directly without going through the dispatcher tap.
