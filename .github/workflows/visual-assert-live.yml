@@ -1,0 +1,143 @@
+# Slice UI-P11-d (Phase D Round UI-P, 2026-05-04) — manual-dispatch
+# only workflow that runs the responsive + text-fit assertion matrix
+# on CI hardware and uploads the manifest + per-failed-cell debug
+# PNGs as a workflow artifact.
+#
+# Why manual-dispatch only (matches UI-P10-d design contract):
+#   1. chromium binary download (~150MB) too expensive on every PR
+#      push.
+#   2. UI-P11 is operator-runnable regression-check evidence —
+#      structural snapshot harness (UI-P9) already runs every push
+#      and provides the structural regression block.
+#   3. PR-gating becomes valuable AFTER UI-P12 (a11y) lands — at
+#      that point the fused workflow (UI-P10 capture + UI-P11
+#      assertions + UI-P12 a11y) provides enough defense to
+#      justify the install cost.
+#
+# Operator workflow (in GitHub UI):
+#   1. Go to Actions tab
+#   2. Select "UI-P11 Live Browser Visual Assertions"
+#   3. Click "Run workflow" → choose branch → Run
+#   4. Wait ~3-5 minutes (chromium install + 16-cell × 6-rule run)
+#   5. Download artifact (manifest + any failed-cell PNGs)
+#
+# Exit code 1 from the assertion run still reports as a failed
+# workflow run — operators can use that signal as part of release
+# acceptance even though the workflow isn't a PR gate.
+
+name: UI-P11 Live Browser Visual Assertions
+
+on:
+  workflow_dispatch:
+    inputs:
+      label:
+        description: 'Optional label for the artifact + manifest filename suffix'
+        required: false
+        default: ''
+      port:
+        description: 'Server port (default 4799)'
+        required: false
+        default: '4799'
+      screenshot_failures:
+        description: 'Save full-page PNG of cells with assertion failures'
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  assert:
+    name: Assertion run (operator-triggered)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    defaults:
+      run:
+        working-directory: pipeline-dashboard
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: pipeline-dashboard/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install chromium (with system deps)
+        run: npm run visual:install-browsers
+
+      - name: Run assertion matrix
+        # The CLI exits 1 when assertions fail — that's intentional;
+        # GHA marks the job failed, which is the operator-facing
+        # signal. Use `--screenshot-failures` to capture debug PNGs
+        # by default in CI runs since the operator triggered this
+        # to find regressions.
+        run: |
+          screenshot_flag=""
+          if [ "${{ github.event.inputs.screenshot_failures }}" = "true" ]; then
+            screenshot_flag="--screenshot-failures"
+          fi
+          npm run visual:assert-live -- \
+            --port "${{ github.event.inputs.port }}" \
+            --label "ci-${{ github.event.inputs.label }}-${{ github.run_id }}" \
+            $screenshot_flag
+
+      - name: Resolve artifact directory
+        id: resolve
+        if: always()
+        run: |
+          dir=$(ls -td docs/reports/*-ui-p11-assert-* 2>/dev/null | head -n 1 || true)
+          if [ -z "$dir" ]; then
+            echo "No ui-p11-assert capture directory found." >&2
+            exit 1
+          fi
+          echo "Found assertion run directory: $dir"
+          echo "dir=$dir" >> "$GITHUB_OUTPUT"
+
+      - name: Upload manifest + failure PNGs artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-p11-assert-${{ github.run_id }}
+          path: pipeline-dashboard/${{ steps.resolve.outputs.dir }}
+          retention-days: 30
+
+      - name: Print summary
+        if: always()
+        run: |
+          if [ -f "${{ steps.resolve.outputs.dir }}/manifest.json" ]; then
+            echo "=== Assertion summary ==="
+            node -e "
+              const m = require('./${{ steps.resolve.outputs.dir }}/manifest.json');
+              console.log('Schema:', m.schema, '(ruleset version', m.rulesetVersion + ')');
+              console.log('Cells:', m.summary.cellsAllPassed + '/' + m.summary.totalCells, 'passed');
+              console.log('Cells with failures:', m.summary.cellsWithFailures);
+              console.log('Cells with errors:', m.summary.cellsWithErrors);
+              console.log('Assertions:',
+                m.summary.totalAssertionsPassed + '/' + m.summary.totalAssertionsApplicable,
+                'passed,', m.summary.totalAssertionsFailed, 'failed,',
+                m.summary.totalAssertionsSkipped, 'skipped');
+              console.log('Wall time:', m.totalElapsedMs, 'ms');
+              if (m.summary.totalAssertionsFailed > 0) {
+                console.log('--- Failed rules ---');
+                for (const c of m.cells) {
+                  if (!c.results) continue;
+                  for (const r of c.results) {
+                    if (r.skipped || r.ok) continue;
+                    console.log('  ' + c.routeId + '__' + c.viewportId + ' :: ' + r.id);
+                  }
+                }
+              }
+            "
+          fi
