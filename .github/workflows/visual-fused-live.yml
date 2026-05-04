@@ -1,0 +1,185 @@
+# Slice UI-Fuse-a (Phase D Round UI-P, 2026-05-04) — manual-dispatch
+# only fused workflow that runs ALL FOUR live visual contracts
+# (capture / assert / a11y / button) under a single chromium install
+# and uploads one combined artifact.
+#
+# Why fused:
+#   - Each per-tool workflow installs chromium (~150MB) + spins up
+#     setup-node@v6 + npm ci. Running them separately = 4× the
+#     overhead. Fused = 1 install + 4 sequential tool runs.
+#   - Single artifact under one run_id makes operator triage simpler
+#     ("download UI-Fuse run 12345" vs "download capture / assert /
+#     a11y / button artifacts separately and correlate timestamps").
+#
+# Why STILL manual-dispatch (NOT push / pull_request):
+# Per `docs/visual-contract-governance.md` §6.2, fused PR-gating
+# requires four entry conditions:
+#   1. Stable baselines for assert/a11y/button manifests — "어떤
+#      cell이 항상 fail하는지" 알려져 있어야 false positive 없음
+#   2. chromium 캐시 안정 — npm-ci 후 chromium 다운로드를 cache hit
+#      로 회피 가능
+#   3. Total wall time ≤ 5 분
+#   4. Operator UX — PR-fail 메시지 명확
+#
+# This round (UI-Fuse) closes condition 2 (chromium cache) and
+# improves condition 3 (wall time). Conditions 1 + 4 still need
+# baseline-stability evidence + operator UX polish before PR-gating
+# is safe. So the workflow stays workflow_dispatch ONLY for now.
+# A follow-up round (UI-Fuse-2 hypothetical) flips push trigger
+# once conditions are demonstrably met.
+#
+# Operator workflow:
+#   1. Actions tab → "UI-Fuse Live Browser Visual Verification" → Run
+#   2. Wait ~3-7 minutes (chromium install once + 4 tools sequentially)
+#   3. Download fused artifact (4 subdirs: capture / assert / a11y /
+#      buttons + per-tool manifest.json + summary.json at top)
+
+name: UI-Fuse Live Browser Visual Verification (all 4 contracts)
+
+on:
+  workflow_dispatch:
+    inputs:
+      label:
+        description: 'Optional label for the artifact + manifest filename suffix'
+        required: false
+        default: ''
+      port:
+        description: 'Server port (default 4799)'
+        required: false
+        default: '4799'
+      tools:
+        description: 'Subset (comma-separated): capture,assert,a11y,button (default: all 4)'
+        required: false
+        default: 'capture,assert,a11y,button'
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  fused:
+    name: Fused visual verification (operator-triggered)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    defaults:
+      run:
+        working-directory: pipeline-dashboard
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: pipeline-dashboard/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install chromium (with system deps)
+        # SINGLE chromium install for all 4 tools — the savings vs
+        # the 4 separate workflows.
+        run: npm run visual:install-browsers
+
+      - name: Run fused matrix (4 tools sequentially under one chromium)
+        run: |
+          IFS=',' read -ra TOOLS <<< "${{ github.event.inputs.tools }}"
+          OUT_BASE="docs/reports/$(date -u +%Y-%m-%d)-ui-fuse-ci-${{ github.event.inputs.label }}-${{ github.run_id }}"
+          mkdir -p "$OUT_BASE"
+          PORT="${{ github.event.inputs.port }}"
+          OVERALL_EXIT=0
+          for tool in "${TOOLS[@]}"; do
+            tool_trim="$(echo "$tool" | sed 's/^[ \t]*//;s/[ \t]*$//')"
+            case "$tool_trim" in
+              capture|assert|a11y|button) ;;
+              "") continue ;;
+              *) echo "WARN: unknown tool '$tool_trim' — skipping" >&2; continue ;;
+            esac
+            echo "::group::Running visual:$tool_trim-live"
+            npm run "visual:$tool_trim-live" -- \
+              --port "$PORT" \
+              --out-dir "$OUT_BASE/$tool_trim" \
+              || OVERALL_EXIT=$?
+            echo "::endgroup::"
+          done
+          echo "fused_dir=$OUT_BASE" >> "$GITHUB_OUTPUT"
+          echo "FUSED_OUT_DIR=$OUT_BASE" >> "$GITHUB_ENV"
+          # Build a top-level summary.json across whichever tools ran
+          node -e "
+            const fs = require('fs'); const path = require('path');
+            const baseDir = process.env.FUSED_OUT_DIR;
+            const summary = {
+              schema: 'harness-visual-fused/v1',
+              fusedAt: new Date().toISOString(),
+              runId: process.env.GITHUB_RUN_ID,
+              tools: {},
+              perTool: {},
+            };
+            for (const tool of ['capture', 'assert', 'a11y', 'button']) {
+              const m = path.join(baseDir, tool, 'manifest.json');
+              if (!fs.existsSync(m)) {
+                summary.tools[tool] = 'absent';
+                continue;
+              }
+              try {
+                const j = JSON.parse(fs.readFileSync(m, 'utf-8'));
+                summary.tools[tool] = 'ran';
+                summary.perTool[tool] = {
+                  schema: j.schema,
+                  capturedAt: j.capturedAt,
+                  totalElapsedMs: j.totalElapsedMs,
+                  summary: j.summary,
+                };
+              } catch (err) {
+                summary.tools[tool] = 'parse-error';
+                summary.perTool[tool] = { error: String(err && err.message) };
+              }
+            }
+            fs.writeFileSync(path.join(baseDir, 'summary.json'),
+              JSON.stringify(summary, null, 2) + '\n');
+            console.log('=== Fused summary ===');
+            for (const tool of Object.keys(summary.tools)) {
+              const status = summary.tools[tool];
+              const data = summary.perTool[tool];
+              if (data && data.summary) {
+                console.log(' ', tool.padEnd(8), status,
+                  JSON.stringify(data.summary));
+              } else {
+                console.log(' ', tool.padEnd(8), status);
+              }
+            }
+          "
+          exit $OVERALL_EXIT
+
+      - name: Resolve artifact directory
+        id: resolve
+        if: always()
+        run: |
+          # Prefer the FUSED_OUT_DIR env from the previous step. Fall
+          # back to ls if that step failed before exporting it.
+          if [ -n "${FUSED_OUT_DIR}" ] && [ -d "${FUSED_OUT_DIR}" ]; then
+            echo "Found fused directory via env: $FUSED_OUT_DIR"
+            echo "dir=$FUSED_OUT_DIR" >> "$GITHUB_OUTPUT"
+          else
+            dir=$(ls -td docs/reports/*-ui-fuse-ci-* 2>/dev/null | head -n 1 || true)
+            if [ -z "$dir" ]; then
+              echo "No ui-fuse-ci run directory found." >&2
+              exit 1
+            fi
+            echo "Found fused directory via ls: $dir"
+            echo "dir=$dir" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload fused artifact (4 subdirs + summary.json)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-fuse-${{ github.run_id }}
+          path: pipeline-dashboard/${{ steps.resolve.outputs.dir }}
+          retention-days: 30
