@@ -54,15 +54,22 @@
 
     const track = _doc.createElement("div");
     track.className = "prod-track";
+    track.setAttribute("data-region", "harness-track");
+    track.setAttribute("role", "region");
+    track.setAttribute("aria-label", "Harness Track — 파이프라인 단계 진행 표시");
 
     // Lane labels
     const lanes = _doc.createElement("div");
     lanes.className = "prod-track-lanes";
+    lanes.setAttribute("data-track-slot", "lanes");
     MOCK_STAGES.forEach(function (stage, i) {
       const label = _doc.createElement("div");
       label.className = "prod-track-lane-label";
+      label.setAttribute("data-lane-index", String(i));
+      label.setAttribute("data-lane-id", stage.label.toLowerCase().replace(/\s+/g, "-"));
       label.setAttribute("data-state", i < currentStage ? "passed"
                                   : i === currentStage ? "current" : "pending");
+      if (stage.gate) label.setAttribute("data-gate", "true");
       label.textContent = stage.label;
       if (stage.gate) {
         const marker = _doc.createElement("span");
@@ -99,6 +106,7 @@
     // resolves from window globals.
     const horseWrap = _doc.createElement("div");
     horseWrap.className = "prod-track-horse-wrap";
+    horseWrap.setAttribute("data-track-slot", "horse");
     // Sprite is 56px wide at default; offset by 28 (half) so center
     // sits over the lane midpoint. Uses calc() so window resize keeps
     // alignment without a JS reflow.
@@ -137,6 +145,9 @@
     // Status pill
     const pill = _doc.createElement("div");
     pill.className = "prod-track-status-pill";
+    pill.setAttribute("data-track-slot", "status-pill");
+    pill.setAttribute("role", "status");
+    pill.setAttribute("aria-live", "polite");
     pill.textContent = "STAGE " + (currentStage + 1) + "/" + MOCK_STAGES.length
       + " · " + MOCK_STAGES[currentStage].label;
     track.appendChild(pill);

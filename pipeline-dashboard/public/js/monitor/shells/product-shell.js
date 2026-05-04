@@ -100,25 +100,36 @@
       || (typeof window !== "undefined" && window.HarnessProductDualTerminals && window.HarnessProductDualTerminals.create);
 
     // Build skeleton DOM. The class names map 1:1 to style.product.css.
+    // Each region carries data-region so UI-P5 wiring + visual
+    // regression tooling can find them by attribute selector instead
+    // of relying on class names that may shift during pixel polish.
     const shell = _doc.createElement("div");
     shell.className = "prod-shell";
+    shell.setAttribute("data-region", "shell");
     shell.setAttribute("data-mode", mode);
 
     const headerMount = _doc.createElement("div");
     headerMount.className = "prod-header-mount";
+    headerMount.setAttribute("data-region-mount", "header");
     const trackMount = _doc.createElement("div");
     trackMount.className = "prod-track-mount";
+    trackMount.setAttribute("data-region-mount", "harness-track");
 
     const workspace = _doc.createElement("div");
     workspace.className = "prod-workspace";
+    workspace.setAttribute("data-region-mount", "workspace");
     const railMount = _doc.createElement("div");
     railMount.className = "prod-rail-mount";
+    railMount.setAttribute("data-region-mount", "pipeline-rail");
     const stack = _doc.createElement("div");
     stack.className = "prod-monitor-stack";
+    stack.setAttribute("data-region-mount", "monitor-stack");
     const gridMount = _doc.createElement("div");
     gridMount.className = "prod-grid-mount";
+    gridMount.setAttribute("data-region-mount", "monitor-grid");
     const terminalsMount = _doc.createElement("div");
     terminalsMount.className = "prod-terminals-mount";
+    terminalsMount.setAttribute("data-region-mount", "dual-terminals");
 
     stack.appendChild(gridMount);
     stack.appendChild(terminalsMount);

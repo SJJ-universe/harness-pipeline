@@ -92,27 +92,32 @@
     // Build the header DOM once + cache references for cheap updates.
     const header = _doc.createElement("header");
     header.className = "prod-header";
+    header.setAttribute("data-region", "header");
     header.setAttribute("role", "banner");
+    header.setAttribute("aria-label", "SJ Harness 헤더 (상태 · 모드 · 액션)");
 
     // Logo + title + version
     const logo = _doc.createElement("div");
     logo.className = "prod-header-logo";
+    logo.setAttribute("data-header-slot", "logo");
     logo.innerHTML =
       '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#C9A66B" stroke-width="1.6" aria-hidden="true">'
       + '<path d="M12 2L2 7l10 5 10-5-10-5z"/>'
       + '<path d="M2 17l10 5 10-5"/>'
       + '<path d="M2 12l10 5 10-5"/>'
       + '</svg>'
-      + '<span class="prod-header-title">SJ Harness</span>'
-      + '<span class="prod-header-version">' + VERSION + '</span>';
+      + '<span class="prod-header-title" data-header-slot="title">SJ Harness</span>'
+      + '<span class="prod-header-version" data-header-slot="version">' + VERSION + '</span>';
     header.appendChild(logo);
 
     // Status pill
     const statusPill = _doc.createElement("span");
     statusPill.className = "prod-header-status-pill";
+    statusPill.setAttribute("data-header-slot", "status-pill");
     statusPill.setAttribute("data-state", "idle");
     statusPill.setAttribute("role", "status");
     statusPill.setAttribute("aria-live", "polite");
+    statusPill.setAttribute("aria-label", "실행 상태");
     const statusDot = _doc.createElement("span");
     statusDot.className = "prod-status-dot";
     const statusLabel = _doc.createElement("span");
@@ -125,8 +130,9 @@
     // Mode toggle
     const modeToggle = _doc.createElement("div");
     modeToggle.className = "prod-mode-toggle";
+    modeToggle.setAttribute("data-header-slot", "mode-toggle");
     modeToggle.setAttribute("role", "group");
-    modeToggle.setAttribute("aria-label", "사용자 모드");
+    modeToggle.setAttribute("aria-label", "사용자 모드 전환");
     const modeButtons = {};
     [
       ["simple", "일반사용자", "Simple"],
@@ -165,14 +171,18 @@
     // Right cluster — indicators + locale + actions
     const indicators = _doc.createElement("div");
     indicators.className = "prod-header-indicators";
+    indicators.setAttribute("data-header-slot", "indicators");
 
     const serverIndicator = _doc.createElement("span");
     serverIndicator.className = "prod-indicator";
+    serverIndicator.setAttribute("data-indicator", "server");
     serverIndicator.setAttribute("aria-label", "서버 상태");
     const serverDot = _doc.createElement("span");
     serverDot.className = "prod-indicator-dot";
     serverDot.setAttribute("data-status", "ok");
+    serverDot.setAttribute("data-indicator-slot", "dot");
     const serverLabel = _doc.createElement("span");
+    serverLabel.setAttribute("data-indicator-slot", "label");
     serverLabel.textContent = "서버 ONLINE";
     serverIndicator.appendChild(serverDot);
     serverIndicator.appendChild(serverLabel);
@@ -180,11 +190,14 @@
 
     const codexIndicator = _doc.createElement("span");
     codexIndicator.className = "prod-indicator";
+    codexIndicator.setAttribute("data-indicator", "codex");
     codexIndicator.setAttribute("aria-label", "Codex 상태");
     const codexDot = _doc.createElement("span");
     codexDot.className = "prod-indicator-dot";
     codexDot.setAttribute("data-status", "ok");
+    codexDot.setAttribute("data-indicator-slot", "dot");
     const codexLabel = _doc.createElement("span");
+    codexLabel.setAttribute("data-indicator-slot", "label");
     codexLabel.textContent = "Codex READY";
     codexIndicator.appendChild(codexDot);
     codexIndicator.appendChild(codexLabel);
@@ -193,6 +206,9 @@
     // Locale toggle KO/EN
     const localeToggle = _doc.createElement("div");
     localeToggle.className = "prod-locale-toggle";
+    localeToggle.setAttribute("data-header-slot", "locale-toggle");
+    localeToggle.setAttribute("role", "group");
+    localeToggle.setAttribute("aria-label", "언어 선택");
     const localeButtons = {};
     ["KO", "EN"].forEach(function (l) {
       const btn = _doc.createElement("button");
@@ -217,6 +233,7 @@
     // Pro-only actions — hidden in simple via display:none
     const proActions = _doc.createElement("span");
     proActions.className = "prod-header-pro-actions";
+    proActions.setAttribute("data-header-slot", "pro-actions");
     [
       ["metrics", "📈 메트릭"],
       ["history", "📜 히스토리"],
