@@ -97,3 +97,60 @@ test("UI-P1 routing: both / and /?mode=legacy receive nonce + CSP header", async
     }
   });
 });
+
+// ── UI-P8: legacy retreat — deprecation banner ─────────────────────
+
+test("UI-P8 routing: /?mode=legacy serves the deprecation banner + dismiss controller", async () => {
+  await withServer(async () => {
+    const res = await fetch(`${BASE}/?mode=legacy`);
+    assert.equal(res.status, 200);
+    const html = await res.text();
+    // Banner mount + class hooks present
+    assert.match(html, /id="harness-legacy-banner"/,
+      "legacy banner element must be present in /?mode=legacy");
+    assert.match(html, /class="harness-legacy-banner"/);
+    assert.match(html, /class="legacy-banner-dismiss"/,
+      "dismiss button must be present in legacy banner markup");
+    // CTA links to root (the product shell)
+    assert.match(html, /href="\/"/,
+      "banner CTA links to / so dismissed users can still reach the shell");
+    // Korean copy ships baked-in for first paint
+    assert.match(html, /새 대시보드가 준비되었습니다/);
+    // i18n hooks for KO/EN toggle
+    assert.match(html, /data-i18n="legacy\.banner\.message"/);
+    assert.match(html, /data-i18n="legacy\.banner\.cta"/);
+    // legacy-banner.js loaded (will be nonce-injected by indexRenderer)
+    assert.match(html, /<script nonce="[^"]+" src="js\/legacy-banner\.js"><\/script>/,
+      "legacy-banner.js must be loaded with nonce on /?mode=legacy");
+  });
+});
+
+test("UI-P8 routing: GET / (product shell) does NOT contain the legacy banner", async () => {
+  await withServer(async () => {
+    const res = await fetch(`${BASE}/`);
+    assert.equal(res.status, 200);
+    const html = await res.text();
+    assert.equal(html.includes("harness-legacy-banner"), false,
+      "product shell never carries the legacy deprecation banner — banner is " +
+      "scoped to /?mode=legacy only (per UI-P0 §285+286)",
+    );
+    assert.equal(html.includes("legacy-banner.js"), false,
+      "product shell does NOT load legacy-banner.js — script lives only in " +
+      "index.legacy.html and is irrelevant to product-shell sessions",
+    );
+  });
+});
+
+test("UI-P8 routing: legacy banner CTA points at the product shell route", async () => {
+  await withServer(async () => {
+    const res = await fetch(`${BASE}/?mode=legacy`);
+    const html = await res.text();
+    // Find banner section + verify CTA href is "/"
+    const m = html.match(/<a class="legacy-banner-cta"[^>]*href="([^"]+)"/);
+    assert.ok(m, "legacy banner must contain a CTA <a> with href");
+    assert.equal(m[1], "/",
+      "CTA href must be '/' so the operator lands on the product shell " +
+      "without any query string (default mode = simple per UI-P0 §S decision 1)",
+    );
+  });
+});

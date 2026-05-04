@@ -139,6 +139,18 @@
     "prod.terminals.state.awaiting_claude":   "Claude 반영 대기",
     "prod.terminals.state.claude_received":   "Claude 반영 완료",
     "prod.terminals.state.archived":          "보관됨",
+
+    // ── UI-P8: legacy view deprecation banner ───────────────────────
+    // Banner appears at the top of /?mode=legacy. Dismissible with
+    // localStorage persistence. Per UI-P0 §285+286 the legacy view
+    // stays available indefinitely as an operator escape hatch — the
+    // banner advertises the new shell without forcing migration.
+    "legacy.banner.aria":     "새 대시보드 안내",
+    "legacy.banner.message":  "🚀 새 대시보드가 준비되었습니다 — 같은 데이터, 새로운 디자인",
+    "legacy.banner.cta":      "체험하기 →",
+    "legacy.banner.cta.title":"새 product shell 열기",
+    "legacy.banner.dismiss":  "이 안내 닫기",
+    "legacy.banner.footnote": "이 보기(legacy)는 계속 사용할 수 있습니다",
   };
 
   if (typeof module !== "undefined" && module.exports) {

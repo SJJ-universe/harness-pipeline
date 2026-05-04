@@ -138,6 +138,18 @@
     "prod.terminals.state.awaiting_claude":   "Awaiting Claude",
     "prod.terminals.state.claude_received":   "Claude responded",
     "prod.terminals.state.archived":          "Archived",
+
+    // ── UI-P8: legacy view deprecation banner ───────────────────────
+    // Banner appears at the top of /?mode=legacy. Dismissible with
+    // localStorage persistence. Per UI-P0 §285+286 the legacy view
+    // stays available indefinitely as an operator escape hatch — the
+    // banner advertises the new shell without forcing migration.
+    "legacy.banner.aria":     "New dashboard notice",
+    "legacy.banner.message":  "🚀 The new dashboard is ready — same data, refreshed visuals",
+    "legacy.banner.cta":      "Try it →",
+    "legacy.banner.cta.title":"Open the new product shell",
+    "legacy.banner.dismiss":  "Dismiss this notice",
+    "legacy.banner.footnote": "This view (legacy) stays available indefinitely",
   };
 
   if (typeof module !== "undefined" && module.exports) {
