@@ -138,10 +138,23 @@ const _runnerStaleMonitor = _remoteRunner.runnerRegistry
 //   /api/csp-report before any production break. Promote via
 //   HARNESS_CSP_MODE=enforce once /api/csp-report is quiet.
 const INDEX_HTML = fs.readFileSync(path.join(__dirname, "public", "index.html"), "utf-8");
+// Slice UI-P1-g (Phase 2 Round 3, 2026-04-30): preserve legacy view
+// for ?mode=legacy. The legacy DOM is the EXACT pre-port markup
+// (saved in UI-P1-a). Both files apply the same nonce+CSP wrapping
+// — operators can switch back without losing security posture. The
+// legacy view stays available indefinitely (sign-off decision 6).
+const INDEX_LEGACY_HTML = fs.existsSync(path.join(__dirname, "public", "index.legacy.html"))
+  ? fs.readFileSync(path.join(__dirname, "public", "index.legacy.html"), "utf-8")
+  : INDEX_HTML; // fallback if legacy file deleted — never serve nothing
 
 function indexRenderer(req, res) {
   const nonce = crypto.randomBytes(16).toString("base64");
-  const html = INDEX_HTML
+  // UI-P1-g: route ?mode=legacy to the preserved DOM. Anything else
+  // (no ?mode, ?mode=simple, ?mode=pro, even invalid values) gets
+  // the new product shell.
+  const wantsLegacy = req && req.query && req.query.mode === "legacy";
+  const sourceHtml = wantsLegacy ? INDEX_LEGACY_HTML : INDEX_HTML;
+  const html = sourceHtml
     .replace(/<script(\s|>)/g, `<script nonce="${nonce}"$1`)
     .replace(/<link(\s[^>]*rel="stylesheet")/g, `<link nonce="${nonce}"$1`);
 

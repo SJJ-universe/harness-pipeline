@@ -1,569 +1,86 @@
 <!DOCTYPE html>
+<!--
+  index.html — SJ Harness product shell (Slice UI-P1, Phase 2 Round 3, 2026-04-30).
+
+  This is the NEW first-paint experience. The visual shape is ported
+  from the reference HTML at the operator's design-source folder
+  (verified in docs/ui-reference-port-plan.md):
+    - 52px header (logo + status pill + Simple/Pro + KO/EN + indicators + actions)
+    - 92px Harness Track (sprite player + 7-stage band + status pill)
+    - 2-column workspace: pipeline rail + (monitor grid stacked over dual terminals)
+
+  Default mode is `simple` per Section 7 sign-off (reference defaults pro;
+  production prefers lower density on first visit). Operators who want
+  the dense pro view click the toggle or pass `?mode=pro`.
+
+  ?mode=legacy redirects (via server-side branch in server.js) to
+  index.legacy.html — the preserved pre-port markup. The legacy view
+  stays available indefinitely (sign-off decision 6).
+
+  Mount sequencing:
+    1. Core runtime modules (dom / i18n / api-client / ws-client) load
+       first — these power both the product shell and existing modals.
+    2. Monitor infrastructure (store / normalizer / legacy-bridge / mode)
+       loads next — the product shell consumes the same store the legacy
+       monitor uses.
+    3. Product panels load — these are NEW and prefixed `product-*` to
+       avoid name collisions with legacy panels (which keep their
+       original names).
+    4. Init script resolves mode + mounts.
+
+  CSP: every <script> + <link rel="stylesheet"> gets a per-request nonce
+  injected by server.js indexRenderer. No inline <script> contents.
+-->
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SJ Harness Engine</title>
-  <!-- Slice UI-H0 (Phase D / Phase E1.5, 2026-04-30): design-token
-       layer for the SJ Harness Dashboard mockup integration. Loads
-       BEFORE style.css + style.monitor.css so every selector can
-       consume `--hsh-*` custom properties. Tokens are additive —
-       backwards-compatible with existing `var(--bg-card, #161b22)`-
-       style hex fallbacks. See docs/ui-dashboard-design-notes.md. -->
-  <link rel="stylesheet" href="css/harness-shell.css" />
-  <link rel="stylesheet" href="style.css" />
-  <!-- Slice MA3 (Phase D, 2026-04-27): monitor shell stylesheet. Scoped
-       under .monitor-shell so it only affects the new shell DOM (default
-       hidden — needs ?monitor=1 opt-in to render). -->
-  <link rel="stylesheet" href="style.monitor.css" />
-  <!-- Slice P (v6): SRI integrity hashes for xterm CDN resources. Obtained
-       via `npm run sri:print`. On version bump, re-run sri:print and paste
-       the new hashes here. If the fetched file doesn't match, the browser
-       blocks the resource (CSP `require-sri-for` style protection). -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5/css/xterm.min.css"
-        integrity="sha384-tStR1zLfWgsiXCF3IgfB3lBa8KmBe/lG287CL9WCeKgQYcp1bjb4/+mwN6oti4Co"
-        crossorigin="anonymous" />
+  <!-- Reference-derived design tokens (UI-P1-c). Pixel polish lands in UI-P2. -->
+  <link rel="stylesheet" href="style.product.css" />
 </head>
 <body>
-  <!-- Slice H (v5): Skip link for keyboard users — hidden until focused,
-       jumps past the header into the main content region. -->
-  <a class="skip-link" href="#main-content" data-i18n="a11y.skipLink">본문 바로가기</a>
+  <a class="skip-link" href="#product-shell-root" data-i18n="a11y.skipLink">본문 바로가기</a>
 
-  <!-- Header -->
-  <header role="banner">
-    <div class="header-left">
-      <div class="logo">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
-        </svg>
-      </div>
-      <h1 data-i18n="header.title">SJ 하네스 엔진</h1>
-      <span class="badge" id="status-badge" data-i18n="status.idle">대기</span>
-    </div>
-    <div class="header-right">
-      <span class="server-indicator" id="server-indicator" data-i18n-title="server.status.title" title="서버 상태">
-        <span class="dot" id="server-dot"></span>
-        <span id="server-label" data-i18n="server.label.checking">서버: 확인중</span>
-      </span>
-      <span class="codex-indicator" id="codex-indicator" data-i18n-title="codex.status.title" title="Codex CLI 상태">
-        <span class="dot" id="codex-dot"></span>
-        <span id="codex-label">Codex: —</span>
-      </span>
-      <!-- Slice I (v5): language toggle — ko/en radio-style buttons. -->
-      <div class="lang-toggle" role="group" data-i18n-aria-label="lang.toggle.title" aria-label="언어 전환">
-        <button class="lang-btn" data-lang="ko" type="button">KO</button>
-        <button class="lang-btn" data-lang="en" type="button">EN</button>
-      </div>
-      <!-- Slice U (v6): run tabs — hidden by default (only visible when
-           ≥2 runs active, which requires Slice V unlock). -->
-      <div class="run-tabs is-hidden" id="run-tabs" role="tablist" aria-label="활성 런"></div>
-      <button class="btn-ctrl" id="btn-codex-verify"
-              data-i18n="btn.codexVerify" data-i18n-title="btn.codexVerify.title" data-i18n-aria-label="btn.codexVerify.title"
-              title="Codex CLI 실제 호출 테스트" aria-label="Codex CLI 실제 호출 테스트">Codex 검증</button>
-      <button class="btn-ctrl" id="btn-open-analytics"
-              data-i18n="btn.openAnalytics" data-i18n-title="btn.openAnalytics.title" data-i18n-aria-label="btn.openAnalytics.aria"
-              title="Phase별 duration / gate 메트릭 열기" aria-label="Phase 메트릭 드로어 열기 (g m)">📈 메트릭</button>
-      <button class="btn-ctrl" id="btn-open-run-history"
-              data-i18n="btn.openRunHistory" data-i18n-title="btn.openRunHistory.title" data-i18n-aria-label="btn.openRunHistory.aria"
-              title="과거 실행 기록 드로어 열기" aria-label="과거 실행 기록 드로어 열기 (g h)">📜 히스토리</button>
-      <button class="btn-ctrl" id="btn-server-restart"
-              data-i18n="btn.serverRestart" data-i18n-title="btn.serverRestart.title" data-i18n-aria-label="btn.serverRestart.title"
-              title="서버 재시작" aria-label="서버 재시작">재시작</button>
-      <button class="btn-ctrl danger" id="btn-server-stop"
-              data-i18n="btn.serverStop" data-i18n-title="btn.serverStop.title" data-i18n-aria-label="btn.serverStop.title"
-              title="서버 종료" aria-label="서버 종료">서버 종료</button>
-    </div>
-  </header>
+  <!-- Single mount point. The product-shell.js mount() call paints
+       the entire 5-region shell into this div. No legacy DOM lives
+       in this file — operators who want the legacy view use
+       /?mode=legacy which the server routes to index.legacy.html. -->
+  <div id="product-shell-root" role="main" aria-label="SJ Harness Dashboard"></div>
 
-  <!-- Slice H (v5): main landmark wrapping the dashboard body so screen
-       readers and skip-link get a proper target. tabindex="-1" lets the
-       skip-link focus the region itself (it's not natively focusable). -->
-  <main id="main-content" role="main" tabindex="-1">
-
-  <!-- Harness Track: horse racing animation strip -->
-  <div class="harness-track" id="harness-track">
-    <div class="horse-rider" id="horse-rider"></div>
-    <div class="harness-status" id="harness-status"></div>
-  </div>
-
-  <!-- Main Content: Left Pipeline + Right Panel -->
-  <div class="workspace">
-    <!-- Left: Pipeline Visualization (scrollable) -->
-    <section class="pipeline-scroll">
-      <!-- Pipeline selector bar -->
-      <div class="pipeline-selector" id="pipeline-selector">
-        <!-- pipeline-pill text is dynamic (template name from JS) — not
-             data-i18n; JS will call t() when picking a template. -->
-        <span class="pipeline-pill" id="pipeline-pill" data-i18n-title="pipeline.selector.title" title="템플릿 전환 (클릭)">코드 리뷰</span>
-        <button class="btn-ctrl primary" id="btn-start-general"
-                data-i18n="btn.startGeneral" data-i18n-title="btn.startGeneral.title"
-                title="범용 태스크 파이프라인 실행 (Claude 플랜 ↔ Codex 비평 순환)">
-          ▶ 작업 시작
-        </button>
-        <button class="btn-ctrl danger is-hidden" id="btn-abort-general"
-                data-i18n="btn.abortGeneral" data-i18n-title="btn.abortGeneral.title"
-                title="진행 중인 파이프라인 중단">
-          ■ 중단
-        </button>
-        <button class="btn-small" id="btn-toggle-compact" data-i18n-title="btn.toggleCompact.title" title="컴팩트/상세 보기 전환">compact</button>
-        <button class="btn-small" id="btn-open-template-editor"
-                data-i18n="btn.openTemplateEditor" data-i18n-title="btn.openTemplateEditor.title"
-                title="커스텀 템플릿 추가/편집/삭제">템플릿</button>
-      </div>
-      <div class="compact-pipeline hidden" id="compact-pipeline"></div>
-      <!-- Dynamic pipeline container -->
-      <div class="pipeline-container" id="pipeline-container">
-        <!-- Rendered dynamically by renderPipeline() -->
-      </div>
-    </section>
-
-    <!-- Right: Compact Stats + Terminal -->
-    <section class="right-panel">
-      <!-- Compact Stats Row -->
-      <div class="stats-compact">
-        <!-- Findings (5tier) -->
-        <div class="stat-mini findings-mini">
-          <div class="stat-mini-title" data-i18n="stat.findings">발견 사항</div>
-          <div class="findings-row findings-5tier">
-            <div class="finding-chip critical"><span class="finding-count-sm" id="count-critical">0</span><span class="finding-label-sm">critical</span></div>
-            <div class="finding-chip high"><span class="finding-count-sm" id="count-high">0</span><span class="finding-label-sm">high</span></div>
-            <div class="finding-chip medium"><span class="finding-count-sm" id="count-medium">0</span><span class="finding-label-sm">medium</span></div>
-            <div class="finding-chip low"><span class="finding-count-sm" id="count-low">0</span><span class="finding-label-sm">low</span></div>
-            <div class="finding-chip note"><span class="finding-count-sm" id="count-note">0</span><span class="finding-label-sm">note</span></div>
-          </div>
-        </div>
-        <!-- Context pressure bar -->
-        <div class="stat-mini context-mini" id="context-card">
-          <div class="stat-mini-title" data-i18n="stat.context">컨텍스트</div>
-          <!-- Slice O (v6): context bar re-authored as SVG so the dynamic
-               width is a rect attribute (not inline style). Removes the
-               last dependency on style-src 'unsafe-inline'. The rect is
-               width=0 by default; updateContextBar() sets its width
-               attribute and its CSS class. -->
-          <div class="context-bar" id="context-bar">
-            <svg class="context-bar-svg" viewBox="0 0 100 22" preserveAspectRatio="none" aria-hidden="true">
-              <rect class="context-fill" x="0" y="0" width="0" height="22" rx="3"></rect>
-            </svg>
-            <span class="context-label">--</span>
-          </div>
-        </div>
-        <!-- Verification status -->
-        <div class="stat-mini verify-mini" id="verify-card">
-          <div class="stat-mini-title" data-i18n="stat.verify">검증</div>
-          <div class="verify-status" id="verify-status">--</div>
-        </div>
-      </div>
-
-      <!-- Codex Live Output — visible only during Codex execution -->
-      <div class="stat-mini codex-live-mini is-hidden" id="codex-live-card">
-        <div class="stat-mini-title">
-          <span data-i18n="stat.codexLive">🤖 Codex 라이브 출력</span>
-          <span class="codex-live-meta" id="codex-live-meta">—</span>
-        </div>
-        <pre class="codex-live-output" id="codex-live-output"></pre>
-      </div>
-
-      <!-- Slice D (v4): Subagent tray — lights up when Claude Code's Agent tool
-           dispatches work to a subagent (SubagentStart) and clears after the
-           matching SubagentStop. Empty state is visually suppressed via .empty. -->
-      <div class="stat-mini subagent-tray empty" id="subagent-tray">
-        <div class="stat-mini-title">
-          <span data-i18n="stat.subagents">🤝 서브에이전트</span>
-          <span class="feed-counter" id="subagent-count">0</span>
-        </div>
-        <div class="subagent-items" id="subagent-items"></div>
-      </div>
-
-      <!-- Row 2: Tool Feed + Critique Timeline -->
-      <div class="stats-row-2">
-        <div class="stat-mini tool-feed-mini">
-          <div class="stat-mini-title">
-            <span data-i18n="stat.toolCalls">🔧 툴 호출</span>
-            <span class="feed-counter" id="tool-feed-counter">0</span>
-            <button class="btn-small" id="btn-clear-tool-feed" data-i18n="btn.clear">지우기</button>
-          </div>
-          <div class="tool-feed" id="tool-feed"></div>
-        </div>
-
-        <div class="stat-mini critique-mini">
-          <div class="stat-mini-title">
-            <span data-i18n="stat.critiqueTimeline">💬 Critique 타임라인</span>
-            <span class="feed-counter" id="critique-counter">0</span>
-            <button class="btn-small" id="btn-clear-critique" data-i18n="btn.clear">지우기</button>
-          </div>
-          <div class="critique-timeline" id="critique-timeline"></div>
-        </div>
-      </div>
-
-      <!-- Tab Bar + Terminal/Log -->
-      <div class="right-tabs">
-        <div class="tab-bar">
-          <button class="tab" id="tab-btn-log" data-i18n="tab.eventLog">이벤트 로그</button>
-          <button class="tab active" id="tab-btn-terminal" data-i18n="tab.terminal">터미널</button>
-          <div class="tab-spacer"></div>
-          <button class="btn-small" id="btn-clear-log" data-i18n="btn.clear">지우기</button>
-        </div>
-        <div class="tab-content hidden" id="tab-log">
-          <div class="log-content" id="log-content"></div>
-        </div>
-        <div class="tab-content" id="tab-terminal">
-          <div id="terminal-container"></div>
-        </div>
-      </div>
-    </section>
-  </div>
-
-  </main>
-  <!-- /main-content — modals below are portals outside the main flow -->
-
-  <!-- General Pipeline Task Input Modal -->
-  <div class="modal-overlay" id="general-run-overlay"
-       role="dialog" aria-modal="true" aria-labelledby="general-run-title">
-    <div class="modal-content">
-      <div class="modal-header">
-        <span class="modal-title" id="general-run-title" data-i18n="modal.general.title">범용 파이프라인 시작 — Claude 플랜 ↔ Codex 비평</span>
-        <button class="modal-close">&times;</button>
-      </div>
-      <div class="modal-body">
-        <p class="plan-help" data-i18n="modal.general.description">
-          작업을 입력하면 Claude가 계획을 세우고 Codex가 비평하며, critical/high 이슈가 남아 있는 동안 자동으로 계획을 수정하고 다시 비평합니다.
-        </p>
-        <label class="plan-field-label" data-i18n="field.taskDescription">작업 설명</label>
-        <textarea id="gr-task-input" class="plan-textarea" rows="5"
-          data-i18n-placeholder="field.taskPlaceholder"
-          placeholder="예: Express 서버에 JWT 인증 미들웨어를 추가하고 기존 /admin 라우트를 보호하기"></textarea>
-        <label class="plan-field-label" data-i18n="field.maxIterations">최대 반복 횟수</label>
-        <input type="number" id="gr-max-iter" class="plan-input" value="3" min="1" max="5" />
-        <div class="plan-actions">
-          <button class="btn-ctrl" id="btn-gr-cancel" data-i18n="btn.cancel">취소</button>
-          <button class="btn-ctrl primary" id="btn-gr-start" data-i18n="btn.start">시작</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Final Plan Result Modal -->
-  <div class="modal-overlay" id="final-plan-overlay"
-       role="dialog" aria-modal="true" aria-labelledby="final-plan-title">
-    <div class="modal-content wide">
-      <div class="modal-header">
-        <span class="modal-title" id="final-plan-title" data-i18n="modal.finalPlan">최종 플랜</span>
-        <button class="modal-close">&times;</button>
-      </div>
-      <div class="modal-body">
-        <div class="final-plan-meta" id="final-plan-meta"></div>
-        <pre class="final-plan-text" id="final-plan-text"></pre>
-      </div>
-    </div>
-  </div>
-
-  <!-- Stage Detail Modal -->
-  <div class="modal-overlay" id="modal-overlay"
-       role="dialog" aria-modal="true" aria-labelledby="modal-title">
-    <div class="modal-content">
-      <div class="modal-header">
-        <span class="modal-title" id="modal-title" data-i18n="modal.stepDetail">단계 상세</span>
-        <button class="modal-close">&times;</button>
-      </div>
-      <div class="modal-body" id="modal-body"></div>
-    </div>
-  </div>
-
-  <!-- Slice F (v5): Analytics Drawer — per-phase attempts[] + duration + gate counters -->
-  <div class="modal-overlay analytics-drawer is-hidden" id="analytics-drawer"
-       role="dialog" aria-modal="true" aria-labelledby="analytics-drawer-title">
-    <div class="modal-content wide">
-      <div class="modal-header">
-        <span class="modal-title" id="analytics-drawer-title" data-i18n="modal.analytics.title">📈 Phase 메트릭</span>
-        <button class="modal-close" id="btn-analytics-close" data-i18n-aria-label="a11y.close.analytics" aria-label="메트릭 드로어 닫기">&times;</button>
-      </div>
-      <div class="modal-body">
-        <div class="analytics-timeline-wrap" id="analytics-timeline"></div>
-        <div class="analytics-body" id="analytics-body"></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Slice E (v4): Run History Drawer — browse/replay past pipeline runs -->
-  <div class="modal-overlay run-history-drawer" id="run-history-drawer"
-       role="dialog" aria-modal="true" aria-labelledby="run-history-title">
-    <div class="modal-content wide">
-      <div class="modal-header">
-        <span class="modal-title" id="run-history-title" data-i18n="modal.runHistory.title">📜 실행 기록</span>
-        <button class="modal-close" data-i18n-aria-label="a11y.close.history" aria-label="기록 드로어 닫기">&times;</button>
-      </div>
-      <div class="modal-body">
-        <div class="run-history-toolbar">
-          <button class="btn-ctrl primary" id="btn-run-history-save" type="button" data-i18n="btn.saveCurrentRun">현재 실행 저장</button>
-          <button class="btn-ctrl danger" id="btn-run-history-clear" type="button" data-i18n="btn.clearAll">전체 삭제</button>
-        </div>
-        <div class="run-history-empty" id="run-history-empty" data-i18n="run.historyEmpty">
-          (저장된 기록 없음 — '현재 실행 저장'을 눌러 기록을 남기세요)
-        </div>
-        <div class="run-history-list" id="run-history-list"></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Slice E (v4): Template Editor Modal — manage user-uploadable templates -->
-  <div class="modal-overlay" id="template-editor-overlay"
-       role="dialog" aria-modal="true" aria-labelledby="template-editor-title">
-    <div class="modal-content wide">
-      <div class="modal-header">
-        <span class="modal-title" id="template-editor-title" data-i18n="modal.templateEditor.title">파이프라인 템플릿 에디터</span>
-        <button class="modal-close" data-i18n-aria-label="a11y.close.templateEditor" aria-label="템플릿 에디터 닫기">&times;</button>
-      </div>
-      <div class="modal-body tpl-ed-body">
-        <div class="tpl-ed-left">
-          <div class="tpl-ed-toolbar">
-            <button class="btn-ctrl primary" id="btn-tpl-ed-new" type="button" data-i18n="btn.newTemplate">+ 새 템플릿</button>
-          </div>
-          <div class="tpl-ed-list" id="tpl-ed-list"></div>
-        </div>
-        <div class="tpl-ed-right">
-          <label class="plan-field-label" for="tpl-ed-json" data-i18n="field.templateJsonLabel">JSON (schema: src/templates/pipelineTemplate.schema.json)</label>
-          <textarea id="tpl-ed-json" class="tpl-ed-textarea" spellcheck="false" rows="24"></textarea>
-          <div class="tpl-ed-msg" id="tpl-ed-msg"></div>
-          <div class="plan-actions">
-            <button class="btn-ctrl danger" id="btn-tpl-ed-delete" type="button" disabled data-i18n="btn.delete">삭제</button>
-            <button class="btn-ctrl primary" id="btn-tpl-ed-save" type="button" disabled data-i18n="btn.save">저장</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Slice C (v4): Toast surface. role/aria-live are overridden per-toast
-       at render time (error → alert+assertive), but giving the container a
-       polite default lets mid-update inserts stay well-behaved. -->
-  <div id="toast-container" class="toast-container" role="status" aria-live="polite" aria-atomic="false"></div>
-
-  <!-- Slice MA3 (Phase D, 2026-04-27): monitor shell mount boundary.
-       Default hidden — populated only when the inline init below detects
-       ?monitor=1 in the URL or localStorage.harnessMonitor === "1". This
-       keeps the legacy dashboard UX 100% unchanged for users who haven't
-       opted in. The shell is fixed-positioned so it overlays at the top
-       without disturbing the existing flex layout. -->
-  <div id="monitor-shell-root" class="monitor-shell" hidden></div>
-
-  <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5/lib/xterm.min.js"
-          integrity="sha384-J4qzUjBl1FxyLsl/kQPQIOeINsmp17OHYXDOMpMxlKX53ZfYsL+aWHpgArvOuof9"
-          crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0/lib/addon-fit.min.js"
-          integrity="sha384-UwMkGaBqfOcrTjPjXdAPWrGQkhpxTJ21vKtTwLb6wBpBM8HQXKAiUuwVJfgY0Yw6"
-          crossorigin="anonymous"></script>
+  <!-- ────────────────────────────────────────────────────────────
+       Core runtime (shared with legacy view)
+       ──────────────────────────────────────────────────────────── -->
   <script src="js/dom.js"></script>
-  <!-- Slice I (v5): i18n tables + module. ko/en populate window.HARNESS_I18N
-       before i18n.js reads it. Load order: ko → en → i18n → (panels that
-       call HarnessI18n.t()). app.js calls applyDom() after DOM ready. -->
   <script src="js/i18n/ko.js"></script>
   <script src="js/i18n/en.js"></script>
   <script src="js/i18n.js"></script>
-  <!-- Slice R (v6): event dispatcher registry — loaded before app.js so
-       the legacy handleEvent switch can delegate to it. Also available to
-       every panel for registering new runId/tab-scoped handlers. -->
-  <script src="js/event-dispatcher.js"></script>
-  <!-- toast.js must load before api-client + app.js so the HarnessToast
-       singleton is ready when those modules call showToast(). -->
   <script src="js/toast.js"></script>
-  <!-- Slice D: subagent tray wiring also needs to be live before app.js
-       dispatches its first subagent_* event. -->
-  <script src="js/subagent-tray.js"></script>
-  <!-- Slice U (v6): run tab bar — visible only when ≥2 runs exist. -->
-  <script src="js/run-tab-bar.js"></script>
-  <!-- Slice AA-1 (Phase 2.5, v6): pure helper used by handleEvent in
-       app.js to decide whether an incoming event belongs to the focused
-       run tab. Ships as a UMD module so Node tests can require() it. -->
-  <script src="js/run-id-filter.js"></script>
-  <!-- Slice AC (Phase 2.5, v6): harness horse animation (pixel art +
-       gallop loop + state machine) extracted from app.js. Must load
-       before app.js so window.HarnessHorseAnimation is ready when the
-       first setHorseState() call fires. -->
-  <script src="js/horse-animation.js"></script>
-  <!-- Slice AC (Phase 2.5, v6): pure formatters (escapeHtml / shortPath /
-       formatHMS / summarizeToolInput) moved out of app.js. DOM-free module
-       so Node tests can require() it directly. -->
-  <script src="js/formatters.js"></script>
-  <!-- Slice H (v5): a11y primitives — loaded before the panels so each
-       panel's open() can wrap a focus trap around its overlay. -->
-  <script src="js/focus-trap.js"></script>
-  <script src="js/keybindings.js"></script>
-  <!-- Slice E: template editor — self-contained modal that talks to
-       /api/pipeline/templates via the api-client. -->
-  <script src="js/template-editor.js"></script>
-  <!-- Slice E: run history drawer — localStorage-backed replay. Depends on
-       window.applyReplayEvent which is defined in app.js, so load after. -->
-  <script src="js/run-history.js"></script>
-  <!-- Slice F: analytics panel — pure-render + /api/runs/current fetch.
-       No hard dep on app.js; app.js wires the #btn-open-analytics binding. -->
-  <script src="js/analytics-panel.js"></script>
-  <!-- Slice K (v5): WebSocket client extracted from app.js. Must load
-       BEFORE app.js so connectWS() finds window.HarnessWsClient at init. -->
-  <script src="js/ws-client.js"></script>
   <script src="js/api-client.js"></script>
-  <!-- Slice MB4-c (Phase D Round 2): terminal init + general-pipeline
-       modal handlers extracted out of app.js. Both must load BEFORE
-       app.js so its lazy _ensureXxxHandle() calls find the modules
-       on first invocation. -->
-  <script src="js/terminal-mount.js"></script>
-  <script src="js/general-pipeline-modal.js"></script>
-  <!-- Slice MA7-a (Phase D, 2026-04-27): pure-DOM render helpers for
-       tool feed + critique timeline + finding counts + status badge.
-       Must load before app.js since app.js uses _ensureToolFeedRender. -->
-  <script src="js/tool-feed-render.js"></script>
-  <!-- Slice MA7-b (Phase D, 2026-04-27): stage modal open/close +
-       stage-log render + phase-meta header. Same lazy-install pattern. -->
-  <script src="js/stage-modal.js"></script>
-  <!-- Slice MA7-c (Phase D, 2026-04-27): subagent_started +
-       subagent_completed handleEvent cases extracted to a dispatcher-
-       registered handler. Proves the pattern future panel-specific
-       handlers can use without touching the legacy switch. -->
-  <script src="js/event-handlers/subagent-events.js"></script>
-  <script src="app.js"></script>
+  <script src="js/ws-client.js"></script>
 
-  <!-- Slice MA1+MA2+MA3 (Phase D): opt-in monitor shell.
-       store + normalizer + hydrate + global-bar + layout are all DOM-free
-       UMD modules and load fine even when the user hasn't opted in (they
-       simply sit unused on window.*). The init script below activates the
-       shell only when ?monitor=1 / localStorage.harnessMonitor==="1". -->
+  <!-- ────────────────────────────────────────────────────────────
+       Monitor infrastructure (DOM-free store + normalizer + bridge)
+       ──────────────────────────────────────────────────────────── -->
   <script src="js/monitor/store.js"></script>
   <script src="js/monitor/normalizer.js"></script>
   <script src="js/monitor/hydrate.js"></script>
-  <!-- Slice MB4-a (Phase D Round 2): legacy-bridge wires the live WS
-       event stream + /api/server/info polling into HarnessMonitorStore
-       so the monitor shell isn't a snapshot frozen at hydrate time.
-       Picked up by layout.js as window.HarnessMonitorLegacyBridge. -->
   <script src="js/monitor/legacy-bridge.js"></script>
-  <script src="js/monitor/panels/global-bar.js"></script>
-  <!-- Slice MA4: left-rail run list + centre-workspace summary panels.
-       Same UMD pattern as global-bar; layout.js looks them up on
-       window.HarnessMonitor{RunTree,RunSummary} when mounting. -->
-  <script src="js/monitor/panels/run-tree.js"></script>
-  <script src="js/monitor/panels/run-summary.js"></script>
-  <!-- Slice MA5: timeline (centre bottom) + inspector (right) +
-       bottom-dock (raw event log). All three are looked up by layout.js
-       on window.HarnessMonitor{Timeline,Inspector,BottomDock}. -->
-  <script src="js/monitor/panels/timeline.js"></script>
-  <script src="js/monitor/panels/inspector.js"></script>
-  <script src="js/monitor/panels/bottom-dock.js"></script>
-  <!-- Slice MA6: agent-tree panel — sits below run-tree in the left
-       rail, lists childRegistry data + active subagents derived from
-       the events ring. Picked up by layout.js as
-       window.HarnessMonitorAgentTree. -->
-  <script src="js/monitor/panels/agent-tree.js"></script>
-  <!-- Slice D3-d (Phase E1.5, 2026-04-29): operator-facing accounts modal.
-       Mounted by layout.js into a hidden region; toggled by the
-       global-bar Settings button. CSP-safe (external src). -->
-  <script src="js/monitor/panels/settings-accounts.js"></script>
-  <!-- Slice UX-2-c (Phase D R3 + E1.5, 2026-04-29): pending operator
-       approvals (R3-e + GOV-APPROVAL-0). Surfaces write-tool dispatch
-       requests from remote runners with PII context badges. CSP-safe
-       (external src). -->
-  <script src="js/monitor/panels/approval-card.js"></script>
-  <!-- Slice UI-H1 (Phase D / Phase E1.5, 2026-04-30): shell mode
-       foundation. mode.js resolves URL ?mode= > localStorage >
-       envDefault > "simple"; mode-toggle panel lets the operator
-       switch via pill buttons. Loaded BEFORE layout.js so the init
-       script can read HarnessMonitorMode.resolveMode synchronously. -->
   <script src="js/monitor/mode.js"></script>
-  <script src="js/monitor/panels/mode-toggle.js"></script>
-  <!-- Slice UI-H2 (Phase D / Phase E1.5, 2026-04-30): Harness Track
-       panel — galloping horse pipeline visualization tied to actual
-       run state. Pure state machine (horse-state-machine.js) +
-       UMD panel (panels/harness-track.js). Reads from store; never
-       fakes progress (unknown phase → "관찰 중" placeholder). -->
-  <script src="js/monitor/horse-state-machine.js"></script>
-  <script src="js/monitor/panels/harness-track.js"></script>
-  <!-- Slice UI-H3 (Phase D / Phase E1.5, 2026-04-30): Dual Agent
-       Console — read-only stream view. Claude on the left, Codex
-       on the right. Operator input flows via UI-H4 review relay,
-       NOT raw stdin (CSP-safe + policy-safe). -->
-  <script src="js/monitor/event-filters.js"></script>
-  <!-- Slice UI-H7-b (Phase D / Phase E1.5, 2026-04-30): review-session
-       HTTP client. Powers the dual-agent-console action row. Loaded
-       BEFORE dual-agent-console so the panel can find
-       window.HarnessReviewSessionClient. -->
-  <script src="js/monitor/review-session-client.js"></script>
-  <script src="js/monitor/panels/dual-agent-console.js"></script>
-  <!-- Slice UI-H5 (Phase D / Phase E1.5, 2026-04-30): security-status
-       card. Surfaces posture / sandbox / PII / approval pending
-       summary at-a-glance. Mounted in BOTH simple AND advanced
-       modes. layout.js also writes data-posture on documentElement
-       so harness-shell.css freezes animations under public-sector. -->
-  <script src="js/monitor/panels/security-status-card.js"></script>
-  <!-- Slice UI-H6 (Phase D / Phase E1.5, 2026-04-30): Simple shell
-       + 4 operator-friendly cards. Mounted by layout.js when
-       mode==="simple"; advanced mode keeps the existing 9-panel
-       layout. -->
-  <script src="js/monitor/panels/now-doing-card.js"></script>
-  <script src="js/monitor/panels/pending-approvals-card.js"></script>
-  <script src="js/monitor/panels/recent-results-card.js"></script>
-  <script src="js/monitor/panels/connection-status-card.js"></script>
-  <!-- Slice UI-H8 (Phase D / Phase E1.5, 2026-04-30): first-visit welcome overlay -->
-  <script src="js/monitor/panels/welcome-overlay.js"></script>
-  <!-- Slice UI-H9 (Phase D / Phase E1.5, 2026-04-30): recent-results drill-down viewer -->
-  <script src="js/monitor/panels/run-viewer.js"></script>
-  <script src="js/monitor/shells/simple-shell.js"></script>
-  <script src="js/monitor/layout.js"></script>
-  <script>
-  (function () {
-    // Slice MA3 (Phase D, 2026-04-27): opt-in init for the monitor shell.
-    // Default behaviour: do nothing. Users who pass ?monitor=1 in the URL
-    // (or run `localStorage.harnessMonitor = "1"` once in the console) get
-    // the new shell mounted at the top of the page. Other users see the
-    // legacy dashboard exactly as before.
-    try {
-      var qsOptIn = false;
-      try {
-        qsOptIn = new URL(window.location.href).searchParams.get("monitor") === "1";
-      } catch (_) {}
-      var lsOptIn = false;
-      try {
-        lsOptIn = window.localStorage && window.localStorage.getItem("harnessMonitor") === "1";
-      } catch (_) {}
-      if (!qsOptIn && !lsOptIn) return;
 
-      var rootEl = document.getElementById("monitor-shell-root");
-      if (!rootEl) return;
-      if (typeof window.HarnessMonitorStore === "undefined"
-          || typeof window.HarnessMonitorNormalizer === "undefined"
-          || typeof window.HarnessMonitorLayout === "undefined") {
-        console.warn("[monitor] required modules missing — skipping init");
-        return;
-      }
+  <!-- ────────────────────────────────────────────────────────────
+       Product shell + panels (UI-P1)
+       ──────────────────────────────────────────────────────────── -->
+  <script src="js/monitor/panels/product-header.js"></script>
+  <script src="js/monitor/panels/product-harness-track.js"></script>
+  <script src="js/monitor/panels/product-pipeline-rail.js"></script>
+  <script src="js/monitor/panels/product-monitor-grid.js"></script>
+  <script src="js/monitor/panels/product-dual-terminals.js"></script>
+  <script src="js/monitor/shells/product-shell.js"></script>
 
-      var store = window.HarnessMonitorStore.createMonitorStore();
-
-      // Slice UI-H1: resolve shell mode (URL > localStorage > envDefault
-      // > "simple"). The envDefault arrives via /api/server/info's
-      // monitor.envDefault field, but we resolve mode synchronously
-      // here from URL + localStorage first; the bridge's first
-      // refresh() will fold envDefault in for next-load. For the
-      // current page-load, anything not URL/localStorage falls back
-      // to "simple" (operator-friendly default per the plan).
-      var resolvedMode = "simple";
-      try {
-        if (window.HarnessMonitorMode && typeof window.HarnessMonitorMode.resolveMode === "function") {
-          resolvedMode = window.HarnessMonitorMode.resolveMode({
-            location: window.location,
-            storage: window.localStorage,
-            // envDefault: TBD — bridge fills it in async, doesn't
-            // affect this page-load's mode selection.
-          });
-        }
-      } catch (_) { resolvedMode = "simple"; }
-
-      var handle = window.HarnessMonitorLayout.mount({
-        root: rootEl,
-        store: store,
-        normalize: window.HarnessMonitorNormalizer.normalize,
-        mode: resolvedMode,
-      });
-      window.__HarnessMonitor = { store: store, handle: handle, mode: resolvedMode };
-    } catch (e) {
-      try { console.error("[monitor] init failed:", e && e.message ? e.message : e); } catch (_) {}
-    }
-  })();
-  </script>
+  <!-- ────────────────────────────────────────────────────────────
+       Init — resolve mode + mount the product shell
+       ──────────────────────────────────────────────────────────── -->
+  <script src="js/product-shell-init.js"></script>
 </body>
 </html>

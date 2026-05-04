@@ -31,14 +31,19 @@ test("hashBody matches a manually-computed sha384", () => {
   assert.equal(hashBody(buf), expected);
 });
 
-test("PINNED_URLS covers the xterm CDN resources actually referenced in index.html", () => {
-  const index = require("fs").readFileSync(
-    require("path").resolve(__dirname, "..", "..", "public", "index.html"),
+test("PINNED_URLS covers the xterm CDN resources actually referenced in legacy index.html", () => {
+  // Slice UI-P1 (2026-04-30): xterm CDN refs live in index.legacy.html.
+  // The product shell at index.html has no external CDN deps yet —
+  // terminals are stubbed, real xterm wiring lands in UI-P6 inside
+  // dual-terminals.js. SRI pinning still applies to the legacy view
+  // because operators using ?mode=legacy still load the CDN.
+  const legacy = require("fs").readFileSync(
+    require("path").resolve(__dirname, "..", "..", "public", "index.legacy.html"),
     "utf-8"
   );
   assert.ok(PINNED_URLS.length >= 3, "expected at least 3 pinned CDN URLs");
   for (const url of PINNED_URLS) {
-    assert.ok(index.includes(url),
-      `pinned URL ${url} not found in index.html — compute-sri would hash a dead pin`);
+    assert.ok(legacy.includes(url),
+      `pinned URL ${url} not found in index.legacy.html — compute-sri would hash a dead pin`);
   }
 });

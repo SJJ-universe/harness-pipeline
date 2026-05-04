@@ -19,7 +19,10 @@ const fs = require("fs");
 const path = require("path");
 
 const CSS_PATH = path.resolve(__dirname, "..", "..", "public", "css", "harness-shell.css");
-const INDEX_PATH = path.resolve(__dirname, "..", "..", "public", "index.html");
+// Slice UI-P1 (2026-04-30): legacy DOM moved to index.legacy.html.
+// This test verifies the legacy shell still loads harness-shell.css —
+// product shell uses style.product.css covered separately.
+const INDEX_PATH = path.resolve(__dirname, "..", "..", "public", "index.legacy.html");
 
 function readCss() {
   return fs.readFileSync(CSS_PATH, "utf8");

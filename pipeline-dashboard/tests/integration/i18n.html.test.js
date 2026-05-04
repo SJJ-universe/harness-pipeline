@@ -14,8 +14,12 @@ const fs = require("fs");
 const path = require("path");
 const ko = require("../../public/js/i18n/ko");
 
+// Slice UI-P1 (2026-04-30): data-i18n keys live in index.legacy.html.
+// Product shell uses runtime i18n (HarnessI18n.t()) on every label
+// and has no static data-i18n attributes — its i18n contract is
+// verified via the panel-level tests in monitor.product-header.test.js.
 const index = fs.readFileSync(
-  path.resolve(__dirname, "..", "..", "public", "index.html"),
+  path.resolve(__dirname, "..", "..", "public", "index.legacy.html"),
   "utf-8"
 );
 

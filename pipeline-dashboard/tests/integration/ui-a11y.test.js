@@ -11,7 +11,11 @@ const fs = require("fs");
 const path = require("path");
 
 const root = path.resolve(__dirname, "..", "..");
-const index = fs.readFileSync(path.join(root, "public", "index.html"), "utf-8");
+// Slice UI-P1 (2026-04-30): a11y assertions target the legacy DOM where
+// modal-overlay / banner / main landmarks live. Product shell a11y is
+// covered by the panel-level tests (each panel sets aria-labels at
+// creation time; tests in monitor.product-* verify per-panel).
+const index = fs.readFileSync(path.join(root, "public", "index.legacy.html"), "utf-8");
 
 test("skip-link to #main-content exists near <body>", () => {
   // Slice I (v5) allows data-i18n attribute on the skip-link; match both shapes.

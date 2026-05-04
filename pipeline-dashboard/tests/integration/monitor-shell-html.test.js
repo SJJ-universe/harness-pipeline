@@ -1,9 +1,13 @@
-// Slice MA3 (Phase D, 2026-04-27) — index.html wiring anchor.
+// Slice MA3 (Phase D, 2026-04-27) — legacy index.html wiring anchor.
 //
-// Pure source-grep test: confirms public/index.html declares the monitor
-// shell mount point, loads the right UMD modules, and contains the
-// opt-in init script. This complements the unit tests for layout.js +
-// global-bar.js by ensuring the HTML side stays wired up to them.
+// Pure source-grep test: confirms the LEGACY index.html declares the
+// monitor shell mount point, loads the right UMD modules, and contains
+// the opt-in init script. This complements the unit tests for layout.js
+// + global-bar.js by ensuring the HTML side stays wired up to them.
+//
+// Slice UI-P1 (2026-04-30): the legacy DOM moved to index.legacy.html.
+// The new product shell at public/index.html has its own panel-level
+// tests in monitor.product-shell.test.js / monitor.product-header.test.js.
 //
 // We avoid asserting the exact line numbers — only the presence of the
 // anchor strings and their relative ordering, so future cosmetic edits
@@ -15,7 +19,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const HTML = fs.readFileSync(
-  path.join(__dirname, "../../public/index.html"),
+  path.join(__dirname, "../../public/index.legacy.html"),
   "utf-8"
 );
 

@@ -173,22 +173,30 @@ describe("tool_blocked source field", () => {
 });
 
 describe("Harness track animation structure", () => {
-  const htmlSrc = readFile("public/index.html");
+  // Slice UI-P1 (2026-04-30): the legacy harness-track / horse-rider /
+  // pipeline-pill DOM lives in index.legacy.html now. The product
+  // shell at index.html mounts its own harness-track via
+  // product-harness-track.js; the legacy DOM stays available via
+  // ?mode=legacy. Each round below verifies the structure is
+  // PRESERVED in legacy.html — the operator-friendly alternate view
+  // depends on it.
+  const htmlSrc = readFile("public/index.legacy.html");
   const appSrc = readFile("public/app.js");
 
-  it("index.html contains harness-track, horse-rider, harness-status elements", () => {
-    assert.ok(htmlSrc.includes('id="harness-track"'), "harness-track missing");
-    assert.ok(htmlSrc.includes('id="horse-rider"'), "horse-rider missing");
-    assert.ok(htmlSrc.includes('id="harness-status"'), "harness-status missing");
+  it("legacy index.html contains harness-track, horse-rider, harness-status elements", () => {
+    assert.ok(htmlSrc.includes('id="harness-track"'), "harness-track missing in legacy");
+    assert.ok(htmlSrc.includes('id="horse-rider"'), "horse-rider missing in legacy");
+    assert.ok(htmlSrc.includes('id="harness-status"'), "harness-status missing in legacy");
   });
 
-  it("index.html title is SJ Harness Engine", () => {
-    assert.ok(htmlSrc.includes("<title>SJ Harness Engine</title>"), "title not updated");
+  it("legacy index.html title is SJ Harness Engine — Legacy", () => {
+    // UI-P1-a renamed the title to disambiguate from the product shell.
+    assert.ok(htmlSrc.includes("<title>SJ Harness Engine — Legacy</title>"), "legacy title not updated");
   });
 
-  it("index.html has pipeline-pill instead of select dropdown", () => {
-    assert.ok(htmlSrc.includes('id="pipeline-pill"'), "pipeline-pill missing");
-    assert.ok(!htmlSrc.includes('<select id="pipeline-select"'), "old select dropdown still present");
+  it("legacy index.html has pipeline-pill instead of select dropdown", () => {
+    assert.ok(htmlSrc.includes('id="pipeline-pill"'), "pipeline-pill missing in legacy");
+    assert.ok(!htmlSrc.includes('<select id="pipeline-select"'), "old select dropdown still present in legacy");
   });
 
   it("app.js still exposes setHorseState / reinThenResume as wrappers (Slice AC)", () => {

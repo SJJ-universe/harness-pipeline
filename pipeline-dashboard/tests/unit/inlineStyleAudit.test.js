@@ -10,8 +10,15 @@ const assert = require("node:assert/strict");
 const fs = require("fs");
 const path = require("path");
 
+// Slice UI-P1 (2026-04-30): inline-style audit covers BOTH the product
+// shell (index.html) AND the preserved legacy view (index.legacy.html).
+// Both must satisfy the no-inline-style invariant for CSP compliance.
 const index = fs.readFileSync(
   path.resolve(__dirname, "..", "..", "public", "index.html"),
+  "utf-8"
+);
+const indexLegacy = fs.readFileSync(
+  path.resolve(__dirname, "..", "..", "public", "index.legacy.html"),
   "utf-8"
 );
 
@@ -22,7 +29,16 @@ test("index.html has zero inline style=\"...\" attributes", () => {
   assert.equal(
     matches.length,
     0,
-    `Found inline style attributes (must be moved to CSS classes): ${matches.join(", ")}`
+    `Found inline style attributes in product shell (must be CSS classes): ${matches.join(", ")}`
+  );
+});
+
+test("legacy index.html has zero inline style=\"...\" attributes", () => {
+  const matches = indexLegacy.match(/\sstyle="[^"]*"/g) || [];
+  assert.equal(
+    matches.length,
+    0,
+    `Found inline style attributes in legacy: ${matches.join(", ")}`
   );
 });
 

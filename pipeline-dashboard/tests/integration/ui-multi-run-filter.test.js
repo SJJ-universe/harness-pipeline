@@ -16,7 +16,10 @@ const path = require("path");
 
 const ROOT = path.resolve(__dirname, "../..");
 const APP_JS = fs.readFileSync(path.join(ROOT, "public/app.js"), "utf-8");
-const INDEX_HTML = fs.readFileSync(path.join(ROOT, "public/index.html"), "utf-8");
+// Slice UI-P1 (2026-04-30): multi-run filter wiring is verified against
+// the legacy view because the run-id-filter is consumed by app.js
+// (legacy shell). Product shell uses the same filter through legacy-bridge.
+const INDEX_HTML = fs.readFileSync(path.join(ROOT, "public/index.legacy.html"), "utf-8");
 const FILTER_JS = fs.readFileSync(path.join(ROOT, "public/js/run-id-filter.js"), "utf-8");
 
 test("public/js/run-id-filter.js exists and exports shouldSkip via UMD", () => {
