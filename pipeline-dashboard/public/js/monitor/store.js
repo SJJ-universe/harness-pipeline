@@ -166,6 +166,15 @@
       // structure (the inner objects are frozen by the route's
       // buildContext).
       decisionContext: null,
+      // Slice SMART-1-b (Phase 2 SMART arc, 2026-05-04): UI-state-only
+      // tracking of dismissed recommendation IDs. Panel-set; server
+      // doesn't know about dismissal (it's an operator UX preference,
+      // not a gate). The panel persists this set in localStorage
+      // so a refresh remembers what was hidden. State changes that
+      // toggle a rule's appliesTo will re-show even if previously
+      // dismissed (engine evaluates fresh on every poll); explicit
+      // operator dismiss is an opt-out for stale recommendations.
+      dismissedRecommendations: new Set(),
       // Slice UX-2-a (R3-e + GOV-APPROVAL-0): pending operator
       // approvals for write-tool dispatches. Map<approvalId, request>
       // where request mirrors the manager's snapshot:
@@ -288,6 +297,11 @@
                 ? { ...state.decisionContext.sources } : null,
             }
           : null,
+        // Slice SMART-1-b: dismissed recommendation IDs as a snapshot
+        // array (sorted for stable test asserts). Panels read this
+        // to filter the engine's output; mutators below maintain
+        // the underlying Set.
+        dismissedRecommendations: Array.from(state.dismissedRecommendations).sort(),
         // Slice UX-2-a: defensive shallow copy of each pending
         // approval. Sorted by requestedAt so the card UI displays
         // oldest-first (operator deciding in arrival order).
@@ -628,6 +642,44 @@
       return snapshot();
     }
 
+    // ── Slice SMART-1-b: dismissed-recommendations actions ──────
+    //
+    // Operator-side UX state. The recommendationEngine.js evaluates
+    // rules fresh on every poll (no server state); this slice is
+    // ONLY for "operator clicked dismiss → hide until appliesTo
+    // changes". When a rule's underlying signal flips false then
+    // true again (e.g., new approval arrived after operator
+    // dismissed the previous batch), the engine emits the rule
+    // anew because dismiss is keyed on rule ID + operator's intent.
+    //
+    // For "dismiss this version of the recommendation but reshow
+    // when state changes", a future SMART round can extend with
+    // a {ruleId, contextHash} key. Current design is the simpler
+    // permanent-until-cleared dismiss.
+
+    function dismissRecommendation(ruleId) {
+      if (typeof ruleId !== "string" || ruleId.length === 0) return snapshot();
+      if (state.dismissedRecommendations.has(ruleId)) return snapshot();
+      state.dismissedRecommendations.add(ruleId);
+      _publish();
+      return snapshot();
+    }
+
+    function undoDismissRecommendation(ruleId) {
+      if (typeof ruleId !== "string" || ruleId.length === 0) return snapshot();
+      if (!state.dismissedRecommendations.has(ruleId)) return snapshot();
+      state.dismissedRecommendations.delete(ruleId);
+      _publish();
+      return snapshot();
+    }
+
+    function clearDismissedRecommendations() {
+      if (state.dismissedRecommendations.size === 0) return snapshot();
+      state.dismissedRecommendations.clear();
+      _publish();
+      return snapshot();
+    }
+
     // ── Slice UX-2-a: pending-approval actions ───────────────────
 
     function upsertApproval(request) {
@@ -851,6 +903,11 @@
       setProviderStatus,
       // Slice SMART-0-c: decisionContext slice mutator (legacy-bridge polling)
       setDecisionContext,
+      // Slice SMART-1-b: dismissed-recommendations slice mutators
+      // (panel-set; recommendations-card persists in localStorage)
+      dismissRecommendation,
+      undoDismissRecommendation,
+      clearDismissedRecommendations,
       // Slice UX-2-a: pending-approval slice (R3-e + GOV-APPROVAL-0)
       upsertApproval,
       resolveApproval,
