@@ -1,0 +1,119 @@
+# Slice UI-P13-d (Phase D Round UI-P, 2026-05-04) — manual-dispatch
+# only workflow that runs the button integrity matrix on CI hardware
+# and uploads the manifest as an artifact.
+#
+# Same design contract as UI-P10-d / UI-P11-d / UI-P12-d:
+#   - workflow_dispatch ONLY (NOT push / pull_request)
+#   - Operator triggers manually for button integrity evidence
+#   - PR-gating deferred to fused workflow once stable baseline
+#     established
+#
+# Operator workflow (in GitHub UI):
+#   1. Actions tab → "UI-P13 Live Browser Button Integrity" → Run
+#   2. Wait ~3-5 minutes (chromium install + 4 routes × 13 buttons
+#      with click+wait per clickSafe button)
+#   3. Download artifact (manifest.json)
+
+name: UI-P13 Live Browser Button Integrity
+
+on:
+  workflow_dispatch:
+    inputs:
+      label:
+        description: 'Optional label for the artifact + manifest filename suffix'
+        required: false
+        default: ''
+      port:
+        description: 'Server port (default 4799)'
+        required: false
+        default: '4799'
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  buttons:
+    name: Button integrity (operator-triggered)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    defaults:
+      run:
+        working-directory: pipeline-dashboard
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: pipeline-dashboard/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install chromium (with system deps)
+        run: npm run visual:install-browsers
+
+      - name: Run button integrity matrix
+        run: |
+          npm run visual:button-live -- \
+            --port "${{ github.event.inputs.port }}" \
+            --label "ci-${{ github.event.inputs.label }}-${{ github.run_id }}"
+
+      - name: Resolve artifact directory
+        id: resolve
+        if: always()
+        run: |
+          dir=$(ls -td docs/reports/*-ui-p13-buttons-* 2>/dev/null | head -n 1 || true)
+          if [ -z "$dir" ]; then
+            echo "No ui-p13-buttons run directory found." >&2
+            exit 1
+          fi
+          echo "Found button-integrity run directory: $dir"
+          echo "dir=$dir" >> "$GITHUB_OUTPUT"
+
+      - name: Upload manifest artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-p13-buttons-${{ github.run_id }}
+          path: pipeline-dashboard/${{ steps.resolve.outputs.dir }}
+          retention-days: 30
+
+      - name: Print summary
+        if: always()
+        run: |
+          if [ -f "${{ steps.resolve.outputs.dir }}/manifest.json" ]; then
+            echo "=== Button integrity summary ==="
+            node -e "
+              const m = require('./${{ steps.resolve.outputs.dir }}/manifest.json');
+              console.log('Schema:', m.schema, '(catalog version', m.catalogVersion + ')');
+              console.log('Viewport:', m.viewportId);
+              console.log('Cells:', m.summary.cellsAllPassed + '/' + m.summary.totalCells, 'passed');
+              console.log('Cells with failures:', m.summary.cellsWithFailures);
+              console.log('Cells with errors:', m.summary.cellsWithErrors);
+              console.log('Buttons:',
+                m.summary.totalButtonsPassed + '/' + m.summary.totalButtonsApplicable,
+                'passed,', m.summary.totalButtonsFailed, 'failed,',
+                m.summary.totalButtonsSkipped, 'skipped');
+              console.log('Wall time:', m.totalElapsedMs, 'ms');
+              if (m.summary.totalButtonsFailed > 0) {
+                console.log('--- Failed buttons ---');
+                for (const c of m.cells) {
+                  if (!c.buttons || c.failed) continue;
+                  for (const b of c.buttons) {
+                    if (b.ok || b.skipped) continue;
+                    console.log('  ' + c.routeId + '__' + c.viewportId + ' :: ' + b.id + ' :: ' + b.status);
+                    if (b.reason) console.log('      ' + b.reason);
+                  }
+                }
+              }
+            "
+          fi
