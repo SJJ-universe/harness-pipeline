@@ -75,6 +75,12 @@
        window.HarnessProductShellData at create() time so the panels
        stay testable with stub selectors injected via opts.dataSelectors. -->
   <script src="js/monitor/product-shell-data.js"></script>
+  <!-- UI-P6: review-relay HTTP client. Loaded BEFORE product-shell
+       so product-shell-init.js can resolve window.HarnessReviewSessionClient
+       and pass it into the dual-terminals action row. Backwards-compat:
+       if this script is missing, the action row is omitted and the
+       terminals stay in mock-only view. -->
+  <script src="js/monitor/review-session-client.js"></script>
   <script src="js/monitor/panels/product-header.js"></script>
   <!-- UI-P3-b: horse rider sprite player. Must load BEFORE
        product-harness-track.js because the track resolves

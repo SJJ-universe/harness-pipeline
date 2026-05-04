@@ -327,3 +327,181 @@ test("UI-P5: selectCodexStatus reports not-installed when installed=false", () =
   assert.equal(c.status, "fail");
   assert.match(c.label, /미설치/);
 });
+
+// ── UI-P6: selectActiveReviewSession ───────────────────────────────
+
+test("UI-P6: selectActiveReviewSession returns null when no sessions", () => {
+  assert.equal(data.selectActiveReviewSession(null, "r1"), null);
+  assert.equal(data.selectActiveReviewSession({}, "r1"), null);
+  assert.equal(
+    data.selectActiveReviewSession({ reviewSessions: new Map() }, "r1"),
+    null,
+  );
+});
+
+test("UI-P6: selectActiveReviewSession honors selectedReviewSessionId", () => {
+  const snap = {
+    selectedReviewSessionId: "s2",
+    reviewSessions: new Map([
+      ["s1", { sessionId: "s1", runId: "r1", state: "created" }],
+      ["s2", { sessionId: "s2", runId: "r1", state: "awaiting_critique" }],
+    ]),
+  };
+  const got = data.selectActiveReviewSession(snap, "r1");
+  assert.equal(got.sessionId, "s2");
+});
+
+test("UI-P6: selectActiveReviewSession prefers session matching runId when nothing selected", () => {
+  const snap = {
+    reviewSessions: new Map([
+      ["s1", { sessionId: "s1", runId: "rOther", state: "created" }],
+      ["s2", { sessionId: "s2", runId: "r1",     state: "created" }],
+      ["s3", { sessionId: "s3", runId: "rOther", state: "archived" }],
+    ]),
+  };
+  const got = data.selectActiveReviewSession(snap, "r1");
+  assert.equal(got.sessionId, "s2");
+});
+
+test("UI-P6: selectActiveReviewSession falls back to most recent when no runId match", () => {
+  const snap = {
+    reviewSessions: new Map([
+      ["s1", { sessionId: "s1", runId: "rA", state: "created" }],
+      ["s2", { sessionId: "s2", runId: "rB", state: "archived" }],
+    ]),
+  };
+  const got = data.selectActiveReviewSession(snap, "ghost");
+  // Last in iteration order
+  assert.equal(got.sessionId, "s2");
+});
+
+// ── UI-P6: selectReviewStreamChunks ────────────────────────────────
+
+test("UI-P6: selectReviewStreamChunks returns null when no streams", () => {
+  assert.equal(data.selectReviewStreamChunks({}, "s1", "codex"), null);
+  assert.equal(
+    data.selectReviewStreamChunks({ reviewStreams: new Map() }, "s1", "codex"),
+    null,
+  );
+  assert.equal(
+    data.selectReviewStreamChunks({
+      reviewStreams: new Map([["s1", { codex: [] }]]),
+    }, "s1", "codex"),
+    null,
+    "empty array → null",
+  );
+});
+
+test("UI-P6: selectReviewStreamChunks normalizes both shapes", () => {
+  // canonical shape: { codex: [...] }
+  const snap1 = {
+    reviewStreams: new Map([["s1", {
+      codex: [
+        { text: "first", ts: 1000, seq: 0 },
+        { text: "second", ts: 2000, seq: 1 },
+      ],
+    }]]),
+  };
+  const arr1 = data.selectReviewStreamChunks(snap1, "s1", "codex");
+  assert.equal(arr1.length, 2);
+  assert.equal(arr1[0].text, "first");
+  assert.equal(arr1[0].ts, 1000);
+  assert.equal(arr1[0].seq, 0);
+
+  // legacy shape: { codexChunks: [...] }
+  const snap2 = {
+    reviewStreams: new Map([["s1", {
+      codexChunks: [{ text: "legacy" }],
+    }]]),
+  };
+  const arr2 = data.selectReviewStreamChunks(snap2, "s1", "codex");
+  assert.equal(arr2.length, 1);
+  assert.equal(arr2[0].text, "legacy");
+  assert.equal(arr2[0].seq, 0, "missing seq fills with index");
+});
+
+test("UI-P6: selectReviewStreamChunks distinguishes claude vs codex side", () => {
+  const snap = {
+    reviewStreams: new Map([["s1", {
+      codex:  [{ text: "from-codex" }],
+      claude: [{ text: "from-claude" }],
+    }]]),
+  };
+  const codex = data.selectReviewStreamChunks(snap, "s1", "codex");
+  const claude = data.selectReviewStreamChunks(snap, "s1", "claude");
+  assert.equal(codex[0].text, "from-codex");
+  assert.equal(claude[0].text, "from-claude");
+});
+
+// ── UI-P6: selectClaudeLiveTail ────────────────────────────────────
+
+test("UI-P6: selectClaudeLiveTail returns null when no session/streams", () => {
+  assert.equal(data.selectClaudeLiveTail({}, "r1"), null);
+  assert.equal(
+    data.selectClaudeLiveTail({
+      reviewSessions: new Map(),
+      reviewStreams: new Map(),
+    }, "r1"),
+    null,
+  );
+});
+
+test("UI-P6: selectClaudeLiveTail concatenates and caps", () => {
+  const snap = {
+    reviewSessions: new Map([["s1", { sessionId: "s1", runId: "r1" }]]),
+    reviewStreams: new Map([["s1", {
+      claude: [
+        { text: "Line one. " },
+        { text: "Line two. " },
+        { text: "Line three." },
+      ],
+    }]]),
+  };
+  const tail = data.selectClaudeLiveTail(snap, "r1");
+  assert.equal(tail, "Line one. Line two. Line three.");
+});
+
+test("UI-P6: selectClaudeLiveTail respects maxChars cap with leading ellipsis", () => {
+  const snap = {
+    reviewSessions: new Map([["s1", { sessionId: "s1", runId: "r1" }]]),
+    reviewStreams: new Map([["s1", {
+      claude: [{ text: "abcdefghijklmnopqrst" }],
+    }]]),
+  };
+  const tail = data.selectClaudeLiveTail(snap, "r1", 5);
+  assert.equal(tail, "…pqrst");
+});
+
+// ── UI-P6: selectDeploymentPosture ─────────────────────────────────
+
+test("UI-P6: selectDeploymentPosture defaults to standard when no accountStatus", () => {
+  const p = data.selectDeploymentPosture({});
+  assert.equal(p.publicSector, false);
+  assert.equal(p.allowLocalExecutor, true);
+  assert.equal(p.localExecutorBlocked, false);
+});
+
+test("UI-P6: selectDeploymentPosture surfaces public-sector + blocked when both set", () => {
+  const snap = {
+    accountStatus: {
+      deployment: { publicSector: true, allowLocalExecutor: false },
+    },
+  };
+  const p = data.selectDeploymentPosture(snap);
+  assert.equal(p.publicSector, true);
+  assert.equal(p.allowLocalExecutor, false);
+  assert.equal(p.localExecutorBlocked, true,
+    "publicSector + !allowLocalExecutor → block local Claude per UI-H7-e",
+  );
+});
+
+test("UI-P6: selectDeploymentPosture treats public-sector with allow=true as not-blocked", () => {
+  const snap = {
+    accountStatus: {
+      deployment: { publicSector: true, allowLocalExecutor: true },
+    },
+  };
+  const p = data.selectDeploymentPosture(snap);
+  assert.equal(p.publicSector, true);
+  assert.equal(p.localExecutorBlocked, false);
+});

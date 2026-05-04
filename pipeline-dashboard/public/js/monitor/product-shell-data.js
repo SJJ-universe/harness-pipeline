@@ -296,6 +296,102 @@
     return text.length > max ? "…" + text.slice(-max) : text;
   }
 
+  // ── Review session selectors (UI-P6) ────────────────────────────
+
+  /**
+   * Pick the most relevant review session for the panel to act on.
+   * Priority:
+   *   1. snap.selectedReviewSessionId if it points to an existing session
+   *   2. The most recent session matching `runId` (if runId given)
+   *   3. The most recent session at all
+   *   4. null when there are no review sessions
+   */
+  function selectActiveReviewSession(snap, runId) {
+    if (!snap || !snap.reviewSessions) return null;
+    const sessions = (typeof snap.reviewSessions.values === "function")
+      ? Array.from(snap.reviewSessions.values())
+      : Object.values(snap.reviewSessions || {});
+    if (sessions.length === 0) return null;
+    const sel = snap.selectedReviewSessionId;
+    if (sel) {
+      const found = sessions.find(function (s) {
+        return s && (s.sessionId === sel || s.id === sel);
+      });
+      if (found) return found;
+    }
+    if (runId) {
+      const matching = sessions.filter(function (s) { return s && s.runId === runId; });
+      if (matching.length > 0) return matching[matching.length - 1];
+    }
+    return sessions[sessions.length - 1] || null;
+  }
+
+  /**
+   * Read the chunk array for a session/side pair, normalized to
+   * `[{ text, ts, seq }]`. Returns null when no chunks exist. Tolerates
+   * both store shapes — { codexChunks, claudeChunks } (legacy) and
+   * { codex, claude } (canonical store API).
+   */
+  function selectReviewStreamChunks(snap, sessionId, side) {
+    if (!snap || !snap.reviewStreams || !sessionId) return null;
+    const streams = (typeof snap.reviewStreams.get === "function")
+      ? snap.reviewStreams.get(sessionId)
+      : (snap.reviewStreams[sessionId] || null);
+    if (!streams) return null;
+    let arr = null;
+    if (side === "codex") arr = streams.codexChunks || streams.codex || null;
+    else if (side === "claude") arr = streams.claudeChunks || streams.claude || null;
+    if (!arr || arr.length === 0) return null;
+    return arr.map(function (c, idx) {
+      // Store appendReviewChunk canonically stores `{ chunk, seq, ts }`
+      // (see public/js/monitor/store.js:615 — entry.chunk = text). We
+      // also accept a legacy `text` field for synthetic test fixtures
+      // that bypass the action and seed reviewStreams directly.
+      return {
+        text: (c && (c.text || c.chunk)) || "",
+        ts:   (c && (c.ts || c.at)) || null,
+        seq:  (c && c.seq != null) ? c.seq : idx,
+      };
+    });
+  }
+
+  /** Symmetric to selectCodexLiveTail but for the Claude rail. */
+  function selectClaudeLiveTail(snap, runId, maxChars) {
+    if (!snap || !snap.reviewStreams) return null;
+    const session = selectActiveReviewSession(snap, runId);
+    if (!session) return null;
+    const sid = session.sessionId || session.id;
+    const streams = (typeof snap.reviewStreams.get === "function")
+      ? snap.reviewStreams.get(sid)
+      : (snap.reviewStreams[sid] || null);
+    if (!streams) return null;
+    const chunks = streams.claudeChunks || streams.claude || [];
+    if (chunks.length === 0) return null;
+    const max = (typeof maxChars === "number" && maxChars > 0) ? maxChars : 240;
+    // Same shape tolerance as selectReviewStreamChunks (canonical .chunk
+    // from store.appendReviewChunk OR legacy .text from test fixtures).
+    const text = chunks.map(function (c) { return (c && (c.text || c.chunk)) || ""; }).join("");
+    return text.length > max ? "…" + text.slice(-max) : text;
+  }
+
+  /**
+   * Surface deployment posture in a normalized shape so panels don't
+   * walk store internals. UI-P6 hides "Hand back to Claude" when
+   * publicSector + !allowLocalExecutor (matches UI-H7-e contract).
+   */
+  function selectDeploymentPosture(snap) {
+    const accountStatus = (snap && snap.accountStatus) || {};
+    const deployment = accountStatus.deployment || {};
+    const publicSector = deployment.publicSector === true;
+    // allowLocalExecutor defaults to TRUE — only `false` blocks local Claude.
+    const allowLocalExecutor = deployment.allowLocalExecutor !== false;
+    return {
+      publicSector: publicSector,
+      allowLocalExecutor: allowLocalExecutor,
+      localExecutorBlocked: publicSector && !allowLocalExecutor,
+    };
+  }
+
   // ── Header indicators ───────────────────────────────────────────
 
   function selectServerStatus(snap) {
@@ -340,6 +436,10 @@
     selectRecentToolCalls,
     selectCritique,
     selectCodexLiveTail,
+    selectClaudeLiveTail,
+    selectActiveReviewSession,
+    selectReviewStreamChunks,
+    selectDeploymentPosture,
     selectServerStatus,
     selectCodexStatus,
   };

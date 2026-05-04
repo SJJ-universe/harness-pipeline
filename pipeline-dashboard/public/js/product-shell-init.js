@@ -57,14 +57,39 @@
     const mode = _resolveMode();
     const store = window.HarnessMonitorStore.createMonitorStore();
 
+    // UI-P6: instantiate the review-relay client when the script is
+    // loaded. The client is a thin wrapper over /api/review-sessions/*
+    // — methods like createSession/sendToCodex are bound functions, NOT
+    // a class instance, so we just expose the module's namespace.
+    const reviewClient = (typeof window.HarnessReviewSessionClient === "object")
+      ? window.HarnessReviewSessionClient
+      : null;
+
     let handle;
     try {
       handle = window.HarnessProductShell.mount({
         root: rootEl,
         store: store,
         mode: mode,
+        reviewClient: reviewClient,
         onModeChange: function (next) {
           _persistMode(next);
+        },
+        onPanelError: function (err) {
+          // Surface panel errors to console + toast (when available)
+          // so the operator notices when an action row request fails.
+          console.warn("[product-shell] panel error:",
+            err && err.message ? err.message : err);
+          try {
+            if (window.HarnessToast && typeof window.HarnessToast.show === "function") {
+              window.HarnessToast.show({
+                kind: "error",
+                message: (err && err.message)
+                  ? "Review relay 오류: " + err.message
+                  : "Review relay 오류 발생",
+              });
+            }
+          } catch (_) { /* defensive */ }
         },
       });
     } catch (err) {

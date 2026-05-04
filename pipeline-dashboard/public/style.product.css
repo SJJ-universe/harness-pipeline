@@ -579,12 +579,24 @@ html, body {
 
 /* ── Dual Terminals ── */
 
+/* UI-P6: outer wrap holds the two terminals (1fr) + action row (auto)
+ * stacked vertically. The shell still allots 280px for the whole
+ * region; terminals shrink to fit when the action row appears. When
+ * no review client is wired, only .prod-terminals is mounted and it
+ * fills the full 280px (legacy UI-P4 layout). */
+.prod-terminals-wrap {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
 .prod-terminals {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 1px;
   background: var(--prod-border);
-  height: 100%;
+  flex: 1;
   min-height: 0;
 }
 .prod-terminal {
@@ -646,6 +658,104 @@ html, body {
   text-align: center;
   color: var(--prod-text-dim-40);
   font-style: italic;
+}
+
+/* UI-P6: review-relay action row. Sits at the bottom of the dual-
+ * terminals wrap when a review-session client is wired. When the
+ * client is missing the row never mounts. */
+.prod-terminals-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 14px;
+  height: 38px;
+  background: var(--prod-bg-terminal-bar);
+  border-top: 1px solid var(--prod-border);
+  font-family: var(--prod-font-mono);
+  font-size: var(--prod-fs-11);
+  color: var(--prod-text-dim-65);
+  flex: none;
+  min-width: 0;
+}
+.prod-actions-indicator {
+  white-space: nowrap;
+  letter-spacing: 0.04em;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: var(--prod-radius-tiny);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--prod-text-dim-78);
+}
+.prod-actions-indicator[data-state="none"] { color: var(--prod-text-dim-50); }
+.prod-actions-indicator[data-state="created"]            { color: var(--prod-text-dim-65); }
+.prod-actions-indicator[data-state="awaiting_critique"]  { color: var(--prod-bronze); background: var(--prod-bronze-bg-08); }
+.prod-actions-indicator[data-state="critique_received"]  { color: var(--prod-blue); background: var(--prod-blue-bg-08); }
+.prod-actions-indicator[data-state="awaiting_claude"]    { color: var(--prod-bronze); background: var(--prod-bronze-bg-08); }
+.prod-actions-indicator[data-state="claude_received"]    { color: var(--prod-green); background: var(--prod-green-bg-12); }
+.prod-actions-indicator[data-state="archived"]           { color: var(--prod-text-dim-45); }
+
+.prod-actions-buttons {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.prod-actions-btn {
+  background: transparent;
+  color: var(--prod-text-dim-65);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: var(--prod-radius-tiny);
+  padding: 4px 9px;
+  font-size: var(--prod-fs-11);
+  font-family: inherit;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.prod-actions-btn:hover:not(.is-disabled) {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--prod-text);
+  border-color: var(--prod-border-strong);
+}
+.prod-actions-btn.is-disabled,
+.prod-actions-btn[disabled] {
+  opacity: 0.40;
+  cursor: not-allowed;
+}
+/* Per-action accents — tint the primary call-to-action verbs */
+.prod-actions-btn-start {
+  color: var(--prod-bronze);
+  border-color: rgba(201, 166, 107, 0.28);
+}
+.prod-actions-btn-send-codex {
+  color: var(--prod-blue);
+  border-color: rgba(127, 169, 203, 0.28);
+}
+.prod-actions-btn-hand-back {
+  color: var(--prod-bronze);
+  border-color: rgba(201, 166, 107, 0.28);
+}
+.prod-actions-btn-archive {
+  color: var(--prod-text-dim-50);
+}
+
+.prod-actions-posture-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: var(--prod-radius-tiny);
+  background: rgba(229, 91, 91, 0.10);
+  border: 1px solid rgba(229, 91, 91, 0.28);
+  color: var(--prod-red);
+  font-size: var(--prod-fs-10);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
 }
 
 /* ── Animations (port verbatim from reference) ── */

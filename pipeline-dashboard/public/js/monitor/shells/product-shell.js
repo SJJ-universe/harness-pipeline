@@ -181,7 +181,14 @@
     handles.track = _mountPanel(trackFactory, trackMount, "harness-track");
     handles.rail = _mountPanel(railFactory, railMount, "pipeline-rail");
     handles.grid = _mountPanel(gridFactory, gridMount, "monitor-grid");
-    handles.terminals = _mountPanel(terminalsFactory, terminalsMount, "dual-terminals");
+    // UI-P6: pass review-relay client to dual-terminals so the action
+    // row (start / send-codex / followup / hand-back / archive) is
+    // wired. When opts.reviewClient is null/undefined the terminals
+    // panel falls back to its UI-P4 mock-only view.
+    handles.terminals = _mountPanel(terminalsFactory, terminalsMount, "dual-terminals", {
+      client: opts.reviewClient || null,
+      onError: opts.onPanelError || null,
+    });
 
     function setMode(next) {
       const coerced = _coerceMode(next);
