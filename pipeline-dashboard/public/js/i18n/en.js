@@ -92,6 +92,52 @@
 
     // ── Runtime toasts / runtime strings (opt-in by caller) ─────────
     "toast.keybindings": "Shortcuts: g t=templates, g h=history, g m=metrics, Esc=close",
+
+    // ── Product shell (UI-P7): mode toggle, status pill, indicators ─
+    // Mode toggle is bilingual by design — Korean primary stays Korean
+    // in EN locale too; English subscript stays English in KO locale.
+    // The two-language ribbon is a fixed reference design element.
+    "prod.mode.simple":      "일반사용자",
+    "prod.mode.simple.eng":  "Simple",
+    "prod.mode.pro":         "전문사용자",
+    "prod.mode.pro.eng":     "Pro",
+    "prod.status.idle":      "Idle",
+    "prod.status.running":   "Running",
+    "prod.status.error":     "Stopped",
+    "prod.indicator.server.online":   "Server ONLINE",
+    "prod.indicator.server.offline":  "Server OFFLINE",
+    "prod.indicator.server.checking": "Server checking",
+    "prod.indicator.codex.ready":         "Codex READY",
+    "prod.indicator.codex.authNeeded":    "Codex auth needed",
+    "prod.indicator.codex.notInstalled":  "Codex not installed",
+    "prod.aria.header":             "SJ Harness header (status · mode · actions)",
+    "prod.aria.statusPill":         "Run status",
+    "prod.aria.modeToggle":         "User mode toggle",
+    "prod.aria.localeToggle":       "Language toggle",
+    "prod.aria.serverIndicator":    "Server status",
+    "prod.aria.codexIndicator":     "Codex status",
+    "prod.aria.dualTerminals":      "Dual terminals (Claude / Codex stream)",
+    "prod.aria.actionRow":          "Review relay actions",
+
+    // ── Product shell (UI-P7): dual-terminals action row ────────────
+    "prod.terminals.session.none":         "🔗 No session",
+    "prod.terminals.posture.publicSector": "🛡 Public-sector mode — local Claude execution blocked",
+    "prod.terminals.action.start":         "+ Start session",
+    "prod.terminals.action.start.title":   "Start a new review session",
+    "prod.terminals.action.sendCodex":          "→ Send to Codex",
+    "prod.terminals.action.sendCodex.title":    "Send Claude's work to Codex for critique",
+    "prod.terminals.action.followUpCodex":      "? Follow-up Codex",
+    "prod.terminals.action.followUpCodex.title": "Ask Codex a follow-up question",
+    "prod.terminals.action.handBack":           "→ Hand back to Claude",
+    "prod.terminals.action.handBack.title":     "Hand the critique back to Claude",
+    "prod.terminals.action.archive":            "⏏ Archive session",
+    "prod.terminals.action.archive.title":      "Move the current session to archive",
+    "prod.terminals.state.created":           "Ready",
+    "prod.terminals.state.awaiting_critique": "Awaiting Codex critique",
+    "prod.terminals.state.critique_received": "Critique received",
+    "prod.terminals.state.awaiting_claude":   "Awaiting Claude",
+    "prod.terminals.state.claude_received":   "Claude responded",
+    "prod.terminals.state.archived":          "Archived",
   };
 
   if (typeof module !== "undefined" && module.exports) {

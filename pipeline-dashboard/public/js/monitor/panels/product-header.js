@@ -29,10 +29,14 @@
 
   const VERSION = "v2.5.0"; // bumped each phase release; UI-P1 ships with this
 
+  // UI-P7: status pill variants now carry i18n key + Korean fallback.
+  // Header's _t() helper picks the i18n translation when HarnessI18n
+  // is loaded (browser); Node tests fall through to the fallback so
+  // the existing assertions on Korean text continue to pass.
   const STATUS_VARIANTS = Object.freeze({
-    idle:    { label: "대기 중", state: "idle" },
-    running: { label: "실행 중", state: "running" },
-    error:   { label: "중단됨", state: "error" },
+    idle:    { state: "idle",    labelKey: "prod.status.idle",    fallback: "대기 중" },
+    running: { state: "running", labelKey: "prod.status.running", fallback: "실행 중" },
+    error:   { state: "error",   labelKey: "prod.status.error",   fallback: "중단됨" },
   });
 
   function _statusFromStoreSnapshot(snap) {
@@ -92,13 +96,42 @@
     const selectors = opts.dataSelectors
       || (typeof window !== "undefined" && window.HarnessProductShellData)
       || null;
+    // UI-P7: i18n integration. Tests inject a stub via opts.i18n;
+    // browser auto-resolves window.HarnessI18n. When i18n is missing
+    // (Node test path without explicit injection) _t() returns the
+    // fallback so existing assertions on Korean strings still pass.
+    const i18n = opts.i18n
+      || (typeof window !== "undefined" && window.HarnessI18n)
+      || null;
+    function _t(key, fallback) {
+      if (i18n && typeof i18n.t === "function") {
+        try {
+          const val = i18n.t(key);
+          if (typeof val === "string" && val.length > 0 && val !== key) return val;
+        } catch (_) { /* defensive */ }
+      }
+      return fallback;
+    }
+    // Status indicator → i18n key map (UI-P5-e returns labelKey on
+    // selectors when present; we still tolerate older selector shapes).
+    const SERVER_STATUS_KEYS = {
+      ok:   { labelKey: "prod.indicator.server.online",   fallback: "서버 ONLINE" },
+      fail: { labelKey: "prod.indicator.server.offline",  fallback: "서버 OFFLINE" },
+      warn: { labelKey: "prod.indicator.server.checking", fallback: "서버 확인 중" },
+      idle: { labelKey: "prod.indicator.server.checking", fallback: "서버 확인 중" },
+    };
+    const CODEX_STATUS_KEYS = {
+      ok:   { labelKey: "prod.indicator.codex.ready",        fallback: "Codex READY" },
+      warn: { labelKey: "prod.indicator.codex.authNeeded",   fallback: "Codex 인증 필요" },
+      fail: { labelKey: "prod.indicator.codex.notInstalled", fallback: "Codex 미설치" },
+    };
 
     // Build the header DOM once + cache references for cheap updates.
     const header = _doc.createElement("header");
     header.className = "prod-header";
     header.setAttribute("data-region", "header");
     header.setAttribute("role", "banner");
-    header.setAttribute("aria-label", "SJ Harness 헤더 (상태 · 모드 · 액션)");
+    header.setAttribute("aria-label", _t("prod.aria.header", "SJ Harness 헤더 (상태 · 모드 · 액션)"));
 
     // Logo + title + version
     const logo = _doc.createElement("div");
@@ -121,12 +154,12 @@
     statusPill.setAttribute("data-state", "idle");
     statusPill.setAttribute("role", "status");
     statusPill.setAttribute("aria-live", "polite");
-    statusPill.setAttribute("aria-label", "실행 상태");
+    statusPill.setAttribute("aria-label", _t("prod.aria.statusPill", "실행 상태"));
     const statusDot = _doc.createElement("span");
     statusDot.className = "prod-status-dot";
     const statusLabel = _doc.createElement("span");
     statusLabel.className = "prod-header-status-label";
-    statusLabel.textContent = STATUS_VARIANTS.idle.label;
+    statusLabel.textContent = _t(STATUS_VARIANTS.idle.labelKey, STATUS_VARIANTS.idle.fallback);
     statusPill.appendChild(statusDot);
     statusPill.appendChild(statusLabel);
     header.appendChild(statusPill);
@@ -136,19 +169,25 @@
     modeToggle.className = "prod-mode-toggle";
     modeToggle.setAttribute("data-header-slot", "mode-toggle");
     modeToggle.setAttribute("role", "group");
-    modeToggle.setAttribute("aria-label", "사용자 모드 전환");
+    modeToggle.setAttribute("aria-label", _t("prod.aria.modeToggle", "사용자 모드 전환"));
     const modeButtons = {};
+    // UI-P7: bilingual labels per UI-P0 §6 — Korean primary always
+    // visible, English subscript always visible. The fallback strings
+    // match the i18n table values; both stay constant across locales
+    // (the design ribbon is bilingual by intent).
     [
-      ["simple", "일반사용자", "Simple"],
-      ["pro",    "전문사용자", "Pro"],
+      ["simple", "prod.mode.simple", "일반사용자", "prod.mode.simple.eng", "Simple"],
+      ["pro",    "prod.mode.pro",    "전문사용자", "prod.mode.pro.eng",    "Pro"],
     ].forEach(function (entry) {
-      const id = entry[0], kor = entry[1], eng = entry[2];
+      const id = entry[0];
+      const korKey = entry[1], korFallback = entry[2];
+      const engKey = entry[3], engFallback = entry[4];
       const btn = _doc.createElement("button");
       btn.type = "button";
       btn.setAttribute("data-mode", id);
       btn.setAttribute("aria-pressed", id === mode ? "true" : "false");
-      btn.innerHTML = '<span>' + kor + '</span>'
-        + '<span class="prod-mode-en">' + eng + '</span>';
+      btn.innerHTML = '<span>' + _t(korKey, korFallback) + '</span>'
+        + '<span class="prod-mode-en">' + _t(engKey, engFallback) + '</span>';
       btn.addEventListener("click", function () {
         if (id === mode) return;
         mode = id;
@@ -180,14 +219,14 @@
     const serverIndicator = _doc.createElement("span");
     serverIndicator.className = "prod-indicator";
     serverIndicator.setAttribute("data-indicator", "server");
-    serverIndicator.setAttribute("aria-label", "서버 상태");
+    serverIndicator.setAttribute("aria-label", _t("prod.aria.serverIndicator", "서버 상태"));
     const serverDot = _doc.createElement("span");
     serverDot.className = "prod-indicator-dot";
     serverDot.setAttribute("data-status", "ok");
     serverDot.setAttribute("data-indicator-slot", "dot");
     const serverLabel = _doc.createElement("span");
     serverLabel.setAttribute("data-indicator-slot", "label");
-    serverLabel.textContent = "서버 ONLINE";
+    serverLabel.textContent = _t("prod.indicator.server.online", "서버 ONLINE");
     serverIndicator.appendChild(serverDot);
     serverIndicator.appendChild(serverLabel);
     indicators.appendChild(serverIndicator);
@@ -195,14 +234,14 @@
     const codexIndicator = _doc.createElement("span");
     codexIndicator.className = "prod-indicator";
     codexIndicator.setAttribute("data-indicator", "codex");
-    codexIndicator.setAttribute("aria-label", "Codex 상태");
+    codexIndicator.setAttribute("aria-label", _t("prod.aria.codexIndicator", "Codex 상태"));
     const codexDot = _doc.createElement("span");
     codexDot.className = "prod-indicator-dot";
     codexDot.setAttribute("data-status", "ok");
     codexDot.setAttribute("data-indicator-slot", "dot");
     const codexLabel = _doc.createElement("span");
     codexLabel.setAttribute("data-indicator-slot", "label");
-    codexLabel.textContent = "Codex READY";
+    codexLabel.textContent = _t("prod.indicator.codex.ready", "Codex READY");
     codexIndicator.appendChild(codexDot);
     codexIndicator.appendChild(codexLabel);
     indicators.appendChild(codexIndicator);
@@ -212,7 +251,7 @@
     localeToggle.className = "prod-locale-toggle";
     localeToggle.setAttribute("data-header-slot", "locale-toggle");
     localeToggle.setAttribute("role", "group");
-    localeToggle.setAttribute("aria-label", "언어 선택");
+    localeToggle.setAttribute("aria-label", _t("prod.aria.localeToggle", "언어 선택"));
     const localeButtons = {};
     ["KO", "EN"].forEach(function (l) {
       const btn = _doc.createElement("button");
@@ -238,19 +277,22 @@
     const proActions = _doc.createElement("span");
     proActions.className = "prod-header-pro-actions";
     proActions.setAttribute("data-header-slot", "pro-actions");
-    [
-      ["metrics", "📈 메트릭"],
-      ["history", "📜 히스토리"],
-      ["codex-verify", "Codex 검증"],
-    ].forEach(function (entry) {
-      const id = entry[0], label = entry[1];
+    // UI-P7: reuse existing i18n keys (btn.openAnalytics /
+    // btn.openRunHistory / btn.codexVerify) so the legacy app and the
+    // product header stay in sync when those labels are tweaked.
+    const proActionEntries = [
+      { id: "metrics",       labelKey: "btn.openAnalytics",   fallback: "📈 메트릭" },
+      { id: "history",       labelKey: "btn.openRunHistory",  fallback: "📜 히스토리" },
+      { id: "codex-verify",  labelKey: "btn.codexVerify",     fallback: "Codex 검증" },
+    ];
+    proActionEntries.forEach(function (entry) {
       const btn = _doc.createElement("button");
       btn.type = "button";
       btn.className = "prod-header-action";
-      btn.setAttribute("data-action", id);
-      btn.textContent = label;
+      btn.setAttribute("data-action", entry.id);
+      btn.textContent = _t(entry.labelKey, entry.fallback);
       btn.addEventListener("click", function () {
-        try { onActionClick(id); } catch (_) {}
+        try { onActionClick(entry.id); } catch (_) {}
       });
       proActions.appendChild(btn);
     });
@@ -262,7 +304,7 @@
     shutdownBtn.className = "prod-header-action";
     shutdownBtn.setAttribute("data-action", "shutdown");
     shutdownBtn.setAttribute("data-tone", "danger");
-    shutdownBtn.textContent = "서버 종료";
+    shutdownBtn.textContent = _t("btn.serverStop", "서버 종료");
     shutdownBtn.addEventListener("click", function () {
       try { onActionClick("shutdown"); } catch (_) {}
     });
@@ -281,22 +323,33 @@
     // when accountStatus changes in the store.
     function _renderFromStore() {
       const snap = store.snapshot();
-      // Status pill (UI-P1)
+      // Status pill (UI-P1) — translate via STATUS_VARIANTS key map.
       const variant = _statusFromStoreSnapshot(snap);
       const cfg = STATUS_VARIANTS[variant] || STATUS_VARIANTS.idle;
       statusPill.setAttribute("data-state", cfg.state);
-      statusLabel.textContent = cfg.label;
-      // Indicators (UI-P5-e) — only update if selectors module loaded
+      statusLabel.textContent = _t(cfg.labelKey, cfg.fallback);
+      // Indicators (UI-P5-e + UI-P7) — only update if selectors module
+      // loaded. Status string ("ok"/"warn"/"fail") drives both the dot
+      // color and the i18n key lookup. Selector's `label` field is
+      // ignored when an i18n table is wired so KO/EN switching works.
       if (selectors) {
         try {
           const server = selectors.selectServerStatus(snap);
           serverDot.setAttribute("data-status", server.status);
-          serverLabel.textContent = server.label;
+          const cfg = SERVER_STATUS_KEYS[server.status] || SERVER_STATUS_KEYS.ok;
+          serverLabel.textContent = (i18n && server.labelKey)
+            ? _t(server.labelKey, server.label || cfg.fallback)
+            : (i18n ? _t(cfg.labelKey, server.label || cfg.fallback)
+                    : (server.label || cfg.fallback));
         } catch (_) { /* defensive */ }
         try {
           const codex = selectors.selectCodexStatus(snap);
           codexDot.setAttribute("data-status", codex.status);
-          codexLabel.textContent = codex.label;
+          const cfg = CODEX_STATUS_KEYS[codex.status] || CODEX_STATUS_KEYS.ok;
+          codexLabel.textContent = (i18n && codex.labelKey)
+            ? _t(codex.labelKey, codex.label || cfg.fallback)
+            : (i18n ? _t(cfg.labelKey, codex.label || cfg.fallback)
+                    : (codex.label || cfg.fallback));
         } catch (_) { /* defensive */ }
       }
     }
@@ -323,12 +376,49 @@
       },
       setLocale: function (l) {
         const next = (l === "en") ? "en" : "ko";
-        if (next !== locale) {
-          locale = next;
-          Object.keys(localeButtons).forEach(function (k) {
-            localeButtons[k].setAttribute("aria-pressed", k.toLowerCase() === locale ? "true" : "false");
+        if (next === locale) return;
+        locale = next;
+        Object.keys(localeButtons).forEach(function (k) {
+          localeButtons[k].setAttribute("aria-pressed", k.toLowerCase() === locale ? "true" : "false");
+        });
+        // UI-P7: re-render every translatable surface. Mode toggle
+        // labels are bilingual constants but other panels (status pill
+        // text, indicator labels, action button labels, aria labels)
+        // need refresh so HarnessI18n.getLang's new value lands in the
+        // visible DOM without waiting for the next store publish.
+        try {
+          // 1. aria labels
+          header.setAttribute("aria-label", _t("prod.aria.header", "SJ Harness 헤더 (상태 · 모드 · 액션)"));
+          statusPill.setAttribute("aria-label", _t("prod.aria.statusPill", "실행 상태"));
+          modeToggle.setAttribute("aria-label", _t("prod.aria.modeToggle", "사용자 모드 전환"));
+          serverIndicator.setAttribute("aria-label", _t("prod.aria.serverIndicator", "서버 상태"));
+          codexIndicator.setAttribute("aria-label", _t("prod.aria.codexIndicator", "Codex 상태"));
+          localeToggle.setAttribute("aria-label", _t("prod.aria.localeToggle", "언어 선택"));
+          // 2. mode toggle (rebuild innerHTML so KO + EN subscript update)
+          [
+            ["simple", "prod.mode.simple", "일반사용자", "prod.mode.simple.eng", "Simple"],
+            ["pro",    "prod.mode.pro",    "전문사용자", "prod.mode.pro.eng",    "Pro"],
+          ].forEach(function (entry) {
+            const btn = modeButtons[entry[0]];
+            if (btn) {
+              btn.innerHTML = '<span>' + _t(entry[1], entry[2]) + '</span>'
+                + '<span class="prod-mode-en">' + _t(entry[3], entry[4]) + '</span>';
+            }
           });
-        }
+          // 3. pro-action button labels
+          proActionEntries.forEach(function (entry) {
+            for (let i = 0; i < proActions.children.length; i++) {
+              const btn = proActions.children[i];
+              if (btn && btn.getAttribute && btn.getAttribute("data-action") === entry.id) {
+                btn.textContent = _t(entry.labelKey, entry.fallback);
+              }
+            }
+          });
+          // 4. shutdown button
+          shutdownBtn.textContent = _t("btn.serverStop", "서버 종료");
+          // 5. status pill + indicator dots/labels
+          _renderFromStore();
+        } catch (_) { /* defensive */ }
       },
       _state: function () {
         return {

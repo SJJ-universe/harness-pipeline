@@ -291,3 +291,113 @@ test("UI-P1: VALID_MODES vocabulary frozen at exactly {simple, pro}", () => {
   assert.throws(() => { productShell.VALID_MODES.push("legacy"); });
   assert.throws(() => { productShell.VALID_MODES[0] = "garbage"; });
 });
+
+// ── UI-P7: ?mode=advanced alias coercion ────────────────────────────
+
+test("UI-P7: _coerceMode coerces 'advanced' → 'pro' (deprecated alias)", () => {
+  assert.equal(productShell._coerceMode("advanced"), "pro",
+    "?mode=advanced is the legacy UI-H alias; coerces to canonical 'pro' " +
+    "until removal at UI-P9 (per ui-reference-port-plan.md §4 routing table)",
+  );
+});
+
+test("UI-P7: MODE_ALIASES vocabulary frozen + visible to test fixtures", () => {
+  assert.equal(productShell.MODE_ALIASES.advanced, "pro");
+  // Frozen object — re-assigning a key throws in strict mode.
+  assert.throws(() => { productShell.MODE_ALIASES.advanced = "simple"; });
+  assert.throws(() => { productShell.MODE_ALIASES.newAlias = "pro"; });
+});
+
+test("UI-P7: mount accepts mode=advanced + stamps data-mode='pro' on the shell", () => {
+  const root = makeRoot();
+  const store = createMonitorStore();
+  const stubFactory = () => ({ destroy() {}, setMode() {} });
+  const handle = productShell.mount({
+    root, store, doc: makeStubDoc(), mode: "advanced",
+    panels: { header: stubFactory, track: stubFactory, rail: stubFactory,
+              grid: stubFactory, terminals: stubFactory },
+  });
+  assert.equal(root.children[0].getAttribute("data-mode"), "pro",
+    "mount({mode:'advanced'}) lands on data-mode='pro'");
+  assert.equal(handle.getMode(), "pro");
+});
+
+// ── UI-P7: locale propagation ──────────────────────────────────────
+
+test("UI-P7: mount with locale=en stamps data-locale='en' on the shell", () => {
+  const root = makeRoot();
+  const store = createMonitorStore();
+  const stubFactory = () => ({ destroy() {}, setMode() {} });
+  const handle = productShell.mount({
+    root, store, doc: makeStubDoc(), locale: "en",
+    panels: { header: stubFactory, track: stubFactory, rail: stubFactory,
+              grid: stubFactory, terminals: stubFactory },
+  });
+  assert.equal(root.children[0].getAttribute("data-locale"), "en");
+  assert.equal(handle.getLocale(), "en");
+});
+
+test("UI-P7: mount default locale = 'ko' (HarnessI18n default)", () => {
+  const root = makeRoot();
+  const store = createMonitorStore();
+  const stubFactory = () => ({ destroy() {}, setMode() {} });
+  const handle = productShell.mount({
+    root, store, doc: makeStubDoc(),
+    panels: { header: stubFactory, track: stubFactory, rail: stubFactory,
+              grid: stubFactory, terminals: stubFactory },
+  });
+  assert.equal(handle.getLocale(), "ko");
+  assert.equal(root.children[0].getAttribute("data-locale"), "ko");
+});
+
+test("UI-P7: setLocale propagates to data-locale + every panel that exposes setLocale", () => {
+  const root = makeRoot();
+  const store = createMonitorStore();
+  const calls = [];
+  const stubFactory = (opts) => ({
+    destroy() {},
+    setMode() {},
+    setLocale(l) { calls.push({ name: opts.root.className, locale: l }); },
+  });
+  const handle = productShell.mount({
+    root, store, doc: makeStubDoc(),
+    panels: { header: stubFactory, track: stubFactory, rail: stubFactory,
+              grid: stubFactory, terminals: stubFactory },
+  });
+  assert.equal(calls.length, 0, "no propagation on initial mount");
+  handle.setLocale("en");
+  assert.equal(handle.getLocale(), "en");
+  assert.equal(root.children[0].getAttribute("data-locale"), "en");
+  assert.equal(calls.length, 5, "all 5 panels notified");
+  for (const c of calls) assert.equal(c.locale, "en");
+});
+
+test("UI-P7: setLocale coerces unknown locale to 'ko' (no propagation if same)", () => {
+  const root = makeRoot();
+  const store = createMonitorStore();
+  const calls = [];
+  const stubFactory = () => ({ setLocale(l) { calls.push(l); } });
+  const handle = productShell.mount({
+    root, store, doc: makeStubDoc(), locale: "ko",
+    panels: { header: stubFactory, track: stubFactory, rail: stubFactory,
+              grid: stubFactory, terminals: stubFactory },
+  });
+  handle.setLocale("garbage");
+  assert.equal(handle.getLocale(), "ko");
+  assert.equal(calls.length, 0, "garbage coerces to ko which is current → no-op");
+});
+
+test("UI-P7: onLocaleChange callback fires on setLocale (init persists via HarnessI18n.setLang)", () => {
+  const root = makeRoot();
+  const store = createMonitorStore();
+  let lastLocale = null;
+  const stubFactory = () => ({ setLocale() {} });
+  const handle = productShell.mount({
+    root, store, doc: makeStubDoc(),
+    panels: { header: stubFactory, track: stubFactory, rail: stubFactory,
+              grid: stubFactory, terminals: stubFactory },
+    onLocaleChange(l) { lastLocale = l; },
+  });
+  handle.setLocale("en");
+  assert.equal(lastLocale, "en");
+});

@@ -21,14 +21,18 @@
     try {
       const url = new URL(window.location.href);
       const qs = url.searchParams.get("mode");
+      // UI-P7: accept the deprecated `?mode=advanced` alias and coerce
+      // to `pro` per ui-reference-port-plan.md §4 routing table. The
+      // alias is removed at UI-P9; tests + bookmarks keep working
+      // until then. ?mode=legacy is intercepted by server.js (server-
+      // side redirect). Anything else falls through to localStorage.
       if (qs === "pro" || qs === "simple") return qs;
-      // ?mode=legacy is intercepted by server.js — if we see it here,
-      // the server didn't redirect (older harness or test fixture).
-      // Fall through to localStorage.
+      if (qs === "advanced") return "pro";
     } catch (_) { /* defensive */ }
     try {
       const ls = window.localStorage && window.localStorage.getItem("harness:ui-mode");
       if (ls === "pro" || ls === "simple") return ls;
+      if (ls === "advanced") return "pro";
     } catch (_) { /* defensive */ }
     return m;
   }
@@ -37,6 +41,20 @@
     try {
       window.localStorage && window.localStorage.setItem("harness:ui-mode", mode);
     } catch (_) { /* defensive — private browsing / quota / etc. */ }
+  }
+
+  // UI-P7: locale resolution defers to HarnessI18n which already owns
+  // the localStorage key (`harness:lang`) and the supported set
+  // (`["ko", "en"]`). Falling back to "ko" matches the i18n module's
+  // own DEFAULT.
+  function _resolveLocale() {
+    try {
+      if (window.HarnessI18n && typeof window.HarnessI18n.getLang === "function") {
+        const lg = window.HarnessI18n.getLang();
+        if (lg === "ko" || lg === "en") return lg;
+      }
+    } catch (_) { /* defensive */ }
+    return "ko";
   }
 
   function _bootProductShell() {
@@ -55,6 +73,7 @@
     }
 
     const mode = _resolveMode();
+    const locale = _resolveLocale();
     const store = window.HarnessMonitorStore.createMonitorStore();
 
     // UI-P6: instantiate the review-relay client when the script is
@@ -71,9 +90,24 @@
         root: rootEl,
         store: store,
         mode: mode,
+        locale: locale,
         reviewClient: reviewClient,
         onModeChange: function (next) {
           _persistMode(next);
+        },
+        // UI-P7: locale toggle in the header → shell.setLocale → here.
+        // We delegate persistence to HarnessI18n.setLang which writes
+        // `harness:lang` localStorage and dispatches the lang-changed
+        // CustomEvent that legacy panels also listen on.
+        onLocaleChange: function (next) {
+          try {
+            if (window.HarnessI18n && typeof window.HarnessI18n.setLang === "function") {
+              window.HarnessI18n.setLang(next, { persist: true, applyNow: true });
+            }
+          } catch (err) {
+            console.warn("[product-shell] setLang failed:",
+              err && err.message ? err.message : err);
+          }
         },
         onPanelError: function (err) {
           // Surface panel errors to console + toast (when available)
@@ -122,6 +156,7 @@
       handle: handle,
       store: store,
       mode: mode,
+      locale: locale,
     };
   }
 

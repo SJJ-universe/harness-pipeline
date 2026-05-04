@@ -394,34 +394,49 @@
 
   // ── Header indicators ───────────────────────────────────────────
 
+  // UI-P7: indicator selectors now also expose `labelKey`. Header
+  // looks up the i18n translation when an i18n table is wired and
+  // falls back to `label` when not. Existing UI-P5 tests assert on
+  // `label` (Korean string) — that field stays for backwards compat.
   function selectServerStatus(snap) {
-    if (!snap) return { status: "idle", label: "서버 확인 중" };
+    if (!snap) {
+      return { status: "idle", label: "서버 확인 중", labelKey: "prod.indicator.server.checking" };
+    }
     if (snap.server && typeof snap.server === "object") {
       const ok = snap.server.up !== false; // default true if not specified
       return {
         status: ok ? "ok" : "fail",
         label: ok ? "서버 ONLINE" : "서버 OFFLINE",
+        labelKey: ok ? "prod.indicator.server.online" : "prod.indicator.server.offline",
       };
     }
     if (snap.serverInfo && snap.serverInfo.status === "ok") {
-      return { status: "ok", label: "서버 ONLINE" };
+      return { status: "ok", label: "서버 ONLINE", labelKey: "prod.indicator.server.online" };
     }
     // Default = optimistic ok (server is running if the page loaded)
-    return { status: "ok", label: "서버 ONLINE" };
+    return { status: "ok", label: "서버 ONLINE", labelKey: "prod.indicator.server.online" };
   }
 
   function selectCodexStatus(snap) {
-    if (!snap || !snap.accountStatus) return { status: "ok", label: "Codex READY" };
+    if (!snap || !snap.accountStatus) {
+      return { status: "ok", label: "Codex READY", labelKey: "prod.indicator.codex.ready" };
+    }
     const profile = snap.accountStatus.profile;
-    if (!profile) return { status: "ok", label: "Codex READY" };
+    if (!profile) {
+      return { status: "ok", label: "Codex READY", labelKey: "prod.indicator.codex.ready" };
+    }
     // If profile carries a lastTest result for codex, surface it
     const lt = profile.codexLastTest || profile.lastTest && profile.lastTest.codex;
     if (lt) {
-      if (lt.installed && lt.authenticated) return { status: "ok", label: "Codex READY" };
-      if (lt.installed) return { status: "warn", label: "Codex 인증 필요" };
-      return { status: "fail", label: "Codex 미설치" };
+      if (lt.installed && lt.authenticated) {
+        return { status: "ok", label: "Codex READY", labelKey: "prod.indicator.codex.ready" };
+      }
+      if (lt.installed) {
+        return { status: "warn", label: "Codex 인증 필요", labelKey: "prod.indicator.codex.authNeeded" };
+      }
+      return { status: "fail", label: "Codex 미설치", labelKey: "prod.indicator.codex.notInstalled" };
     }
-    return { status: "ok", label: "Codex READY" };
+    return { status: "ok", label: "Codex READY", labelKey: "prod.indicator.codex.ready" };
   }
 
   return {

@@ -99,18 +99,39 @@
   });
 
   // UI-P6: state labels mirror dual-agent-console for consistency.
+  // UI-P7: each entry now carries an i18n key + Korean fallback. The
+  // create() closure builds a t() helper from window.HarnessI18n (or
+  // an injected stub for tests) and looks up keys at render time.
   const STATE_LABELS = Object.freeze({
-    created:           "준비됨",
-    awaiting_critique: "Codex 비평 대기",
-    critique_received: "비평 도착",
-    awaiting_claude:   "Claude 반영 대기",
-    claude_received:   "Claude 반영 완료",
-    archived:          "보관됨",
+    created:           { key: "prod.terminals.state.created",           fallback: "준비됨" },
+    awaiting_critique: { key: "prod.terminals.state.awaiting_critique", fallback: "Codex 비평 대기" },
+    critique_received: { key: "prod.terminals.state.critique_received", fallback: "비평 도착" },
+    awaiting_claude:   { key: "prod.terminals.state.awaiting_claude",   fallback: "Claude 반영 대기" },
+    claude_received:   { key: "prod.terminals.state.claude_received",   fallback: "Claude 반영 완료" },
+    archived:          { key: "prod.terminals.state.archived",          fallback: "보관됨" },
   });
 
-  function _stateLabel(state) {
-    return STATE_LABELS[state] || state || "-";
+  function _stateLabel(state, t) {
+    const entry = STATE_LABELS[state];
+    if (!entry) return state || "-";
+    return t ? t(entry.key, entry.fallback) : entry.fallback;
   }
+
+  // UI-P7: action row spec — id → i18n key + fallback for label/title.
+  // Frozen so test fixtures + visual regression tooling can iterate
+  // it without it drifting silently.
+  const ACTION_LABELS = Object.freeze({
+    "start":           { labelKey: "prod.terminals.action.start",         labelFallback: "+ 세션 시작",
+                         titleKey: "prod.terminals.action.start.title",   titleFallback: "새 review session 시작" },
+    "send-codex":      { labelKey: "prod.terminals.action.sendCodex",     labelFallback: "→ Codex 비평 요청",
+                         titleKey: "prod.terminals.action.sendCodex.title", titleFallback: "Claude 작업물을 Codex에 비평 요청" },
+    "followup-codex":  { labelKey: "prod.terminals.action.followUpCodex", labelFallback: "? Codex에 추가 질문",
+                         titleKey: "prod.terminals.action.followUpCodex.title", titleFallback: "Codex에게 추가 질문" },
+    "hand-back":       { labelKey: "prod.terminals.action.handBack",      labelFallback: "→ Claude에게 반영 요청",
+                         titleKey: "prod.terminals.action.handBack.title", titleFallback: "Codex 비평을 Claude로 hand-back" },
+    "archive":         { labelKey: "prod.terminals.action.archive",       labelFallback: "⏏ 세션 보관",
+                         titleKey: "prod.terminals.action.archive.title", titleFallback: "현재 세션을 archive로 이동" },
+  });
 
   function _formatTs(ts) {
     if (typeof ts === "string") return ts.length >= 19 ? ts.slice(11, 19) : ts;
@@ -335,12 +356,13 @@
   // ── UI-P6: review-relay action row ────────────────────────────────
 
   function _renderActionRow(_doc, ctx) {
-    // ctx: { activeSession, posture, inFlight, handlers }
+    // ctx: { activeSession, posture, inFlight, handlers, t }
+    const t = ctx.t || function (_k, fb) { return fb; };
     const row = _doc.createElement("div");
     row.className = "prod-terminals-actions";
     row.setAttribute("data-region", "dual-terminals-actions");
     row.setAttribute("role", "toolbar");
-    row.setAttribute("aria-label", "Review relay actions");
+    row.setAttribute("aria-label", t("prod.aria.actionRow", "Review relay actions"));
 
     // Section A: indicator
     const indicator = _doc.createElement("span");
@@ -350,10 +372,10 @@
       const sid = ctx.activeSession.sessionId || ctx.activeSession.id || "";
       const label = ctx.activeSession.label || ("세션 " + String(sid).slice(0, 8));
       indicator.setAttribute("data-state", ctx.activeSession.state || "unknown");
-      indicator.textContent = "🔗 " + label + " · " + _stateLabel(ctx.activeSession.state);
+      indicator.textContent = "🔗 " + label + " · " + _stateLabel(ctx.activeSession.state, t);
     } else {
       indicator.setAttribute("data-state", "none");
-      indicator.textContent = "🔗 세션 없음";
+      indicator.textContent = t("prod.terminals.session.none", "🔗 세션 없음");
     }
     row.appendChild(indicator);
 
@@ -385,11 +407,20 @@
       return btn;
     }
 
+    // Helper that pulls i18n label/title for a given action id.
+    function _spec(id) {
+      const a = ACTION_LABELS[id] || {};
+      return {
+        label: t(a.labelKey, a.labelFallback),
+        title: t(a.titleKey, a.titleFallback),
+      };
+    }
+
     // Start session — always available
+    let s = _spec("start");
     buttons.appendChild(_btn({
       id: "start",
-      label: "+ 세션 시작",
-      title: "새 review session 시작",
+      label: s.label, title: s.title,
       disabled: false,
       action: function () { ctx.handlers.onStart(); },
     }));
@@ -398,20 +429,20 @@
     const canSendToCodex = !!session && (
       state === "created" || state === "critique_received" || state === "claude_received"
     );
+    s = _spec("send-codex");
     buttons.appendChild(_btn({
       id: "send-codex",
-      label: "→ Codex 비평 요청",
-      title: "Claude 작업물을 Codex에 비평 요청",
+      label: s.label, title: s.title,
       disabled: !canSendToCodex || !!inFlight,
       action: function () { ctx.handlers.onSendCodex(session); },
     }));
 
     // Follow-up Codex
     const canFollowUpCodex = !!session && state !== "created" && state !== "archived";
+    s = _spec("followup-codex");
     buttons.appendChild(_btn({
       id: "followup-codex",
-      label: "? Codex에 추가 질문",
-      title: "Codex에게 추가 질문",
+      label: s.label, title: s.title,
       disabled: !canFollowUpCodex || !!inFlight,
       action: function () { ctx.handlers.onFollowUp(session); },
     }));
@@ -419,10 +450,10 @@
     // Hand back to Claude — hidden when posture blocks local executor.
     if (!ctx.posture || !ctx.posture.localExecutorBlocked) {
       const canHandBack = !!session && state === "critique_received";
+      s = _spec("hand-back");
       buttons.appendChild(_btn({
         id: "hand-back",
-        label: "→ Claude에게 반영 요청",
-        title: "Codex 비평을 Claude로 hand-back",
+        label: s.label, title: s.title,
         disabled: !canHandBack || !!inFlight,
         action: function () { ctx.handlers.onHandBack(session); },
       }));
@@ -430,10 +461,10 @@
 
     // Archive
     const canArchive = !!session && state !== "archived";
+    s = _spec("archive");
     buttons.appendChild(_btn({
       id: "archive",
-      label: "⏏ 세션 보관",
-      title: "현재 세션을 archive로 이동",
+      label: s.label, title: s.title,
       disabled: !canArchive,
       action: function () { ctx.handlers.onArchive(session); },
     }));
@@ -446,7 +477,8 @@
       badge.className = "prod-actions-posture-badge";
       badge.setAttribute("data-actions-slot", "posture-badge");
       badge.setAttribute("data-posture", "public-sector");
-      badge.textContent = "🛡 공공기관 모드 — 로컬 Claude 실행 차단";
+      badge.textContent = t("prod.terminals.posture.publicSector",
+        "🛡 공공기관 모드 — 로컬 Claude 실행 차단");
       row.appendChild(badge);
     }
 
@@ -466,6 +498,22 @@
     const selectors = opts.dataSelectors
       || (typeof window !== "undefined" && window.HarnessProductShellData)
       || null;
+    // UI-P7: i18n integration. Tests inject opts.i18n or omit it
+    // entirely (returns Korean fallbacks); browser auto-resolves
+    // window.HarnessI18n. _t() returns the translation when valid,
+    // the fallback otherwise.
+    let i18n = opts.i18n
+      || (typeof window !== "undefined" && window.HarnessI18n)
+      || null;
+    function _t(key, fallback) {
+      if (i18n && typeof i18n.t === "function") {
+        try {
+          const val = i18n.t(key);
+          if (typeof val === "string" && val.length > 0 && val !== key) return val;
+        } catch (_) { /* defensive */ }
+      }
+      return fallback;
+    }
     const _onError = typeof opts.onError === "function" ? opts.onError : function (err) {
       try { console.warn("[product-dual-terminals]", err && err.message ? err.message : err); }
       catch (_) {}
@@ -488,7 +536,7 @@
     wrap.className = "prod-terminals-wrap";
     wrap.setAttribute("data-region", "dual-terminals");
     wrap.setAttribute("role", "region");
-    wrap.setAttribute("aria-label", "듀얼 터미널 (Claude / Codex 스트림)");
+    wrap.setAttribute("aria-label", _t("prod.aria.dualTerminals", "듀얼 터미널 (Claude / Codex 스트림)"));
 
     const terminals = _doc.createElement("div");
     terminals.className = "prod-terminals";
@@ -547,6 +595,7 @@
         activeSession: _resolveActiveSession(),
         posture: _resolvePosture(),
         inFlight: inFlight,
+        t: _t,
         handlers: {
           onError: _onError,
           onStart: _onStartSession,
@@ -675,6 +724,25 @@
         }
       },
       setMode: function () { /* mode is CSS-driven only */ },
+      // UI-P7: locale propagation. Triggers a fresh action-row render
+      // so labels/titles + posture badge pick up the new translations
+      // (HarnessI18n.setLang already updated the table). The two
+      // terminal bodies (left/right) are mock or live stream content
+      // — neither needs locale, but rerender keeps caret + tabs in
+      // sync with any DOM mutation that happened during the swap.
+      setLocale: function (l) {
+        const next = (l === "en") ? "en" : "ko";
+        // refresh i18n reference in case window.HarnessI18n was lazily
+        // loaded after create() — defensive, harmless when stub.
+        if (!opts.i18n && typeof window !== "undefined" && window.HarnessI18n) {
+          i18n = window.HarnessI18n;
+        }
+        try { wrap.setAttribute("aria-label", _t("prod.aria.dualTerminals", "듀얼 터미널 (Claude / Codex 스트림)")); } catch (_) {}
+        // Re-render action row + terminal bodies (cheap rebuild).
+        _onStoreChange();
+        // Suppress unused-arg lint
+        return next;
+      },
       _state: function () {
         return {
           left: left.getActiveTab(),

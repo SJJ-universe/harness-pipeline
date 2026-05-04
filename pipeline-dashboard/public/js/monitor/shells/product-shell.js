@@ -45,7 +45,19 @@
   // can't drift at runtime.
   const VALID_MODES = Object.freeze(["simple", "pro"]);
 
+  // UI-P7: alias map. Per `docs/ui-reference-port-plan.md` §4 routing
+  // table (lines 190-193), `?mode=advanced` is the deprecated internal
+  // alias for the existing UI-H simple/advanced split — it MUST land
+  // on `pro` so existing test fixtures + bookmarks keep working until
+  // the alias is removed at UI-P9. Unknown values fall back to simple.
+  const MODE_ALIASES = Object.freeze({
+    advanced: "pro",
+  });
+
   function _coerceMode(m) {
+    if (typeof m === "string" && Object.prototype.hasOwnProperty.call(MODE_ALIASES, m)) {
+      return MODE_ALIASES[m];
+    }
     return VALID_MODES.indexOf(m) >= 0 ? m : "simple";
   }
 
@@ -82,6 +94,10 @@
     }
 
     let mode = _coerceMode(opts.mode);
+    // UI-P7: track locale alongside mode. The shell only forwards the
+    // value to panels via setLocale + initial opts; the actual i18n
+    // table lookup lives in HarnessI18n / per-panel _t() helpers.
+    let locale = (opts.locale === "en") ? "en" : "ko";
 
     // Resolve panel factories. Production reads from window globals;
     // tests pass stubs via opts.panels. This keeps the shell DOM-aware
@@ -163,6 +179,7 @@
           store: store,
           doc: _doc,
           mode: mode,
+          locale: locale,
         }, extraOpts || {}));
       } catch (err) {
         const errEl = _doc.createElement("div");
@@ -177,6 +194,10 @@
 
     handles.header = _mountPanel(headerFactory, headerMount, "header", {
       onModeChange(next) { setMode(next); },
+      // UI-P7: locale toggle in the header bubbles up through the shell
+      // so the init script can persist it via HarnessI18n.setLang AND
+      // re-broadcast to every panel via setLocale().
+      onLocaleChange(next) { setLocale(next); },
     });
     handles.track = _mountPanel(trackFactory, trackMount, "harness-track");
     handles.rail = _mountPanel(railFactory, railMount, "pipeline-rail");
@@ -211,6 +232,33 @@
 
     function getMode() { return mode; }
 
+    // UI-P7: locale propagation. Header's locale toggle invokes
+    // onLocaleChange (above) which calls this. The shell:
+    //   1. updates its `locale` slot
+    //   2. propagates to every panel that exposes setLocale (header,
+    //      dual-terminals — others ignore until they need translatable
+    //      strings)
+    //   3. fires opts.onLocaleChange so the init script can persist
+    //      the choice via HarnessI18n.setLang (writes harness:lang
+    //      localStorage key + dispatches harness:lang-changed)
+    function setLocale(next) {
+      const coerced = (next === "en") ? "en" : "ko";
+      if (coerced === locale) return;
+      locale = coerced;
+      shell.setAttribute("data-locale", locale);
+      for (const key of Object.keys(handles)) {
+        const h = handles[key];
+        if (h && typeof h.setLocale === "function") {
+          try { h.setLocale(locale); } catch (_) { /* defensive */ }
+        }
+      }
+      try {
+        if (typeof opts.onLocaleChange === "function") opts.onLocaleChange(locale);
+      } catch (_) { /* defensive */ }
+    }
+
+    function getLocale() { return locale; }
+
     function destroy() {
       for (const key of Object.keys(handles)) {
         const h = handles[key];
@@ -226,13 +274,20 @@
     function _state() {
       return {
         mode,
+        locale,
         panelsMounted: Object.keys(handles).filter((k) => handles[k] !== null),
       };
     }
 
+    // Stamp initial locale on the shell so visual-regression tooling +
+    // CSS rules can target [data-locale="en"] if/when needed.
+    shell.setAttribute("data-locale", locale);
+
     return {
       setMode,
       getMode,
+      setLocale,
+      getLocale,
       destroy,
       _state,
     };
@@ -241,6 +296,7 @@
   return {
     mount,
     VALID_MODES,
+    MODE_ALIASES,
     _coerceMode,
   };
 });

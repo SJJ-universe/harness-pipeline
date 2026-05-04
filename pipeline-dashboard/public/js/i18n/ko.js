@@ -93,6 +93,52 @@
 
     // ── Runtime toasts / runtime strings (opt-in by caller) ─────────
     "toast.keybindings": "단축키: g t=템플릿, g h=히스토리, g m=메트릭, Esc=닫기",
+
+    // ── Product shell (UI-P7): mode toggle, status pill, indicators ─
+    // Mode toggle is bilingual by design — Korean primary stays Korean
+    // in EN locale too; English subscript stays English in KO locale.
+    // The two-language ribbon is a fixed reference design element.
+    "prod.mode.simple":      "일반사용자",
+    "prod.mode.simple.eng":  "Simple",
+    "prod.mode.pro":         "전문사용자",
+    "prod.mode.pro.eng":     "Pro",
+    "prod.status.idle":      "대기 중",
+    "prod.status.running":   "실행 중",
+    "prod.status.error":     "중단됨",
+    "prod.indicator.server.online":   "서버 ONLINE",
+    "prod.indicator.server.offline":  "서버 OFFLINE",
+    "prod.indicator.server.checking": "서버 확인 중",
+    "prod.indicator.codex.ready":         "Codex READY",
+    "prod.indicator.codex.authNeeded":    "Codex 인증 필요",
+    "prod.indicator.codex.notInstalled":  "Codex 미설치",
+    "prod.aria.header":             "SJ Harness 헤더 (상태 · 모드 · 액션)",
+    "prod.aria.statusPill":         "실행 상태",
+    "prod.aria.modeToggle":         "사용자 모드 전환",
+    "prod.aria.localeToggle":       "언어 선택",
+    "prod.aria.serverIndicator":    "서버 상태",
+    "prod.aria.codexIndicator":     "Codex 상태",
+    "prod.aria.dualTerminals":      "듀얼 터미널 (Claude / Codex 스트림)",
+    "prod.aria.actionRow":          "Review relay 액션",
+
+    // ── Product shell (UI-P7): dual-terminals action row ────────────
+    "prod.terminals.session.none":         "🔗 세션 없음",
+    "prod.terminals.posture.publicSector": "🛡 공공기관 모드 — 로컬 Claude 실행 차단",
+    "prod.terminals.action.start":         "+ 세션 시작",
+    "prod.terminals.action.start.title":   "새 review session 시작",
+    "prod.terminals.action.sendCodex":          "→ Codex 비평 요청",
+    "prod.terminals.action.sendCodex.title":    "Claude 작업물을 Codex에 비평 요청",
+    "prod.terminals.action.followUpCodex":      "? Codex에 추가 질문",
+    "prod.terminals.action.followUpCodex.title": "Codex에게 추가 질문",
+    "prod.terminals.action.handBack":           "→ Claude에게 반영 요청",
+    "prod.terminals.action.handBack.title":     "Codex 비평을 Claude로 hand-back",
+    "prod.terminals.action.archive":            "⏏ 세션 보관",
+    "prod.terminals.action.archive.title":      "현재 세션을 archive로 이동",
+    "prod.terminals.state.created":           "준비됨",
+    "prod.terminals.state.awaiting_critique": "Codex 비평 대기",
+    "prod.terminals.state.critique_received": "비평 도착",
+    "prod.terminals.state.awaiting_claude":   "Claude 반영 대기",
+    "prod.terminals.state.claude_received":   "Claude 반영 완료",
+    "prod.terminals.state.archived":          "보관됨",
   };
 
   if (typeof module !== "undefined" && module.exports) {
