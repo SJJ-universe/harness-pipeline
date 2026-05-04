@@ -1,0 +1,146 @@
+# Slice UI-P12-d (Phase D Round UI-P, 2026-05-04) — manual-dispatch
+# only workflow that runs the accessibility verification matrix on
+# CI hardware and uploads the manifest as an artifact.
+#
+# Same design contract as UI-P10-d / UI-P11-d:
+#   - workflow_dispatch ONLY (NOT push / pull_request)
+#   - Operator triggers manually for a11y evidence
+#   - PR-gating deferred to fused workflow once stable baseline
+#     established (separate round)
+#
+# Operator workflow (in GitHub UI):
+#   1. Actions tab → "UI-P12 Live Browser A11y Verification" → Run
+#   2. Wait ~3-5 minutes (chromium install + 16-cell × axe + custom)
+#   3. Download artifact (manifest.json)
+#
+# Exit code 1 from the a11y run reports as a failed workflow run —
+# operators can use that signal as part of public-sector procurement
+# acceptance even though the workflow isn't a PR gate.
+
+name: UI-P12 Live Browser A11y Verification
+
+on:
+  workflow_dispatch:
+    inputs:
+      label:
+        description: 'Optional label for the artifact + manifest filename suffix'
+        required: false
+        default: ''
+      port:
+        description: 'Server port (default 4799)'
+        required: false
+        default: '4799'
+      disable_rules:
+        description: 'Comma-separated axe rule IDs to additionally disable (e.g. "region,duplicate-id")'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  a11y:
+    name: A11y verification (operator-triggered)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    defaults:
+      run:
+        working-directory: pipeline-dashboard
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: pipeline-dashboard/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install chromium (with system deps)
+        run: npm run visual:install-browsers
+
+      - name: Run a11y matrix
+        run: |
+          # Build --disable-rule args from the comma-separated input.
+          disable_args=""
+          if [ -n "${{ github.event.inputs.disable_rules }}" ]; then
+            IFS=',' read -ra RULES <<< "${{ github.event.inputs.disable_rules }}"
+            for rule in "${RULES[@]}"; do
+              # trim whitespace
+              rule_trimmed="$(echo "$rule" | sed 's/^[ \t]*//;s/[ \t]*$//')"
+              if [ -n "$rule_trimmed" ]; then
+                disable_args="$disable_args --disable-rule $rule_trimmed"
+              fi
+            done
+          fi
+          npm run visual:a11y-live -- \
+            --port "${{ github.event.inputs.port }}" \
+            --label "ci-${{ github.event.inputs.label }}-${{ github.run_id }}" \
+            $disable_args
+
+      - name: Resolve artifact directory
+        id: resolve
+        if: always()
+        run: |
+          dir=$(ls -td docs/reports/*-ui-p12-a11y-* 2>/dev/null | head -n 1 || true)
+          if [ -z "$dir" ]; then
+            echo "No ui-p12-a11y run directory found." >&2
+            exit 1
+          fi
+          echo "Found a11y run directory: $dir"
+          echo "dir=$dir" >> "$GITHUB_OUTPUT"
+
+      - name: Upload manifest artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-p12-a11y-${{ github.run_id }}
+          path: pipeline-dashboard/${{ steps.resolve.outputs.dir }}
+          retention-days: 30
+
+      - name: Print summary
+        if: always()
+        run: |
+          if [ -f "${{ steps.resolve.outputs.dir }}/manifest.json" ]; then
+            echo "=== A11y summary ==="
+            node -e "
+              const m = require('./${{ steps.resolve.outputs.dir }}/manifest.json');
+              console.log('Schema:', m.schema);
+              console.log('axe:', m.axe.name, m.axe.version, '(tags:', m.axe.tags.join('/') + ')');
+              console.log('Custom rules:', m.customRulesetVersion);
+              console.log('Cells:', m.summary.cellsAllPassed + '/' + m.summary.totalCells, 'passed');
+              console.log('Cells with failures:', m.summary.cellsWithFailures);
+              console.log('Cells with errors:', m.summary.cellsWithErrors);
+              console.log('axe violations:', m.summary.totalAxeViolations,
+                '(critical/serious:', m.summary.totalAxeFailingImpacts + ')');
+              console.log('Custom failed:', m.summary.totalCustomFailed);
+              console.log('Wall time:', m.totalElapsedMs, 'ms');
+              if (m.summary.totalAxeFailingImpacts > 0 || m.summary.totalCustomFailed > 0) {
+                console.log('--- Failing rules ---');
+                for (const c of m.cells) {
+                  if (!c.summary || c.failed) continue;
+                  const failingAxe = (c.axeViolations || []).filter((v) =>
+                    ['critical', 'serious'].includes(v.impact));
+                  const failingCustom = (c.customResults || []).filter((r) =>
+                    r.ok === false && !r.skipped);
+                  for (const v of failingAxe) {
+                    console.log('  ' + c.routeId + '__' + c.viewportId +
+                      ' :: axe :: ' + v.id + ' [' + v.impact + ']');
+                  }
+                  for (const r of failingCustom) {
+                    console.log('  ' + c.routeId + '__' + c.viewportId +
+                      ' :: custom :: ' + r.id);
+                  }
+                }
+              }
+            "
+          fi
