@@ -273,6 +273,12 @@ const { createMonitorRoutes } = require("./src/routes/monitorRoutes");
 // 404 when HARNESS_REMOTE_MODE === "off" (default), so this is dead-code
 // in single-orchestrator deployments. Feature flag locked at boot.
 const { createRunnerRoutes } = require("./src/routes/runnerRoutes");
+// Slice SMART-0-b (Phase D Round UI-P / Phase 2 SMART arc, 2026-05-04):
+// `/api/decision-context` foundation that every subsequent SMART
+// round (recommendation cards / hard gates / review presets / run
+// memory / policy packs) reads as input. Read-only, no token gate
+// (loopback binding is the existing safeguard).
+const { createDecisionContextRoutes } = require("./src/routes/decisionContextRoutes");
 
 app.use("/api", createHealthRoutes({ pty }));
 
@@ -1054,6 +1060,19 @@ app.use("/api", createMonitorRoutes({
   // / _resolveRunners fall through to the local defaults — matching
   // the pre-R1-h2 behavior exactly.
   runnerProvider: _remoteRunner.runnerRegistry,
+}));
+
+// Slice SMART-0-b (2026-05-04): /api/decision-context — pure
+// snapshot of operator-attention state for SMART arc consumers.
+// All adapters optional; missing dep → corresponding source "absent".
+app.use("/api", createDecisionContextRoutes({
+  approvalManager: _approvalManager,
+  reviewSessionManager: _reviewSessionManager,
+  runRegistry: pipelineOrchestrator,
+  deploymentProfile: _deploymentProfile,
+  evidenceLedger,
+  profileStore,
+  runnerRegistry: _remoteRunner.runnerRegistry,
 }));
 
 // Slice R1-h (Phase D R1, 2026-04-28): /api/runner/handshake, /heartbeat,
