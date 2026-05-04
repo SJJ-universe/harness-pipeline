@@ -22,7 +22,8 @@
     "visual:capture-live": "node scripts/visual-capture-live.js",
     "visual:assert-live": "node scripts/visual-assert-live.js",
     "visual:a11y-live": "node scripts/visual-a11y-live.js",
-    "visual:button-live": "node scripts/visual-button-live.js"
+    "visual:button-live": "node scripts/visual-button-live.js",
+    "visual:fused-live": "node scripts/visual-fused-live.js"
   },
   "keywords": [],
   "author": "",
