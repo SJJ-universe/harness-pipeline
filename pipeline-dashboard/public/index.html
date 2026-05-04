@@ -72,6 +72,10 @@
        Product shell + panels (UI-P1)
        ──────────────────────────────────────────────────────────── -->
   <script src="js/monitor/panels/product-header.js"></script>
+  <!-- UI-P3-b: horse rider sprite player. Must load BEFORE
+       product-harness-track.js because the track resolves
+       window.HarnessProductHorseRider at create() time. -->
+  <script src="js/monitor/panels/product-horse-rider.js"></script>
   <script src="js/monitor/panels/product-harness-track.js"></script>
   <script src="js/monitor/panels/product-pipeline-rail.js"></script>
   <script src="js/monitor/panels/product-monitor-grid.js"></script>

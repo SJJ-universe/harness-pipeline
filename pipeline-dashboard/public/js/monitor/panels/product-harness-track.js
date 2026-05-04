@@ -1,25 +1,26 @@
-// Slice UI-P1-f (Phase 2 Round 3, 2026-04-30) — harness track stub.
+// Slice UI-P1-f / UI-P3-d (Phase 2 Round 3, 2026-04-30) — harness track.
 //
-// Renders the 92px harness-track band per the reference. UI-P1 ships
-// a static 7-stage display with a CSS-positioned horse placeholder
-// (no sprite yet — UI-P3 ports horse-frames.png + RAF loop).
-// Real phase data wiring lands in UI-P5.
+// Renders the 92px harness-track band per the reference. UI-P1 shipped
+// a static 7-stage display with a 🐎 emoji placeholder. UI-P3 swaps
+// the placeholder for the real sprite player from product-horse-rider.js
+// — now the horse galops in place at first paint.
 //
-// What this stub renders:
-//   - 7 lane labels (PLAN ─ CRITIQUE◈ ─ REVISE ─ RE-CRITIQUE◈ ─ EXECUTE ─ VERIFY◈ ─ DONE)
+// What this renders:
+//   - 7 lane labels (PLAN ─ CRITIQUE◈ ─ REVISE ─ RE-CHECK◈ ─ EXECUTE ─ VERIFY◈ ─ DONE)
 //   - Dashed lane separators
 //   - Ground line + drop shadow
-//   - Static horse placeholder (🐎 emoji at center) — sprite in UI-P3
+//   - Real horse rider sprite (12-frame gallop loop, ~8.5fps)
 //   - Static status pill ("STAGE 1/7 · PLAN")
 //
-// What this stub does NOT do:
-//   - Animation (UI-P3 wires sprite + RAF + state machine)
+// What this stub does NOT do (yet):
+//   - Animate the horse moving across lanes (UI-P5 wires phase change
+//     → setState + horizontal pan)
 //   - Real phase reading from store (UI-P5)
 //   - Trigger callout for gates (UI-P5 — needs real gate events)
+//   - Switch to rear state on gate fire (UI-P5)
 //
 // Mode behavior:
-//   - simple: same 7 lanes, smaller horse
-//   - pro: same 7 lanes (mode toggle doesn't affect track in reference)
+//   - simple/pro: same 7 lanes; mode doesn't affect track in reference
 
 (function (root, factory) {
   const api = factory();
@@ -91,14 +92,47 @@
     groundShadow.className = "prod-track-ground-shadow";
     track.appendChild(groundShadow);
 
-    // Horse placeholder — UI-P3 replaces with sprite player. For now
-    // a 🐎 emoji at the position of the current stage.
+    // Horse rider — UI-P3 mounts the real sprite player. The wrap
+    // owns the absolute positioning (left = lane center − sprite half-
+    // width). The horse-rider module owns the sprite dimensions +
+    // RAF loop. opts.horseRider override is for tests; production
+    // resolves from window globals.
     const horseWrap = _doc.createElement("div");
     horseWrap.className = "prod-track-horse-wrap";
-    horseWrap.style.left = "calc(24px + (100% - 48px) * " + ((currentStage + 0.5) / MOCK_STAGES.length) + " - 28px)";
-    horseWrap.style.fontSize = "44px";
-    horseWrap.textContent = "🐎";
+    // Sprite is 56px wide at default; offset by 28 (half) so center
+    // sits over the lane midpoint. Uses calc() so window resize keeps
+    // alignment without a JS reflow.
+    horseWrap.style.left = "calc(24px + (100% - 48px) * "
+      + ((currentStage + 0.5) / MOCK_STAGES.length) + " - 28px)";
     track.appendChild(horseWrap);
+
+    let horseHandle = null;
+    const horseRiderFactory = opts.horseRider
+      || (typeof window !== "undefined"
+          && window.HarnessProductHorseRider
+          && window.HarnessProductHorseRider.create);
+    if (typeof horseRiderFactory === "function") {
+      try {
+        horseHandle = horseRiderFactory({
+          root: horseWrap,
+          doc: _doc,
+          state: "gallop",
+          accent: "#C9A66B",
+          size: 56,
+        });
+      } catch (err) {
+        // Sprite mount failed — keep the emoji fallback inline so the
+        // operator at least sees something at the lane center.
+        horseWrap.style.fontSize = "44px";
+        horseWrap.textContent = "🐎";
+      }
+    } else {
+      // Module not loaded (older index.html or test env). Fall back to
+      // emoji directly. This matches UI-P1 behavior for graceful
+      // degradation.
+      horseWrap.style.fontSize = "44px";
+      horseWrap.textContent = "🐎";
+    }
 
     // Status pill
     const pill = _doc.createElement("div");
@@ -111,11 +145,21 @@
 
     return {
       destroy: function () {
+        // Stop the horse RAF loop FIRST, then unmount the track.
+        // Reverse mount order so the sprite's removeChild call doesn't
+        // race with the track being unmounted.
+        if (horseHandle && typeof horseHandle.destroy === "function") {
+          try { horseHandle.destroy(); } catch (_) {}
+        }
         if (track.parentNode === root) {
           try { root.removeChild(track); } catch (_) {}
         }
       },
       setMode: function () { /* mode doesn't affect track in this stub */ },
+      // UI-P3 test hook — exposes the horse rider handle so tests can
+      // assert on sprite state transitions without reaching into the
+      // DOM tree.
+      _horse: function () { return horseHandle; },
       _state: function () {
         return {
           currentStage,

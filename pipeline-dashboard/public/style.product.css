@@ -1196,3 +1196,25 @@ html, body {
   display: none;
 }
 
+/* ── UI-P3: horse rider sprite ───────────────────────────────────
+ * Sprite layer geometry + transitions are set inline by
+ * product-horse-rider.js (size-dependent, computed per-instance).
+ * This stylesheet only owns the bridle-glint animation hook so the
+ * radial gradient pulses while the horse is rearing — keeping the
+ * keyframe definition in one place (already declared above).
+ */
+.prod-horse[data-state="rear"] .prod-horse-bridle-glint {
+  animation: prod-bridle-glint .8s ease-in-out infinite alternate;
+}
+/* When the sprite fails to load (CSP block, missing asset, offline
+ * USB stick install, etc.) the fallback emoji becomes visible. The
+ * sprite module sets display=flex inline — these rules ensure the
+ * surrounding wrap stays vertically centered. */
+.prod-horse-fallback {
+  /* line-height match keeps emoji vertically centered without
+   * needing extra wrappers; alignItems/justifyContent already set
+   * inline by product-horse-rider.js. */
+  line-height: 1;
+  user-select: none;
+}
+
