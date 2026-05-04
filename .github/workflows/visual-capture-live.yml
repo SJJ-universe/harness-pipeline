@@ -1,0 +1,133 @@
+# Slice UI-P10-d (Phase D Round UI-P, 2026-05-04) — manual-dispatch
+# only workflow that runs the live browser visual verification on
+# CI hardware and uploads the 16 PNGs + manifest as a workflow
+# artifact.
+#
+# Why manual-dispatch only (NOT push / pull_request):
+#   1. chromium binary download (~150MB) is too expensive to run on
+#      every PR push. CI runners would re-download on every cache
+#      miss; not justified before UI-P11 (responsive) + UI-P12 (a11y)
+#      provide the regression-blocking signal.
+#   2. UI-P10 is operator-runnable evidence capture, not a PR gate.
+#      The structural snapshot harness (UI-P9) already runs on every
+#      push and provides the regression block.
+#   3. Operators trigger this manually from the GitHub Actions UI when
+#      they want fresh visual evidence (e.g., before a release, after
+#      a UI-altering PR).
+#
+# When PR-gating becomes valuable: separate round after UI-P11 +
+# UI-P12 land — at that point the captures gain pixel-diff + a11y
+# assertions and the chromium download cost is amortized over the
+# new defense.
+#
+# What gets uploaded as artifact:
+#   - PNG (16 cells)
+#   - manifest.json
+#   - retention 30 days (default GHA artifact retention)
+#
+# Operator workflow (in GitHub UI):
+#   1. Go to Actions tab
+#   2. Select "UI-P10 Live Browser Visual Capture"
+#   3. Click "Run workflow" → choose branch → Run
+#   4. Wait ~3-5 minutes (chromium install + 16-cell capture)
+#   5. Download artifact from the completed run
+
+name: UI-P10 Live Browser Visual Capture
+
+on:
+  workflow_dispatch:
+    inputs:
+      label:
+        description: 'Optional label for the artifact + manifest filename suffix'
+        required: false
+        default: ''
+      port:
+        description: 'Server port (default 4799)'
+        required: false
+        default: '4799'
+
+# Same least-privilege grant as ci.yml.
+permissions:
+  contents: read
+
+# Manual dispatch is rare; no cancel-in-progress because the operator
+# explicitly triggered it and likely wants every run to complete.
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  capture:
+    name: Live capture (operator-triggered)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    defaults:
+      run:
+        working-directory: pipeline-dashboard
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: pipeline-dashboard/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Chromium install IS justified here because the operator
+      # explicitly triggered the workflow expecting to spend 1-2
+      # minutes on it. Cache reduces subsequent runs.
+      - name: Install chromium (with system deps)
+        run: npm run visual:install-browsers
+
+      - name: Capture 16 cells
+        run: |
+          npm run visual:capture-live -- \
+            --port "${{ github.event.inputs.port }}" \
+            --label "ci-${{ github.event.inputs.label }}-${{ github.run_id }}"
+
+      # Find the most recent ui-p10-live directory the capture script
+      # wrote and surface its path for the upload step.
+      - name: Resolve artifact directory
+        id: resolve
+        run: |
+          dir=$(ls -td docs/reports/*-ui-p10-live-* 2>/dev/null | head -n 1 || true)
+          if [ -z "$dir" ]; then
+            echo "No ui-p10-live capture directory found." >&2
+            exit 1
+          fi
+          echo "Found capture directory: $dir"
+          echo "dir=$dir" >> "$GITHUB_OUTPUT"
+
+      - name: Upload PNG + manifest artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-p10-live-${{ github.run_id }}
+          path: pipeline-dashboard/${{ steps.resolve.outputs.dir }}
+          retention-days: 30
+
+      - name: Print summary
+        run: |
+          if [ -f "${{ steps.resolve.outputs.dir }}/manifest.json" ]; then
+            echo "=== Capture summary ==="
+            node -e "
+              const m = require('./${{ steps.resolve.outputs.dir }}/manifest.json');
+              console.log('Total:', m.summary.total);
+              console.log('OK:', m.summary.ok);
+              console.log('Failed:', m.summary.failed);
+              console.log('Browser:', m.browser.name, m.browser.version);
+              console.log('Wall time:', m.totalElapsedMs, 'ms');
+              if (m.summary.failed > 0) {
+                console.log('--- Failed cells ---');
+                for (const c of m.cells) {
+                  if (c.failed) console.log(c.filename, '←', c.failureReason);
+                }
+              }
+            "
+          fi
