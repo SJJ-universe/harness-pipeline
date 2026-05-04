@@ -38,8 +38,25 @@
 //
 // CTA recommendations per state are returned alongside the state
 // ID so the panel doesn't need to mirror this logic.
+//
+// Module shape: UMD — works as both Node `require` (used by tests
+// and by the browser-side panel via the require fallback in
+// next-action-card.js) AND as a browser `<script src=...>` tag that
+// registers `window.HarnessFirstRunClassifier`. Same source, two
+// loaders.
 
 "use strict";
+
+(function (root, factory) {
+  const api = factory();
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports = api;
+  }
+  if (typeof root !== "undefined") {
+    root.HarnessFirstRunClassifier = api;
+  }
+})(typeof window !== "undefined" ? window : (typeof globalThis !== "undefined" ? globalThis : this),
+   function () {
 
 const FIRST_RUN_STATES = Object.freeze({
   NO_PROFILE: "no-profile",
@@ -211,7 +228,7 @@ function classifyFirstRun(accountStatus) {
   };
 }
 
-module.exports = {
+return {
   FIRST_RUN_STATES,
   CTA,
   STATE_CTAS,
@@ -222,3 +239,5 @@ module.exports = {
   _missingRunners,
   _unauthenticatedRunners,
 };
+
+});  // end UMD factory

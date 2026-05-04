@@ -151,6 +151,40 @@
     "legacy.banner.cta.title":"새 product shell 열기",
     "legacy.banner.dismiss":  "이 안내 닫기",
     "legacy.banner.footnote": "이 보기(legacy)는 계속 사용할 수 있습니다",
+
+    // ── UI-FirstRun: 6 first-run state messages + 9 CTA labels ─────
+    // "지금 해야 할 일" card. Surfaces the most blocking first-run
+    // state with concrete CTAs. Honest framing: "we don't pretend
+    // anything works until you've actually verified it."
+    "firstRun.cardLabel":                                "지금 해야 할 일",
+    "firstRun.aria.region":                              "지금 해야 할 일 카드",
+    "firstRun.noProfile.headline":                       "프로필이 아직 없습니다",
+    "firstRun.noProfile.body":                           "Claude / Codex와 연결할 첫 프로필을 만들어야 작업을 시작할 수 있습니다.",
+    "firstRun.noActiveProfile.headline":                 "활성 프로필을 선택해 주세요",
+    "firstRun.noActiveProfile.body":                     "프로필이 등록되어 있지만 어떤 프로필이 활성 상태인지 지정되지 않았습니다.",
+    "firstRun.publicSectorIncomplete.headline":          "🛡 공공기관 모드 설정이 끝나지 않았습니다",
+    "firstRun.publicSectorIncomplete.body":              "공공기관 / 사내망 정책이 적용되어 있어 추가 동의 + 샌드박스 설정이 필요합니다.",
+    "firstRun.providerMissing.headline":                 "Claude 또는 Codex CLI가 설치되어 있지 않습니다",
+    "firstRun.providerMissing.body":                     "활성 프로필은 있지만 CLI 도구를 찾을 수 없습니다. 설치를 확인하거나 경로를 다시 잡아 주세요.",
+    "firstRun.providerNotAuthenticated.headline":        "Claude / Codex 로그인이 필요합니다",
+    "firstRun.providerNotAuthenticated.body":            "CLI는 설치되어 있지만 인증 상태가 확인되지 않습니다. 각 도구에서 로그인해 주세요.",
+    "firstRun.ready.headline":                           "사용할 준비가 되었습니다",
+    "firstRun.ready.body":                               "활성 프로필이 설정되어 있습니다. 필요하면 연결 상태를 한 번 확인해 보세요.",
+
+    "firstRun.cta.createProfile":                        "개인 프로필 빠른 생성",
+    "firstRun.cta.openSetupWizard":                      "설정 마법사로 시작",
+    "firstRun.cta.openSettingsProfiles":                 "계정 설정 열기",
+    "firstRun.cta.openPublicSectorSetup":                "공공기관 설정 마법사",
+    "firstRun.cta.testClaude":                           "Claude 연결 확인",
+    "firstRun.cta.testCodex":                            "Codex 연결 확인",
+    "firstRun.cta.reopenSetupForProviders":              "설정 마법사 다시 열기",
+    "firstRun.cta.authClaude":                           "Claude 로그인",
+    "firstRun.cta.authCodex":                            "Codex 로그인",
+
+    "firstRun.meta.profileCount":                        "등록된 프로필: {count}개",
+    "firstRun.meta.missing":                             "확인 안된 도구: {runners}",
+    "firstRun.meta.unauth":                              "로그인 필요: {runners}",
+    "firstRun.meta.untestedHint":                        "연결 상태는 아직 확인되지 않았습니다. 위 버튼으로 한 번 테스트해 보세요.",
   };
 
   if (typeof module !== "undefined" && module.exports) {

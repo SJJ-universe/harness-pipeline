@@ -42,7 +42,12 @@
     onOpenSetupWizard,       // UI-H8: launch setup wizard guide / modal
     onCreatePersonal,        // UI-H8: quick-create personal profile
     onSelectRun,             // UI-H9: open run-viewer for a runId
+    onFirstRunCta,           // UI-FirstRun-c: next-action-card CTA dispatcher
+    onTestProvider,          // UI-FirstRun-c: test-claude / test-codex CTA
+    onAuthProvider,          // UI-FirstRun-c: auth-claude / auth-codex CTA
+    onPublicSectorSetup,     // UI-FirstRun-c: open-public-sector-setup CTA
     storage,                 // UI-H8: localStorage shim for tests
+    i18n,                    // UI-FirstRun-c: i18n module for next-action-card
   } = {}) {
     if (!root || typeof root.appendChild !== "function") {
       throw new Error("simple-shell.mount: root must be an element");
@@ -98,6 +103,49 @@
       onCreatePersonal,
       onOpenSettings,
       storage,
+    });
+
+    // Slice UI-FirstRun-c (2026-05-04): mount the next-action-card
+    // BETWEEN the welcome banner and the 4-card grid. Welcome-overlay
+    // covers the "completely empty state" hero treatment; this card
+    // is the persistent "what to do next" surface that stays visible
+    // even when a profile is active.
+    //
+    // CTA dispatcher: onFirstRunCta(ctaId, meta) is the single
+    // injection seam. The init script wires it to a switch over
+    // the 9 CTA IDs (open-setup-wizard / open-settings-profiles /
+    // test-claude / test-codex / etc). Tests can ignore this prop
+    // and the card will simply be uninteractive.
+    const firstRunMount = _doc.createElement("div");
+    firstRunMount.className = "ss-first-run-mount";
+    root.appendChild(firstRunMount);
+
+    _mount("nextActionCard", "HarnessNextActionCard", firstRunMount, {
+      i18n,
+      onCta: function (ctaId, meta) {
+        if (typeof onFirstRunCta === "function") {
+          try { onFirstRunCta(ctaId, meta); } catch (_) {}
+          return;
+        }
+        // Sensible default dispatch when caller didn't wire onFirstRunCta:
+        // route well-known CTAs to specialized callbacks if those are
+        // wired. Keeps the card useful in partial-wiring scenarios.
+        if ((ctaId === "open-setup-wizard"
+             || ctaId === "reopen-setup-for-providers"
+             || ctaId === "create-profile") && typeof onOpenSetupWizard === "function") {
+          try { onOpenSetupWizard(); } catch (_) {}
+        } else if ((ctaId === "open-settings-profiles"
+                    || ctaId === "open-public-sector-setup") && typeof onOpenSettings === "function") {
+          try { onOpenSettings(); } catch (_) {}
+        } else if ((ctaId === "test-claude" || ctaId === "test-codex") && typeof onTestProvider === "function") {
+          try { onTestProvider(ctaId === "test-claude" ? "claude" : "codex"); } catch (_) {}
+        } else if ((ctaId === "auth-claude" || ctaId === "auth-codex") && typeof onAuthProvider === "function") {
+          try { onAuthProvider(ctaId === "auth-claude" ? "claude" : "codex"); } catch (_) {}
+        }
+        // No matching handler → CTA is a no-op (operator at least
+        // sees the next-action message even if the action isn't
+        // wired in this deployment).
+      },
     });
 
     // Card 1: 지금 AI가 하는 일

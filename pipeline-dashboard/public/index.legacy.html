@@ -557,6 +557,13 @@
   <script src="js/monitor/panels/welcome-overlay.js"></script>
   <!-- Slice UI-H9 (Phase D / Phase E1.5, 2026-04-30): recent-results drill-down viewer -->
   <script src="js/monitor/panels/run-viewer.js"></script>
+  <!-- Slice UI-FirstRun-c (Phase D Round UI-P, 2026-05-04): "지금 해야 할 일" card.
+       Loaded BEFORE simple-shell so the panel constructor is registered on
+       window.HarnessNextActionCard when simple-shell.mount() runs. The card
+       module also lazy-requires firstRunClassifier; in browser that resolves
+       via the script tag above (not the require path which is Node-only). -->
+  <script src="js/runtime/firstRunClassifier.js"></script>
+  <script src="js/monitor/panels/next-action-card.js"></script>
   <script src="js/monitor/shells/simple-shell.js"></script>
   <script src="js/monitor/layout.js"></script>
   <script>

@@ -38,7 +38,7 @@
     if (_classifierFactory) return _classifierFactory;
     if (typeof require === "function") {
       try {
-        _classifierFactory = require("../../../../src/runtime/firstRunClassifier");
+        _classifierFactory = require("../../runtime/firstRunClassifier");
         return _classifierFactory;
       } catch (_) { /* fall through to globalThis */ }
     }
@@ -134,12 +134,19 @@
     },
   };
 
-  function _t(i18n, key, fallback) {
+  function _t(i18n, key, fallback, params) {
     if (i18n && typeof i18n.t === "function") {
       try {
-        const v = i18n.t(key);
+        const v = i18n.t(key, params || {});
         if (v && v !== key) return v;
       } catch (_) { /* fall through */ }
+    }
+    // Fallback path: simple `{name}` substitution so tests without
+    // an injected i18n still see the params interpolated.
+    if (params && typeof fallback === "string") {
+      return fallback.replace(/\{(\w+)\}/g, function (_m, name) {
+        return params[name] !== undefined ? String(params[name]) : "";
+      });
     }
     return fallback;
   }
@@ -221,14 +228,14 @@
       const m = verdict.meta || {};
       let text = "";
       if (state === "no-active-profile" && typeof m.profileCount === "number") {
-        text = _t(i18n, "firstRun.meta.profileCount", "등록된 프로필: ") +
-          m.profileCount + _t(i18n, "firstRun.meta.profileCountSuffix", "개");
+        text = _t(i18n, "firstRun.meta.profileCount",
+          "등록된 프로필: {count}개", { count: m.profileCount });
       } else if (state === "provider-missing" && Array.isArray(m.missing) && m.missing.length > 0) {
-        text = _t(i18n, "firstRun.meta.missingPrefix", "확인 안된 도구: ") +
-          m.missing.join(" / ");
+        text = _t(i18n, "firstRun.meta.missing",
+          "확인 안된 도구: {runners}", { runners: m.missing.join(" / ") });
       } else if (state === "provider-not-authenticated" && Array.isArray(m.unauthenticated)) {
-        text = _t(i18n, "firstRun.meta.unauthPrefix", "로그인 필요: ") +
-          m.unauthenticated.join(" / ");
+        text = _t(i18n, "firstRun.meta.unauth",
+          "로그인 필요: {runners}", { runners: m.unauthenticated.join(" / ") });
       } else if (state === "ready" && m.providerStatusKnown === false) {
         text = _t(i18n, "firstRun.meta.untestedHint",
           "연결 상태는 아직 확인되지 않았습니다. 위 버튼으로 한 번 테스트해 보세요.");

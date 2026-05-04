@@ -150,6 +150,37 @@
     "legacy.banner.cta.title":"Open the new product shell",
     "legacy.banner.dismiss":  "Dismiss this notice",
     "legacy.banner.footnote": "This view (legacy) stays available indefinitely",
+
+    // ── UI-FirstRun: 6 first-run state messages + 9 CTA labels ─────
+    "firstRun.cardLabel":                                "Next action",
+    "firstRun.aria.region":                              "Next action card",
+    "firstRun.noProfile.headline":                       "No profile yet",
+    "firstRun.noProfile.body":                           "Create your first profile to connect Claude / Codex before any work can start.",
+    "firstRun.noActiveProfile.headline":                 "Pick an active profile",
+    "firstRun.noActiveProfile.body":                     "Profiles are registered but none is marked active.",
+    "firstRun.publicSectorIncomplete.headline":          "🛡 Public-sector setup is incomplete",
+    "firstRun.publicSectorIncomplete.body":              "Public-sector / intranet policy is enabled. Additional acknowledgments + sandbox setup are required.",
+    "firstRun.providerMissing.headline":                 "Claude or Codex CLI is not installed",
+    "firstRun.providerMissing.body":                     "An active profile exists but the CLI tool is missing. Verify the install or fix the path.",
+    "firstRun.providerNotAuthenticated.headline":        "Claude / Codex login required",
+    "firstRun.providerNotAuthenticated.body":            "CLIs are installed but auth state cannot be confirmed. Sign in to each tool.",
+    "firstRun.ready.headline":                           "Ready to use",
+    "firstRun.ready.body":                               "An active profile is configured. Verify connection state if you want.",
+
+    "firstRun.cta.createProfile":                        "Quick personal profile",
+    "firstRun.cta.openSetupWizard":                      "Start with setup wizard",
+    "firstRun.cta.openSettingsProfiles":                 "Open account settings",
+    "firstRun.cta.openPublicSectorSetup":                "Public-sector setup wizard",
+    "firstRun.cta.testClaude":                           "Test Claude connection",
+    "firstRun.cta.testCodex":                            "Test Codex connection",
+    "firstRun.cta.reopenSetupForProviders":              "Reopen setup wizard",
+    "firstRun.cta.authClaude":                           "Sign in to Claude",
+    "firstRun.cta.authCodex":                            "Sign in to Codex",
+
+    "firstRun.meta.profileCount":                        "Registered profiles: {count}",
+    "firstRun.meta.missing":                             "CLI(s) not detected: {runners}",
+    "firstRun.meta.unauth":                              "Login required: {runners}",
+    "firstRun.meta.untestedHint":                        "Connection state is unverified. Use the buttons above to test.",
   };
 
   if (typeof module !== "undefined" && module.exports) {

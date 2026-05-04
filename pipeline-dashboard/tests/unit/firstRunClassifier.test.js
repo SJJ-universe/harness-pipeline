@@ -6,7 +6,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const c = require("../../src/runtime/firstRunClassifier");
+const c = require("../../public/js/runtime/firstRunClassifier");
 const {
   FIRST_RUN_STATES,
   CTA,

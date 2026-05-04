@@ -197,6 +197,25 @@
           if (json.errorCode === "PUBLIC_SECTOR_BLOCKED") {
             _setToast("Public-sector posture: use sandbox runner instead of local CLI test.");
           }
+          // Slice UI-FirstRun-c (2026-05-04): mirror probe verdict
+          // into the store so next-action-card's first-run classifier
+          // can drop out of "untested" → ready / provider-missing /
+          // provider-not-authenticated. Only mirrors when the panel
+          // was given a store with the slice action (older tests
+          // that don't include setProviderStatus see no behavior change).
+          if (typeof store.setProviderStatus === "function") {
+            try {
+              store.setProviderStatus({
+                [runner]: {
+                  installed: json.installed === true,
+                  authenticated: json.authenticated === true,
+                  errorCode: json.errorCode || null,
+                  accountLabel: json.accountLabel || null,
+                  testedAt: Date.now(),
+                },
+              });
+            } catch (_) { /* never let the panel break on store mutator faults */ }
+          }
         } else {
           _setToast(`Test ${runner} failed: bad response`);
         }
