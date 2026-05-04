@@ -32,7 +32,7 @@ test("UI-Doc-Gov: governance doc exists at canonical path", () => {
   assert.ok(fs.existsSync(DOC_PATH), `expected doc at ${DOC_PATH}`);
 });
 
-test("UI-Doc-Gov: doc lists all 5 contract families with correct npm commands", () => {
+test("UI-Doc-Gov: doc lists all 6 contract families with correct npm commands", () => {
   const doc = _readDoc();
   const required = [
     "npm run visual:check",
@@ -40,6 +40,8 @@ test("UI-Doc-Gov: doc lists all 5 contract families with correct npm commands", 
     "npm run visual:assert-live",
     "npm run visual:a11y-live",
     "npm run visual:button-live",
+    // UI-Fuse: fused orchestrator
+    "npm run visual:fused-live",
   ];
   for (const cmd of required) {
     assert.ok(doc.includes(cmd),
@@ -48,7 +50,7 @@ test("UI-Doc-Gov: doc lists all 5 contract families with correct npm commands", 
   }
 });
 
-test("UI-Doc-Gov: doc lists all 5 manifest schemas (or baseline file path)", () => {
+test("UI-Doc-Gov: doc lists all 6 manifest schemas (or baseline file path)", () => {
   const doc = _readDoc();
   const required = [
     "tests/visual/baseline-product-shell.json",
@@ -56,12 +58,22 @@ test("UI-Doc-Gov: doc lists all 5 manifest schemas (or baseline file path)", () 
     "harness-visual-assert/v1",
     "harness-visual-a11y/v1",
     "harness-visual-button/v1",
+    // UI-Fuse: top-level fused summary schema
+    "harness-visual-fused/v1",
   ];
   for (const schema of required) {
     assert.ok(doc.includes(schema),
       `governance doc must mention manifest schema/path "${schema}"`,
     );
   }
+});
+
+test("UI-Doc-Gov: §1 contract table mentions UI-Fuse as the orchestrator (not new schema)", () => {
+  const doc = _readDoc();
+  assert.match(doc, /UI-Fuse/,
+    "doc must reference UI-Fuse as the 6th contract family");
+  assert.match(doc, /orchestrator/,
+    "doc must explicitly frame UI-Fuse as orchestrator (Contract 6 = 2-5 의 orchestrator)");
 });
 
 test("UI-Doc-Gov: §7 catalog version table matches actual frozen lists", () => {

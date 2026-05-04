@@ -6,7 +6,7 @@
 
 ---
 
-## 1. 5개 Contract Family — 한 눈에
+## 1. 6개 Contract Family — 한 눈에
 
 | # | Contract | npm 명령 | Manifest schema | PR gate? | 기본 동작 |
 |:---:|---|---|---|:---:|---|
@@ -15,10 +15,12 @@
 | 3 | **Responsive + text-fit** (UI-P11) | `npm run visual:assert-live` | `harness-visual-assert/v1` | ❌ manual | 6 frozen rules × 16 cells, pass/fail |
 | 4 | **Accessibility** (UI-P12) | `npm run visual:a11y-live` | `harness-visual-a11y/v1` | ❌ manual | axe WCAG 2.0/2.1 A+AA + 2 custom × 16 cells |
 | 5 | **Button integrity** (UI-P13) | `npm run visual:button-live` | `harness-visual-button/v1` | ❌ manual | 13 buttons × 4 routes (1 viewport) |
+| 6 | **Fused live** (UI-Fuse) | `npm run visual:fused-live` | `harness-visual-fused/v1` (top-level summary) + per-tool subdirs | ❌ manual | 4개 contract 모두 단일 boot + 단일 chromium install 아래 순차 실행. 단일 artifact + 단일 summary.json. |
 
 **핵심 분기점**:
 - Contract 1 (UI-P9)은 **"structural baseline = the contract"**. 변경 시 의도적 baseline 갱신 + commit 알고 있어야 한다.
 - Contract 2-5는 **"manifest = a snapshot of behavior"**. 운영자가 ad-hoc 실행, 결과를 PR description에 첨부하거나 commit 안 해도 된다. CI는 자동 gating 안 함.
+- Contract 6 (UI-Fuse)는 **2-5의 orchestrator**. 새 schema 도입이 아니라 4개 manifest를 단일 directory로 묶고 top-level summary.json만 추가. PR-gating 진입 후보지만 §6.2 4 entry conditions 충족 전까지 manual.
 
 ---
 
@@ -238,6 +240,9 @@ Contract 2-5를 PR-gating할 시점은 다음 조건이 충족됐을 때:
 | A11y axe tags | 4 (`wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa`) | UI-P12-a (2026-05-04) |
 | A11y custom rules | 2 (`lang-matches-locale`, `skip-link-focus-visible`) | UI-P12-a (2026-05-04) |
 | Button catalog | 13 entries | UI-P13-a (2026-05-04) |
+| Fused tools registry | 4 (`capture`, `assert`, `a11y`, `button`) | UI-Fuse-b (2026-05-04) |
+| First-run states | 6 (`no-profile`, `no-active-profile`, `public-sector-incomplete`, `provider-missing`, `provider-not-authenticated`, `ready`) | UI-FirstRun-a (2026-05-04) |
+| First-run CTAs | 9 (`create-profile`, `open-setup-wizard`, `open-settings-profiles`, `open-public-sector-setup`, `test-claude`, `test-codex`, `reopen-setup-for-providers`, `auth-claude`, `auth-codex`) | UI-FirstRun-a (2026-05-04) |
 
 새 catalog version 도입 시 이 표 갱신.
 
