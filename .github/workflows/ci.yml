@@ -130,3 +130,14 @@ jobs:
       # match the runner output. The fix is `npm run scorecard:sync`.
       - name: Scorecard freshness gate
         run: npm run scorecard:check
+
+      # UI-P9 visual contract gate — sister to scorecard:check. Fails
+      # with a clear "STALE: ..." message when
+      # tests/visual/baseline-product-shell.json drifts from current
+      # state (panel shape, design tokens, mount IDs, script load order,
+      # legacy-banner CSS). The fix is `npm run visual:update`. Note:
+      # the same drift also surfaces inside test:unit via
+      # tests/unit/visual.contract.test.js — this step gives a faster
+      # signal when ONLY the JSON baseline is out-of-sync.
+      - name: Visual contract freshness gate
+        run: npm run visual:check

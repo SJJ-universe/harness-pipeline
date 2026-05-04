@@ -15,7 +15,9 @@
     "audit:moderate": "npm audit --package-lock-only --audit-level=moderate",
     "readiness:check": "node scripts/readiness-report.js",
     "scorecard:sync": "node scripts/sync-scorecard.js",
-    "scorecard:check": "node scripts/sync-scorecard.js --check"
+    "scorecard:check": "node scripts/sync-scorecard.js --check",
+    "visual:update": "node scripts/visual-baseline-update.js",
+    "visual:check": "node scripts/visual-baseline-update.js --check"
   },
   "keywords": [],
   "author": "",

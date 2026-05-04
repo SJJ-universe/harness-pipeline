@@ -236,7 +236,7 @@ changes happen until operator signs off on this section.
 | **UI-P6** | Review-relay terminals — Claude/Codex streams attach to the bottom dual-terminals; UI-H7 action row inserts into the terminal frames | 3-4 | medium (existing UI-H7 state must stay green) |
 | **UI-P7** | Simple/Pro productization — i18n strings finalized, mode switch persisted to localStorage, pro-only features gated | 2 | low |
 | **UI-P8** | Legacy retreat — `?mode=legacy` opt-in, default routes to product shell, deprecation banner on legacy | 2 | low |
-| **UI-P9** | Visual regression gate — Playwright or screenshot harness, CI gate against reference baseline | 2-3 | medium (CI infra) |
+| **UI-P9** ✅ | Visual contract gate — structural snapshot harness (no Playwright; CI-friendly): tests/visual/extract.js + capture.js + baseline-product-shell.json + tests/unit/visual.contract.test.js + scripts/visual-baseline-update.js + npm visual:check + visual:update + ci.yml visual-contract-freshness step. UI feedback loop cap 8 → 9. | 1 | low (no browser) |
 
 **Total: 25-33 commits across 9 rounds.** Each round commits + push +
 CI green before next starts (existing rhythm).
