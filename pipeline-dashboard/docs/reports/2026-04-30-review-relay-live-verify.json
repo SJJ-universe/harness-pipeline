@@ -1,12 +1,12 @@
 {
   "schema": "live-verify-review-relay/v1",
-  "startedAt": "2026-04-30T04:58:20.613Z",
+  "startedAt": "2026-04-30T08:14:17.913Z",
   "options": {
     "base": "http://127.0.0.1:4201",
-    "label": "LV-test-create-only",
+    "label": "LV-6-handback-20260430-1714",
     "posture": "standard",
-    "withFollowup": false,
-    "withHandback": false
+    "withFollowup": true,
+    "withHandback": true
   },
   "steps": [
     {
@@ -16,7 +16,7 @@
         "status": "ok",
         "app": "HarnessPipeline",
         "healthVersion": 1,
-        "uptime": 21.9460998,
+        "uptime": 936.2285002,
         "terminal": true
       }
     },
@@ -28,7 +28,7 @@
     {
       "name": "create-session",
       "pass": true,
-      "sessionId": "1f2973fb-10f6-4778-8d4c-5c71eed77763"
+      "sessionId": "06656faf-a2a2-4117-9e43-5e9f5f2010fc"
     },
     {
       "name": "send-codex",
@@ -44,7 +44,7 @@
       "timedOut": true
     }
   ],
-  "sessionId": "1f2973fb-10f6-4778-8d4c-5c71eed77763",
+  "sessionId": "06656faf-a2a2-4117-9e43-5e9f5f2010fc",
   "critiqueReceivedElapsedMs": null,
   "serverInfo": {
     "profile": {
@@ -64,6 +64,6 @@
     "postureMatch": true
   },
   "verdict": "FAIL_CRITIQUE_TIMEOUT",
-  "completedAt": "2026-04-30T04:58:26.694Z",
+  "completedAt": "2026-04-30T08:17:18.005Z",
   "exitCode": 1
 }
