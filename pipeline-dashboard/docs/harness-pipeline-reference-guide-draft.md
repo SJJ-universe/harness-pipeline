@@ -376,6 +376,36 @@ Harness Pipeline은 Node.js 기반 도구이며 Express, ws, node-pty 같은 오
 
 ---
 
+## 19-A. Visual Contract Family와 운영 governance
+
+UI Reference Port 마감 (UI-P9) 이후 Phase 2 후반에 도입된 5개 visual contract type은 가이드의 별도 장으로 다뤄야 한다. 이 다섯 가지는 단순한 테스트 도구가 아니라 "operator가 UI 변경을 PR에 commit하기 전에 거쳐야 하는 의사결정 절차" 자체다.
+
+장 내용은 다음을 포함한다.
+
+5개 contract family를 한 표로 정리한다. UI-P9 structural snapshot이 유일한 CI gate이고, 나머지 P10 capture / P11 responsive / P12 a11y / P13 button은 모두 manual workflow_dispatch라는 핵심 분기점을 명확히 보여줘야 한다. 이 구조는 chromium 다운로드 비용 (~150MB)을 PR-by-PR로 부과하지 않으면서도, 운영자가 큰 UI 변경 시 evidence를 첨부할 수 있는 길을 남긴다.
+
+baseline 갱신 정책은 가장 자주 오해받는 부분이다. UI-P9 baseline은 source-of-truth로 동작하며, baseline-only PR은 거의 항상 회귀의 신호다. `npm run visual:update`은 의도된 코드 변경의 결과로만 사용해야 하며, 갱신 자체를 PR의 수단으로 쓰면 안 된다는 정책이 명시되어야 한다.
+
+각 contract type별 manifest stability 분석도 중요하다. `capturedAt` / `totalElapsedMs` 같은 runtime variance 필드와 `cellsAllPassed` / `totalAxeFailingImpacts` 같은 stability anchor 필드를 구분해, PR 리뷰 시 어떤 diff에 집중해야 하는지 안내한다.
+
+공공기관 / 정부 조달 컨텍스트에서는 P12 a11y가 핵심이다. 한국 행정안전부 「전자정부 사용자 환경 개발 가이드라인」의 접근성 요구, US Section 508, EU EN 301 549가 모두 axe-core가 평가하는 WCAG 2.0/2.1 AA 부분집합을 직접 언급하므로, `npm run visual:a11y-live`이 생산하는 `harness-visual-a11y/v1` manifest가 evidence trail의 시작점이 된다.
+
+Anti-pattern 섹션도 빠뜨릴 수 없다. baseline-only PR / capture PNG 차이로 baseline 갱신 / catalog frozen-list 우회 / manifest 미commit / `visual:update`을 수단으로 사용하는 다섯 가지가 자주 발생하므로, 각각의 사례와 올바른 절차를 대조해서 보여줘야 한다.
+
+마지막으로, 미래 fused workflow 도입 조건 (stable baselines / chromium cache / wall time / operator UX)을 정리해 두면, 추후 PR-gating 라운드 진입 시 같은 의사결정 프레임을 재사용할 수 있다.
+
+상세 governance는 별도 문서 `docs/visual-contract-governance.md`에 정착되어 있으며, 이 가이드는 그 문서를 책임 독자(개발자 + 운영자)에게 매끄럽게 안내하는 역할을 한다.
+
+### 추가 작성 필요
+
+- 5개 contract family 비교표 (시점/도구/매니페스트/PR-gate 여부).
+- baseline 갱신 vs evidence 첨부 의사결정 트리.
+- 공공기관 evidence trail 예시 (조달 신청 시 첨부할 manifest 형식).
+- 5개 anti-pattern 사례별 PR review reject 이유.
+- fused workflow 도입 시점의 4개 조건과 진입 결정 절차.
+
+---
+
 ## 20. 현재 한계와 로드맵
 
 가이드는 현재 한계를 정직하게 설명해야 한다. 이 도구는 빠르게 발전하고 있으므로 "지원됨"과 "계획 중"을 혼동하면 신뢰가 떨어진다.

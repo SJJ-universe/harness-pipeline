@@ -686,6 +686,34 @@ E3-F1 라운드가 마감되면:
 
 ---
 
+## 16-A. Visual Contract Family (UI-P9~P13 통합)
+
+UI Reference Port 마감 이후 도입된 5개 visual contract type을 운영자 관점에서 한 줄 요약. 자세한 정책은 `docs/visual-contract-governance.md` 참고.
+
+| 시점 | 도구 | 목적 |
+|---|---|---|
+| 모든 PR push | `npm run visual:check` | 구조 회귀 자동 차단 (CI gate) |
+| UI 큰 변경 PR | `npm run visual:capture-live` | 16개 PNG evidence (4 routes × 4 viewports) |
+| Layout 의심 시 | `npm run visual:assert-live` | 6개 responsive + text-fit rules |
+| 공공기관 evidence | `npm run visual:a11y-live` | axe WCAG 2.0/2.1 A+AA + 2 custom rules |
+| Button wiring 변경 | `npm run visual:button-live` | 13 buttons × 4 routes (dead-button 검출) |
+
+**핵심 원칙**:
+- visual:check만 PR에서 자동 실행. 나머지는 manual workflow_dispatch.
+- 4개 manual 도구는 chromium 1회 설치 필요: `npm run visual:install-browsers`.
+- 공공기관 / 정부 조달 evidence trail이 필요한 경우 visual:a11y-live가 핵심 (한국 행정안전부 가이드라인 / US Section 508 / EU EN 301 549 모두 axe WCAG 2.0/2.1 AA를 직접 평가).
+- 안티 패턴: baseline-only PR / 캡처 PNG 차이로 baseline 갱신 / catalog 우회 — `visual-contract-governance.md` §4 참고.
+
+운영자 runbook은 다음 4개 파일에 분산:
+- `docs/runbooks/visual-capture-live.md`
+- `docs/runbooks/visual-assert-live.md`
+- `docs/runbooks/visual-a11y-live.md`
+- `docs/runbooks/visual-button-live.md`
+
+전체 governance + 의사결정 트리는 `docs/visual-contract-governance.md` 단일 진입점에서 시작.
+
+---
+
 ## 17. 시스템 구성 요소
 
 ### 17.1 Launcher
