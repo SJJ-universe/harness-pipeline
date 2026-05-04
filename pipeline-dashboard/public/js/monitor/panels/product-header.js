@@ -88,6 +88,10 @@
 
     let mode = opts.mode || "simple";
     let locale = opts.locale || "ko";
+    // UI-P5-e: selectors for server + codex indicators
+    const selectors = opts.dataSelectors
+      || (typeof window !== "undefined" && window.HarnessProductShellData)
+      || null;
 
     // Build the header DOM once + cache references for cheap updates.
     const header = _doc.createElement("header");
@@ -272,20 +276,33 @@
     _refreshProActions();
 
     // Live status sync from store. Reuses the existing publish/subscribe
-    // contract — every store mutation triggers one render. The status
-    // pill is the only mutation point; the rest of the header is mostly
-    // static (locale + mode + indicators are owned by callbacks).
-    function _renderStatus(snap) {
+    // contract — every store mutation triggers one render. UI-P5-e
+    // extends this to also update the server + codex indicator dots
+    // when accountStatus changes in the store.
+    function _renderFromStore() {
+      const snap = store.snapshot();
+      // Status pill (UI-P1)
       const variant = _statusFromStoreSnapshot(snap);
       const cfg = STATUS_VARIANTS[variant] || STATUS_VARIANTS.idle;
       statusPill.setAttribute("data-state", cfg.state);
       statusLabel.textContent = cfg.label;
+      // Indicators (UI-P5-e) — only update if selectors module loaded
+      if (selectors) {
+        try {
+          const server = selectors.selectServerStatus(snap);
+          serverDot.setAttribute("data-status", server.status);
+          serverLabel.textContent = server.label;
+        } catch (_) { /* defensive */ }
+        try {
+          const codex = selectors.selectCodexStatus(snap);
+          codexDot.setAttribute("data-status", codex.status);
+          codexLabel.textContent = codex.label;
+        } catch (_) { /* defensive */ }
+      }
     }
 
-    _renderStatus(store.snapshot());
-    const unsubscribe = store.subscribe(function () {
-      _renderStatus(store.snapshot());
-    });
+    _renderFromStore();
+    const unsubscribe = store.subscribe(_renderFromStore);
 
     root.appendChild(header);
 

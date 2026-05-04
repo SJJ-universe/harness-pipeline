@@ -49,8 +49,30 @@
     const _doc = opts.doc || (typeof document !== "undefined" ? document : null);
     if (!root || !_doc) throw new Error("HarnessProductHarnessTrack.create: root + doc required");
 
-    // Stub state — mock "currently at stage 0".
-    const currentStage = 0;
+    const store = opts.store || null;
+    const selectors = opts.dataSelectors
+      || (typeof window !== "undefined" && window.HarnessProductShellData)
+      || null;
+
+    // UI-P5-d: derive current stage from store (selected run's
+    // phaseIdx). Fall back to 0 (mock) when no live run.
+    function _resolveCurrentStage() {
+      if (!store || !selectors) return 0;
+      let snap;
+      try { snap = store.snapshot(); } catch (_) { return 0; }
+      const runId = selectors.selectActiveRunId(snap);
+      if (!runId) return 0;
+      // Look up phase index from the active run
+      const run = (snap.runs && typeof snap.runs.get === "function")
+        ? snap.runs.get(runId)
+        : (snap.runs ? snap.runs[runId] : null);
+      if (run && typeof run.phaseIdx === "number"
+          && run.phaseIdx >= 0 && run.phaseIdx < MOCK_STAGES.length) {
+        return run.phaseIdx;
+      }
+      return 0;
+    }
+    let currentStage = _resolveCurrentStage();
 
     const track = _doc.createElement("div");
     track.className = "prod-track";
@@ -152,10 +174,45 @@
       + " · " + MOCK_STAGES[currentStage].label;
     track.appendChild(pill);
 
+    // UI-P5-d: in-place update on store change. Re-position the horse,
+    // re-color lane labels, re-text the status pill — no DOM teardown
+    // (sprite RAF loop keeps running). Cheap because the track has
+    // ≤7 lane labels + 1 horse + 1 pill.
+    function _updateTrack() {
+      const next = _resolveCurrentStage();
+      if (next === currentStage) return;
+      currentStage = next;
+      // Update lane labels
+      for (let i = 0; i < lanes.children.length; i++) {
+        const label = lanes.children[i];
+        if (!label || !label.setAttribute) continue;
+        label.setAttribute("data-state",
+          i < currentStage ? "passed"
+          : i === currentStage ? "current" : "pending",
+        );
+      }
+      // Re-position horse
+      horseWrap.style.left = "calc(24px + (100% - 48px) * "
+        + ((currentStage + 0.5) / MOCK_STAGES.length) + " - 28px)";
+      // Re-text status pill
+      pill.textContent = "STAGE " + (currentStage + 1) + "/" + MOCK_STAGES.length
+        + " · " + MOCK_STAGES[currentStage].label;
+    }
+
+    let unsubscribe = null;
+    if (store && typeof store.subscribe === "function") {
+      try { unsubscribe = store.subscribe(_updateTrack); }
+      catch (_) { /* defensive */ }
+    }
+
     root.appendChild(track);
 
     return {
       destroy: function () {
+        if (typeof unsubscribe === "function") {
+          try { unsubscribe(); } catch (_) {}
+          unsubscribe = null;
+        }
         // Stop the horse RAF loop FIRST, then unmount the track.
         // Reverse mount order so the sprite's removeChild call doesn't
         // race with the track being unmounted.

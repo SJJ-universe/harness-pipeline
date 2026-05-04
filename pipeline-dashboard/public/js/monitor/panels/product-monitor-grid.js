@@ -1,4 +1,10 @@
-// Slice UI-P1-f / UI-P2-c / UI-P4-b (Phase 2 Round 3, 2026-04-30) — monitor grid.
+// Slice UI-P1-f / UI-P2-c / UI-P4-b / UI-P5-c (Phase 2 Round 3, 2026-04-30) — monitor grid.
+//
+// UI-P5-c: each card now takes "real or mock" data via the
+// HarnessProductShellData selectors. On store.subscribe, the grid
+// rebuilds — every card body picks its real data from the snapshot
+// or falls back to the UI-P4 MOCK constant. Demo state stays visible
+// when the store has no live run.
 //
 // Renders the center monitor grid per the reference. UI-P1 painted the
 // layout, UI-P2 added structural placeholders, UI-P4 promotes those
@@ -99,19 +105,23 @@
   }
 
   // ── Card body builders ──────────────────────────────────────────
+  // Each builder takes its data array as the second arg; pass MOCK_*
+  // when no real data is available (UI-P5-c).
 
-  function _buildFindings(_doc, mode) {
+  function _buildFindings(_doc, data, mode) {
+    const findings = data || MOCK_FINDINGS;
+    const isLive = !!data;
     const card = _cardShell(_doc, {
       id: "findings",
       title: "발견 사항 · Findings",
-      meta: mode === "pro" ? "5-tier" : null,
+      meta: mode === "pro" ? (isLive ? "5-tier · live" : "5-tier") : null,
       extraClass: "prod-card-findings",
       aria: "발견 사항 — 5단계 심각도별 카운트",
     });
     const grid = _doc.createElement("div");
     grid.className = "prod-findings-grid";
     grid.setAttribute("data-card-slot", "tiers");
-    MOCK_FINDINGS.forEach(function (entry) {
+    findings.forEach(function (entry) {
       const tier = _doc.createElement("div");
       tier.className = "prod-finding-tier";
       tier.setAttribute("data-tier", entry.tier);
@@ -132,8 +142,9 @@
     return card;
   }
 
-  function _buildContext(_doc) {
-    const pct = MOCK_CONTEXT.percent;
+  function _buildContext(_doc, data) {
+    const ctx = data || MOCK_CONTEXT;
+    const pct = ctx.percent;
     const card = _cardShell(_doc, {
       id: "context",
       title: "컨텍스트 · Context",
@@ -155,18 +166,19 @@
     meta.setAttribute("data-card-slot", "meta");
     const left = _doc.createElement("span");
     left.setAttribute("data-card-slot", "tokens");
-    left.textContent = MOCK_CONTEXT.used + " / " + MOCK_CONTEXT.total + " tokens";
+    left.textContent = ctx.used + " / " + ctx.total + " tokens";
     meta.appendChild(left);
     const right = _doc.createElement("span");
     right.className = "prod-context-meta-secondary";
     right.setAttribute("data-card-slot", "remaining");
-    right.textContent = MOCK_CONTEXT.remaining;
+    right.textContent = ctx.remaining;
     meta.appendChild(right);
     card.appendChild(meta);
     return card;
   }
 
-  function _buildVerify(_doc) {
+  function _buildVerify(_doc, data) {
+    const v = data || MOCK_VERIFY;
     const card = _cardShell(_doc, {
       id: "verify",
       title: "검증 · Verify",
@@ -180,29 +192,31 @@
     const dot = _doc.createElement("span");
     dot.className = "prod-verify-dot";
     dot.setAttribute("data-card-slot", "dot");
-    dot.setAttribute("data-status", MOCK_VERIFY.status);
+    dot.setAttribute("data-status", v.status);
     row.appendChild(dot);
     const labels = _doc.createElement("div");
     const primary = _doc.createElement("div");
     primary.className = "prod-verify-label-primary";
     primary.setAttribute("data-card-slot", "label-primary");
-    primary.textContent = MOCK_VERIFY.label;
+    primary.textContent = v.label;
     labels.appendChild(primary);
     const secondary = _doc.createElement("div");
     secondary.className = "prod-verify-label-secondary";
     secondary.setAttribute("data-card-slot", "label-secondary");
-    secondary.textContent = MOCK_VERIFY.gates;
+    secondary.textContent = v.gates;
     labels.appendChild(secondary);
     row.appendChild(labels);
     card.appendChild(row);
     return card;
   }
 
-  function _buildCodexLive(_doc) {
+  function _buildCodexLive(_doc, liveText) {
+    const text = liveText != null ? liveText : MOCK_CODEX_LIVE.text;
+    const isLive = liveText != null;
     const card = _cardShell(_doc, {
       id: "codex-live",
       title: "🤖 Codex 라이브 출력",
-      meta: MOCK_CODEX_LIVE.model,
+      meta: isLive ? "live" : MOCK_CODEX_LIVE.model,
       extraClass: "prod-card-codex-live",
       aria: "Codex 실시간 출력 스트림",
     });
@@ -210,7 +224,7 @@
     const pre = _doc.createElement("pre");
     pre.className = "prod-codex-live-pre";
     pre.setAttribute("data-card-slot", "stream");
-    pre.appendChild(_doc.createTextNode(MOCK_CODEX_LIVE.text));
+    pre.appendChild(_doc.createTextNode(text));
     const caret = _doc.createElement("span");
     caret.className = "prod-codex-caret";
     caret.setAttribute("data-card-slot", "cursor");
@@ -220,18 +234,19 @@
     return card;
   }
 
-  function _buildSubagents(_doc) {
+  function _buildSubagents(_doc, data) {
+    const agents = data || MOCK_SUBAGENTS;
     const card = _cardShell(_doc, {
       id: "subagents",
       title: "🤝 서브에이전트 · Subagents",
-      meta: String(MOCK_SUBAGENTS.length),
+      meta: String(agents.length),
       extraClass: "prod-card-subagents",
       aria: "활성 서브에이전트",
     });
     const row = _doc.createElement("div");
     row.className = "prod-subagent-row";
     row.setAttribute("data-card-slot", "row");
-    MOCK_SUBAGENTS.forEach(function (agent) {
+    agents.forEach(function (agent) {
       const pill = _doc.createElement("div");
       pill.className = "prod-subagent-pill";
       pill.setAttribute("data-subagent-id", agent.id);
@@ -254,11 +269,12 @@
     return card;
   }
 
-  function _buildToolFeed(_doc, mode) {
+  function _buildToolFeed(_doc, data, mode) {
+    const calls = data || MOCK_TOOL_FEED;
     const card = _cardShell(_doc, {
       id: "tools",
       title: "🔧 툴 호출 · Tool Calls",
-      meta: String(MOCK_TOOL_FEED.length),
+      meta: String(calls.length),
       extraClass: "prod-card-tools",
       aria: "도구 호출 피드",
     });
@@ -267,7 +283,7 @@
     feed.setAttribute("data-card-slot", "feed");
     feed.setAttribute("role", "log");
     feed.setAttribute("aria-live", "polite");
-    MOCK_TOOL_FEED.forEach(function (entry, idx) {
+    calls.forEach(function (entry, idx) {
       const row = _doc.createElement("div");
       row.className = "prod-tool-row";
       row.setAttribute("data-line-index", String(idx));
@@ -298,11 +314,12 @@
     return card;
   }
 
-  function _buildCritique(_doc) {
+  function _buildCritique(_doc, data) {
+    const items = data || MOCK_CRITIQUE;
     const card = _cardShell(_doc, {
       id: "critique",
       title: "💬 Critique 타임라인",
-      meta: String(MOCK_CRITIQUE.length),
+      meta: String(items.length),
       extraClass: "prod-card-critique",
       aria: "Codex / Claude 비평 타임라인",
     });
@@ -311,7 +328,7 @@
     stream.setAttribute("data-card-slot", "stream");
     stream.setAttribute("role", "log");
     stream.setAttribute("aria-live", "polite");
-    MOCK_CRITIQUE.forEach(function (item, idx) {
+    items.forEach(function (item, idx) {
       const wrap = _doc.createElement("div");
       wrap.className = "prod-critique-bubble-wrap";
       wrap.setAttribute("data-side", item.side);
@@ -354,6 +371,10 @@
     if (!root || !_doc) throw new Error("HarnessProductMonitorGrid.create: root + doc required");
 
     let mode = opts.mode || "simple";
+    const store = opts.store || null;
+    const selectors = opts.dataSelectors
+      || (typeof window !== "undefined" && window.HarnessProductShellData)
+      || null;
 
     const grid = _doc.createElement("div");
     grid.className = "prod-grid";
@@ -361,26 +382,47 @@
     grid.setAttribute("role", "region");
     grid.setAttribute("aria-label", "모니터 그리드");
 
-    // Top stat row
-    const statRow = _doc.createElement("div");
-    statRow.className = "prod-grid-stat-row";
-    statRow.appendChild(_buildFindings(_doc, mode));
-    statRow.appendChild(_buildContext(_doc));
-    statRow.appendChild(_buildVerify(_doc));
-    grid.appendChild(statRow);
+    function _resolveData() {
+      const result = {
+        findings: null, context: null, verify: null,
+        codexLive: null, subagents: null, tools: null, critique: null,
+      };
+      if (!store || !selectors) return result;
+      let snap;
+      try { snap = store.snapshot(); } catch (_) { return result; }
+      const runId = selectors.selectActiveRunId(snap);
+      result.findings  = selectors.selectFindings(snap, runId);
+      result.context   = selectors.selectContextUsage(snap, runId);
+      result.verify    = selectors.selectVerifyStatus(snap, runId);
+      result.subagents = selectors.selectSubagents(snap, runId);
+      result.tools     = selectors.selectRecentToolCalls(snap, runId, 6);
+      result.critique  = selectors.selectCritique(snap, runId);
+      result.codexLive = selectors.selectCodexLiveTail(snap, runId, 240);
+      return result;
+    }
 
-    // Codex live (pro)
-    grid.appendChild(_buildCodexLive(_doc));
+    function _renderGrid() {
+      const data = _resolveData();
+      while (grid.firstChild) grid.removeChild(grid.firstChild);
 
-    // Subagent tray
-    grid.appendChild(_buildSubagents(_doc));
+      const statRow = _doc.createElement("div");
+      statRow.className = "prod-grid-stat-row";
+      statRow.appendChild(_buildFindings(_doc, data.findings, mode));
+      statRow.appendChild(_buildContext(_doc, data.context));
+      statRow.appendChild(_buildVerify(_doc, data.verify));
+      grid.appendChild(statRow);
 
-    // Bottom 2-col
-    const bottomRow = _doc.createElement("div");
-    bottomRow.className = "prod-grid-bottom-row";
-    bottomRow.appendChild(_buildToolFeed(_doc, mode));
-    bottomRow.appendChild(_buildCritique(_doc));
-    grid.appendChild(bottomRow);
+      grid.appendChild(_buildCodexLive(_doc, data.codexLive));
+      grid.appendChild(_buildSubagents(_doc, data.subagents));
+
+      const bottomRow = _doc.createElement("div");
+      bottomRow.className = "prod-grid-bottom-row";
+      bottomRow.appendChild(_buildToolFeed(_doc, data.tools, mode));
+      bottomRow.appendChild(_buildCritique(_doc, data.critique));
+      grid.appendChild(bottomRow);
+
+      _applyMode();
+    }
 
     function _applyMode() {
       const proOnly = grid.querySelectorAll('[data-pro-only="true"]');
@@ -389,12 +431,23 @@
         proOnly[i].style.display = display;
       }
     }
-    _applyMode();
+
+    _renderGrid();
+
+    let unsubscribe = null;
+    if (store && typeof store.subscribe === "function") {
+      try { unsubscribe = store.subscribe(_renderGrid); }
+      catch (_) { /* defensive */ }
+    }
 
     root.appendChild(grid);
 
     return {
       destroy: function () {
+        if (typeof unsubscribe === "function") {
+          try { unsubscribe(); } catch (_) {}
+          unsubscribe = null;
+        }
         if (grid.parentNode === root) {
           try { root.removeChild(grid); } catch (_) {}
         }
@@ -402,13 +455,23 @@
       setMode: function (next) {
         if (next === "simple" || next === "pro") {
           mode = next;
-          _applyMode();
+          _renderGrid(); // mode flag affects card meta + visibility
         }
       },
       _state: function () {
+        const data = _resolveData();
         return {
           mode,
           cards: ["findings", "context", "verify", "codex-live", "subagents", "tools", "critique"],
+          live: {
+            findings: data.findings != null,
+            context: data.context != null,
+            verify: data.verify != null,
+            codexLive: data.codexLive != null,
+            subagents: data.subagents != null,
+            tools: data.tools != null,
+            critique: data.critique != null,
+          },
         };
       },
     };

@@ -1,4 +1,9 @@
-// Slice UI-P1-f / UI-P2-b / UI-P4-a (Phase 2 Round 3, 2026-04-30) — pipeline rail.
+// Slice UI-P1-f / UI-P2-b / UI-P4-a / UI-P5-b (Phase 2 Round 3, 2026-04-30) — pipeline rail.
+//
+// UI-P5-b swap: when store has real run phase data, the rail renders
+// those instead of MOCK_STAGES. Subscribe to store on mount; rebuild
+// body when snapshot changes. Demo note auto-toggles between
+// "예시 단계" (no live run) and "활성 run: <runId>" (live).
 //
 // Renders the left-rail pipeline view per the reference. UI-P1 shipped
 // the header + empty state, UI-P2 added 3 skeleton nodes, UI-P4
@@ -162,16 +167,20 @@
     return node;
   }
 
-  function _renderMetricsBlock(doc) {
+  function _renderMetricsBlock(doc, realMetrics) {
     const block = doc.createElement("div");
     block.className = "prod-rail-metrics";
     block.setAttribute("data-rail-slot", "metrics");
     const title = doc.createElement("div");
     title.className = "prod-rail-metrics-title";
     title.setAttribute("data-metric-slot", "title");
-    title.textContent = "RUN METRICS — run_id #A7F2-991";
+    // UI-P5-b: live metrics flag in title so demo vs live is visible
+    title.textContent = realMetrics
+      ? "RUN METRICS"
+      : "RUN METRICS — 예시";
     block.appendChild(title);
-    MOCK_METRICS.forEach(function (entry) {
+    const rows = realMetrics || MOCK_METRICS;
+    rows.forEach(function (entry) {
       const row = doc.createElement("div");
       row.className = "prod-rail-metrics-row";
       row.setAttribute("data-metric", entry.id);
@@ -198,6 +207,13 @@
     if (!root || !_doc) throw new Error("HarnessProductPipelineRail.create: root + doc required");
 
     let mode = opts.mode || "simple";
+    const store = opts.store || null;
+    // UI-P5-b: selectors module resolves real run data → phases array
+    // or null. Test injection via opts.dataSelectors; production reads
+    // from window.HarnessProductShellData.
+    const selectors = opts.dataSelectors
+      || (typeof window !== "undefined" && window.HarnessProductShellData)
+      || null;
 
     const rail = _doc.createElement("div");
     rail.className = "prod-rail";
@@ -248,39 +264,86 @@
     }
     _refreshProButtons();
 
-    // ── Body — phase list ────────────────────────────
+    // ── Body — phase list (rebuilt on store change) ─────────────
     const body = _doc.createElement("div");
     body.className = "prod-rail-body";
     body.setAttribute("data-rail-slot", "phase-list");
     body.setAttribute("role", "list");
-    body.setAttribute("aria-label", "파이프라인 단계 목록 (예시 데이터)");
+    rail.appendChild(body);
 
-    // Note above the nodes — UI-P5 removes when rendering real run.
-    const note = _doc.createElement("div");
-    note.className = "prod-rail-empty";
-    note.setAttribute("data-rail-slot", "demo-note");
-    note.style.padding = "0 0 12px";
-    note.style.textAlign = "left";
-    note.style.fontSize = "10px";
-    note.style.letterSpacing = "0.06em";
-    note.textContent = "예시 단계 — 실행을 시작하면 실제 파이프라인으로 교체됩니다";
-    body.appendChild(note);
-
-    MOCK_STAGES.forEach(function (stage, idx) {
-      const isLast = idx === MOCK_STAGES.length - 1;
-      body.appendChild(_renderSkeletonNode(_doc, stage, mode, isLast));
-    });
-
-    if (mode === "pro") {
-      body.appendChild(_renderMetricsBlock(_doc));
+    // UI-P5-b: read snapshot + select real phases (or null for mock).
+    // Returns { stages, metrics, isLive, runId } so _renderBody can
+    // toggle the demo note text.
+    function _resolveData() {
+      if (!store || !selectors) return { stages: null, metrics: null, isLive: false, runId: null };
+      let snap;
+      try { snap = store.snapshot(); } catch (_) { return { stages: null, metrics: null, isLive: false, runId: null }; }
+      const runId = selectors.selectActiveRunId(snap);
+      const stages = runId ? selectors.selectRunPhases(snap, runId) : null;
+      const metrics = runId ? selectors.selectRunMetrics(snap, runId) : null;
+      return { stages, metrics, isLive: !!stages, runId };
     }
 
-    rail.appendChild(body);
+    function _renderBody() {
+      // Wipe body but keep slot attributes by re-using the same node
+      while (body.firstChild) body.removeChild(body.firstChild);
+
+      const data = _resolveData();
+      const stages = data.stages || MOCK_STAGES;
+      const metrics = data.metrics; // null when no real metrics
+      const isLive = data.isLive;
+      const runId = data.runId;
+
+      // ARIA label reflects mock vs live state
+      body.setAttribute("aria-label",
+        isLive ? "파이프라인 단계 목록 (활성 run: " + (runId || "default") + ")"
+               : "파이프라인 단계 목록 (예시 데이터)",
+      );
+
+      // Demo / live note above nodes
+      const note = _doc.createElement("div");
+      note.className = "prod-rail-empty";
+      note.setAttribute("data-rail-slot", "demo-note");
+      note.style.padding = "0 0 12px";
+      note.style.textAlign = "left";
+      note.style.fontSize = "10px";
+      note.style.letterSpacing = "0.06em";
+      note.textContent = isLive
+        ? ("활성 run: " + (runId || "default"))
+        : "예시 단계 — 실행을 시작하면 실제 파이프라인으로 교체됩니다";
+      body.appendChild(note);
+
+      stages.forEach(function (stage, idx) {
+        const isLast = idx === stages.length - 1;
+        body.appendChild(_renderSkeletonNode(_doc, stage, mode, isLast));
+      });
+
+      if (mode === "pro") {
+        body.appendChild(_renderMetricsBlock(_doc, metrics));
+      }
+    }
+
+    _renderBody();
+
+    // UI-P5-b: subscribe to store, rebuild on change. Cheap because
+    // the rail body is small (≤7 nodes + metrics block). UI-P9 may
+    // add an in-place diff later if profiling shows it matters.
+    let unsubscribe = null;
+    if (store && typeof store.subscribe === "function") {
+      try {
+        unsubscribe = store.subscribe(_renderBody);
+      } catch (_) { /* defensive — store contract violated, keep mock */ }
+    }
 
     root.appendChild(rail);
 
     return {
       destroy: function () {
+        // UI-P5-b: clean up store subscription before unmount
+        if (typeof unsubscribe === "function") {
+          try { unsubscribe(); } catch (_) {}
+          unsubscribe = null;
+        }
         if (rail.parentNode === root) {
           try { root.removeChild(rail); } catch (_) {}
         }
@@ -289,12 +352,16 @@
         if (next === "simple" || next === "pro") {
           mode = next;
           _refreshProButtons();
+          _renderBody(); // re-render so phase detail visibility tracks mode
         }
       },
       _state: function () {
+        const data = _resolveData();
         return {
           mode,
-          phaseCount: MOCK_STAGES.length,
+          phaseCount: (data.stages || MOCK_STAGES).length,
+          isLive: data.isLive,
+          runId: data.runId,
           slot: "pipeline-rail",
         };
       },

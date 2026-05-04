@@ -71,6 +71,10 @@
   <!-- ────────────────────────────────────────────────────────────
        Product shell + panels (UI-P1)
        ──────────────────────────────────────────────────────────── -->
+  <!-- UI-P5-a: pure selector module. Each panel reads
+       window.HarnessProductShellData at create() time so the panels
+       stay testable with stub selectors injected via opts.dataSelectors. -->
+  <script src="js/monitor/product-shell-data.js"></script>
   <script src="js/monitor/panels/product-header.js"></script>
   <!-- UI-P3-b: horse rider sprite player. Must load BEFORE
        product-harness-track.js because the track resolves
