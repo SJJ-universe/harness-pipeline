@@ -185,6 +185,45 @@
     "firstRun.meta.missing":                             "확인 안된 도구: {runners}",
     "firstRun.meta.unauth":                              "로그인 필요: {runners}",
     "firstRun.meta.untestedHint":                        "연결 상태는 아직 확인되지 않았습니다. 위 버튼으로 한 번 테스트해 보세요.",
+
+    // ── SMART-1: Recommendations card (7 frozen rules) ──────────────
+    // 운영자 attention을 우선순위별로 안내. SMART-0 decisionContext의
+    // 8 booleans + 5 counts에서 derive되는 추천 카드. 각 추천에는
+    // title / body / CTA가 i18n 가능한 키로 정의됨. {count}/{title}
+    // placeholder substitution 지원.
+    "smart.rec.cardLabel":                                "추천",
+    "smart.rec.aria.region":                              "추천 카드",
+    "smart.rec.empty":                                    "현재 권장 행동이 없습니다.",
+    "smart.rec.dismiss":                                  "닫기",
+    "smart.rec.dismiss.aria":                             "추천 닫기: {title}",
+
+    "smart.rec.completeProfileSetup.title":               "프로필 설정이 필요합니다",
+    "smart.rec.completeProfileSetup.body":                "활성 프로필이 없어 어떤 작업도 시작할 수 없습니다.",
+    "smart.rec.completeProfileSetup.cta":                 "설정 마법사 열기",
+
+    "smart.rec.resolveApprovals.title":                   "승인 요청 {count}개 대기 중",
+    "smart.rec.resolveApprovals.body":                    "AI 도구 실행이 운영자 결정을 기다리고 있습니다.",
+    "smart.rec.resolveApprovals.cta":                     "승인 카드 보기",
+
+    "smart.rec.requestCodexReview.title":                 "Codex 비평 대기 중인 세션이 있습니다",
+    "smart.rec.requestCodexReview.body":                  "Claude 결과를 Codex에게 검토시키면 정확성을 한 번 더 확인할 수 있습니다.",
+    "smart.rec.requestCodexReview.cta":                   "리뷰 세션 보기",
+
+    "smart.rec.monitorActiveRuns.title":                  "{count}개 작업이 실행 중입니다",
+    "smart.rec.monitorActiveRuns.body":                   "현재 진행 중인 작업의 상태를 확인하세요.",
+    "smart.rec.monitorActiveRuns.cta":                    "최근 결과 보기",
+
+    "smart.rec.exportAuditEvidence.title":                "감사 봉투 export 준비됨",
+    "smart.rec.exportAuditEvidence.body":                 "감사관에게 제출할 sealed JSON 봉투를 만들 수 있습니다.",
+    "smart.rec.exportAuditEvidence.cta":                  "감사 봉투 만들기",
+
+    "smart.rec.publicSectorPiiBlock.title":               "🛡 공공기관 모드: 개인정보 감지로 차단됨",
+    "smart.rec.publicSectorPiiBlock.body":                "공공기관 / 사내망 정책에 따라 개인정보가 포함된 입력은 외부 모델 호출이 차단됩니다. 개인정보를 제거하거나 샌드박스로 옮기세요.",
+    "smart.rec.publicSectorPiiBlock.cta":                 "보안 정책 확인",
+
+    "smart.rec.publicSectorEvidenceTrail.title":          "🛡 공공기관 감사 evidence 권장",
+    "smart.rec.publicSectorEvidenceTrail.body":           "공공기관 절차상 정기적으로 감사 봉투를 export해 보관해 두는 것이 좋습니다.",
+    "smart.rec.publicSectorEvidenceTrail.cta":            "감사 봉투 만들기",
   };
 
   if (typeof module !== "undefined" && module.exports) {

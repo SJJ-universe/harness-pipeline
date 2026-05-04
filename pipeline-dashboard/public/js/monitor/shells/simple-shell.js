@@ -46,6 +46,7 @@
     onTestProvider,          // UI-FirstRun-c: test-claude / test-codex CTA
     onAuthProvider,          // UI-FirstRun-c: auth-claude / auth-codex CTA
     onPublicSectorSetup,     // UI-FirstRun-c: open-public-sector-setup CTA
+    onSmartCta,              // SMART-1-c: recommendations-card CTA dispatcher
     storage,                 // UI-H8: localStorage shim for tests
     i18n,                    // UI-FirstRun-c: i18n module for next-action-card
   } = {}) {
@@ -145,6 +146,48 @@
         // No matching handler → CTA is a no-op (operator at least
         // sees the next-action message even if the action isn't
         // wired in this deployment).
+      },
+    });
+
+    // Slice SMART-1-c (Phase 2 SMART arc, 2026-05-04): mount
+    // recommendations-card immediately AFTER the next-action-card.
+    // Both surfaces inform the operator of "what to do next" but at
+    // different granularities:
+    //   - next-action-card: setup status + first-run state (UI-FirstRun)
+    //   - recommendations-card: live decisionContext-driven prioritized
+    //     recommendations (SMART arc)
+    // CTA dispatch is forwarded to the same callbacks where overlap
+    // exists (open-setup-wizard / open-settings); SMART-1-specific
+    // CTAs (scroll-to-approval-card / open-review-sessions /
+    // open-recent-results / open-audit-export / open-security-policy)
+    // route through onSmartCta if wired.
+    const recsMount = _doc.createElement("div");
+    recsMount.className = "ss-recs-mount";
+    root.appendChild(recsMount);
+
+    _mount("recommendationsCard", "HarnessRecommendationsCard", recsMount, {
+      i18n,
+      onCta: function (ctaId, opts) {
+        if (typeof onSmartCta === "function") {
+          try { onSmartCta(ctaId, opts); } catch (_) {}
+          return;
+        }
+        // Sensible default dispatch — overlap with first-run CTAs +
+        // 5 SMART-1-specific actions:
+        if (ctaId === "open-setup-wizard" && typeof onOpenSetupWizard === "function") {
+          try { onOpenSetupWizard(); } catch (_) {}
+        } else if (ctaId === "scroll-to-approval-card" && typeof onApprovalsClick === "function") {
+          try { onApprovalsClick(); } catch (_) {}
+        } else if ((ctaId === "open-review-sessions"
+                    || ctaId === "open-recent-results"
+                    || ctaId === "open-audit-export"
+                    || ctaId === "open-security-policy")
+                   && typeof onOpenSettings === "function") {
+          // For now route SMART-1-specific CTAs to settings as a
+          // safe fallback. Future SMART rounds can refine each.
+          try { onOpenSettings(); } catch (_) {}
+        }
+        // Unmatched CTA → silent no-op (recommendation still visible)
       },
     });
 

@@ -181,6 +181,41 @@
     "firstRun.meta.missing":                             "CLI(s) not detected: {runners}",
     "firstRun.meta.unauth":                              "Login required: {runners}",
     "firstRun.meta.untestedHint":                        "Connection state is unverified. Use the buttons above to test.",
+
+    // ── SMART-1: Recommendations card (7 frozen rules) ──────────────
+    "smart.rec.cardLabel":                                "Recommendations",
+    "smart.rec.aria.region":                              "Recommendations card",
+    "smart.rec.empty":                                    "No recommended actions right now.",
+    "smart.rec.dismiss":                                  "Dismiss",
+    "smart.rec.dismiss.aria":                             "Dismiss recommendation: {title}",
+
+    "smart.rec.completeProfileSetup.title":               "Profile setup required",
+    "smart.rec.completeProfileSetup.body":                "No active profile — work cannot start until one is configured.",
+    "smart.rec.completeProfileSetup.cta":                 "Open setup wizard",
+
+    "smart.rec.resolveApprovals.title":                   "{count} approval(s) pending",
+    "smart.rec.resolveApprovals.body":                    "AI-tool execution is waiting on operator decisions.",
+    "smart.rec.resolveApprovals.cta":                     "View approval cards",
+
+    "smart.rec.requestCodexReview.title":                 "Sessions are awaiting Codex critique",
+    "smart.rec.requestCodexReview.body":                  "Have Codex review Claude's output to double-check accuracy.",
+    "smart.rec.requestCodexReview.cta":                   "View review sessions",
+
+    "smart.rec.monitorActiveRuns.title":                  "{count} run(s) in progress",
+    "smart.rec.monitorActiveRuns.body":                   "Check the status of currently running work.",
+    "smart.rec.monitorActiveRuns.cta":                    "View recent results",
+
+    "smart.rec.exportAuditEvidence.title":                "Audit envelope ready to export",
+    "smart.rec.exportAuditEvidence.body":                 "You can build a sealed JSON envelope to hand to an auditor.",
+    "smart.rec.exportAuditEvidence.cta":                  "Build audit envelope",
+
+    "smart.rec.publicSectorPiiBlock.title":               "🛡 Public-sector mode: blocked by PII detection",
+    "smart.rec.publicSectorPiiBlock.body":                "Public-sector / intranet policy blocks external model calls when input contains PII. Remove the PII or move to a sandbox.",
+    "smart.rec.publicSectorPiiBlock.cta":                 "Review security policy",
+
+    "smart.rec.publicSectorEvidenceTrail.title":          "🛡 Public-sector audit evidence recommended",
+    "smart.rec.publicSectorEvidenceTrail.body":           "Public-sector procedure benefits from regularly exporting audit envelopes for retention.",
+    "smart.rec.publicSectorEvidenceTrail.cta":            "Build audit envelope",
   };
 
   if (typeof module !== "undefined" && module.exports) {

@@ -564,6 +564,12 @@
        via the script tag above (not the require path which is Node-only). -->
   <script src="js/runtime/firstRunClassifier.js"></script>
   <script src="js/monitor/panels/next-action-card.js"></script>
+  <!-- Slice SMART-1-c (Phase 2 SMART arc, 2026-05-04): Recommendations card.
+       First UI consumer of SMART-0 decisionContext + SMART-1 recommendation
+       engine. recommendationEngine.js MUST load before recommendations-card.js
+       because the panel resolves the engine via globalThis.HarnessRecommendationEngine. -->
+  <script src="js/runtime/recommendationEngine.js"></script>
+  <script src="js/monitor/panels/recommendations-card.js"></script>
   <script src="js/monitor/shells/simple-shell.js"></script>
   <script src="js/monitor/layout.js"></script>
   <script>

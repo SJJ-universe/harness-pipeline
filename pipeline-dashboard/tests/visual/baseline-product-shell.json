@@ -105,6 +105,8 @@
       "js/monitor/panels/run-viewer.js",
       "js/runtime/firstRunClassifier.js",
       "js/monitor/panels/next-action-card.js",
+      "js/runtime/recommendationEngine.js",
+      "js/monitor/panels/recommendations-card.js",
       "js/monitor/shells/simple-shell.js",
       "js/monitor/layout.js"
     ],
