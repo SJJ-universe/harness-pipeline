@@ -17,7 +17,9 @@
     "scorecard:sync": "node scripts/sync-scorecard.js",
     "scorecard:check": "node scripts/sync-scorecard.js --check",
     "visual:update": "node scripts/visual-baseline-update.js",
-    "visual:check": "node scripts/visual-baseline-update.js --check"
+    "visual:check": "node scripts/visual-baseline-update.js --check",
+    "visual:install-browsers": "npx --yes playwright install chromium --with-deps",
+    "visual:capture-live": "node scripts/visual-capture-live.js"
   },
   "keywords": [],
   "author": "",
