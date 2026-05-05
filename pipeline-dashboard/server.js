@@ -922,6 +922,24 @@ const pipelineOrchestrator = new PipelineOrchestrator({
     // `file_conflict_warning` broadcasts for later runs.
     fileConflictDetector,
     runId,
+    // Slice SMART-4-c (2026-05-05): on every pipeline_complete the
+    // recorder derives a redacted summary (privacy-by-design schema
+    // S4-a) and lands it in the evidence ledger as a
+    // `run_memory_recorded` audit row. The opt-out env
+    // (HARNESS_RUN_MEMORY_DISABLE=1) is checked inside recordRunMemory
+    // — if set, the call is a no-op. Public-sector posture triggers
+    // PII redaction at write time. The PipelineExecutor wraps the
+    // call in defensive try/catch so a recorder failure NEVER breaks
+    // _complete (broadcast pipeline_complete still fires).
+    onRunComplete: (runIdArg, snapshot) => {
+      const _runMemory = require("./src/runtime/runMemory");
+      _runMemory.recordRunMemory({
+        runId: runIdArg,
+        inputs: _runMemory.deriveFromPipelineSnapshot(snapshot),
+        ledger: evidenceLedger,
+        deploymentProfile: _deploymentProfile,
+      });
+    },
   }),
 });
 const pipelineExecutor = pipelineOrchestrator.getActive();

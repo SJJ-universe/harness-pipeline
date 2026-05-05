@@ -374,6 +374,145 @@ function recordRunMemory(opts = {}) {
 
 // ── Reader ────────────────────────────────────────────────────────
 
+// ── Derivation: pipeline snapshot → runMemory inputs ──────────────
+
+/**
+ * Project a pipeline_complete snapshot into the runMemory inputs
+ * shape. The derivation is intentionally LOSSY — long phase logs,
+ * raw findings text, full approval audit data are dropped/condensed
+ * because runMemory is a SUMMARY (privacy-by-design field 6 of 6).
+ *
+ * The snapshot shape (from PipelineExecutor._complete):
+ *   {
+ *     templateId: string,
+ *     durationMs: number,
+ *     iteration: number,
+ *     state: {
+ *       templateId, phases: [{id, status, ...}],
+ *       findings: [{severity, message, ...}],
+ *       artifacts: [{phaseId, kind, ...}],
+ *       ...,
+ *     },
+ *     reason: "complete" | "disabled" | "session-end" | ...,
+ *     verification: { pass, missing: [], results: [] },
+ *   }
+ *
+ * Output is the inputs shape recordRunMemory expects.
+ *
+ * @param {object} snapshot
+ * @returns {object}
+ */
+function deriveFromPipelineSnapshot(snapshot) {
+  if (!snapshot || typeof snapshot !== "object") return {};
+  const state = (snapshot.state && typeof snapshot.state === "object")
+    ? snapshot.state : {};
+
+  const templateId = String(snapshot.templateId || state.templateId || "unknown");
+  const iteration = Number.isFinite(Number(snapshot.iteration))
+    ? Number(snapshot.iteration) : 0;
+
+  // goal: short, human-friendly. Template id + iteration captures
+  // "what did this run try to do" without leaking prompt text.
+  const goal = `${templateId} (iteration ${iteration})`;
+
+  // changeSummary: phase outcomes + duration. Lists each phase's
+  // completed/skipped/failed status as a single line, then the total
+  // duration. This is short + pure metadata — no prompt / patch text.
+  const phases = Array.isArray(state.phases) ? state.phases : [];
+  const phaseLines = phases
+    .filter((p) => p && typeof p === "object" && p.id)
+    .map((p) => {
+      const status = p.status || "?";
+      const dur = Number.isFinite(Number(p.durationMs)) ? `${p.durationMs}ms` : "";
+      return `${p.id}: ${status}${dur ? ` (${dur})` : ""}`;
+    });
+  const totalLine = `total ${snapshot.durationMs || 0}ms (${snapshot.reason || "unknown"})`;
+  const changeSummary = [...phaseLines, totalLine].join("\n");
+
+  // codexFindings: severity counts + the first 3 messages per
+  // severity. The piiScanner-redactor + truncate cap will catch any
+  // leak in the messages.
+  const findings = Array.isArray(state.findings) ? state.findings : [];
+  const bySeverity = { critical: 0, high: 0, medium: 0, low: 0, note: 0 };
+  const samplesByLevel = { critical: [], high: [], medium: [], low: [] };
+  for (const f of findings) {
+    if (!f || typeof f !== "object") continue;
+    const sev = String(f.severity || "note").toLowerCase();
+    if (Object.prototype.hasOwnProperty.call(bySeverity, sev)) {
+      bySeverity[sev] += 1;
+      if (samplesByLevel[sev] && samplesByLevel[sev].length < 3) {
+        const msg = String(f.message || "").slice(0, 200);
+        if (msg) samplesByLevel[sev].push(msg);
+      }
+    }
+  }
+  let codexFindings = `Counts: critical=${bySeverity.critical} high=${bySeverity.high} medium=${bySeverity.medium} low=${bySeverity.low} note=${bySeverity.note}`;
+  for (const sev of ["critical", "high", "medium", "low"]) {
+    if (samplesByLevel[sev].length === 0) continue;
+    codexFindings += `\n[${sev}]\n` + samplesByLevel[sev].map((m) => `- ${m}`).join("\n");
+  }
+
+  // approvals: if state.approvalCounts is present (the pipelineState
+  // is free to expose this) use it; otherwise leave null. recordRunMemory
+  // strips any non-counts fields automatically.
+  const approvals = (state.approvalCounts && typeof state.approvalCounts === "object")
+    ? {
+        granted: Number(state.approvalCounts.granted) || 0,
+        denied: Number(state.approvalCounts.denied) || 0,
+        timeout: Number(state.approvalCounts.timeout) || 0,
+      }
+    : null;
+
+  // piiDetected: types-only summary. recordRunMemory enforces the
+  // "no samples" invariant.
+  const piiDetected = (state.piiDetected && typeof state.piiDetected === "object")
+    ? {
+        hasPii: !!state.piiDetected.hasPii,
+        types: Array.isArray(state.piiDetected.types) ? state.piiDetected.types : [],
+      }
+    : null;
+
+  // failureCause: condense reason + first verification miss.
+  let failureCause = "";
+  if (snapshot.reason && snapshot.reason !== "complete" && snapshot.reason !== "ok") {
+    failureCause = `reason=${snapshot.reason}`;
+  }
+  const verification = snapshot.verification || {};
+  if (!verification.pass && Array.isArray(verification.missing) && verification.missing.length > 0) {
+    const missingNote = verification.missing.slice(0, 3)
+      .map((m) => (m && typeof m === "object") ? (m.id || JSON.stringify(m)) : String(m))
+      .join(", ");
+    failureCause = (failureCause ? failureCause + "; " : "") + `missing: ${missingNote}`;
+  }
+
+  // nextTimeWatchOuts: derive from verification.results when failures
+  // exist. Operator can supplement this via S4-c follow-up routes
+  // (out of scope for this slice).
+  let nextTimeWatchOuts = "";
+  if (Array.isArray(verification.results)) {
+    const failed = verification.results.filter((r) => r && r.pass === false);
+    if (failed.length > 0) {
+      nextTimeWatchOuts = failed.slice(0, 5)
+        .map((r) => `- ${r.id || "unknown"}: ${r.message || r.reason || "no detail"}`)
+        .join("\n");
+    }
+  }
+
+  return {
+    goal,
+    changeSummary,
+    codexFindings,
+    approvals,
+    piiDetected,
+    failureCause,
+    nextTimeWatchOuts,
+    // sourceContent: not derivable from snapshot at this layer.
+    // Pipeline-executor doesn't carry diff blobs through state by
+    // default; future enhancement can add a `state.lastDiff` channel.
+    sourceContent: null,
+  };
+}
+
 /**
  * Read the most recent run_memory_recorded entry for a runId from
  * the ledger. Returns null when no record exists.
@@ -413,6 +552,7 @@ module.exports = {
   recordRunMemory,
   getRunMemory,
   computeSourceHash,
+  deriveFromPipelineSnapshot,
   // Exposed for tests + S4-b route's audit-verb wiring
   REASON_DISABLED,
   REASON_RECORDED,

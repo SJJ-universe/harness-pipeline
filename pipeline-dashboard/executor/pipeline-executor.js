@@ -62,7 +62,7 @@ const TEMPLATE_MAP = {
 const MAX_GATE_RETRIES = 3;
 
 class PipelineExecutor {
-  constructor({ broadcast, templates, codex, state, gate, injector, adapter, workspaceDir, repoRoot, checkpointStore, runId, fileConflictDetector }) {
+  constructor({ broadcast, templates, codex, state, gate, injector, adapter, workspaceDir, repoRoot, checkpointStore, runId, fileConflictDetector, onRunComplete }) {
     // Slice S (v6): runId identifies this executor within a
     // PipelineOrchestrator. Defaults to "default" for single-active mode
     // so pre-Slice-S callers keep working without a runId.
@@ -103,6 +103,15 @@ class PipelineExecutor {
     // broadcasts when a later run touched the same file. Optional — tests
     // that don't care about conflicts can omit it.
     this.fileConflictDetector = fileConflictDetector || null;
+
+    // Slice SMART-4-c (Phase 2 / 2026-05-05): optional run-complete
+    // callback. Fires after broadcast(pipeline_complete) with the
+    // SAME snapshot object the broadcast carries. Server.js wires it
+    // to runMemory.recordRunMemory so a redacted summary lands in the
+    // evidence ledger when a run finishes. The callback is wrapped in
+    // try/catch by the caller so a recorder failure NEVER breaks the
+    // _complete path.
+    this.onRunComplete = typeof onRunComplete === "function" ? onRunComplete : null;
 
     this.active = null;
     this.enabled = process.env.HARNESS_ENABLED === "1";
@@ -1345,6 +1354,24 @@ class PipelineExecutor {
       verification,
     };
     this.broadcast({ type: "pipeline_complete", data: snapshot });
+
+    // Slice SMART-4-c: fire optional run-complete recorder. Defensive
+    // try/catch — recorder failure (ledger I/O, redactor throw, opt-out
+    // env, anything) NEVER breaks the _complete path. The recorder
+    // gets the SAME snapshot the broadcast just sent so what the UI
+    // sees and what lands in run memory are guaranteed consistent.
+    if (this.onRunComplete) {
+      try {
+        this.onRunComplete(this.runId, snapshot);
+      } catch (_err) {
+        // Swallow — recorder is observability + memory, not a
+        // critical-path side-effect. A future enhancement could
+        // broadcast a `run_memory_record_failed` event for operator
+        // visibility, but for SMART-4-c we keep it silent so the
+        // existing `pipeline_complete` shape is unchanged.
+      }
+    }
+
     this.active = null;
   }
 }
