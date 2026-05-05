@@ -208,7 +208,12 @@ Rules:
      column with a brief note
 4. **Write the summary report**: aggregate verdicts by category, note
    the sampling strategy, recommend cap movement (or list gaps that
-   block it).
+   block it). Use the EXR-d template at
+   `docs/external-review/summary-template.md` — copy it to
+   `docs/reports/<YYYY-MM-DD>-external-review-summary.md` and fill
+   the required sections (§0 Header / §1 Verdict / §2 Sampling
+   strategy / §3 Per-category aggregation / §8 Privacy statement
+   are all `<!-- REQUIRED -->`).
 
 ---
 

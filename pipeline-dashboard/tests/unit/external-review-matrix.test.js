@@ -272,3 +272,21 @@ test("EXR-b matrix: overview lists all required cap-movement targets", () => {
       `overview should mention cap target "${target}"`);
   }
 });
+
+// EXR-d-a (Phase 2 v2 follow-up, 2026-05-05) — the matrix's
+// "Write the summary report" step now links to the EXR-d template.
+test("EXR-b matrix: 'Write the summary report' step links to EXR-d template", () => {
+  const md = readMatrix();
+  // The link path
+  assert.match(md, /docs\/external-review\/summary-template\.md/,
+    "matrix points reviewers at the EXR-d summary template");
+  // The canonical committed instance path
+  assert.match(md, /docs\/reports\/<YYYY-MM-DD>-external-review-summary\.md/,
+    "matrix shows the committed instance naming convention");
+  // The required-sections list (so reviewers don't skip the 5
+  // required). Markdown line-wraps after "Sampling", so use \s+ for
+  // any internal whitespace rather than a literal space.
+  assert.match(md,
+    /§0 Header[\s\S]+?§1 Verdict[\s\S]+?§2 Sampling\s+strategy[\s\S]+?§3[\s\S]+?§8 Privacy/,
+    "matrix lists the 5 EXR-d required sections inline (canary against drift)");
+});
