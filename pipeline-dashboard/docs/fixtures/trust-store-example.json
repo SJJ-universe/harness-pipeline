@@ -1,0 +1,19 @@
+{
+  "_comment_1": "Slice TRUST-STORE-PATH-IT (Phase 2 v2 follow-up, 2026-05-05) — sample trust-store fixture.",
+  "_comment_2": "DOCUMENTATION ONLY. The publicKeyDerBase64 below is a placeholder, NOT a real key.",
+  "_comment_3": "An operator deploying a real harness installation populates this file via the TRUST-STORE-0 UI or `node scripts/sign-manifest.js add-key` (planned).",
+  "_comment_4": "The file lives at the path returned by scripts/launcher/trust-store-path.js resolveTrustStorePath().",
+  "_comment_5": "Schema reference: docs/live-evidence-schema.md does NOT cover this — see src/security/manifestSigner.js loadTrustStore() for the validator.",
+  "schema": "harness-release-trust/v1",
+  "keys": [
+    {
+      "keyId": "example-deployer-2026Q2",
+      "label": "Example Release Signing Key (illustrative only)",
+      "publicKeyDerBase64": "MCowBQYDK2VwAyEAREPLACE_ME_WITH_REAL_DER_BYTES_BASE64_ENCODED_AAAAA",
+      "addedAt": "2026-05-05T00:00:00.000Z",
+      "addedBy": "fixture-author",
+      "notes": "This is the illustrative shape of a trust-store entry. Real entries are added by the operator at deployment time."
+    }
+  ],
+  "_postscript": "When operators commit their real trust-store.json to a deployer-side store (NOT this repo), they remove the _comment_* keys and the placeholder _postscript. Only the schema + keys[] survive."
+}

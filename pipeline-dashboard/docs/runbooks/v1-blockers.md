@@ -197,7 +197,13 @@ The blocker closes when **all** of the following are true:
 ### §3.4 Where evidence lives
 
 - E2E report: `docs/reports/<YYYY-MM-DD>-trust-store-e2e-eval.md`.
-- Trust-store fixture (sample, not real keys): `docs/fixtures/trust-store-example.json`.
+- Trust-store fixture (sample, not real keys):
+  [`../fixtures/trust-store-example.json`](../fixtures/trust-store-example.json).
+  This file shows the schema shape (`harness-release-trust/v1` plus a
+  `keys[]` array). The placeholder `publicKeyDerBase64` must be
+  obviously non-real (`REPLACE_ME`...) — the integration test
+  [`tests/integration/trust-store-path-precedence.test.js`](../../tests/integration/trust-store-path-precedence.test.js)
+  enforces that anti-real-key guard.
 - Audit chain anchors: in the harness audit ledger, exported via
   `scripts/external-review-bundle.js`.
 
