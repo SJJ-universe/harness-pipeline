@@ -93,6 +93,18 @@
   <script src="js/monitor/shells/product-shell.js"></script>
 
   <!-- ────────────────────────────────────────────────────────────
+       PRODUCT-SHELL-WIRING (Phase 2 v2 follow-up, 2026-05-06)
+       Action surface — must load BEFORE product-shell-init.js so
+       window.HarnessShellActions exists when the dispatcher map is
+       built. focus-trap is consumed by general-pipeline-modal's
+       lazy-DOM mode (operator types task → modal opens here without
+       app.js, so the trap install lives in this script chain).
+       ──────────────────────────────────────────────────────────── -->
+  <script src="js/focus-trap.js"></script>
+  <script src="js/general-pipeline-modal.js"></script>
+  <script src="js/monitor/shell-actions.js"></script>
+
+  <!-- ────────────────────────────────────────────────────────────
        Init — resolve mode + mount the product shell
        ──────────────────────────────────────────────────────────── -->
   <script src="js/product-shell-init.js"></script>

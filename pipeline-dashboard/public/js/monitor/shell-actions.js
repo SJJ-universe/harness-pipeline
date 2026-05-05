@@ -1,0 +1,201 @@
+// Slice PRODUCT-SHELL-WIRING (Phase 2 v2 follow-up, 2026-05-06) — shell action
+// handlers for the product shell.
+//
+// The product shell at `/` has 7 action buttons (header: metrics, history,
+// codex-verify, shutdown; rail: pipeline-start, pipeline-compact,
+// pipeline-template). This module owns the routing implementations so the
+// shell + panels stay DOM-only. Each handler is a pure-ish function that
+// takes an env bag (`{doc, win, fetchImpl, confirmFn, toastFn}`) — tests
+// inject stubs for every dependency.
+//
+// Wave 1 (real work):
+//   - pipeline-start: open the lazy-DOM general-pipeline-modal
+//   - shutdown:       confirm + POST /api/server/shutdown
+//   - codex-verify:   POST /api/codex/verify + toast result
+//
+// Wave 2 (legacy view redirect for advanced features that the product
+// shell intentionally doesn't reimplement):
+//   - metrics, history, pipeline-compact, pipeline-template:
+//       toast announcement → window.location.assign("/?mode=legacy#anchor")
+//
+// `createDefaultHandlers(env)` returns the {actionId → handler} map that
+// `product-shell._dispatch` consumes. Tests can pass a custom map to mock
+// individual actions while the real ones run for the rest.
+
+(function (root, factory) {
+  const api = factory();
+  if (typeof module !== "undefined" && module.exports) module.exports = api;
+  if (typeof window !== "undefined") root.HarnessShellActions = api;
+})(typeof window !== "undefined" ? window : globalThis, function () {
+
+  function _resolveWin(opts) {
+    if (opts && opts.win) return opts.win;
+    if (typeof window !== "undefined") return window;
+    return null;
+  }
+  function _resolveDoc(opts) {
+    if (opts && opts.doc) return opts.doc;
+    if (typeof document !== "undefined") return document;
+    return null;
+  }
+  function _resolveFetch(opts) {
+    if (opts && typeof opts.fetchImpl === "function") return opts.fetchImpl;
+    if (typeof fetch === "function") return fetch;
+    return null;
+  }
+  function _resolveConfirm(opts) {
+    if (opts && typeof opts.confirmFn === "function") return opts.confirmFn;
+    if (typeof confirm !== "undefined") return confirm;
+    return () => true;
+  }
+
+  function _toast(toastFn, payload) {
+    if (typeof toastFn !== "function") return;
+    try { toastFn(payload); } catch (_) { /* swallow toast errors */ }
+  }
+
+  // Wave 2 helper — same-tab navigate with a toast pre-announcement.
+  function _legacyRedirect(win, toastFn, anchor, korLabel) {
+    _toast(toastFn, {
+      message: "고급 보기로 이동합니다 — " + korLabel,
+      kind: "info",
+      duration: 1500,
+    });
+    if (!win || !win.location || typeof win.location.assign !== "function") return;
+    const url = "/?mode=legacy" + anchor;
+    // Tiny delay so the toast renders before the page swap. Tests use
+    // a fake `setTimeout` (or skip the timer) so this stays deterministic.
+    if (typeof win.setTimeout === "function") {
+      win.setTimeout(function () { win.location.assign(url); }, 250);
+    } else {
+      win.location.assign(url);
+    }
+  }
+
+  // ── Wave 1 handlers ────────────────────────────────────────────────
+
+  function pipelineStart(opts) {
+    const win = _resolveWin(opts);
+    const doc = _resolveDoc(opts);
+    const toastFn = opts && opts.toastFn;
+    const modalApi = (win && win.HarnessGeneralPipelineModal) || null;
+    if (!modalApi || typeof modalApi.install !== "function") {
+      _toast(toastFn, {
+        message: "모달 모듈을 로드할 수 없습니다 (general-pipeline-modal)",
+        kind: "error",
+      });
+      return;
+    }
+    const trapApi = win && win.HarnessFocusTrap;
+    const installFocusTrap = (trapApi && typeof trapApi.trap === "function")
+      ? trapApi.trap
+      : null;
+    const modal = modalApi.install({
+      doc: doc,
+      mountTarget: doc && doc.body,
+      installFocusTrap: installFocusTrap,
+      addLog: opts && opts.addLog,
+    });
+    if (modal && typeof modal.open === "function") modal.open();
+  }
+
+  async function shutdown(opts) {
+    const fetchImpl = _resolveFetch(opts);
+    const confirmFn = _resolveConfirm(opts);
+    const toastFn = opts && opts.toastFn;
+    if (!confirmFn("서버를 종료합니까?")) return;
+    if (typeof fetchImpl !== "function") {
+      _toast(toastFn, { message: "네트워크 사용 불가 (fetch)", kind: "error" });
+      return;
+    }
+    try {
+      const r = await fetchImpl("/api/server/shutdown", { method: "POST" });
+      _toast(toastFn, {
+        message: r && r.ok
+          ? "서버 종료 요청을 보냈습니다."
+          : "서버 종료 실패: " + (r && r.status ? r.status : "unknown"),
+        kind: r && r.ok ? "info" : "error",
+      });
+    } catch (err) {
+      _toast(toastFn, {
+        message: "서버 종료 요청 실패: "
+          + (err && err.message ? err.message : String(err)),
+        kind: "error",
+      });
+    }
+  }
+
+  async function codexVerify(opts) {
+    const fetchImpl = _resolveFetch(opts);
+    const toastFn = opts && opts.toastFn;
+    if (typeof fetchImpl !== "function") {
+      _toast(toastFn, { message: "네트워크 사용 불가 (fetch)", kind: "error" });
+      return;
+    }
+    try {
+      const r = await fetchImpl("/api/codex/verify", { method: "POST" });
+      let body = null;
+      try { body = await r.json(); } catch (_) { /* non-JSON body is fine */ }
+      const ok = r && r.ok && body && body.ok !== false;
+      const detail = (body && (body.detail || body.message)) || "";
+      _toast(toastFn, {
+        message: "Codex 검증: " + (ok ? "PASS" : "FAIL")
+          + (detail ? " — " + detail : ""),
+        kind: ok ? "info" : "error",
+        duration: 4000,
+      });
+    } catch (err) {
+      _toast(toastFn, {
+        message: "Codex 검증 요청 실패: "
+          + (err && err.message ? err.message : String(err)),
+        kind: "error",
+      });
+    }
+  }
+
+  // ── Wave 2 handlers (legacy view redirect) ─────────────────────────
+
+  function metrics(opts) {
+    _legacyRedirect(_resolveWin(opts), opts && opts.toastFn, "#analytics", "메트릭");
+  }
+  function history(opts) {
+    _legacyRedirect(_resolveWin(opts), opts && opts.toastFn, "#run-history", "히스토리");
+  }
+  function pipelineCompact(opts) {
+    _legacyRedirect(_resolveWin(opts), opts && opts.toastFn, "#compact", "compact 보기");
+  }
+  function pipelineTemplate(opts) {
+    _legacyRedirect(_resolveWin(opts), opts && opts.toastFn, "#template-editor", "템플릿 편집기");
+  }
+
+  // ── Default handler map for product-shell._dispatch ────────────────
+
+  function createDefaultHandlers(env) {
+    const baseEnv = env || {};
+    function _wrap(fn) {
+      return function (extra) {
+        return fn(Object.assign({}, baseEnv, extra || {}));
+      };
+    }
+    return {
+      "pipeline-start":    _wrap(pipelineStart),
+      "pipeline-compact":  _wrap(pipelineCompact),
+      "pipeline-template": _wrap(pipelineTemplate),
+      "metrics":           _wrap(metrics),
+      "history":           _wrap(history),
+      "codex-verify":      _wrap(codexVerify),
+      "shutdown":          _wrap(shutdown),
+    };
+  }
+
+  return {
+    pipelineStart,
+    shutdown,
+    codexVerify,
+    metrics,
+    history,
+    pipelineCompact,
+    pipelineTemplate,
+    createDefaultHandlers,
+  };
+});

@@ -164,6 +164,44 @@
 
     root.appendChild(shell);
 
+    // PRODUCT-SHELL-WIRING: central action dispatcher.
+    //
+    // Header + rail buttons emit action ids ("pipeline-start", "shutdown",
+    // "metrics" ...) via their `onActionClick` callback. The shell owns
+    // a single `_dispatch(actionId, payload)` closure that routes each
+    // id to a handler from `opts.actionHandlers` (the action map). The
+    // init script wires `window.HarnessShellActions.createDefaultHandlers()`
+    // as the default; tests inject a stub map for isolated assertions.
+    //
+    // No global delegated listener — every panel still owns its own
+    // addEventListener (the dual-terminals self-attached pattern stays
+    // unchanged). `onActionClick` is the contract; `_dispatch` is the
+    // implementation behind it.
+    const actionHandlers = (opts.actionHandlers && typeof opts.actionHandlers === "object")
+      ? opts.actionHandlers
+      : null;
+
+    function _dispatch(actionId, payload) {
+      if (!actionId) return;
+      const handler = actionHandlers && actionHandlers[actionId];
+      if (typeof handler !== "function") {
+        // No handler installed for this action — defensive no-op so the
+        // click still feels responsive (panel's own try/catch swallows).
+        // Tests assert the dispatcher reaches the handler when present;
+        // missing-handler path is logged for forensics but not thrown.
+        if (typeof opts.onActionMissing === "function") {
+          try { opts.onActionMissing(actionId); } catch (_) {}
+        }
+        return;
+      }
+      try {
+        return handler(payload);
+      } catch (_) {
+        // Handler-internal errors are the handler's responsibility to
+        // toast / report; the shell stays alive.
+      }
+    }
+
     // Mount handles — each panel returns { destroy?, setMode? }
     const handles = {};
 
@@ -205,9 +243,16 @@
       // so the init script can persist it via HarnessI18n.setLang AND
       // re-broadcast to every panel via setLocale().
       onLocaleChange(next) { setLocale(next); },
+      // PRODUCT-SHELL-WIRING: route header action buttons (metrics,
+      // history, codex-verify, shutdown) through _dispatch.
+      onActionClick: _dispatch,
     });
     handles.track = _mountPanel(trackFactory, trackMount, "harness-track");
-    handles.rail = _mountPanel(railFactory, railMount, "pipeline-rail");
+    handles.rail = _mountPanel(railFactory, railMount, "pipeline-rail", {
+      // PRODUCT-SHELL-WIRING: route rail action buttons (pipeline-start,
+      // pipeline-compact, pipeline-template) through _dispatch.
+      onActionClick: _dispatch,
+    });
     handles.grid = _mountPanel(gridFactory, gridMount, "monitor-grid");
     // UI-P6: pass review-relay client to dual-terminals so the action
     // row (start / send-codex / followup / hand-back / archive) is
@@ -284,6 +329,9 @@
         locale,
         allowMockData,
         panelsMounted: Object.keys(handles).filter((k) => handles[k] !== null),
+        // PRODUCT-SHELL-WIRING: surface the action surface so tests +
+        // smoke checks can confirm the dispatcher saw a handler map.
+        actionHandlers: actionHandlers ? Object.keys(actionHandlers) : [],
       };
     }
 
@@ -298,6 +346,10 @@
       getLocale,
       destroy,
       _state,
+      // PRODUCT-SHELL-WIRING: expose dispatcher so tests can drive
+      // action ids directly + future panels (or hash-based deep links)
+      // can call into the same routing surface without re-implementing.
+      _dispatch,
     };
   }
 

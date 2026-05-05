@@ -124,6 +124,29 @@
       ? window.HarnessReviewSessionClient
       : null;
 
+    // PRODUCT-SHELL-WIRING: build the action handler map from
+    // window.HarnessShellActions (loaded by index.html before this
+    // init script). Each handler receives env defaults plus an
+    // optional per-call payload from the dispatcher. The default
+    // env supplies window/document/fetch/confirm + a toast adapter
+    // that wraps window.HarnessToast.show. Tests inject their own
+    // actionHandlers via window.HarnessProductShell.mount opts.
+    function _toastAdapter(payload) {
+      if (window.HarnessToast && typeof window.HarnessToast.show === "function") {
+        try { window.HarnessToast.show(payload); } catch (_) {}
+      }
+    }
+    const actionHandlers = (window.HarnessShellActions
+        && typeof window.HarnessShellActions.createDefaultHandlers === "function")
+      ? window.HarnessShellActions.createDefaultHandlers({
+          win: window,
+          doc: document,
+          fetchImpl: (typeof fetch === "function") ? fetch : null,
+          confirmFn: (typeof confirm !== "undefined") ? confirm : null,
+          toastFn: _toastAdapter,
+        })
+      : null;
+
     let handle;
     try {
       handle = window.HarnessProductShell.mount({
@@ -133,6 +156,12 @@
         locale: locale,
         allowMockData: demoMode,
         reviewClient: reviewClient,
+        actionHandlers: actionHandlers,
+        onActionMissing: function (id) {
+          // Forensic only — the shell's _dispatch already swallows
+          // missing-handler clicks so the UI stays responsive.
+          console.warn("[product-shell] no handler for action:", id);
+        },
         onModeChange: function (next) {
           _persistMode(next);
         },

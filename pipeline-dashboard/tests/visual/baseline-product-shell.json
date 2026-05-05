@@ -30,6 +30,9 @@
       "js/monitor/panels/product-monitor-grid.js",
       "js/monitor/panels/product-dual-terminals.js",
       "js/monitor/shells/product-shell.js",
+      "js/focus-trap.js",
+      "js/general-pipeline-modal.js",
+      "js/monitor/shell-actions.js",
       "js/product-shell-init.js"
     ],
     "inlineScriptCount": 0,
@@ -297,7 +300,8 @@
         "logo",
         "mode-toggle",
         "pro-actions",
-        "status-pill"
+        "status-pill",
+        "tools"
       ],
       "trackSlots": [],
       "railSlots": [],

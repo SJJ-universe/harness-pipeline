@@ -273,17 +273,48 @@
     });
     indicators.appendChild(localeToggle);
 
+    // PRODUCT-SHELL-WIRING: layout reshuffle (rc.5 field-pilot prep).
+    //
+    //   Always-visible "tools" cluster   ← Codex 검증
+    //   Pro-only "pro-actions" cluster   ← 메트릭, 히스토리, 서버 종료
+    //
+    // Reasoning per user decisions: pilots may need a quick Codex
+    // health check (always visible). 메트릭/히스토리 are advanced
+    // (pro). 서버 종료 is dangerous for non-engineer pilots → pro
+    // only (was always-visible pre-rc.5).
+    //
+    // Both clusters share the i18n re-render path in setLocale below;
+    // `toolsEntries` mirrors the iteration shape of `proActionEntries`
+    // so the locale handler stays parallel + extensible.
+    const toolsEntries = [
+      { id: "codex-verify", labelKey: "btn.codexVerify", fallback: "Codex 검증" },
+    ];
+    const toolsCluster = _doc.createElement("span");
+    toolsCluster.className = "prod-header-tools";
+    toolsCluster.setAttribute("data-header-slot", "tools");
+    toolsEntries.forEach(function (entry) {
+      const btn = _doc.createElement("button");
+      btn.type = "button";
+      btn.className = "prod-header-action";
+      btn.setAttribute("data-action", entry.id);
+      btn.textContent = _t(entry.labelKey, entry.fallback);
+      btn.addEventListener("click", function () {
+        try { onActionClick(entry.id); } catch (_) {}
+      });
+      toolsCluster.appendChild(btn);
+    });
+    indicators.appendChild(toolsCluster);
+
     // Pro-only actions — hidden in simple via display:none
     const proActions = _doc.createElement("span");
     proActions.className = "prod-header-pro-actions";
     proActions.setAttribute("data-header-slot", "pro-actions");
     // UI-P7: reuse existing i18n keys (btn.openAnalytics /
-    // btn.openRunHistory / btn.codexVerify) so the legacy app and the
-    // product header stay in sync when those labels are tweaked.
+    // btn.openRunHistory) so the legacy app and the product header
+    // stay in sync when those labels are tweaked.
     const proActionEntries = [
-      { id: "metrics",       labelKey: "btn.openAnalytics",   fallback: "📈 메트릭" },
-      { id: "history",       labelKey: "btn.openRunHistory",  fallback: "📜 히스토리" },
-      { id: "codex-verify",  labelKey: "btn.codexVerify",     fallback: "Codex 검증" },
+      { id: "metrics", labelKey: "btn.openAnalytics",  fallback: "📈 메트릭" },
+      { id: "history", labelKey: "btn.openRunHistory", fallback: "📜 히스토리" },
     ];
     proActionEntries.forEach(function (entry) {
       const btn = _doc.createElement("button");
@@ -296,9 +327,11 @@
       });
       proActions.appendChild(btn);
     });
-    indicators.appendChild(proActions);
 
-    // 서버 종료 (always visible)
+    // 서버 종료 — appended into proActions so _refreshProActions()
+    // toggles its visibility. Pre-rc.5 it was attached to `indicators`
+    // directly (always visible); the field-pilot safety decision
+    // moves it under the pro gate.
     const shutdownBtn = _doc.createElement("button");
     shutdownBtn.type = "button";
     shutdownBtn.className = "prod-header-action";
@@ -308,7 +341,9 @@
     shutdownBtn.addEventListener("click", function () {
       try { onActionClick("shutdown"); } catch (_) {}
     });
-    indicators.appendChild(shutdownBtn);
+    proActions.appendChild(shutdownBtn);
+
+    indicators.appendChild(proActions);
 
     header.appendChild(indicators);
 
@@ -409,6 +444,18 @@
           proActionEntries.forEach(function (entry) {
             for (let i = 0; i < proActions.children.length; i++) {
               const btn = proActions.children[i];
+              if (btn && btn.getAttribute && btn.getAttribute("data-action") === entry.id) {
+                btn.textContent = _t(entry.labelKey, entry.fallback);
+              }
+            }
+          });
+          // 3b. PRODUCT-SHELL-WIRING: tools-cluster button labels
+          // (codex-verify lives outside proActions for always-visible
+          // semantics; needs its own re-render iteration so locale
+          // changes propagate through this cluster too).
+          toolsEntries.forEach(function (entry) {
+            for (let i = 0; i < toolsCluster.children.length; i++) {
+              const btn = toolsCluster.children[i];
               if (btn && btn.getAttribute && btn.getAttribute("data-action") === entry.id) {
                 btn.textContent = _t(entry.labelKey, entry.fallback);
               }

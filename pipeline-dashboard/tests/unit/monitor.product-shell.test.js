@@ -401,3 +401,102 @@ test("UI-P7: onLocaleChange callback fires on setLocale (init persists via Harne
   handle.setLocale("en");
   assert.equal(lastLocale, "en");
 });
+
+// ── PRODUCT-SHELL-WIRING (rc.5 prep, 2026-05-06) — _dispatch + actionHandlers ──
+
+test("PRODUCT-SHELL-WIRING: shell._dispatch invokes actionHandlers[id] when present", () => {
+  const root = makeRoot();
+  const store = createMonitorStore();
+  const seen = [];
+  const stubFactory = () => ({ destroy() {}, setMode() {} });
+  const handle = productShell.mount({
+    root, store, doc: makeStubDoc(),
+    panels: { header: stubFactory, track: stubFactory, rail: stubFactory,
+              grid: stubFactory, terminals: stubFactory },
+    actionHandlers: {
+      "pipeline-start": (payload) => seen.push({ id: "pipeline-start", payload }),
+      "shutdown": (payload) => seen.push({ id: "shutdown", payload }),
+    },
+  });
+  handle._dispatch("pipeline-start", { source: "rail" });
+  handle._dispatch("shutdown");
+  assert.equal(seen.length, 2);
+  assert.equal(seen[0].id, "pipeline-start");
+  assert.deepEqual(seen[0].payload, { source: "rail" });
+  assert.equal(seen[1].id, "shutdown");
+});
+
+test("PRODUCT-SHELL-WIRING: shell._dispatch falls back to onActionMissing when handler absent", () => {
+  const root = makeRoot();
+  const store = createMonitorStore();
+  const missing = [];
+  const stubFactory = () => ({ destroy() {}, setMode() {} });
+  const handle = productShell.mount({
+    root, store, doc: makeStubDoc(),
+    panels: { header: stubFactory, track: stubFactory, rail: stubFactory,
+              grid: stubFactory, terminals: stubFactory },
+    actionHandlers: { "pipeline-start": () => {} }, // only one wired
+    onActionMissing: (id) => missing.push(id),
+  });
+  handle._dispatch("metrics");
+  assert.deepEqual(missing, ["metrics"]);
+});
+
+test("PRODUCT-SHELL-WIRING: shell._dispatch swallows handler-internal errors so the shell stays alive", () => {
+  const root = makeRoot();
+  const store = createMonitorStore();
+  const stubFactory = () => ({ destroy() {}, setMode() {} });
+  const handle = productShell.mount({
+    root, store, doc: makeStubDoc(),
+    panels: { header: stubFactory, track: stubFactory, rail: stubFactory,
+              grid: stubFactory, terminals: stubFactory },
+    actionHandlers: {
+      "shutdown": () => { throw new Error("boom"); },
+    },
+  });
+  // Dispatch must NOT bubble the error out of the shell.
+  assert.doesNotThrow(() => handle._dispatch("shutdown"));
+});
+
+test("PRODUCT-SHELL-WIRING: shell.mount passes onActionClick to header AND rail factories", () => {
+  const root = makeRoot();
+  const store = createMonitorStore();
+  const seen = {};
+  function captureFactory(name) {
+    return (opts) => {
+      seen[name] = opts;
+      return { destroy() {}, setMode() {} };
+    };
+  }
+  productShell.mount({
+    root, store, doc: makeStubDoc(),
+    panels: {
+      header: captureFactory("header"),
+      track: captureFactory("track"),
+      rail: captureFactory("rail"),
+      grid: captureFactory("grid"),
+      terminals: captureFactory("terminals"),
+    },
+  });
+  assert.equal(typeof seen.header.onActionClick, "function",
+    "header factory must receive onActionClick");
+  assert.equal(typeof seen.rail.onActionClick, "function",
+    "rail factory must receive onActionClick");
+  // grid + terminals don't need it (their action surfaces are local).
+  assert.equal(seen.grid.onActionClick, undefined);
+  assert.equal(seen.terminals.onActionClick, undefined);
+});
+
+test("PRODUCT-SHELL-WIRING: _state() reports actionHandlers keys", () => {
+  const root = makeRoot();
+  const store = createMonitorStore();
+  const stubFactory = () => ({ destroy() {}, setMode() {} });
+  const handle = productShell.mount({
+    root, store, doc: makeStubDoc(),
+    panels: { header: stubFactory, track: stubFactory, rail: stubFactory,
+              grid: stubFactory, terminals: stubFactory },
+    actionHandlers: { "pipeline-start": () => {}, "shutdown": () => {} },
+  });
+  const state = handle._state();
+  assert.deepEqual(state.actionHandlers.sort(), ["pipeline-start", "shutdown"]);
+});

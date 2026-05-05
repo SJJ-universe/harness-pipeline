@@ -209,6 +209,14 @@
     let mode = opts.mode || "simple";
     const allowMockData = opts.allowMockData !== false;
     const store = opts.store || null;
+    // PRODUCT-SHELL-WIRING: action dispatcher passed by product-shell.js.
+    // Defaults to no-op so the rail keeps working when mounted in tests
+    // without an action surface. The 3 buttons (pipeline-start /
+    // -compact / -template) call this on click; product-shell._dispatch
+    // routes the action id to the appropriate shell-actions handler.
+    const onActionClick = (typeof opts.onActionClick === "function")
+      ? opts.onActionClick
+      : function () {};
     // UI-P5-b: selectors module resolves real run data → phases array
     // or null. Test injection via opts.dataSelectors; production reads
     // from window.HarnessProductShellData.
@@ -238,6 +246,9 @@
     startBtn.className = "prod-rail-start-btn";
     startBtn.setAttribute("data-action", "pipeline-start");
     startBtn.textContent = "▶ 작업 시작";
+    startBtn.addEventListener("click", function () {
+      try { onActionClick("pipeline-start"); } catch (_) { /* defensive */ }
+    });
     header.appendChild(startBtn);
 
     const headerSpacer = _doc.createElement("div");
@@ -255,6 +266,9 @@
       btn.className = "prod-rail-secondary-btn";
       btn.setAttribute("data-action", entry.action);
       btn.textContent = entry.label;
+      btn.addEventListener("click", function () {
+        try { onActionClick(entry.action); } catch (_) { /* defensive */ }
+      });
       proButtons.appendChild(btn);
     });
     header.appendChild(proButtons);

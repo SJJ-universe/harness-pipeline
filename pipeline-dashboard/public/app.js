@@ -1847,6 +1847,71 @@ function initEventBindings() {
     const closeBtn = overlay.querySelector(".modal-close");
     if (closeBtn) closeBtn.addEventListener("click", closeFn);
   });
+
+  // PRODUCT-SHELL-WIRING (rc.5 prep, 2026-05-06): hash-on-load handler.
+  //
+  // The product shell at `/` redirects its advanced-feature buttons
+  // (메트릭 / 히스토리 / 템플릿 / compact) to `/?mode=legacy#anchor`.
+  // The legacy view's panel openers are defined in this module, so
+  // wire the anchor → opener mapping here. Called once at the end of
+  // initEventBindings() so all the panel modules are guaranteed to
+  // be installed before we try to invoke them.
+  _handleHashOnLoad();
+}
+
+// PRODUCT-SHELL-WIRING (2026-05-06): exported as a module-level helper
+// (not nested inside initEventBindings) so unit tests can drive it
+// without rebooting the whole legacy boot path. Tests stub
+// `window.HarnessAnalyticsPanel` etc. and call `_handleHashOnLoad()`
+// after seeding `window.location.hash`.
+function _handleHashOnLoad() {
+  let hash = "";
+  try {
+    hash = (window && window.location && typeof window.location.hash === "string")
+      ? window.location.hash
+      : "";
+  } catch (_) { return; }
+  if (!hash) return;
+  // Normalise — strip leading `#`, lowercase, drop any query suffix.
+  const normalised = String(hash).replace(/^#/, "").split("?")[0].toLowerCase();
+  if (!normalised) return;
+  switch (normalised) {
+    case "analytics":
+      if (window.HarnessAnalyticsPanel
+          && typeof window.HarnessAnalyticsPanel.open === "function") {
+        try { window.HarnessAnalyticsPanel.open(); } catch (_) {}
+      }
+      break;
+    case "run-history":
+      if (window.HarnessRunHistory
+          && typeof window.HarnessRunHistory.open === "function") {
+        try { window.HarnessRunHistory.open(); } catch (_) {}
+      }
+      break;
+    case "template-editor":
+      if (window.HarnessTemplateEditor
+          && typeof window.HarnessTemplateEditor.open === "function") {
+        try { window.HarnessTemplateEditor.open(); } catch (_) {}
+      }
+      break;
+    case "compact":
+      if (typeof toggleCompactMode === "function") {
+        try { toggleCompactMode(); } catch (_) {}
+      }
+      break;
+    default:
+      // Unknown anchor — silent no-op. The product shell only emits
+      // the four documented anchors above; anything else came from
+      // outside our flow and we shouldn't surprise the operator.
+      break;
+  }
+}
+
+// Test export — attaches to `window` so unit tests can spy on the
+// hash router without monkey-patching app.js' module scope. Browsers
+// see this as a normal property on window.
+if (typeof window !== "undefined") {
+  window._handleHashOnLoad = _handleHashOnLoad;
 }
 
 // ── Init ──

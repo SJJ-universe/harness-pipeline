@@ -464,6 +464,53 @@ test("UI-P4 contract: harness-track exposes status-pill + horse mount slots", ()
   assert.ok(root._findOneByAttr("data-track-slot", "lanes"));
 });
 
+// ── PRODUCT-SHELL-WIRING (rc.5 prep) — action button placement contract ──
+
+test("PRODUCT-SHELL-WIRING: rail panel exposes exactly the 3 documented data-action ids", () => {
+  const root = makeRoot();
+  const store = createMonitorStore();
+  productPipelineRail.create({ root, store, doc: makeStubDoc(), mode: "pro" });
+  const seen = root._findAllByAttrPresent("data-action")
+    .map((el) => el.attributes["data-action"])
+    .sort();
+  assert.deepEqual(seen, ["pipeline-compact", "pipeline-start", "pipeline-template"]);
+});
+
+test("PRODUCT-SHELL-WIRING: header exposes the 4 documented data-action ids (codex-verify + metrics + history + shutdown)", () => {
+  const root = makeRoot();
+  const store = createMonitorStore();
+  productHeader.create({ root, store, doc: makeStubDoc() });
+  const seen = root._findAllByAttrPresent("data-action")
+    .map((el) => el.attributes["data-action"])
+    .sort();
+  assert.deepEqual(seen, ["codex-verify", "history", "metrics", "shutdown"]);
+});
+
+test("PRODUCT-SHELL-WIRING: codex-verify lives in the always-visible tools cluster (NOT pro-actions)", () => {
+  const root = makeRoot();
+  const store = createMonitorStore();
+  productHeader.create({ root, store, doc: makeStubDoc() });
+  const tools = root._findOneByAttr("data-header-slot", "tools");
+  assert.ok(tools, "header must expose data-header-slot=tools cluster");
+  // codex-verify must be a child of the tools cluster.
+  const codexBtn = root._findOneByAttr("data-action", "codex-verify");
+  assert.ok(codexBtn, "codex-verify button must exist");
+  assert.equal(codexBtn.parentNode, tools,
+    "codex-verify must live INSIDE the always-visible tools cluster");
+});
+
+test("PRODUCT-SHELL-WIRING: shutdown lives in the pro-only cluster (NOT always visible)", () => {
+  const root = makeRoot();
+  const store = createMonitorStore();
+  productHeader.create({ root, store, doc: makeStubDoc() });
+  const proActions = root._findOneByAttr("data-header-slot", "pro-actions");
+  assert.ok(proActions, "header must expose data-header-slot=pro-actions cluster");
+  const shutdownBtn = root._findOneByAttr("data-action", "shutdown");
+  assert.ok(shutdownBtn, "shutdown button must exist");
+  assert.equal(shutdownBtn.parentNode, proActions,
+    "shutdown must live INSIDE the pro-only cluster (field-pilot safety gate)");
+});
+
 test("runtime contract: harness-track suppresses 'current' lane + horse + stage pill when allowMockData=false and no live run", () => {
   const root = makeRoot();
   const store = createMonitorStore();
