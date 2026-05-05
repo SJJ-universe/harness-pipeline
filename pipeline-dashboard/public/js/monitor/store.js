@@ -204,6 +204,21 @@
       reviewSessions: new Map(),
       selectedReviewSessionId: null,
       reviewStreams: new Map(),
+      // Slice POL-c (Phase 2 / POLICY-UX-0, 2026-05-05): policy pack
+      // catalog snapshot. Populated by legacy-bridge GET /api/policy-packs
+      // on initial load (one-shot — packs are frozen at boot).
+      // Shape mirrors the route response:
+      //   {
+      //     schema, currentPack, packs: [...],
+      //     metadata: {
+      //       hardGatesEffectiveMode, runMemoryEffective,
+      //       hardGatesEnvOverride, runMemoryEnvOverride,
+      //       publicSectorRequirements: [...]
+      //     }
+      //   }
+      // null until first refresh lands. UI panels read from this
+      // slice to render the pack catalog + comparison view.
+      policyPacks: null,
       // Slice RR0-c (Phase 2 / RELEASE-READY-0, 2026-05-05): runner
       // activity slice. Tracks codex/claude long-running task state
       // surfaced from the activityWatchdog (RR0-b). Map keyed by
@@ -340,6 +355,26 @@
           .sort((a, b) => (b.lastActivityAt || 0) - (a.lastActivityAt || 0)),
         selectedReviewSessionId: state.selectedReviewSessionId,
         reviewStreams: _snapshotReviewStreams(state.reviewStreams),
+        // Slice POL-c: pack catalog snapshot. Defensive shallow copy of
+        // the inner shape so caller mutations don't bleed into stored.
+        policyPacks: state.policyPacks
+          ? {
+              schema: state.policyPacks.schema,
+              currentPack: state.policyPacks.currentPack,
+              packs: state.policyPacks.packs
+                ? state.policyPacks.packs.map((p) => ({ ...p }))
+                : [],
+              metadata: state.policyPacks.metadata
+                ? {
+                    ...state.policyPacks.metadata,
+                    publicSectorRequirements: state.policyPacks.metadata.publicSectorRequirements
+                      ? state.policyPacks.metadata.publicSectorRequirements.slice()
+                      : [],
+                  }
+                : null,
+              serverTime: state.policyPacks.serverTime || null,
+            }
+          : null,
         // Slice RR0-c: runner activity snapshot — array sorted by
         // most-recent-warning first so the simple-shell long-running
         // task card surfaces fresh issues at the top.
@@ -891,6 +926,50 @@
       return snapshot();
     }
 
+    // ── Slice POL-c: policy pack catalog mutator ───────────────────
+
+    function setPolicyPacks(payload) {
+      // payload shape: route response from GET /api/policy-packs
+      // schema check — defensive against foreign payloads (e.g., a
+      // stale cached response from a different harness version).
+      if (!payload || typeof payload !== "object") return snapshot();
+      if (payload.schema !== "harness-policy-pack/v1") return snapshot();
+      // Idempotent: same payload by deep-equal → no publish (avoid
+      // notify-churn on identical 30s polls).
+      const next = {
+        schema: payload.schema,
+        currentPack: typeof payload.currentPack === "string"
+          ? payload.currentPack : null,
+        packs: Array.isArray(payload.packs) ? payload.packs.slice() : [],
+        metadata: payload.metadata && typeof payload.metadata === "object"
+          ? { ...payload.metadata }
+          : null,
+        serverTime: typeof payload.serverTime === "number"
+          ? payload.serverTime : null,
+      };
+      // Cheap dirty check
+      const prev = state.policyPacks;
+      if (prev
+        && prev.schema === next.schema
+        && prev.currentPack === next.currentPack
+        && prev.packs.length === next.packs.length
+        && prev.serverTime === next.serverTime
+        && JSON.stringify(prev.metadata) === JSON.stringify(next.metadata)
+      ) {
+        return snapshot();
+      }
+      state.policyPacks = next;
+      _publish();
+      return snapshot();
+    }
+
+    function clearPolicyPacks() {
+      if (state.policyPacks === null) return snapshot();
+      state.policyPacks = null;
+      _publish();
+      return snapshot();
+    }
+
     // ── Slice RR0-c: runner activity slice mutators ────────────────
 
     function _runnerActivityKey({ runner, runId, iteration }) {
@@ -1032,6 +1111,11 @@
       appendReviewChunk,
       setReviewSessionsList,
       clearReviewSessions,
+      // Slice POL-c: policy pack catalog mutators (legacy-bridge fetches
+      // GET /api/policy-packs once on install; UI panel reads from
+      // snapshot.policyPacks)
+      setPolicyPacks,
+      clearPolicyPacks,
       // Slice RR0-c: runner activity slice mutators (legacy-bridge wires
       // codex_idle_warning / claude_idle_warning / codex_killed_for_idle /
       // claude_killed_for_idle WS events; pipeline_complete / reset

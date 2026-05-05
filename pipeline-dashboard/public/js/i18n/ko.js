@@ -257,6 +257,37 @@
     "smart.preset.release.description":                   "롤아웃 안전, manifest 서명, 하위 호환성, audit chain 커버리지.",
     "smart.preset.public-sector-audit.label":             "🛡 공공기관 감사",
     "smart.preset.public-sector-audit.description":       "공공기관 / 규제 배포 — fail-closed 자세, audit chain 깊이, 서명 무결성.",
+
+    // ── Slice POL-c: policy pack catalog labels ──────────────────────
+    // 운영자가 simple-shell의 pack-info card에서 보는 레이블들.
+    // Pack ID는 frozen registry의 modeId로 통일 (영문 kebab-case),
+    // 화면 표시는 한국어로 친절하게.
+    "policyPack.cardLabel":                              "현재 정책 팩",
+    "policyPack.aria.region":                            "정책 팩 정보",
+    "policyPack.currentLabel":                           "현재 사용 중",
+    "policyPack.changeHint":                             "팩 변경은 서버 재시작이 필요합니다 (HARNESS_DEPLOYMENT_PROFILE 환경변수 변경 + 재부팅).",
+    "policyPack.publicSectorRequirements.title":         "🛡 공공기관 / 규제 배포 요구사항",
+    "policyPack.publicSectorRequirements.intro":         "이 팩을 선택하기 전에 다음을 준비해 두세요:",
+    "policyPack.runtimeEffective.label":                 "현재 런타임 적용 상태",
+    "policyPack.runtimeEffective.hardGates":             "하드 게이트: {mode}",
+    "policyPack.runtimeEffective.runMemory":             "런 메모리: {state}",
+    "policyPack.runtimeEffective.envOverride":           "(환경변수 명시)",
+
+    "policyPack.modeId.standard":                        "Standard",
+    "policyPack.modeId.public-sector":                   "공공기관 (Public Sector)",
+    "policyPack.modeId.finance-high-privacy":            "🛡 금융 / 고강도 프라이버시 (Finance High-Privacy)",
+    "policyPack.modeId.offline-internal-network":        "오프라인 / 내부망 (Offline Internal Network)",
+    "policyPack.modeId.developer-lab":                   "개발자 랩 (Developer Lab)",
+
+    "policyPack.field.publicSector":                     "공공기관 자세",
+    "policyPack.field.allowLocalExecutor":               "로컬 실행기 허용",
+    "policyPack.field.allowPlaintextSecrets":            "평문 시크릿 허용",
+    "policyPack.field.requireSandboxWorkspace":          "샌드박스 워크스페이스 필수",
+    "policyPack.field.requireSignedManifest":            "서명된 manifest 필수",
+    "policyPack.field.requirePiiScanBeforeProviderDispatch": "공급자 호출 전 PII 스캔 필수",
+    "policyPack.field.scannerFailurePolicy":             "스캐너 실패 정책",
+    "policyPack.field.hardGatesDefault":                 "기본 하드 게이트",
+    "policyPack.field.runMemoryEnabled":                 "런 메모리 활성",
   };
 
   if (typeof module !== "undefined" && module.exports) {

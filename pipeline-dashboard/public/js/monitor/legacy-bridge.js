@@ -54,6 +54,10 @@
   // SMART panels (recommendations / hard gates / etc) read the
   // resulting store.decisionContext slice.
   const DEFAULT_DECISION_CONTEXT_URL = "/api/decision-context";
+  // Slice POL-c (Phase 2 / POLICY-UX-0, 2026-05-05): policy pack
+  // catalog endpoint. Fetched ONCE on install — packs are frozen
+  // at boot, no point polling. UI panel reads store.policyPacks.
+  const DEFAULT_POLICY_PACKS_URL = "/api/policy-packs";
 
   function install({
     store,
@@ -65,6 +69,7 @@
     refreshIntervalMs = DEFAULT_REFRESH_MS,
     infoUrl = DEFAULT_INFO_URL,
     decisionContextUrl = DEFAULT_DECISION_CONTEXT_URL,
+    policyPacksUrl = DEFAULT_POLICY_PACKS_URL,
     headers = {},
   } = {}) {
     if (!store || typeof store.pushEvent !== "function") {
@@ -530,6 +535,40 @@
       }
     }
 
+    // ── Slice POL-c: one-shot policy pack catalog fetch ──
+    //
+    // Packs are frozen at boot so we only need to fetch once. UI
+    // panel reads store.policyPacks on demand. setPolicyPacks does
+    // schema check + idempotent dirty-skip so a rare manual re-fetch
+    // doesn't notify-churn.
+    async function refreshPolicyPacks() {
+      if (typeof _fetch !== "function") return null;
+      if (typeof store.setPolicyPacks !== "function") {
+        return null;  // older store builds — silently skip
+      }
+      try {
+        const res = await _fetch(policyPacksUrl, {
+          method: "GET",
+          headers: { Accept: "application/json", ...headers },
+        });
+        if (!res || typeof res.ok !== "boolean" || !res.ok) {
+          stats.policyPacksErrors = (stats.policyPacksErrors || 0) + 1;
+          return null;
+        }
+        const payload = typeof res.json === "function" ? await res.json() : null;
+        if (!payload || typeof payload !== "object") {
+          stats.policyPacksErrors = (stats.policyPacksErrors || 0) + 1;
+          return null;
+        }
+        store.setPolicyPacks(payload);
+        stats.policyPacksRefreshes = (stats.policyPacksRefreshes || 0) + 1;
+        return payload;
+      } catch (_) {
+        stats.policyPacksErrors = (stats.policyPacksErrors || 0) + 1;
+        return null;
+      }
+    }
+
     if (typeof _setInterval === "function" && refreshIntervalMs > 0) {
       intervalId = _setInterval(() => {
         refresh();
@@ -538,6 +577,10 @@
       // Don't run an initial refresh here — the layout's hydrate already
       // populates the store on mount. The first interval tick takes over
       // 5s later, which keeps boot-time noise low.
+      // POL-c: kick the policy pack catalog fetch as a one-shot at
+      // install time. No interval — packs are frozen at boot, so a
+      // single fetch is enough for the lifetime of the operator session.
+      refreshPolicyPacks();
     }
 
     function destroy() {
@@ -558,6 +601,8 @@
       // (and operator scripts) can trigger the SMART arc input
       // independently of the /api/server/info refresh.
       refreshDecisionContext,
+      // Slice POL-c: dedicated policy pack catalog refresh
+      refreshPolicyPacks,
       stats: () => ({ ...stats }),
       // Slice MC2: test hook so unit tests can drive the sync function
       // directly without going through the dispatcher tap.

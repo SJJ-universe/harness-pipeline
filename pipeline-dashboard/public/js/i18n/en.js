@@ -249,6 +249,34 @@
     "smart.preset.release.description":                   "Rollout safety, signed manifests, backward compat, audit-chain coverage.",
     "smart.preset.public-sector-audit.label":             "🛡 Public-Sector Audit",
     "smart.preset.public-sector-audit.description":       "Public-sector / regulated — fail-closed posture, audit-chain depth, signing integrity.",
+
+    // ── Slice POL-c: policy pack catalog labels ──────────────────────
+    "policyPack.cardLabel":                              "Current policy pack",
+    "policyPack.aria.region":                            "Policy pack information",
+    "policyPack.currentLabel":                           "Currently active",
+    "policyPack.changeHint":                             "Pack changes require a server restart (set HARNESS_DEPLOYMENT_PROFILE env, then reboot).",
+    "policyPack.publicSectorRequirements.title":         "🛡 Public-sector / regulated deployment requirements",
+    "policyPack.publicSectorRequirements.intro":         "Before selecting this pack, ensure the following are in place:",
+    "policyPack.runtimeEffective.label":                 "Effective runtime state",
+    "policyPack.runtimeEffective.hardGates":             "Hard gates: {mode}",
+    "policyPack.runtimeEffective.runMemory":             "Run memory: {state}",
+    "policyPack.runtimeEffective.envOverride":           "(env override)",
+
+    "policyPack.modeId.standard":                        "Standard",
+    "policyPack.modeId.public-sector":                   "Public Sector",
+    "policyPack.modeId.finance-high-privacy":            "🛡 Finance High-Privacy",
+    "policyPack.modeId.offline-internal-network":        "Offline Internal Network",
+    "policyPack.modeId.developer-lab":                   "Developer Lab",
+
+    "policyPack.field.publicSector":                     "Public-sector posture",
+    "policyPack.field.allowLocalExecutor":               "Local executor allowed",
+    "policyPack.field.allowPlaintextSecrets":            "Plaintext secrets allowed",
+    "policyPack.field.requireSandboxWorkspace":          "Sandbox workspace required",
+    "policyPack.field.requireSignedManifest":            "Signed manifest required",
+    "policyPack.field.requirePiiScanBeforeProviderDispatch": "PII scan required before provider dispatch",
+    "policyPack.field.scannerFailurePolicy":             "Scanner failure policy",
+    "policyPack.field.hardGatesDefault":                 "Hard gates default",
+    "policyPack.field.runMemoryEnabled":                 "Run memory enabled",
   };
 
   if (typeof module !== "undefined" && module.exports) {
