@@ -37,6 +37,8 @@ test("UI-FirstRun: CTA frozen + canonical IDs", () => {
     "CREATE_PROFILE", "OPEN_SETUP_WIZARD", "OPEN_SETTINGS_PROFILES",
     "OPEN_PUBLIC_SECTOR_SETUP", "TEST_CLAUDE", "TEST_CODEX",
     "REOPEN_SETUP_FOR_PROVIDERS", "AUTH_CLAUDE", "AUTH_CODEX",
+    // RR0-d additions:
+    "COPY_LOGIN_COMMAND_CLAUDE", "COPY_LOGIN_COMMAND_CODEX", "RECHECK_PROVIDERS",
   ]) {
     assert.ok(id in CTA, `CTA ${id} missing`);
   }
@@ -190,7 +192,15 @@ test("UI-FirstRun classify: active profile + claude not authenticated → PROVID
   });
   assert.equal(v.state, FIRST_RUN_STATES.PROVIDER_NOT_AUTHENTICATED);
   assert.deepEqual(v.meta.unauthenticated, ["claude"]);
-  assert.deepEqual(v.ctas, [CTA.AUTH_CLAUDE, CTA.AUTH_CODEX]);
+  // RR0-d: PROVIDER_NOT_AUTHENTICATED CTAs now include 3 friendlier
+  // options after AUTH_CLAUDE/AUTH_CODEX (clipboard copy + recheck)
+  assert.deepEqual(v.ctas, [
+    CTA.AUTH_CLAUDE,
+    CTA.AUTH_CODEX,
+    CTA.COPY_LOGIN_COMMAND_CLAUDE,
+    CTA.COPY_LOGIN_COMMAND_CODEX,
+    CTA.RECHECK_PROVIDERS,
+  ]);
 });
 
 test("UI-FirstRun classify: missing > unauthenticated priority", () => {
@@ -283,14 +293,20 @@ test("UI-FirstRun PUBLIC_SECTOR_INCOMPLETE: primary CTA is OPEN_PUBLIC_SECTOR_SE
   assert.equal(ctas[0], CTA.OPEN_PUBLIC_SECTOR_SETUP);
 });
 
-test("UI-FirstRun PROVIDER_MISSING: only CTA is REOPEN_SETUP_FOR_PROVIDERS", () => {
+test("UI-FirstRun PROVIDER_MISSING: REOPEN_SETUP_FOR_PROVIDERS + RR0-d RECHECK", () => {
   const ctas = STATE_CTAS[FIRST_RUN_STATES.PROVIDER_MISSING];
-  assert.deepEqual(ctas, [CTA.REOPEN_SETUP_FOR_PROVIDERS]);
+  assert.deepEqual(ctas, [CTA.REOPEN_SETUP_FOR_PROVIDERS, CTA.RECHECK_PROVIDERS]);
 });
 
-test("UI-FirstRun PROVIDER_NOT_AUTHENTICATED: lists AUTH CTAs in canonical order", () => {
+test("UI-FirstRun PROVIDER_NOT_AUTHENTICATED: AUTH CTAs + RR0-d copy-login + recheck", () => {
   const ctas = STATE_CTAS[FIRST_RUN_STATES.PROVIDER_NOT_AUTHENTICATED];
-  assert.deepEqual(ctas, [CTA.AUTH_CLAUDE, CTA.AUTH_CODEX]);
+  assert.deepEqual(ctas, [
+    CTA.AUTH_CLAUDE,
+    CTA.AUTH_CODEX,
+    CTA.COPY_LOGIN_COMMAND_CLAUDE,
+    CTA.COPY_LOGIN_COMMAND_CODEX,
+    CTA.RECHECK_PROVIDERS,
+  ]);
 });
 
 test("UI-FirstRun READY: lists test CTAs (not auth — providers already authed)", () => {

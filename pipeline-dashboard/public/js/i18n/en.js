@@ -177,6 +177,15 @@
     "firstRun.cta.authClaude":                           "Sign in to Claude",
     "firstRun.cta.authCodex":                            "Sign in to Codex",
 
+    // ── Slice RR0-d: friendlier missing/unauth flows + safe-guidance ──
+    "firstRun.cta.copyLoginCommandClaude":               "Copy Claude login command (claude auth login)",
+    "firstRun.cta.copyLoginCommandCodex":                "Copy Codex login command (codex auth login)",
+    "firstRun.cta.recheckProviders":                     "Re-check",
+    "firstRun.safeGuidance.short":                       "Harness never asks for your password or OAuth token.",
+    "firstRun.safeGuidance.long":                        "Sign-in happens entirely inside the official Claude/Codex CLI. Harness only (1) copies the login command to your clipboard, or (2) opens the official docs in a new tab. After signing in, click \"Re-check\" above to refresh the status.",
+    "firstRun.docsUrl.claude":                           "https://docs.anthropic.com/en/docs/claude-code/cli-usage",
+    "firstRun.docsUrl.codex":                            "https://github.com/openai/codex#authentication",
+
     "firstRun.meta.profileCount":                        "Registered profiles: {count}",
     "firstRun.meta.missing":                             "CLI(s) not detected: {runners}",
     "firstRun.meta.unauth":                              "Login required: {runners}",

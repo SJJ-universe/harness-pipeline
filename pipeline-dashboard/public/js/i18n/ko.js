@@ -181,6 +181,15 @@
     "firstRun.cta.authClaude":                           "Claude 로그인",
     "firstRun.cta.authCodex":                            "Codex 로그인",
 
+    // ── Slice RR0-d: friendlier missing/unauth flows + safe-guidance ──
+    "firstRun.cta.copyLoginCommandClaude":               "Claude 로그인 명령 복사 (claude auth login)",
+    "firstRun.cta.copyLoginCommandCodex":                "Codex 로그인 명령 복사 (codex auth login)",
+    "firstRun.cta.recheckProviders":                     "다시 검사",
+    "firstRun.safeGuidance.short":                       "Harness는 비밀번호나 OAuth 토큰을 직접 받지 않습니다.",
+    "firstRun.safeGuidance.long":                        "로그인은 Claude/Codex 공식 CLI에서 직접 처리합니다. Harness는 (1) 로그인 명령을 클립보드에 복사하거나 (2) 공식 docs 링크를 새 탭에 열어 안내만 합니다. 로그인이 끝나면 위의 \"다시 검사\" 버튼으로 상태를 갱신하세요.",
+    "firstRun.docsUrl.claude":                           "https://docs.anthropic.com/en/docs/claude-code/cli-usage",
+    "firstRun.docsUrl.codex":                            "https://github.com/openai/codex#authentication",
+
     "firstRun.meta.profileCount":                        "등록된 프로필: {count}개",
     "firstRun.meta.missing":                             "확인 안된 도구: {runners}",
     "firstRun.meta.unauth":                              "로그인 필요: {runners}",

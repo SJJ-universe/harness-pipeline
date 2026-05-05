@@ -80,6 +80,53 @@ const CTA = Object.freeze({
   REOPEN_SETUP_FOR_PROVIDERS: "reopen-setup-for-providers",
   AUTH_CLAUDE: "auth-claude",
   AUTH_CODEX: "auth-codex",
+  // Slice RR0-d (Phase 2 / RELEASE-READY-0, 2026-05-05): friendlier
+  // missing-CLI / missing-login flows.
+  // COPY_LOGIN_COMMAND_<runner> copies the official CLI login command
+  // (e.g. "claude auth login") to clipboard so the operator can paste
+  // it into a terminal — the harness intentionally does NOT collect
+  // passwords / OAuth tokens itself (see SAFE_GUIDANCE_PRINCIPLE).
+  // RECHECK_PROVIDERS re-runs provider probes after the operator
+  // logs in externally.
+  COPY_LOGIN_COMMAND_CLAUDE: "copy-login-command-claude",
+  COPY_LOGIN_COMMAND_CODEX: "copy-login-command-codex",
+  RECHECK_PROVIDERS: "recheck-providers",
+});
+
+// Slice RR0-d: safe-guidance principle. Frozen string operators see
+// in the firstRun panel when missing/unauth flows offer login help.
+// The principle is operationalized by:
+//   1. Harness has NO route that accepts passwords / OAuth tokens
+//   2. RR0-d CTAs are clipboard-copy + external-browser-link only
+//   3. Audit chain `account_login_guidance_clicked` (UI-emitted)
+//      records WHICH guidance the operator took, never the credential
+//
+// UI panel renders this as a footnote / tooltip on the auth CTAs.
+const SAFE_GUIDANCE_PRINCIPLE = Object.freeze({
+  id: "harness-no-credential-collection/v1",
+  // Translation keys (ko/en) live in public/js/i18n; this object
+  // exports the IDs so the panel can request the right localized
+  // string without hardcoding English fallbacks.
+  shortKey: "firstRun.safeGuidance.short",
+  longKey: "firstRun.safeGuidance.long",
+});
+
+// Slice RR0-d: official login-command catalog. Operators copy these
+// into their terminal. The catalog is frozen + version-pinned so
+// authoring mistakes (typo'd command, wrong subcommand) surface at
+// require()-time and so audit-chain entries can attribute "which
+// command shape was suggested when this guidance was clicked".
+const LOGIN_COMMANDS = Object.freeze({
+  claude: Object.freeze({
+    runner: "claude",
+    command: "claude auth login",
+    docsUrlKey: "firstRun.docsUrl.claude",  // i18n string — points to anthropic docs
+  }),
+  codex: Object.freeze({
+    runner: "codex",
+    command: "codex auth login",
+    docsUrlKey: "firstRun.docsUrl.codex",   // points to OpenAI codex docs
+  }),
 });
 
 // Per-state CTA recommendation. A state can list multiple CTAs;
@@ -98,10 +145,20 @@ const STATE_CTAS = Object.freeze({
   ]),
   [FIRST_RUN_STATES.PROVIDER_MISSING]: Object.freeze([
     CTA.REOPEN_SETUP_FOR_PROVIDERS,
+    // Slice RR0-d: when CLI is missing, copy install-link + recheck
+    // are the friendliest paths (operator installs externally, then
+    // re-runs the probe from the dashboard).
+    CTA.RECHECK_PROVIDERS,
   ]),
   [FIRST_RUN_STATES.PROVIDER_NOT_AUTHENTICATED]: Object.freeze([
     CTA.AUTH_CLAUDE,
     CTA.AUTH_CODEX,
+    // Slice RR0-d: clipboard-copy CTAs let operator paste the login
+    // command into their terminal. RECHECK is the "I logged in
+    // externally — please re-probe" button.
+    CTA.COPY_LOGIN_COMMAND_CLAUDE,
+    CTA.COPY_LOGIN_COMMAND_CODEX,
+    CTA.RECHECK_PROVIDERS,
   ]),
   [FIRST_RUN_STATES.READY]: Object.freeze([
     CTA.TEST_CLAUDE,
@@ -233,6 +290,10 @@ return {
   CTA,
   STATE_CTAS,
   classifyFirstRun,
+  // Slice RR0-d: safe-guidance principle + login-command catalog
+  // for the UI panel + audit-chain consumers
+  SAFE_GUIDANCE_PRINCIPLE,
+  LOGIN_COMMANDS,
   // Internal helpers exported for shape testing
   _hasNoProfile,
   _hasNoActiveProfile,
