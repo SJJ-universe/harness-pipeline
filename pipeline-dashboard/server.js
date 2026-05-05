@@ -1337,6 +1337,20 @@ app.use("/api", createRunMemoryRoutes({
   auditFn: evidenceLedger.append.bind(evidenceLedger),
 }));
 
+// Slice POL-b (Phase 2 / POLICY-UX-0, 2026-05-05): operator-facing
+// policy pack catalog. Read-only — pack changes still require server
+// restart (HARNESS_DEPLOYMENT_PROFILE env). The catalog returns:
+//   - currentPack: which pack the harness booted with
+//   - packs: full rule shape for all 5 frozen packs
+//   - metadata.hardGatesEffectiveMode: POL-a runtime mode (env or pack)
+//   - metadata.runMemoryEffective: POL-a runtime opt-out resolution
+//   - metadata.publicSectorRequirements: 5-bullet operator checklist
+const { createPolicyPackRoutes } = require("./src/routes/policyPackRoutes");
+app.use("/api", createPolicyPackRoutes({
+  deploymentProfile: _deploymentProfile,
+  env: process.env,
+}));
+
 // MB4-b (Phase D Round 2, 2026-04-27): the ~270 lines of
 // runGeneralPipeline + finalizeGeneralRun + 3 prompt builders that
 // lived here have been lifted to src/server/generalPipelineRunner.js.
