@@ -120,10 +120,25 @@ const REASON_RECORDED = "recorded";
 
 // ── Helpers ────────────────────────────────────────────────────────
 
-function _isOptOut(env) {
+function _isOptOut(env, deploymentProfile) {
+  // Slice POL-a (POLICY-UX-0): pack-level runMemoryEnabled=false
+  // also disables run memory writes. All 5 SMART-5 packs ship with
+  // runMemoryEnabled=true today, but a future "minimal-debug" pack
+  // could disable memory at the rule level.
+  // Precedence (high → low):
+  //   1. env HARNESS_RUN_MEMORY_DISABLE truthy → opt out (operator
+  //      override, beats pack default)
+  //   2. pack.runMemoryEnabled === false → opt out
+  //   3. record (default)
+  // Backwards compat: pre-POL-a 1-arg callers (no deploymentProfile)
+  // see step 1 only — identical to legacy behavior.
   const e = env || (typeof process !== "undefined" ? process.env : {});
   const v = String(e.HARNESS_RUN_MEMORY_DISABLE || "").trim().toLowerCase();
-  return v === "1" || v === "true" || v === "yes";
+  if (v === "1" || v === "true" || v === "yes") return true;
+  if (deploymentProfile && deploymentProfile.runMemoryEnabled === false) {
+    return true;
+  }
+  return false;
 }
 
 function _truncateField(text, limit) {
@@ -334,7 +349,10 @@ function buildRunMemoryRecord(runId, inputs, opts = {}) {
  */
 function recordRunMemory(opts = {}) {
   const env = opts.env || (typeof process !== "undefined" ? process.env : {});
-  if (_isOptOut(env)) {
+  // Slice POL-a: pass deploymentProfile to _isOptOut so a pack with
+  // runMemoryEnabled=false disables writes at runtime (in addition
+  // to env opt-out).
+  if (_isOptOut(env, opts.deploymentProfile)) {
     return { recorded: false, reason: REASON_DISABLED };
   }
   if (!opts.ledger || typeof opts.ledger.append !== "function") {

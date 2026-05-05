@@ -128,25 +128,52 @@ const AUDIT_VERBS = Object.freeze({
 // ── Mode resolution ──────────────────────────────────────────────
 
 /**
- * Resolve the gate operating mode from environment.
+ * Resolve the gate operating mode from environment + (optionally)
+ * deployment profile.
  *
- * `HARNESS_HARD_GATES` truthy values:
- *   "1" / "true" / "hard"  →  GATE_MODES.HARD
- *   anything else          →  GATE_MODES.WARN (safe default)
+ * Precedence (high → low):
+ *   1. env HARNESS_HARD_GATES is "1" / "true" / "hard"  → HARD
+ *   2. env HARNESS_HARD_GATES is "0" / "false" / "warn" / "no" → WARN
+ *      (explicit operator override — beats pack default)
+ *   3. deploymentProfile.hardGatesDefault === true → HARD
+ *      (pack-level default — POL-a wiring per plan §S §S-SMART-5
+ *      "Per-pack default HARNESS_HARD_GATES override env" deferred)
+ *   4. WARN (safe rollout default; existing deployments untouched
+ *      unless they pick a pack with hardGatesDefault=true)
  *
- * Public-sector deployments do NOT auto-imply hard mode. Operators
- * tune both posture (HARNESS_DEPLOYMENT_PROFILE=public-sector) AND
- * gate strictness (HARNESS_HARD_GATES=1) explicitly. This keeps
- * graduated rollout possible — enable warn first, observe audit
- * volume + UI toasts for a window, then flip to hard.
+ * Backwards compat:
+ *   - resolveGateMode(env) — legacy 1-arg call returns same value as
+ *     pre-POL-a when env is set explicitly OR when env is unset AND
+ *     no deploymentProfile is passed (deploymentProfile is null →
+ *     step 3 skipped → falls to step 4 = WARN, identical to legacy)
+ *   - All pre-POL-a tests pass unchanged
+ *
+ * Why explicit env can OVERRIDE pack default to WARN:
+ *   An operator running finance-high-privacy (hardGatesDefault=true)
+ *   may need to temporarily soften gates during incident triage or
+ *   migration. Setting HARNESS_HARD_GATES=0 / =warn lets them do
+ *   that without changing the pack id (which would also flip
+ *   sandbox / signing / etc. requirements). Plan §S §S-SMART-5
+ *   anticipates this with the documented escape pattern.
  *
  * @param {object} [env=process.env]
+ * @param {object} [deploymentProfile] - resolveDeploymentProfile() result
  * @returns {"hard"|"warn"}
  */
-function resolveGateMode(env) {
+function resolveGateMode(env, deploymentProfile) {
   const e = env || (typeof process !== "undefined" ? process.env : {});
   const raw = String(e.HARNESS_HARD_GATES || "").trim().toLowerCase();
+  // Step 1: explicit hard
   if (raw === "1" || raw === "true" || raw === "hard") return GATE_MODES.HARD;
+  // Step 2: explicit warn (operator override of pack default)
+  if (raw === "0" || raw === "false" || raw === "warn" || raw === "no") {
+    return GATE_MODES.WARN;
+  }
+  // Step 3: pack default (POL-a wiring)
+  if (deploymentProfile && deploymentProfile.hardGatesDefault === true) {
+    return GATE_MODES.HARD;
+  }
+  // Step 4: safe default
   return GATE_MODES.WARN;
 }
 
@@ -211,10 +238,13 @@ function _stringifyArgs(args) {
  * @returns {object} verdict
  */
 function gatePiiBlock(opts = {}) {
-  const mode = opts.mode || resolveGateMode();
+  const dp = opts.deploymentProfile || resolveDeploymentProfile({});
+  // Slice POL-a (POLICY-UX-0): resolveGateMode now consults
+  // deploymentProfile.hardGatesDefault when env is unset. Pre-POL-a
+  // 1-arg callers (no deploymentProfile) keep legacy behavior.
+  const mode = opts.mode || resolveGateMode(undefined, dp);
   const source = opts.source || "dispatch_args";
   const scanFn = typeof opts.scanFn === "function" ? opts.scanFn : scanForPii;
-  const dp = opts.deploymentProfile || resolveDeploymentProfile({});
 
   const text = _stringifyArgs(opts.args);
   if (text === null) {
@@ -326,9 +356,10 @@ function gatePiiBlock(opts = {}) {
  * @param {string} [opts.source="manifest_load"]
  */
 function gateReleaseSigned(opts = {}) {
-  const mode = opts.mode || resolveGateMode();
-  const source = opts.source || "manifest_load";
   const dp = opts.deploymentProfile || resolveDeploymentProfile({});
+  // POL-a: pack-default mode resolution
+  const mode = opts.mode || resolveGateMode(undefined, dp);
+  const source = opts.source || "manifest_load";
 
   // Only applicable when posture mandates signed manifests.
   if (dp.requireSignedManifest !== true) {
@@ -384,9 +415,10 @@ function gateReleaseSigned(opts = {}) {
  * @param {string} [opts.source="release_ready"]
  */
 function gateEvidenceExportReady(opts = {}) {
-  const mode = opts.mode || resolveGateMode();
-  const source = opts.source || "release_ready";
   const dp = opts.deploymentProfile || resolveDeploymentProfile({});
+  // POL-a: pack-default mode resolution
+  const mode = opts.mode || resolveGateMode(undefined, dp);
+  const source = opts.source || "release_ready";
 
   // Standard posture: evidence export isn't gating; ok always.
   if (dp.publicSector !== true) {
@@ -466,9 +498,10 @@ function gateEvidenceExportReady(opts = {}) {
  * @param {string} [opts.source="phase_complete"]
  */
 function gateCompletionAllowed(opts = {}) {
-  const mode = opts.mode || resolveGateMode();
-  const source = opts.source || "phase_complete";
   const dp = opts.deploymentProfile || resolveDeploymentProfile({});
+  // POL-a: pack-default mode resolution
+  const mode = opts.mode || resolveGateMode(undefined, dp);
+  const source = opts.source || "phase_complete";
   const ctx = opts.decisionContext || null;
 
   if (!ctx || !ctx.booleans) {
