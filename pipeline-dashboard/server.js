@@ -1186,6 +1186,13 @@ app.use("/api", createReviewSessionRoutes({
   reviewSessionManager: _reviewSessionManager,
   reviewSpawnDispatcher: _reviewSpawnDispatcher,
   deploymentProfile: _deploymentProfile,
+  // Slice SMART-2-b (2026-05-05): pre-state policy gate audit emitter.
+  // policy_gate_blocked / policy_gate_warn entries land in the same
+  // evidence ledger as the rest of the harness audit chain so a
+  // forensic auditor sees the gate decision alongside the dispatcher
+  // verbs. Bound to evidenceLedger.append matching the dispatcher
+  // wiring above.
+  auditFn: evidenceLedger.append.bind(evidenceLedger),
 }));
 
 // Slice UI-H9-a (Phase D / Phase E1.5, 2026-04-30): audit read API

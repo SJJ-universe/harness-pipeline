@@ -51,8 +51,75 @@
 const express = require("express");
 
 const presetLibrary = require("../runtime/presetLibrary");
+const policyGates = require("../policy/policyGates");
 
 const MAX_BODY_BYTES = 16 * 1024;  // 16 KB JSON body cap (instruction is the largest field)
+
+// ── SMART-2 (Phase 2 / 2026-05-05): pre-state hard gates ─────────
+//
+// `_evaluatePreStateGates(text, source, deploymentProfile, auditFn)`
+// runs the gate chain BEFORE manager.transition. For review-session
+// routes the only naturally-applicable gate is gatePiiBlock — the
+// operator's free-form instruction / question is the input that can
+// carry PII. gateReleaseSigned + gateEvidenceExportReady fire at
+// other layers (launcher / release-ready endpoints).
+//
+// Mode is resolved from process env (HARNESS_HARD_GATES=1 → hard,
+// default → warn). The route consults the verdict:
+//   - blocked=true → caller returns 409 + emits policy_gate_blocked
+//                    audit. Manager state UNTOUCHED (invariant).
+//   - blocked=false + audit !== null → emit policy_gate_warn audit
+//                    + proceed normally (operator dashboard renders
+//                    a toast).
+//   - blocked=false + audit === null → no audit, just proceed.
+//
+// `auditFn` is optional. When not wired (legacy callers), the audit
+// is silently dropped; gate decision still applies.
+
+function _runPreStateGates({ text, source, deploymentProfile, auditFn, sessionId }) {
+  const verdict = policyGates.gatePiiBlock({
+    args: text,
+    deploymentProfile,
+    source,
+  });
+  if (verdict.audit && typeof auditFn === "function") {
+    try {
+      auditFn(verdict.audit.verb, {
+        ...verdict.audit.data,
+        sessionId,
+        gateMode: verdict.mode,
+      });
+    } catch (_) { /* audit emission must never break the route */ }
+  }
+  return verdict;
+}
+
+function _emitGateBlockedResponse(res, verdict, context) {
+  // Map gate reason → HTTP 409 (state machine refused) for now. The
+  // operator dashboard can grep the `error` field to render a richer
+  // toast; the audit row carries full data.
+  return res.status(409).json({
+    ok: false,
+    error: "policy_gate_blocked",
+    gate: verdict.gate,
+    reason: verdict.reason,
+    message: verdict.message,
+    mode: verdict.mode,
+    // No `session` field — manager state was NOT advanced (invariant).
+    // The UI can refresh GET /api/review-sessions/<id> if it needs the
+    // existing state.
+    sessionId: context && context.sessionId ? context.sessionId : null,
+    // Audit data sample for operator UI (contains REDACTED PII excerpts
+    // only; runtime samples are pre-redacted by the scanner).
+    findings: verdict.audit && verdict.audit.data
+      ? {
+          findingTypes: verdict.audit.data.findingTypes || [],
+          findingCount: verdict.audit.data.findingCount || 0,
+          samples: verdict.audit.data.samples || {},
+        }
+      : null,
+  });
+}
 
 // Slice S3-c (Phase 2 / SMART-3, 2026-05-04): each POST endpoint that
 // dispatches a runner accepts an optional `preset` body field:
@@ -112,6 +179,11 @@ function createReviewSessionRoutes(deps = {}) {
   // surface to the operator via HTTP status — but state transitions
   // already happened, so the manager + UI know about the attempt.
   const dispatcher = deps.reviewSpawnDispatcher || null;
+  // SMART-2: optional audit emitter. When wired, route-level gate
+  // verdicts emit `policy_gate_blocked` / `policy_gate_warn`. Legacy
+  // callers without auditFn still see gate enforcement (decision is
+  // independent); they just lose the audit trail.
+  const auditFn = typeof deps.auditFn === "function" ? deps.auditFn : null;
 
   router.use(express.json({ limit: "32kb" }));
   router.use((_req, _res, next) => {
@@ -181,6 +253,18 @@ function createReviewSessionRoutes(deps = {}) {
     //    rather than transitioning to AWAITING_CRITIQUE then 400.
     const presetId = _resolvePresetId(body.preset);
     if (_emitPresetError(res, presetId, body.preset)) return;
+    // 0b. Slice S2-b: pre-state hard gates (PII block). Must run
+    //     BEFORE manager.sendCodex so blocked dispatch leaves no
+    //     half-progressed session. Audit emit is single-shot; if a
+    //     gate blocks here, dispatcher.dispatchCodex is NOT called.
+    const gateVerdict = _runPreStateGates({
+      text: body.instruction || "",
+      source: "send_codex_instruction",
+      deploymentProfile, auditFn, sessionId: id,
+    });
+    if (gateVerdict.blocked) {
+      return _emitGateBlockedResponse(res, gateVerdict, { sessionId: id });
+    }
     let session;
     // 1. State transition first
     try {
@@ -226,6 +310,16 @@ function createReviewSessionRoutes(deps = {}) {
     // Slice S3-c: preset validation up front (same as send-codex).
     const presetId = _resolvePresetId(body.preset);
     if (_emitPresetError(res, presetId, body.preset)) return;
+
+    // Slice S2-b: pre-state PII gate on operator follow-up question.
+    const gateVerdict = _runPreStateGates({
+      text: body.question || "",
+      source: "follow_up_question",
+      deploymentProfile, auditFn, sessionId: id,
+    });
+    if (gateVerdict.blocked) {
+      return _emitGateBlockedResponse(res, gateVerdict, { sessionId: id });
+    }
 
     // Public-sector posture: refuse follow-ups targeting "claude" if
     // posture forbids local executor AND deploymentProfile is wired.
@@ -286,6 +380,16 @@ function createReviewSessionRoutes(deps = {}) {
     // Slice S3-c: preset validation up front.
     const presetId = _resolvePresetId(body.preset);
     if (_emitPresetError(res, presetId, body.preset)) return;
+
+    // Slice S2-b: pre-state PII gate on operator's hand-back instruction.
+    const gateVerdict = _runPreStateGates({
+      text: body.instruction || "",
+      source: "hand_back_instruction",
+      deploymentProfile, auditFn, sessionId: id,
+    });
+    if (gateVerdict.blocked) {
+      return _emitGateBlockedResponse(res, gateVerdict, { sessionId: id });
+    }
 
     // Same posture gate as follow-up: hand-back triggers a Claude
     // spawn that may issue write-tools. Public-sector + no-local-
