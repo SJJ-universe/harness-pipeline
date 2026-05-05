@@ -187,6 +187,9 @@
    * @param {object} opts
    * @param {string} opts.instruction
    * @param {string[]} [opts.contextEvents]
+   * @param {string} [opts.preset]   — Slice S3-d: optional presetId
+   *   (e.g. "security", "performance"). Server validates against the
+   *   frozen presetLibrary; unknown presetId → 400 invalid_preset.
    * @param {object} [opts.store]
    * @param {string} [opts.base]
    * @param {function} [opts.fetchImpl]
@@ -199,6 +202,9 @@
     const base = typeof opts.base === "string" ? opts.base : DEFAULT_BASE;
     const body = { instruction: opts.instruction };
     if (Array.isArray(opts.contextEvents)) body.contextEvents = opts.contextEvents;
+    if (typeof opts.preset === "string" && opts.preset.length > 0) {
+      body.preset = opts.preset;
+    }
 
     const payload = await _request({
       method: "POST", url: `${base}/${encodeURIComponent(sessionId)}/send-codex`,
@@ -217,6 +223,7 @@
    * @param {object} opts
    * @param {string} opts.question
    * @param {"codex"|"claude"} opts.target
+   * @param {string} [opts.preset]   — Slice S3-d: optional presetId.
    */
   async function followUp(sessionId, opts = {}) {
     if (typeof sessionId !== "string" || !sessionId) {
@@ -224,6 +231,9 @@
     }
     const base = typeof opts.base === "string" ? opts.base : DEFAULT_BASE;
     const body = { question: opts.question, target: opts.target };
+    if (typeof opts.preset === "string" && opts.preset.length > 0) {
+      body.preset = opts.preset;
+    }
 
     const payload = await _request({
       method: "POST", url: `${base}/${encodeURIComponent(sessionId)}/follow-up`,
@@ -243,6 +253,7 @@
    * @param {object} opts
    * @param {string} opts.instruction
    * @param {boolean} [opts.includeCritique=true]
+   * @param {string} [opts.preset]   — Slice S3-d: optional presetId.
    */
   async function handBackToClaude(sessionId, opts = {}) {
     if (typeof sessionId !== "string" || !sessionId) {
@@ -251,6 +262,9 @@
     const base = typeof opts.base === "string" ? opts.base : DEFAULT_BASE;
     const body = { instruction: opts.instruction };
     if (opts.includeCritique === false) body.includeCritique = false;
+    if (typeof opts.preset === "string" && opts.preset.length > 0) {
+      body.preset = opts.preset;
+    }
 
     const payload = await _request({
       method: "POST",
@@ -326,6 +340,29 @@
     return payload;
   }
 
+  /**
+   * Slice S3-d: List the 6 frozen review presets.
+   *
+   * Calls GET /api/review-presets. Returns {schema, presets, serverTime}
+   * where each preset is {presetId, defaultLabel, defaultDescription}
+   * (no system prompt body).
+   *
+   * @param {object} [opts]
+   * @param {string} [opts.presetsBase="/api/review-presets"]
+   * @param {function} [opts.fetchImpl]
+   * @param {object} [opts.headers]
+   */
+  async function listPresets(opts = {}) {
+    const url = typeof opts.presetsBase === "string"
+      ? opts.presetsBase
+      : "/api/review-presets";
+    const payload = await _request({
+      method: "GET", url,
+      fetchImpl: opts.fetchImpl, headers: opts.headers,
+    });
+    return payload;
+  }
+
   return {
     createSession,
     sendToCodex,
@@ -334,6 +371,7 @@
     archiveSession,
     getSession,
     listSessions,
+    listPresets,
     DEFAULT_BASE,
     // Test hook
     _structuredError,

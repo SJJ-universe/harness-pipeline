@@ -63,6 +63,22 @@
 
   const TAIL_LINES = 200;  // last N lines per pane
 
+  // ── i18n helper (matches recommendations-card pattern) ────────
+  // S3-d: dual-agent-console gains a preset dropdown that needs
+  // localized labels. Reuses the same _t pattern as the rest of the
+  // monitor shell — i18n optional, fallback string used when missing.
+  function _t(i18n, key, fallback, params) {
+    if (i18n && typeof i18n.t === "function") {
+      try {
+        const v = i18n.t(key, params || {});
+        if (typeof v === "string" && v !== key) return v;
+      } catch (_) { /* fall through */ }
+    }
+    if (typeof fallback !== "string") return key;
+    if (!params) return fallback;
+    return fallback.replace(/\{(\w+)\}/g, (_m, k) => (k in params ? String(params[k]) : `{${k}}`));
+  }
+
   function create({
     root, store, doc,
     // UI-H7-c: optional review-session-client. When provided, the
@@ -77,6 +93,9 @@
     promptFn = null,
     // UI-H7-c: confirm-prompt seam for "Archive session?".
     confirmFn = null,
+    // S3-d: optional i18n (HarnessI18n.bind() result). Used for
+    // preset dropdown labels + "expert review focus" aria.
+    i18n = null,
   } = {}) {
     if (!root || typeof root.appendChild !== "function") {
       throw new Error("dual-agent-console.create: root must be an element");
@@ -114,6 +133,43 @@
     // UI-H7-c: track in-flight requests per session so duplicate
     // clicks don't spawn parallel requests. Map<sessionId, action>.
     const inFlight = new Set();
+    // S3-d: preset state. `availablePresets` is null until the GET
+    // returns; in that window the dropdown shows a "(loading…)"
+    // placeholder. `selectedPresetId` is null = free-form prompt
+    // (legacy dispatcher behavior).
+    let availablePresets = null;
+    let selectedPresetId = null;
+    let presetsFetchInFlight = false;
+    let presetsFetchFailed = false;
+
+    function _fetchPresetsOnce() {
+      if (!client || typeof client.listPresets !== "function") return;
+      if (presetsFetchInFlight || availablePresets !== null) return;
+      presetsFetchInFlight = true;
+      Promise.resolve()
+        .then(() => client.listPresets())
+        .then((payload) => {
+          if (destroyed) return;
+          if (payload && Array.isArray(payload.presets)) {
+            availablePresets = payload.presets;
+            presetsFetchFailed = false;
+          } else {
+            availablePresets = [];
+            presetsFetchFailed = true;
+          }
+          render();
+        })
+        .catch((err) => {
+          if (destroyed) return;
+          // Soft fail: dropdown shows "(presets unavailable)" but the
+          // existing free-form action row still works exactly as before.
+          availablePresets = [];
+          presetsFetchFailed = true;
+          _onError(err);
+          render();
+        })
+        .finally(() => { presetsFetchInFlight = false; });
+    }
 
     function _renderTabs(side, tabs, active, onSelect) {
       const tabsRoot = _doc.createElement("div");
@@ -304,6 +360,12 @@
         : "🔗 세션 없음";
       row.appendChild(indicator);
 
+      // Section A.5: S3-d preset dropdown (only when presets endpoint
+      // is available + fetched successfully). Pre-fetch lifecycle:
+      // null → loading placeholder; [] + failed → "presets unavailable"
+      // disabled; [...6] → actual dropdown.
+      row.appendChild(_renderPresetDropdown());
+
       // Section B: action buttons
       const buttons = _doc.createElement("span");
       buttons.className = "dac-action-buttons";
@@ -412,6 +474,121 @@
       return btn;
     }
 
+    // ── S3-d: preset dropdown ─────────────────────────────────────
+    //
+    // Layout:
+    //   <span class="dac-preset-picker" data-state="...">
+    //     <label class="dac-preset-label">검토 관점</label>
+    //     <select class="dac-preset-select" data-preset="...">
+    //       <option value="">자유 입력 (preset 없음)</option>
+    //       <option value="security">보안</option>
+    //       <option value="accuracy">정확성</option>
+    //       ...6 options
+    //     </select>
+    //     <span class="dac-preset-tooltip">(description of selected)</span>
+    //   </span>
+    //
+    // States via data-state:
+    //   "loading"   — fetch in flight, single disabled placeholder
+    //   "ready"     — 1+6 options + tooltip
+    //   "missing"   — fetch failed; disabled stub + warning text
+    //   "no-client" — client doesn't support listPresets; hidden
+    function _renderPresetDropdown() {
+      const wrap = _doc.createElement("span");
+      wrap.className = "dac-preset-picker";
+
+      // No client.listPresets → hide the picker entirely (legacy /
+      // older client without preset support). Uses the standard HTML
+      // `hidden` attribute (display:none equivalent + a11y-aware) so
+      // the same code works under both browser DOM + minimal stubs.
+      if (!client || typeof client.listPresets !== "function") {
+        wrap.setAttribute("data-state", "no-client");
+        wrap.setAttribute("hidden", "");
+        return wrap;
+      }
+
+      const label = _doc.createElement("label");
+      label.className = "dac-preset-label";
+      label.textContent = _t(i18n, "smart.preset.label", "검토 관점");
+      wrap.appendChild(label);
+
+      const select = _doc.createElement("select");
+      select.className = "dac-preset-select";
+      select.setAttribute(
+        "aria-label",
+        _t(i18n, "smart.preset.aria", "전문가 검토 관점 선택"),
+      );
+
+      if (availablePresets === null) {
+        // Loading state — disabled select with single placeholder.
+        wrap.setAttribute("data-state", "loading");
+        const opt = _doc.createElement("option");
+        opt.value = "";
+        opt.textContent = _t(i18n, "smart.preset.loading", "(불러오는 중…)");
+        select.appendChild(opt);
+        select.disabled = true;
+        wrap.appendChild(select);
+        return wrap;
+      }
+
+      if (presetsFetchFailed || availablePresets.length === 0) {
+        // Soft-fail state — disabled with explanation. Operator
+        // continues with free-form prompt.
+        wrap.setAttribute("data-state", "missing");
+        const opt = _doc.createElement("option");
+        opt.value = "";
+        opt.textContent = _t(i18n, "smart.preset.unavailable",
+          "(preset 목록 불러오지 못함 — 자유 입력만 사용)");
+        select.appendChild(opt);
+        select.disabled = true;
+        wrap.appendChild(select);
+        return wrap;
+      }
+
+      // Ready state — 1+6 options.
+      wrap.setAttribute("data-state", "ready");
+      const noneOpt = _doc.createElement("option");
+      noneOpt.value = "";
+      noneOpt.textContent = _t(i18n, "smart.preset.none",
+        "자유 입력 (preset 없음)");
+      if (selectedPresetId === null) noneOpt.selected = true;
+      select.appendChild(noneOpt);
+
+      let selectedDescription = "";
+      for (const p of availablePresets) {
+        const opt = _doc.createElement("option");
+        opt.value = p.presetId;
+        // Prefer i18n key `smart.preset.<id>.label`; fall back to
+        // server-provided defaultLabel.
+        opt.textContent = _t(i18n,
+          `smart.preset.${p.presetId}.label`,
+          p.defaultLabel || p.presetId);
+        if (p.presetId === selectedPresetId) {
+          opt.selected = true;
+          selectedDescription = _t(i18n,
+            `smart.preset.${p.presetId}.description`,
+            p.defaultDescription || "");
+        }
+        select.appendChild(opt);
+      }
+
+      select.addEventListener("change", (ev) => {
+        const v = ev && ev.target && ev.target.value;
+        selectedPresetId = (typeof v === "string" && v.length > 0) ? v : null;
+        // Re-render so the tooltip + option-selected sync.
+        render();
+      });
+      wrap.appendChild(select);
+
+      if (selectedDescription) {
+        const tooltip = _doc.createElement("span");
+        tooltip.className = "dac-preset-tooltip";
+        tooltip.textContent = selectedDescription;
+        wrap.appendChild(tooltip);
+      }
+      return wrap;
+    }
+
     function _stateLabel(state) {
       const labels = {
         created:           "준비됨",
@@ -463,7 +640,10 @@
       if (instruction === null) return;
       _markInFlight(session.sessionId);
       try {
-        await client.sendToCodex(session.sessionId, { instruction, store });
+        // S3-d: pass the operator-selected preset (or null for free-form).
+        const opts = { instruction, store };
+        if (selectedPresetId) opts.preset = selectedPresetId;
+        await client.sendToCodex(session.sessionId, opts);
       } catch (err) { _onError(err); }
       finally { _clearInFlight(session.sessionId); }
     }
@@ -477,7 +657,9 @@
       if (question === null) return;
       _markInFlight(session.sessionId);
       try {
-        await client.followUp(session.sessionId, { question, target, store });
+        const opts = { question, target, store };
+        if (selectedPresetId) opts.preset = selectedPresetId;
+        await client.followUp(session.sessionId, opts);
       } catch (err) { _onError(err); }
       finally { _clearInFlight(session.sessionId); }
     }
@@ -489,7 +671,9 @@
       if (instruction === null) return;
       _markInFlight(session.sessionId);
       try {
-        await client.handBackToClaude(session.sessionId, { instruction, store });
+        const opts = { instruction, store };
+        if (selectedPresetId) opts.preset = selectedPresetId;
+        await client.handBackToClaude(session.sessionId, opts);
       } catch (err) { _onError(err); }
       finally { _clearInFlight(session.sessionId); }
     }
@@ -528,6 +712,11 @@
     }
 
     unsubscribe = store.subscribe(render);
+    // S3-d: kick off the preset fetch on mount. Render once
+    // immediately (will show "(loading…)" placeholder), then re-render
+    // when the fetch resolves. Soft-fail keeps the action row usable
+    // without preset support.
+    _fetchPresetsOnce();
     render();
 
     return {
@@ -545,7 +734,25 @@
       // Test hooks
       _selectLeft(tabId) { activeLeft = tabId; render(); },
       _selectRight(tabId) { activeRight = tabId; render(); },
-      _state() { return { activeLeft, activeRight }; },
+      _state() {
+        return {
+          activeLeft, activeRight,
+          selectedPresetId,
+          availablePresets,
+          presetsFetchFailed,
+        };
+      },
+      // S3-d: test hook so unit tests don't have to mock client.listPresets.
+      _setPresets(presets) {
+        availablePresets = Array.isArray(presets) ? presets : [];
+        presetsFetchFailed = false;
+        render();
+      },
+      _selectPreset(presetId) {
+        selectedPresetId = (typeof presetId === "string" && presetId.length > 0)
+          ? presetId : null;
+        render();
+      },
     };
   }
 

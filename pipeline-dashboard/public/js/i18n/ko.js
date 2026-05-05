@@ -224,6 +224,30 @@
     "smart.rec.publicSectorEvidenceTrail.title":          "🛡 공공기관 감사 evidence 권장",
     "smart.rec.publicSectorEvidenceTrail.body":           "공공기관 절차상 정기적으로 감사 봉투를 export해 보관해 두는 것이 좋습니다.",
     "smart.rec.publicSectorEvidenceTrail.cta":            "감사 봉투 만들기",
+
+    // ── SMART-3: Expert review presets (6 frozen) ───────────────────
+    // 운영자가 자유 입력 대신 6가지 전문가 관점 중 하나를 골라 Codex
+    // 비평 / Claude hand-back 시 system prompt + severity tag 지침이
+    // 함께 전송됨. preset이 적용되면 audit chain entry에도 presetId
+    // 가 기록됨.
+    "smart.preset.label":                                 "검토 관점",
+    "smart.preset.aria":                                  "전문가 검토 관점 선택",
+    "smart.preset.loading":                               "(불러오는 중…)",
+    "smart.preset.unavailable":                           "(preset 목록 불러오지 못함 — 자유 입력만 사용)",
+    "smart.preset.none":                                  "자유 입력 (preset 없음)",
+
+    "smart.preset.accuracy.label":                        "정확성",
+    "smart.preset.accuracy.description":                  "논리 정합성, off-by-one, 경계값, 타입 혼동.",
+    "smart.preset.security.label":                        "보안",
+    "smart.preset.security.description":                  "인증/인가, 인젝션, 비밀값 누출, 공급망 위험.",
+    "smart.preset.privacy.label":                         "개인정보",
+    "smart.preset.privacy.description":                   "PII (KRN/주민번호/이메일) 노출, 보존 기간, 데이터 최소화.",
+    "smart.preset.performance.label":                     "성능",
+    "smart.preset.performance.description":               "Hot path, N+1, 메모리 누수, 이벤트 루프 동기 작업.",
+    "smart.preset.release.label":                         "배포 준비",
+    "smart.preset.release.description":                   "롤아웃 안전, manifest 서명, 하위 호환성, audit chain 커버리지.",
+    "smart.preset.public-sector-audit.label":             "🛡 공공기관 감사",
+    "smart.preset.public-sector-audit.description":       "공공기관 / 규제 배포 — fail-closed 자세, audit chain 깊이, 서명 무결성.",
   };
 
   if (typeof module !== "undefined" && module.exports) {

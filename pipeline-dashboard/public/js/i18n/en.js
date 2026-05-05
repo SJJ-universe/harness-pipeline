@@ -216,6 +216,30 @@
     "smart.rec.publicSectorEvidenceTrail.title":          "🛡 Public-sector audit evidence recommended",
     "smart.rec.publicSectorEvidenceTrail.body":           "Public-sector procedure benefits from regularly exporting audit envelopes for retention.",
     "smart.rec.publicSectorEvidenceTrail.cta":            "Build audit envelope",
+
+    // ── SMART-3: Expert review presets (6 frozen) ───────────────────
+    // Operator picks one of six expert lenses instead of free-form
+    // input. The preset's system prompt + severity-tag instruction is
+    // sent alongside the operator's instruction. Audit chain entries
+    // record the chosen presetId.
+    "smart.preset.label":                                 "Review focus",
+    "smart.preset.aria":                                  "Select expert review focus",
+    "smart.preset.loading":                               "(loading…)",
+    "smart.preset.unavailable":                           "(preset list unavailable — free-form only)",
+    "smart.preset.none":                                  "Free-form (no preset)",
+
+    "smart.preset.accuracy.label":                        "Accuracy",
+    "smart.preset.accuracy.description":                  "Logical correctness, off-by-one, edge cases, type confusion.",
+    "smart.preset.security.label":                        "Security",
+    "smart.preset.security.description":                  "Auth, injection, secret leakage, supply-chain risk.",
+    "smart.preset.privacy.label":                         "Privacy",
+    "smart.preset.privacy.description":                   "PII (KRN/SSN/email) exposure, retention, data-minimization.",
+    "smart.preset.performance.label":                     "Performance",
+    "smart.preset.performance.description":               "Hot paths, N+1 queries, memory leaks, sync work in event loops.",
+    "smart.preset.release.label":                         "Release Readiness",
+    "smart.preset.release.description":                   "Rollout safety, signed manifests, backward compat, audit-chain coverage.",
+    "smart.preset.public-sector-audit.label":             "🛡 Public-Sector Audit",
+    "smart.preset.public-sector-audit.description":       "Public-sector / regulated — fail-closed posture, audit-chain depth, signing integrity.",
   };
 
   if (typeof module !== "undefined" && module.exports) {

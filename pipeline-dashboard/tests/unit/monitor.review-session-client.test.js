@@ -383,7 +383,94 @@ test("archiveSession rejects empty sessionId", async () => {
 
 // ── exports ────────────────────────────────────────────────────────
 
-test("module exposes 7 methods + DEFAULT_BASE", () => {
+// ── listPresets (Slice S3-d) ─────────────────────────────────────
+
+test("listPresets GETs /api/review-presets", async () => {
+  const { fetchImpl, calls } = _capture(() => _okResponse({
+    schema: "harness-review-preset/v1",
+    presets: [
+      { presetId: "security", defaultLabel: "Security", defaultDescription: "..." },
+    ],
+  }));
+  const result = await client.listPresets({ fetchImpl });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, "/api/review-presets");
+  assert.equal(calls[0].init.method, "GET");
+  assert.equal(result.schema, "harness-review-preset/v1");
+  assert.equal(result.presets.length, 1);
+});
+
+test("listPresets honors presetsBase option", async () => {
+  const { fetchImpl, calls } = _capture(() => _okResponse({ presets: [] }));
+  await client.listPresets({ fetchImpl, presetsBase: "/x/api/review-presets" });
+  assert.equal(calls[0].url, "/x/api/review-presets");
+});
+
+test("listPresets surfaces network error as structured Error", async () => {
+  const fetchImpl = async () => { throw new Error("offline"); };
+  await assert.rejects(
+    () => client.listPresets({ fetchImpl }),
+    (err) => err.code === "network_error",
+  );
+});
+
+// ── Preset opts pass-through (S3-d) ──────────────────────────────
+
+test("sendToCodex passes opts.preset (string) into request body", async () => {
+  const { fetchImpl, calls } = _capture(() => _okResponse({
+    ok: true, session: { sessionId: "rs-1" }, dispatched: true, presetId: "security",
+  }));
+  await client.sendToCodex("rs-1", {
+    instruction: "x", preset: "security", fetchImpl,
+  });
+  const body = JSON.parse(calls[0].init.body);
+  assert.equal(body.preset, "security");
+});
+
+test("sendToCodex omits preset when not provided", async () => {
+  const { fetchImpl, calls } = _capture(() => _okResponse({
+    ok: true, session: { sessionId: "rs-1" }, dispatched: true,
+  }));
+  await client.sendToCodex("rs-1", { instruction: "x", fetchImpl });
+  const body = JSON.parse(calls[0].init.body);
+  assert.equal(body.preset, undefined);
+});
+
+test("followUp passes opts.preset into request body", async () => {
+  const { fetchImpl, calls } = _capture(() => _okResponse({
+    ok: true, session: { sessionId: "rs-1" }, presetId: "performance",
+  }));
+  await client.followUp("rs-1", {
+    question: "?", target: "codex", preset: "performance", fetchImpl,
+  });
+  const body = JSON.parse(calls[0].init.body);
+  assert.equal(body.preset, "performance");
+});
+
+test("handBackToClaude passes opts.preset into request body", async () => {
+  const { fetchImpl, calls } = _capture(() => _okResponse({
+    ok: true, session: { sessionId: "rs-1" }, presetId: "security",
+  }));
+  await client.handBackToClaude("rs-1", {
+    instruction: "fix", preset: "security", fetchImpl,
+  });
+  const body = JSON.parse(calls[0].init.body);
+  assert.equal(body.preset, "security");
+});
+
+test("preset opts ignores empty/non-string values", async () => {
+  const { fetchImpl, calls } = _capture(() => _okResponse({
+    ok: true, session: { sessionId: "rs-1" }, dispatched: true,
+  }));
+  await client.sendToCodex("rs-1", { instruction: "x", preset: "", fetchImpl });
+  let body = JSON.parse(calls[0].init.body);
+  assert.equal(body.preset, undefined, "empty string preset omitted");
+  await client.sendToCodex("rs-1", { instruction: "x", preset: 42, fetchImpl });
+  body = JSON.parse(calls[1].init.body);
+  assert.equal(body.preset, undefined, "non-string preset omitted");
+});
+
+test("module exposes 8 methods + DEFAULT_BASE", () => {
   assert.equal(typeof client.createSession, "function");
   assert.equal(typeof client.sendToCodex, "function");
   assert.equal(typeof client.followUp, "function");
@@ -391,5 +478,7 @@ test("module exposes 7 methods + DEFAULT_BASE", () => {
   assert.equal(typeof client.archiveSession, "function");
   assert.equal(typeof client.getSession, "function");
   assert.equal(typeof client.listSessions, "function");
+  // Slice S3-d (SMART-3): preset discovery endpoint client.
+  assert.equal(typeof client.listPresets, "function");
   assert.equal(client.DEFAULT_BASE, "/api/review-sessions");
 });
