@@ -26,6 +26,7 @@ gate. Every PR touches at least one of these indirectly.
 | [`validate-hook-deployment.js`](validate-hook-deployment.js) | Verify the harness hook contracts ship correctly. | `npm run verify:hooks` |
 | [`compute-sri.js`](compute-sri.js) | Compute Subresource Integrity hashes for static asset references. | `npm run sri:print` |
 | [`visual-baseline-update.js`](visual-baseline-update.js) | Refresh / check the visual regression baselines. | `npm run visual:update` / `:check` |
+| [`preflight.js`](preflight.js) | Pre-deployment health check — runs every required gate (visual / readiness / scorecard / hooks) plus optional smoke. See [`docs/runbooks/deployment-readiness.md`](../docs/runbooks/deployment-readiness.md). | `npm run preflight` |
 
 ## §2 External review & audit
 
