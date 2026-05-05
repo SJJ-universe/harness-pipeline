@@ -44,9 +44,15 @@ operator instructions so the path to v1.0.0 is unambiguous.
 
 ## §2 Blocker #1 — Real-binary live verification
 
-**Status**: Open. Tooling complete (3 scripts + schema doc + collector);
-operator-time evidence required.
-**Priority**: Highest. Closes first because the artifacts feed §3
+**Status**: ✅ **CLOSED 2026-05-05**. Real-binary probes against
+authenticated Claude/Codex CLIs:
+- smart-arc verdict PASS (all 6 SMART arc properties + audit chain) —
+  evidence at [`../reports/2026-05-05-smart-arc-live-verify.json`](../reports/2026-05-05-smart-arc-live-verify.json)
+- review-relay verdict PASS (Codex critique received in 30.1s) —
+  evidence at [`../reports/2026-05-05-review-relay-live-verify.json`](../reports/2026-05-05-review-relay-live-verify.json)
+- Aggregated bundle verdict PASS — evidence at
+  [`../reports/2026-05-05-live-evidence-bundle.json`](../reports/2026-05-05-live-evidence-bundle.json)
+**Priority**: Highest. Closed first because the artifacts feed §3
 and §4.
 
 ### §2.1 Why it blocks v1.0.0
@@ -140,11 +146,13 @@ output that breaks v1 shape bumps to v2 there.
 
 ## §3 Blocker #2 — Trust-store + signed-manifest end-to-end
 
-**Status**: Open. Operator verification required for acceptance #2.
-Acceptance #1 (runbook), #3 (resolver test), and #4 (UI deferral)
-all closed (see §3.3). UI work formally deferred to post-v1.0.0.
-**Priority**: Second. Depends on §2 closure for the audit-chain
-property.
+**Status**: ✅ **CLOSED 2026-05-05**. All four acceptance criteria met
+(see §3.3). E2E loop run with all four expected audit-chain anchors
+captured against real `install-version.ps1` invocation. Operator
+evidence: [`../reports/2026-05-05-trust-store-e2e-eval.md`](../reports/2026-05-05-trust-store-e2e-eval.md).
+UI work formally deferred to post-v1.0.0.
+**Priority**: Second. Was dependent on §2 closure for the audit-chain
+property; both blockers now closed.
 
 ### §3.1 Why it blocks v1.0.0
 
@@ -200,14 +208,15 @@ The blocker closes when **all** of the following are true:
 1. ✅ **CLOSED** (TRUST-STORE-E2E-RUNBOOK, 2026-05-05) — A committed
    runbook walks Phases 1–3 with exact commands. See
    [`trust-store-e2e.md`](trust-store-e2e.md).
-2. ⏳ Operator-time — A committed report in
-   `docs/reports/<date>-trust-store-e2e-eval.md` documents at least
-   one successful end-to-end run with audit-chain anchors:
-   - `launcher_signature_verified` (signed manifest accepted)
-   - `launcher_signature_failed` with `reason=signature_missing` (unsigned manifest rejected)
-   - `launcher_signature_failed` with `reason=hash_mismatch` (tampered manifest rejected)
-
-   Template in [`trust-store-e2e.md`](trust-store-e2e.md) §6.3.
+2. ✅ **CLOSED** (TRUST-STORE-E2E-EVIDENCE, 2026-05-05) — Committed
+   report at
+   [`../reports/2026-05-05-trust-store-e2e-eval.md`](../reports/2026-05-05-trust-store-e2e-eval.md)
+   documents the end-to-end run with all four audit-chain anchors
+   captured:
+   - ✅ `launcher_signature_verified keyId=7c4955dc96f3a691 label=default`
+   - ✅ `launcher_signature_failed reason=signature_missing`
+   - ✅ `launcher_signature_failed reason=unknown_key_id keyId=268ca8e46bb4dee3`
+   - ✅ `launcher_signature_failed reason=hash_mismatch`
 3. ✅ **CLOSED** (TRUST-STORE-PATH-IT, 2026-05-05) — The trust-store
    path resolver (`scripts/launcher/trust-store-path.js`) has an
    integration test that exercises the full precedence chain (CLI

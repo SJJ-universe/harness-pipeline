@@ -389,6 +389,15 @@ if (-not $IsComplete) {
             # forensically — moving instead of deleting because a
             # mismatched zip is a security signal, not a transient error.
             $Quarantine = Join-Path $DataDir "quarantine-$Version-$([datetime]::UtcNow.ToString('yyyyMMddHHmmss')).zip"
+            # Slice TRUST-STORE-E2E-EVIDENCE follow-up (2026-05-05):
+            # emit the audit-chain row the operator runbook
+            # (docs/runbooks/trust-store-e2e.md §5.2) requires for
+            # tampering rejection. The verb belongs to the launcher_signature_*
+            # family because a SHA mismatch invalidates the signature's
+            # coverage promise — even though the cryptographic signature
+            # itself was verified earlier in this run, the bytes the
+            # signature attested to are not the bytes that arrived.
+            Write-AuditLine 'launcher_signature_failed' 'reason=hash_mismatch'
             Write-Error "SHA256 mismatch - moved to $Quarantine for forensics"
             Move-Item -Path $ZipFile -Destination $Quarantine -Force
             exit 34

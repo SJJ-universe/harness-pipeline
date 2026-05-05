@@ -227,20 +227,27 @@ test("TRUST-STORE-E2E-RUNBOOK: runbooks/README.md §2 lists trust-store-e2e.md",
 
 // ── v1-blockers acceptance criteria updated ─────────────────
 
-test("TRUST-STORE-E2E-RUNBOOK: v1-blockers §3.3 marks acceptance #1 closed", () => {
+test("TRUST-STORE-E2E-RUNBOOK: v1-blockers §3.3 marks all 4 acceptance closed/deferred", () => {
   const text = read(V1_BLOCKERS);
   const idx = text.indexOf("### §3.3 Acceptance criteria");
   const seg = text.slice(idx, text.indexOf("### §3.4", idx));
-  // Acceptance #1 → CLOSED
+  // Acceptance #1 → CLOSED (TRUST-STORE-E2E-RUNBOOK round)
   assert.match(seg, /1\..*CLOSED|CLOSED.*runbook walks Phases/i);
-  // Acceptance #2 → still operator-time
-  assert.match(seg, /2\..*[Oo]perator/);
-  // Acceptance #3 → still CLOSED (TRUST-STORE-PATH-IT)
+  // Acceptance #2 → CLOSED (TRUST-STORE-E2E-EVIDENCE round, this run)
+  assert.match(seg, /2\..*CLOSED|CLOSED.*Committed report/i);
+  // Acceptance #3 → CLOSED (TRUST-STORE-PATH-IT round)
   assert.match(seg, /3\..*CLOSED/i);
   // Acceptance #4 → DEFERRED
   assert.match(seg, /4\..*DEFERRED/i);
-  // Pointer to trust-store-e2e.md
+  // Pointer to trust-store-e2e.md (the runbook)
   assert.match(seg, /trust-store-e2e\.md/);
+  // Pointer to the eval-report file (acceptance #2 evidence)
+  assert.match(seg, /trust-store-e2e-eval\.md/);
+  // 4 audit anchor verbs all listed
+  assert.match(seg, /launcher_signature_verified/);
+  assert.match(seg, /signature_missing/);
+  assert.match(seg, /unknown_key_id/);
+  assert.match(seg, /hash_mismatch/);
 });
 
 // ── scorecard backlog has the v1.0.0 deferral entry ─────────

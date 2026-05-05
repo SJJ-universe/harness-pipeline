@@ -359,27 +359,31 @@ The path from `v1.0.0-rc.2` to `v1.0.0` final is documented in
 movement (120/126 → 121/127) is deliberately deferred until all
 three blockers close with end-to-end trust property closure.
 
-**Blocker #1 — Real-binary live verification** (operator-time):
-- Tooling complete:
-  [`scripts/live-verify-smart-arc.js`](../scripts/live-verify-smart-arc.js),
-  [`scripts/live-verify-review-relay.js`](../scripts/live-verify-review-relay.js),
-  and [`scripts/collect-live-evidence.js`](../scripts/collect-live-evidence.js)
-  (the three together produce `harness-live-evidence-bundle/v1`,
-  schema locked in [`docs/live-evidence-schema.md`](./live-evidence-schema.md)).
-- Outstanding: operator runs probes against real Claude/Codex
-  binaries, commits the JSONs, runs the collector, ships a PASS
-  bundle.
+**Blocker #1 — Real-binary live verification** ✅ **CLOSED 2026-05-05**:
+- Real-binary probes against authenticated Claude/Codex CLIs:
+  smart-arc PASS (all 6 SMART arc properties + audit chain),
+  review-relay PASS (Codex critique received in 30.1s with 2 [low]
+  findings), aggregated bundle PASS.
+- Evidence: `docs/reports/2026-05-05-smart-arc-live-verify.json`,
+  `2026-05-05-review-relay-live-verify.json`,
+  `2026-05-05-live-evidence-bundle.json`.
+- Probe defects fixed during run (SMART-ARC-PROBE-SCHEMA-FIX):
+  `info.body.deploymentProfile` → `info.body.deployment`;
+  `_summarizeDeployment` now exposes `hardGatesDefault`.
 
-**Blocker #2 — Trust-store + signed-manifest E2E** (operator-time + 1 small deferral):
-- ✅ Acceptance #1 closed: operator runbook
-  [`docs/runbooks/trust-store-e2e.md`](./runbooks/trust-store-e2e.md)
-  with the Phase 1/2/3 sign / install / tampering loop.
-- Outstanding (acceptance #2): operator runs the loop, commits
-  `docs/reports/<date>-trust-store-e2e-eval.md` with the three
-  audit-chain anchors observed (`launcher_signature_verified`,
-  `launcher_signature_failed reason=signature_missing`,
-  `launcher_signature_failed reason=hash_mismatch`).
-- ✅ Acceptance #3 closed: full 5-step precedence chain integration
+**Blocker #2 — Trust-store + signed-manifest E2E** ✅ **CLOSED 2026-05-05**:
+- ✅ Acceptance #1: operator runbook
+  [`docs/runbooks/trust-store-e2e.md`](./runbooks/trust-store-e2e.md).
+- ✅ Acceptance #2: 4 audit-chain anchors captured against real
+  `install-version.ps1` (signed verified / unsigned rejected /
+  unknown_key_id rejected / hash_mismatch on tampered zip).
+  Closeout report:
+  [`docs/reports/2026-05-05-trust-store-e2e-eval.md`](./reports/2026-05-05-trust-store-e2e-eval.md).
+  Two defects fixed during run: `install-version.ps1` now emits
+  `launcher_signature_failed reason=hash_mismatch` for SHA mismatch;
+  `HARNESS_ALLOW_INSECURE_MANIFEST_URL=1` now also relaxes the
+  manifest-body url check (was strict-only before).
+- ✅ Acceptance #3: full 5-step precedence chain integration
   test ([`tests/integration/trust-store-path-precedence.test.js`](../tests/integration/trust-store-path-precedence.test.js))
   + sample fixture ([`docs/fixtures/trust-store-example.json`](./fixtures/trust-store-example.json)).
 - ✅ Acceptance #4 — **TRUST-STORE-0 UI formally DEFERRED to post-v1.0.0**.

@@ -66,6 +66,62 @@ test("D0-a: validateManifestSchema rejects http:// URL (https mandatory)", () =>
   assert.ok(r.errors.some((e) => /https:\/\//.test(e)));
 });
 
+// TRUST-STORE-E2E-EVIDENCE follow-up (2026-05-05): the same env that
+// relaxes the fetch-URL validation also relaxes the manifest BODY's
+// url field check. Without the env set, the strict https:// rule
+// applies (covered above). With the env set, file:// / http:// URLs
+// in the manifest body are accepted. Production posture (env unset)
+// MUST keep rejecting.
+
+test("TRUST-STORE-E2E-EVIDENCE: HARNESS_ALLOW_INSECURE_MANIFEST_URL=1 relaxes manifest-body url check", () => {
+  const original = process.env.HARNESS_ALLOW_INSECURE_MANIFEST_URL;
+  try {
+    process.env.HARNESS_ALLOW_INSECURE_MANIFEST_URL = "1";
+    const m = { ...VALID_MANIFEST, url: "file:///C:/tmp/release.zip" };
+    const r = validateManifestSchema(m);
+    assert.equal(r.ok, true,
+      "with env=1 the file:// URL is acceptable (operator opted in)");
+    // ok: true responses don't carry an `errors` field — that's only
+    // present on rejection. Assert the rejection-side shape isn't
+    // there (catches a future regression where ok=true yet errors
+    // are still attached).
+    assert.equal(r.errors, undefined,
+      "ok:true response must not carry an errors[] array");
+    assert.ok(r.manifest, "ok:true response must include the validated manifest");
+  } finally {
+    if (original === undefined) {
+      delete process.env.HARNESS_ALLOW_INSECURE_MANIFEST_URL;
+    } else {
+      process.env.HARNESS_ALLOW_INSECURE_MANIFEST_URL = original;
+    }
+  }
+});
+
+test("TRUST-STORE-E2E-EVIDENCE: env unset or != '1' keeps file:// rejected (production posture)", () => {
+  const original = process.env.HARNESS_ALLOW_INSECURE_MANIFEST_URL;
+  try {
+    delete process.env.HARNESS_ALLOW_INSECURE_MANIFEST_URL;
+    const m = { ...VALID_MANIFEST, url: "file:///C:/tmp/release.zip" };
+    const r = validateManifestSchema(m);
+    assert.equal(r.ok, false,
+      "without env the file:// URL must still be rejected");
+    assert.ok(r.errors.some((e) => /https:\/\//.test(e)));
+
+    // Even an explicit "0" value must NOT relax — the env contract
+    // is "1 = relax", anything else = strict.
+    process.env.HARNESS_ALLOW_INSECURE_MANIFEST_URL = "0";
+    const r2 = validateManifestSchema(m);
+    assert.equal(r2.ok, false,
+      "env='0' must keep strict mode (only '1' relaxes)");
+  } finally {
+    if (original === undefined) {
+      delete process.env.HARNESS_ALLOW_INSECURE_MANIFEST_URL;
+    } else {
+      process.env.HARNESS_ALLOW_INSECURE_MANIFEST_URL = original;
+    }
+  }
+});
+
 test("D0-a: validateManifestSchema rejects wrong sha256 length", () => {
   const m = { ...VALID_MANIFEST, sha256: "abc123" }; // too short
   const r = validateManifestSchema(m);

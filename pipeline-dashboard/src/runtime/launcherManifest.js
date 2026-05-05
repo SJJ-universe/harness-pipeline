@@ -68,7 +68,18 @@ function validateManifestSchema(raw) {
     errors.push(`version "${raw.version}" is not a valid semver-ish identifier`);
   }
   if (typeof raw.url === "string" && !/^https:\/\//.test(raw.url)) {
-    errors.push("url must use https:// (plain http blocked to prevent in-transit tampering)");
+    // SMART-ARC-PROBE-SCHEMA-FIX follow-up (2026-05-05):
+    // The fetch-stage validator (launcher-cli validate-manifest-url)
+    // already honors HARNESS_ALLOW_INSECURE_MANIFEST_URL=1 with a LOUD
+    // warning + dev-only contract. Extending the same env override to
+    // the manifest BODY's url field keeps the relaxation surface a
+    // single env variable (operators don't have to remember two flags).
+    // Production posture (env unset) keeps the strict https:// rule.
+    if (process.env.HARNESS_ALLOW_INSECURE_MANIFEST_URL === "1") {
+      // Permitted in dev — the upstream validator already warned.
+    } else {
+      errors.push("url must use https:// (plain http blocked to prevent in-transit tampering)");
+    }
   }
   if (typeof raw.sha256 === "string") {
     if (raw.sha256.length !== SHA256_HEX_LEN) {
