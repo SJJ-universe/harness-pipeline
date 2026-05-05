@@ -2,6 +2,11 @@
 //
 // Slice MB5 (Phase D Round 2, 2026-04-27) — readiness-report.
 // Slice R1-i (Phase D R1, 2026-04-28) — extended to 18 stars.
+// Slice READINESS-BOOT-FAILURE-CONFIG (Phase 2 v2 follow-up,
+// 2026-05-05) — fail-fast with CONFIG-tier exit when the harness
+// server cannot be spawned, instead of silently falling back to
+// static-only scoring (which made operators confuse environment
+// restrictions for real regressions).
 //
 // One-shot operator check that scores the harness against
 // docs/readiness-rubric.md. Exit code maps to release-readiness.
@@ -12,11 +17,18 @@
 //   1 — total ≥ 12 (preview-ready)        was ≥10/15
 //   2 — total ≥ 7  (internal-only)        was ≥6/15
 //   3 — total < 7  (blocking — do not ship)
+//   4 — CONFIG: harness boot failed       (NEW; sandboxed shell, EPERM, etc.)
 //
 // Usage:
-//   node scripts/readiness-report.js                # human-readable
-//   node scripts/readiness-report.js --json         # machine-readable
-//   node scripts/readiness-report.js --no-spawn     # skip the server boot
+//   node scripts/readiness-report.js                          # human-readable
+//   node scripts/readiness-report.js --json                   # machine-readable
+//   node scripts/readiness-report.js --no-spawn               # explicit: skip the server boot, score static only
+//   node scripts/readiness-report.js --allow-static-fallback  # legacy: silently fall back to static if spawn fails
+//
+// Default behavior: a spawn failure (EPERM/EACCES/ENOENT, timeout,
+// premature exit) exits 4 with a CONFIG error. Use --no-spawn for
+// intentional sandbox runs or --allow-static-fallback for the old
+// silent-fallback behavior.
 //
 // The server-spawning checks call out to the real harness on a
 // throw-away port (5099 by default). Set HARNESS_PORT override before
@@ -438,18 +450,39 @@ async function scoreRemoteIsolation() {
 
 function bootHarness() {
   return new Promise((resolve, reject) => {
+    // Slice READINESS-BOOT-FAILURE-CONFIG: test hook so unit tests can
+    // simulate a sandbox-style spawn rejection without an actual EPERM.
+    if (process.env.HARNESS_READINESS_FORCE_BOOT_ERROR) {
+      const err = new Error("forced boot failure for test: " +
+        process.env.HARNESS_READINESS_FORCE_BOOT_ERROR);
+      err.code = process.env.HARNESS_READINESS_FORCE_BOOT_ERROR;
+      err.bootFailureKind = "spawn_error";
+      return reject(err);
+    }
     const env = Object.assign({}, process.env, {
       HARNESS_PORT: String(PORT),
       HARNESS_CSP_MODE: "enforce",
     });
     const cwd = path.resolve(__dirname, "..");
-    const proc = spawn(process.execPath, ["server.js"], {
-      cwd, env,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
+    let proc;
+    try {
+      proc = spawn(process.execPath, ["server.js"], {
+        cwd, env,
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+    } catch (err) {
+      // Synchronous spawn rejection (e.g. ENOENT for the node binary).
+      err.bootFailureKind = "spawn_error";
+      return reject(err);
+    }
     let resolved = false;
     const timer = setTimeout(() => {
-      if (!resolved) { resolved = true; reject(new Error("server boot timed out")); }
+      if (!resolved) {
+        resolved = true;
+        const err = new Error("server boot timed out");
+        err.bootFailureKind = "timeout";
+        reject(err);
+      }
     }, SPAWN_TIMEOUT_MS);
     proc.stdout.on("data", (chunk) => {
       const s = chunk.toString();
@@ -459,9 +492,63 @@ function bootHarness() {
         resolve(proc);
       }
     });
-    proc.on("error", (err) => { if (!resolved) { resolved = true; reject(err); } });
-    proc.on("exit", () => { if (!resolved) { resolved = true; reject(new Error("server exited before boot")); } });
+    proc.on("error", (err) => {
+      if (!resolved) {
+        resolved = true;
+        err.bootFailureKind = "spawn_error";
+        reject(err);
+      }
+    });
+    proc.on("exit", () => {
+      if (!resolved) {
+        resolved = true;
+        const err = new Error("server exited before boot");
+        err.bootFailureKind = "early_exit";
+        reject(err);
+      }
+    });
   });
+}
+
+// ── CONFIG-tier classification ───────────────────────────────────────
+//
+// Slice READINESS-BOOT-FAILURE-CONFIG: a boot rejection is a CONFIG
+// error, not a low-readiness score. We classify by error code to give
+// operators a precise pointer at the cause.
+function classifyBootFailure(err) {
+  const code = (err && err.code) || "";
+  const message = (err && err.message) || String(err);
+  const kind = (err && err.bootFailureKind) || "unknown";
+  let cause = "unknown";
+  if (code === "EPERM" || code === "EACCES") cause = "permission_denied";
+  else if (code === "ENOENT") cause = "node_binary_missing";
+  else if (kind === "timeout") cause = "boot_timeout";
+  else if (kind === "early_exit") cause = "premature_exit";
+  else if (kind === "spawn_error") cause = "spawn_rejected";
+
+  const suggestionLines = [];
+  if (cause === "permission_denied") {
+    suggestionLines.push("Run from a normal terminal (PowerShell, bash, CI runner).");
+    suggestionLines.push("Sandboxed shells (Claude Code sandbox, locked-down CI) cannot spawn child processes.");
+  } else if (cause === "node_binary_missing") {
+    suggestionLines.push("Verify that 'node' is on PATH and executable.");
+  } else if (cause === "boot_timeout") {
+    suggestionLines.push("Server did not finish booting within the timeout window.");
+    suggestionLines.push("Check stderr for startup errors; raise HARNESS_READINESS_PORT if 5099 is in use.");
+  } else if (cause === "premature_exit") {
+    suggestionLines.push("Server exited before signaling boot. Re-run server.js manually to inspect the failure.");
+  }
+  suggestionLines.push("If you've already started the harness yourself, re-run with --no-spawn.");
+  suggestionLines.push("If you intentionally accept static-only scoring, re-run with --allow-static-fallback.");
+
+  return {
+    configError: true,
+    cause,
+    code,
+    kind,
+    message,
+    suggestion: suggestionLines.join(" "),
+  };
 }
 
 // ── main ────────────────────────────────────────────────────────────
@@ -469,16 +556,53 @@ function bootHarness() {
 async function main() {
   const json = flag("--json");
   const noSpawn = flag("--no-spawn");
+  const allowStaticFallback = flag("--allow-static-fallback");
 
   let proc = null;
+  let bootFailure = null;  // captured for CONFIG-tier reporting
   try {
     if (!noSpawn) {
       try {
         proc = await bootHarness();
       } catch (err) {
+        bootFailure = classifyBootFailure(err);
+        if (!allowStaticFallback) {
+          // Slice READINESS-BOOT-FAILURE-CONFIG: default is fail-fast.
+          // Emit a structured CONFIG error and exit 4 — DO NOT fall
+          // through to static-only scoring, which silently looks like
+          // a regression.
+          if (json) {
+            process.stdout.write(JSON.stringify({
+              configError: true,
+              exit: 4,
+              total: null,
+              max: 18,
+              boot: bootFailure,
+            }, null, 2) + "\n");
+          } else {
+            process.stderr.write("\n");
+            process.stderr.write("❌ CONFIG: harness server boot failed (" + bootFailure.cause + ").\n");
+            process.stderr.write("   해당 환경에서 자식 Node 프로세스를 띄우지 못했습니다.\n");
+            process.stderr.write("   일반 로컬 터미널 또는 CI에서는 정상 동작합니다.\n");
+            process.stderr.write("\n");
+            process.stderr.write("   error code: " + (bootFailure.code || "(none)") + "\n");
+            process.stderr.write("   kind:       " + bootFailure.kind + "\n");
+            process.stderr.write("   message:    " + bootFailure.message + "\n");
+            process.stderr.write("\n");
+            process.stderr.write("   What to do:\n");
+            for (const line of bootFailure.suggestion.split(". ")) {
+              if (line.trim()) {
+                process.stderr.write("     - " + line.replace(/\.$/, "") + "\n");
+              }
+            }
+            process.stderr.write("\n");
+          }
+          return 4;
+        }
+        // --allow-static-fallback: legacy silent-fallback behavior
         if (!json) {
-          process.stdout.write("WARN: failed to boot harness for live checks: " + err.message + "\n");
-          process.stdout.write("      run with --no-spawn if you've started the harness yourself.\n");
+          process.stdout.write("WARN: failed to boot harness for live checks: " + bootFailure.message + "\n");
+          process.stdout.write("      falling back to static scoring (--allow-static-fallback active).\n");
         }
       }
     }

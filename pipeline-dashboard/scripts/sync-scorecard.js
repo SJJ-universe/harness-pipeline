@@ -181,6 +181,26 @@ function main() {
     process.exit(2);
   }
 
+  // Slice READINESS-BOOT-FAILURE-CONFIG (Phase 2 v2 follow-up,
+  // 2026-05-05): when readiness-report exits CONFIG (exit 4), refuse
+  // to update the markers — otherwise the scorecard silently records
+  // an environment-restricted score (e.g. 9/18) as if it were the real
+  // signal. Exit 4 propagates so `npm run scorecard:sync` and
+  // `npm run scorecard:check` both fail clearly.
+  if (readiness.configError === true || readiness.exit === 4) {
+    warn("CONFIG: readiness-report could not boot the harness server.");
+    warn("  cause:      " + (readiness.boot && readiness.boot.cause));
+    warn("  error code: " + (readiness.boot && readiness.boot.code));
+    warn("  kind:       " + (readiness.boot && readiness.boot.kind));
+    warn("");
+    warn("Refusing to update scorecard markers from a half-signal.");
+    warn("Run from a normal terminal (PowerShell, bash, CI runner), or use");
+    warn("  --no-spawn (intentional static-only) /");
+    warn("  --allow-static-fallback (silent legacy fallback)");
+    warn("if you accept the static score.");
+    process.exit(4);
+  }
+
   const replacements = {
     "test-counts": "**" + unit.pass + " unit / " + integ.pass + " integration**",
     "readiness-total": "**" + readiness.total + " / " + readiness.max + "**",

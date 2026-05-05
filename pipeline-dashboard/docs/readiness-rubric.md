@@ -197,17 +197,33 @@ in `childRegistry.snapshot()` with the right metadata AND the audit
 chain still verifies. Catches a much wider regression surface: WS demux,
 JWT verify, frame routing, child projection, ledger HMAC.
 
-Exit codes (post-R1-i):
+Exit codes (post-R1-i, with READINESS-BOOT-FAILURE-CONFIG):
 - `0` — total ≥ 17 (release-ready)
 - `1` — total ≥ 12 (preview-ready)
 - `2` — total ≥ 7  (internal-only)
 - `3` — total < 7  (blocking — do not ship)
+- `4` — CONFIG: harness server boot failed (sandboxed shell, EPERM, EACCES, ENOENT, timeout, premature exit).
 
 The `--json` flag produces machine-readable output for PR gates.
 
 The `--no-spawn` flag skips the server boot. Use it when the runner
 cannot bind a port — the resulting score (currently 9/18) only counts
 the in-process behavior checks. CI runs in live mode by default.
+
+The `--allow-static-fallback` flag restores the legacy silent-fallback
+behavior: a spawn failure no longer exits 4 (CONFIG); it falls through
+to static-only scoring as `--no-spawn` would. Use it only when you
+deliberately accept that "I tried to boot but couldn't" should look
+like "I never tried" in the auto-markers.
+
+**Slice READINESS-BOOT-FAILURE-CONFIG (Phase 2 v2 follow-up,
+2026-05-05)**: previously a spawn failure silently fell back to
+static scoring (9/18) and exited 2 (internal-only), making
+environment restrictions look like real regressions. The CONFIG-tier
+exit (4) makes the distinction loud: an operator hitting it knows
+the score did not regress — the environment cannot run the live
+checks. `npm run scorecard:check` and `npm run scorecard:sync` both
+propagate exit 4 instead of writing a half-signal into the markers.
 
 ## 5. Out of scope
 
@@ -234,8 +250,9 @@ Before tagging a release, run `npm run readiness:check`. The exit code is the ac
 | `1` | ≥ 12 / 18 | Release as preview only — note in changelog "preview-quality, see readiness report". |
 | `2` | ≥ 7  / 18 | Internal-only — do not advertise externally. |
 | `3` | < 7  / 18 | Do not ship. Investigate which categories dropped before the next attempt. |
+| `4` | n/a (CONFIG) | Environment cannot run the live checks (sandboxed shell, EPERM/EACCES/ENOENT, boot timeout, premature exit). NOT a regression — the score did not drop. Re-run from a normal terminal or CI runner. Use `--no-spawn` for intentional static-only scoring; `--allow-static-fallback` for the legacy silent-fallback behavior. |
 
-The CI gate uses the same exit codes. A category at 0 stars is blocking regardless of total — `readiness:check` will not return 0 if any category is fully empty.
+The CI gate uses the same exit codes. A category at 0 stars is blocking regardless of total — `readiness:check` will not return 0 if any category is fully empty. Exit 4 (CONFIG) is *not* a release-blocking signal in itself — it means the environment is wrong, not the code; running from a normal terminal will produce the real signal.
 
 ### 7.2 Regression diagnostics
 
