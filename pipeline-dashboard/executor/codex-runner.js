@@ -27,6 +27,9 @@ const {
 // PII gate fires after env is built and before the codex stdin
 // write. See claude-runner.js for the full design rationale.
 const { enforcePiiGate } = require("../src/security/piiGate");
+// Slice RR0-b (Phase 2 / RELEASE-READY-0, 2026-05-05): activity-based
+// watchdog. Two-timer model — total cap + idle reset on stdout/stderr.
+const { createActivityWatchdog, KILL_REASONS: WATCHDOG_KILL_REASONS } = require("../src/runtime/activityWatchdog");
 
 const SECRET_PATTERNS = [
   /sk-[A-Za-z0-9_-]{20,}/g,
@@ -87,6 +90,24 @@ class CodexRunner {
     // ClaudeRunner — see executor/claude-runner.js for the full
     // rationale. When either is absent, the runner behaves as before.
     reviewSessionManager = null,
+    // Slice RR0-b (Phase 2 / RELEASE-READY-0, 2026-05-05): activity-
+    // based watchdog injection. When idleTimeoutMs is set, exec() uses
+    // activityWatchdog instead of the legacy single-setTimeout. Each
+    // stdout/stderr chunk resets the idle timer so a long-but-streaming
+    // Codex critique stays alive past defaultTimeoutMs as long as
+    // output keeps flowing. Total cap is still enforced by the
+    // watchdog's totalTimeoutMs.
+    //
+    // When idleTimeoutMs is null/missing (default), exec() preserves
+    // pre-RR0-b single-timer behavior verbatim — backward compat for
+    // every existing test + caller.
+    //
+    // setTimeoutFn / clearTimeoutFn / clockFn match activityWatchdog's
+    // injection seam so tests can use a fake clock.
+    idleTimeoutMs = null,
+    setTimeoutFn = setTimeout,
+    clearTimeoutFn = clearTimeout,
+    clockFn = () => Date.now(),
   } = {}) {
     this.codexCommand = codexCommand;
     this.fallbackCommands = fallbackCommands || [
@@ -111,6 +132,13 @@ class CodexRunner {
     this.credentialStore = credentialStore;
     this.ledger = ledger;
     this.reviewSessionManager = reviewSessionManager;
+    // Slice RR0-b: idle-based watchdog config. Null disables; positive
+    // ms enables.
+    this.idleTimeoutMs = (typeof idleTimeoutMs === "number" && idleTimeoutMs > 0)
+      ? idleTimeoutMs : null;
+    this._setTimeoutFn = setTimeoutFn;
+    this._clearTimeoutFn = clearTimeoutFn;
+    this._clockFn = clockFn;
     this._resolvedSpec = null;
   }
 
@@ -344,10 +372,58 @@ class CodexRunner {
             flushTimer = setTimeout(() => { flushTimer = null; flush(); }, this.flushIntervalMs);
           };
 
-          const timer = setTimeout(() => {
-            if (settled) return;
-            try { child.kill(); } catch (_) {}
-          }, timeoutMs || this.defaultTimeoutMs);
+          // Slice RR0-b: activity-based watchdog when idleTimeoutMs is
+          // configured; legacy single-timer otherwise. The watchdog
+          // path tick()s on each stdout/stderr chunk (handlers below)
+          // and only kills when the child has been silent for
+          // idleTimeoutMs OR the total cap fires.
+          const totalTimeout = timeoutMs || this.defaultTimeoutMs;
+          let watchdog = null;
+          let timer = null;
+          if (this.idleTimeoutMs && this.idleTimeoutMs < totalTimeout) {
+            watchdog = createActivityWatchdog({
+              totalTimeoutMs: totalTimeout,
+              idleTimeoutMs: this.idleTimeoutMs,
+              onIdleWarning: (info) => {
+                if (settled) return;
+                try {
+                  this.broadcast({
+                    type: "codex_idle_warning",
+                    data: { runId, phase: phaseId, iteration, ...info },
+                  });
+                } catch (_) {}
+              },
+              onKill: ({ reason, msSinceLastTick, totalElapsedMs }) => {
+                if (settled) return;
+                try {
+                  this.broadcast({
+                    type: "codex_killed_for_idle",
+                    data: {
+                      runId, phase: phaseId, iteration,
+                      reason, msSinceLastTick, totalElapsedMs,
+                    },
+                  });
+                } catch (_) {}
+                try { child.kill(); } catch (_) {}
+              },
+              clockFn: this._clockFn,
+              setTimeoutFn: this._setTimeoutFn,
+              clearTimeoutFn: this._clearTimeoutFn,
+            });
+            watchdog.start();
+          } else {
+            timer = setTimeout(() => {
+              if (settled) return;
+              try { child.kill(); } catch (_) {}
+            }, totalTimeout);
+          }
+          const _disposeWatchdogOrTimer = () => {
+            if (watchdog) {
+              try { watchdog.clear(); } catch (_) {}
+            } else if (timer) {
+              clearTimeout(timer);
+            }
+          };
 
           // UI-H7-d: when both reviewSessionId + manager are present,
           // pipe each chunk to recordCodexChunk. Defensive try/catch
@@ -358,6 +434,9 @@ class CodexRunner {
             && typeof this.reviewSessionManager.recordCodexChunk === "function";
 
           child.stdout.on("data", (chunk) => {
+            // Slice RR0-b: activity tick — resets watchdog idle timer
+            // when configured. No-op when watchdog isn't engaged.
+            if (watchdog) watchdog.tick();
             const text = chunk.toString();
             if (finalOutBytes < this.maxFinalStdoutBytes) {
               out.push(chunk);
@@ -379,6 +458,9 @@ class CodexRunner {
           });
 
           child.stderr.on("data", (chunk) => {
+            // Slice RR0-b: activity tick on stderr too — Codex emits
+            // progress on stderr in some scenarios.
+            if (watchdog) watchdog.tick();
             const text = chunk.toString();
             if (finalErrBytes < this.maxFinalStderrBytes) {
               errChunks.push(chunk);
@@ -395,7 +477,7 @@ class CodexRunner {
           child.on("error", (err) => {
             if (settled) return;
             settled = true;
-            clearTimeout(timer);
+            _disposeWatchdogOrTimer();
             if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
             // S3: drop registry entry — child is gone, no SIGTERM needed.
             this.childRegistry?.unregister(child);
@@ -408,7 +490,7 @@ class CodexRunner {
           child.on("close", (code) => {
             if (settled) return;
             settled = true;
-            clearTimeout(timer);
+            _disposeWatchdogOrTimer();
             if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
             // S3: codex completed normally — registry no longer tracks this child.
             this.childRegistry?.unregister(child);

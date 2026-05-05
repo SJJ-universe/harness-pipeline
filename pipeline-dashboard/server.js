@@ -877,6 +877,26 @@ const _reviewSessionManager = new ReviewSessionManager({
   },
 });
 
+// Slice RR0-a/b (Phase 2 / RELEASE-READY-0, 2026-05-05): central timeout
+// policy + activity-based watchdog. resolveTimeoutPolicy reads
+// HARNESS_TIMEOUT_PRESET / HARNESS_<field>_TIMEOUT_MS env + posture to
+// pick presets (interactive default; long_run / public_sector for
+// production deployments). The resolved policy supplies
+// defaultTimeoutMs to each runner. When the resolved preset is NOT
+// "interactive", we also wire a watchdog idle timeout — long-but-
+// streaming runs survive the total timeout window as long as output
+// keeps flowing.
+const { resolveTimeoutPolicy } = require("./src/runtime/timeoutPolicy");
+const _timeoutPolicy = resolveTimeoutPolicy({
+  env: process.env,
+  deploymentProfile: _deploymentProfile,
+});
+// Idle threshold: 60s for long-running deployments — operator should
+// see "no output in last minute" warning before the kill. Only engage
+// the watchdog when the chosen preset is genuinely long (interactive
+// preserves pre-RR0-b single-timer behavior verbatim).
+const _idleTimeoutMs = (_timeoutPolicy.preset !== "interactive") ? 60_000 : null;
+
 const codexRunner = new CodexRunner({
   runRegistry,
   repoRoot: REPO_ROOT,
@@ -891,10 +911,17 @@ const codexRunner = new CodexRunner({
   // stdout chunks pipe to manager.recordCodexChunk + close emits
   // recordCritiqueReceived.
   reviewSessionManager: _reviewSessionManager,
+  // Slice RR0-a/b: timeout policy-derived defaults + watchdog wiring.
+  defaultTimeoutMs: _timeoutPolicy.codexTimeoutMs,
+  idleTimeoutMs: _idleTimeoutMs,
 });
 const claudeRunner = new ClaudeRunner({
   runRegistry,
   repoRoot: REPO_ROOT,
+  // Slice RR0-b: claude_idle_warning / claude_killed_for_idle WS
+  // events flow through the same broadcast as codex. Operators see
+  // "마지막 출력 후 N초" toasts in the dashboard.
+  broadcast,
   childSemaphore,
   childRegistry,
   // D1-d: same wiring as codex side.
@@ -903,6 +930,9 @@ const claudeRunner = new ClaudeRunner({
   ledger: evidenceLedger,
   // UI-H7-d: claude-side mirror.
   reviewSessionManager: _reviewSessionManager,
+  // Slice RR0-a/b: timeout policy + watchdog wiring (mirror of codex).
+  defaultTimeoutMs: _timeoutPolicy.claudeTimeoutMs,
+  idleTimeoutMs: _idleTimeoutMs,
 });
 
 // Slice UI-H7-f (Phase D / Phase E1.5, 2026-04-30): server-side

@@ -34,6 +34,9 @@ const {
 // a pure decision function — the runner owns the audit emit + the
 // failure resolve.
 const { enforcePiiGate } = require("../src/security/piiGate");
+// Slice RR0-b (Phase 2 / RELEASE-READY-0, 2026-05-05): activity-based
+// watchdog. Mirror of CodexRunner.
+const { createActivityWatchdog } = require("../src/runtime/activityWatchdog");
 
 function resolveCommand(cmd) {
   if (process.platform !== "win32") return cmd;
@@ -49,6 +52,11 @@ class ClaudeRunner {
     defaultTimeoutMs = 180000,
     runRegistry,
     repoRoot,
+    // Slice RR0-b: optional broadcast for claude_idle_warning /
+    // claude_killed_for_idle WS events. When absent (legacy callers /
+    // tests), the watchdog runs silently — kill behavior preserved
+    // exactly via child.kill().
+    broadcast,
     // Slice N (v6): shared child-process semaphore. Optional — when absent
     // the runner behaves as before.
     childSemaphore = null,
@@ -77,6 +85,20 @@ class ClaudeRunner {
     // The hint flow: dashboard click → route handler → spawn hint →
     // manager updates state + WS broadcasts → store + dual-agent-console.
     reviewSessionManager = null,
+    // Slice RR0-b (Phase 2 / RELEASE-READY-0, 2026-05-05): mirror of
+    // CodexRunner — activity-based watchdog. When idleTimeoutMs is
+    // set, _tryExec() uses activityWatchdog instead of the legacy
+    // single-setTimeout. Each stdout/stderr chunk resets the idle
+    // timer so a long Claude patch streaming output doesn't get
+    // killed at defaultTimeoutMs while it's actively producing
+    // changes. Total cap is still enforced.
+    //
+    // When idleTimeoutMs is null/missing (default), _tryExec()
+    // preserves pre-RR0-b single-timer behavior verbatim.
+    idleTimeoutMs = null,
+    setTimeoutFn = setTimeout,
+    clearTimeoutFn = clearTimeout,
+    clockFn = () => Date.now(),
   } = {}) {
     this.claudeCommand = claudeCommand;
     this.fallbackCommands = fallbackCommands || [
@@ -92,6 +114,16 @@ class ClaudeRunner {
     this.credentialStore = credentialStore;
     this.ledger = ledger;
     this.reviewSessionManager = reviewSessionManager;
+    // Slice RR0-b: optional broadcast — present in production (server.js
+    // wires it), absent in legacy unit tests. Optional chaining at the
+    // emit sites keeps both paths safe.
+    this.broadcast = broadcast || null;
+    // Slice RR0-b: idle-based watchdog config (mirrors CodexRunner).
+    this.idleTimeoutMs = (typeof idleTimeoutMs === "number" && idleTimeoutMs > 0)
+      ? idleTimeoutMs : null;
+    this._setTimeoutFn = setTimeoutFn;
+    this._clearTimeoutFn = clearTimeoutFn;
+    this._clockFn = clockFn;
     this._resolvedSpec = null;
   }
 
@@ -311,10 +343,53 @@ class ClaudeRunner {
           const errChunks = [];
           let settled = false;
 
-          const timer = setTimeout(() => {
-            if (settled) return;
-            try { child.kill(); } catch (_) {}
-          }, timeoutMs || this.defaultTimeoutMs);
+          // Slice RR0-b: activity-based watchdog branch. See codex-runner
+          // for the parallel implementation; same precedence + fallback
+          // contract.
+          const totalTimeout = timeoutMs || this.defaultTimeoutMs;
+          let watchdog = null;
+          let timer = null;
+          if (this.idleTimeoutMs && this.idleTimeoutMs < totalTimeout) {
+            watchdog = createActivityWatchdog({
+              totalTimeoutMs: totalTimeout,
+              idleTimeoutMs: this.idleTimeoutMs,
+              onIdleWarning: (info) => {
+                if (settled) return;
+                try {
+                  this.broadcast?.({
+                    type: "claude_idle_warning",
+                    data: { runId, ...info },
+                  });
+                } catch (_) {}
+              },
+              onKill: ({ reason, msSinceLastTick, totalElapsedMs }) => {
+                if (settled) return;
+                try {
+                  this.broadcast?.({
+                    type: "claude_killed_for_idle",
+                    data: { runId, reason, msSinceLastTick, totalElapsedMs },
+                  });
+                } catch (_) {}
+                try { child.kill(); } catch (_) {}
+              },
+              clockFn: this._clockFn,
+              setTimeoutFn: this._setTimeoutFn,
+              clearTimeoutFn: this._clearTimeoutFn,
+            });
+            watchdog.start();
+          } else {
+            timer = setTimeout(() => {
+              if (settled) return;
+              try { child.kill(); } catch (_) {}
+            }, totalTimeout);
+          }
+          const _disposeWatchdogOrTimer = () => {
+            if (watchdog) {
+              try { watchdog.clear(); } catch (_) {}
+            } else if (timer) {
+              clearTimeout(timer);
+            }
+          };
 
           // UI-H7-d: when both reviewSessionId + manager are present,
           // pipe each chunk to recordClaudeChunk. Defensive try/catch
@@ -324,6 +399,8 @@ class ClaudeRunner {
             && this.reviewSessionManager
             && typeof this.reviewSessionManager.recordClaudeChunk === "function";
           child.stdout.on("data", (c) => {
+            // Slice RR0-b: activity tick on every stdout chunk.
+            if (watchdog) watchdog.tick();
             out.push(c);
             if (_hasReviewHint) {
               try {
@@ -333,12 +410,16 @@ class ClaudeRunner {
               } catch (_) { /* never break spawn on manager fault */ }
             }
           });
-          child.stderr.on("data", (c) => errChunks.push(c));
+          child.stderr.on("data", (c) => {
+            // Slice RR0-b: activity tick on stderr too.
+            if (watchdog) watchdog.tick();
+            errChunks.push(c);
+          });
 
           child.on("error", (err) => {
             if (settled) return;
             settled = true;
-            clearTimeout(timer);
+            _disposeWatchdogOrTimer();
             // S3: drop registry entry so killAll on shutdown does not
             // SIGTERM an already-dead reference.
             this.childRegistry?.unregister(child);
@@ -351,7 +432,7 @@ class ClaudeRunner {
           child.on("close", (code) => {
             if (settled) return;
             settled = true;
-            clearTimeout(timer);
+            _disposeWatchdogOrTimer();
             // S3: same as the error path — child is gone, registry no longer
             // needs to track it.
             this.childRegistry?.unregister(child);
