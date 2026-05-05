@@ -208,6 +208,47 @@ const RULES = Object.freeze([
     },
     meta: function () { return {}; },
   }),
+
+  // ── BASELINE 1 (only fires when nothing else applies) ───────────
+  //
+  // SMART-1-BASELINE-a (Phase 2 v2 follow-up, 2026-05-05):
+  // The recommendations-card was landing on its empty state ("현재
+  // 권장 행동이 없습니다.") on fresh deployments where the operator
+  // has an active profile but hasn't done anything yet (no PII, no
+  // approvals, no review sessions, no active runs, no audit export
+  // pending). Empty is technically correct but operator-hostile —
+  // it doesn't confirm "everything is fine, just start working".
+  //
+  // The baseline rule fills that gap. It applies when:
+  //   - operator has an active profile (otherwise rule #1 fires —
+  //     critical, blocks everything)
+  //   - AND no other rule matches (engine post-processing filters
+  //     this rule out when any non-baseline rule applies)
+  //
+  // Marked `isBaseline: true`; the engine drops baseline matches
+  // when any non-baseline match exists. CTA is a no-op anchor that
+  // routes to the setup wizard for "verify everything is fine"
+  // operators (a cheap, safe destination — clicking it never
+  // mutates state).
+  Object.freeze({
+    id: "system-ready",
+    severity: "info",
+    isBaseline: true,
+    titleKey: "smart.rec.systemReady.title",
+    titleFallback: "✓ 시스템 준비됨",
+    bodyKey: "smart.rec.systemReady.body",
+    bodyFallback: "현재 처리 중인 작업이 없습니다. 첫 요청을 시작해 보거나 설정을 점검할 수 있습니다.",
+    ctaKey: "smart.rec.systemReady.cta",
+    ctaFallback: "설정 확인",
+    ctaActionId: "open-setup-wizard",
+    appliesTo: function (ctx) {
+      const b = ctx && ctx.booleans;
+      // Fire only when operator is "set up enough to do something" —
+      // we don't want to overlap with rule #1 (no profile = critical).
+      return !!(b && b.hasActiveProfile);
+    },
+    meta: function () { return {}; },
+  }),
 ]);
 
 const RULE_IDS = Object.freeze(RULES.map(function (r) { return r.id; }));
@@ -271,18 +312,33 @@ function recommendFromContext(ctx, opts) {
       ctaKey: rule.ctaKey,
       meta: meta,
       ruleIndex: i,
+      // SMART-1-BASELINE-a: thread the baseline flag through so the
+      // post-processing step below can drop baselines when non-
+      // baselines fire. Defaults to false (existing rules unchanged).
+      isBaseline: rule.isBaseline === true,
     });
+  }
+
+  // SMART-1-BASELINE-a: drop baseline matches when any non-baseline
+  // match exists. Baselines are the "everything is fine, no urgent
+  // action" filler — they exist to keep the card useful when
+  // nothing else applies, NOT to compete for slot-space with real
+  // recommendations.
+  const hasNonBaseline = matches.some(function (m) { return !m.isBaseline; });
+  let filtered = matches;
+  if (hasNonBaseline) {
+    filtered = matches.filter(function (m) { return !m.isBaseline; });
   }
 
   // Sort by severity (critical first), then by rule index for
   // stable ordering on ties.
-  matches.sort(function (a, b) {
+  filtered.sort(function (a, b) {
     const sevDiff = _safeIndex(a.severity) - _safeIndex(b.severity);
     if (sevDiff !== 0) return sevDiff;
     return a.ruleIndex - b.ruleIndex;
   });
 
-  return matches;
+  return filtered;
 }
 
 /**

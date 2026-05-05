@@ -234,6 +234,11 @@
     "smart.rec.publicSectorEvidenceTrail.body":           "공공기관 절차상 정기적으로 감사 봉투를 export해 보관해 두는 것이 좋습니다.",
     "smart.rec.publicSectorEvidenceTrail.cta":            "감사 봉투 만들기",
 
+    // SMART-1-BASELINE-a (Phase 2 v2 follow-up, 2026-05-05) — baseline rec
+    "smart.rec.systemReady.title":                        "✓ 시스템 준비됨",
+    "smart.rec.systemReady.body":                         "현재 처리 중인 작업이 없습니다. 첫 요청을 시작해 보거나 설정을 점검할 수 있습니다.",
+    "smart.rec.systemReady.cta":                          "설정 확인",
+
     // ── SMART-3: Expert review presets (6 frozen) ───────────────────
     // 운영자가 자유 입력 대신 6가지 전문가 관점 중 하나를 골라 Codex
     // 비평 / Claude hand-back 시 system prompt + severity tag 지침이

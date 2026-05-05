@@ -14,10 +14,10 @@ const {
 
 // ── Frozen registry shape ───────────────────────────────────────
 
-test("SMART-1: RULES frozen + 7 entries (5 base + 2 public-sector)", () => {
+test("SMART-1: RULES frozen + 8 entries (5 base + 2 public-sector + 1 baseline)", () => {
   assert.ok(Object.isFrozen(RULES));
-  assert.equal(RULES.length, 7,
-    "expected 7 documented rules: 5 base + 2 public-sector");
+  assert.equal(RULES.length, 8,
+    "expected 8 documented rules: 5 base + 2 public-sector + 1 baseline (system-ready)");
 });
 
 test("SMART-1: every rule has the required fields + frozen", () => {
@@ -38,7 +38,7 @@ test("SMART-1: every rule has the required fields + frozen", () => {
   }
 });
 
-test("SMART-1: documented IDs all present (canonical 7)", () => {
+test("SMART-1: documented IDs all present (canonical 8 = 7 + system-ready baseline)", () => {
   const present = new Set(RULES.map((r) => r.id));
   for (const id of [
     "complete-profile-setup",
@@ -48,6 +48,7 @@ test("SMART-1: documented IDs all present (canonical 7)", () => {
     "export-audit-evidence",
     "public-sector-pii-block",
     "public-sector-evidence-trail",
+    "system-ready",   // SMART-1-BASELINE-a
   ]) {
     assert.ok(present.has(id), `canonical rule "${id}" missing`);
   }

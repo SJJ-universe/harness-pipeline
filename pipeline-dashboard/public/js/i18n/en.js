@@ -226,6 +226,11 @@
     "smart.rec.publicSectorEvidenceTrail.body":           "Public-sector procedure benefits from regularly exporting audit envelopes for retention.",
     "smart.rec.publicSectorEvidenceTrail.cta":            "Build audit envelope",
 
+    // SMART-1-BASELINE-a (Phase 2 v2 follow-up, 2026-05-05) — baseline rec
+    "smart.rec.systemReady.title":                        "✓ All systems ready",
+    "smart.rec.systemReady.body":                         "No active work right now. Start your first request or verify your configuration.",
+    "smart.rec.systemReady.cta":                          "Verify configuration",
+
     // ── SMART-3: Expert review presets (6 frozen) ───────────────────
     // Operator picks one of six expert lenses instead of free-form
     // input. The preset's system prompt + severity-tag instruction is

@@ -142,14 +142,29 @@ test("SMART-1-b card: empty decisionContext → 'empty' state + empty list", () 
   assert.equal(list.children.length, 0);
 });
 
-test("SMART-1-b card: ready-state decisionContext → still empty (nothing to recommend)", () => {
+test("SMART-1-b card: ready-state decisionContext → system-ready baseline rec fires (SMART-1-BASELINE-a)", () => {
+  // Pre-SMART-1-BASELINE-a this asserted data-state="empty" because
+  // no rule applied. The baseline rule (system-ready) now fires
+  // whenever hasActiveProfile=true AND no other rule applies, giving
+  // the operator a "✓ 시스템 준비됨" confirmation rather than a
+  // blank card. The canary remains: if a future change accidentally
+  // disables the baseline, this test catches it (data-state would
+  // revert to "empty").
   const doc = _makeDoc();
   const store = createMonitorStore();
   store.setDecisionContext(_validDc({
     booleans: { hasActiveProfile: true, needsHumanDecision: false },
   }));
   const handle = panel.create({ root: doc.body, store, doc });
-  assert.equal(handle.card.getAttribute("data-state"), "empty");
+  assert.equal(handle.card.getAttribute("data-state"), "populated",
+    "baseline rec populates the card on otherwise-quiet decisionContext");
+  assert.equal(handle.card.getAttribute("data-top-severity"), "info",
+    "baseline rec is INFO severity");
+  const list = handle.card._findByAttr("data-card-slot", "list");
+  assert.equal(list.children.length, 1, "exactly one rec row (the baseline)");
+  const row = list.children[0];
+  assert.equal(row.getAttribute("data-rec-id"), "system-ready",
+    "baseline rule id is system-ready");
 });
 
 // ── Per-rule rendering ──────────────────────────────────────────
