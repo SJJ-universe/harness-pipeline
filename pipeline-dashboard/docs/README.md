@@ -82,7 +82,7 @@ through their own indices, not listed individually here.
 | Directory | Purpose | Entry point |
 | --- | --- | --- |
 | [`external-review/`](external-review/) | External reviewer protocol — claim-evidence matrix and summary template. | [`external-review/claim-evidence-matrix.md`](external-review/claim-evidence-matrix.md) |
-| [`runbooks/`](runbooks/) | Operator runbooks — live-verify, field-pilot, visual-* probes. | listed by filename |
+| [`runbooks/`](runbooks/) | Operator runbooks — live-verify, field-pilot, visual-* probes. | [`runbooks/README.md`](runbooks/README.md) |
 | [`reports/`](reports/) | Per-slice closeout reports (one per shipped round). | listed by date prefix |
 | [`superpowers/specs/`](superpowers/specs/) | Cross-cutting specifications — 5-priority roadmap, run-monitor hybrid design. | listed by date prefix |
 
