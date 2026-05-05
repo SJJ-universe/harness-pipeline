@@ -2323,3 +2323,480 @@ body.monitor-active {
 .sa-trust-btn-danger:hover:not([disabled]) {
   background: rgba(232, 75, 75, 0.12);
 }
+
+/* ===========================================================
+ * Slice CSS-1-a (Phase 2 v2 follow-up, 2026-05-05) — visual
+ * polish for simple-shell banner cards.
+ *
+ * Three cards mount BETWEEN the welcome-overlay and the 4-card
+ * grid (workflow trio + connection status). Each lives in its
+ * own mount container:
+ *   .ss-first-run-mount  → next-action-card  (UI-FirstRun-c)
+ *   .ss-recs-mount       → recommendations-card (SMART-1-c)
+ *   .ss-pack-info-mount  → pack-info-card    (POL-UI-1-a)
+ *
+ * Pre-CSS-1, all three rendered with default browser styling
+ * (no border, no spacing). Operators saw raw text + buttons,
+ * which made the dashboard feel half-built. CSS-1 grounds them
+ * in the existing harness shell design tokens (--hsh-bg-card,
+ * --hsh-border, --hsh-radius-md, --hsh-fs-*) so they match the
+ * 4-card grid below.
+ *
+ * The data-attribute hooks (data-severity, data-rec-id,
+ * data-public-sector, data-state) are set by the panel JS;
+ * this CSS just consumes them.
+ * =========================================================== */
+
+/* Shared banner-card chassis (next-action / recs / pack-info) */
+.monitor-shell .ss-first-run-mount,
+.monitor-shell .ss-recs-mount,
+.monitor-shell .ss-pack-info-mount {
+  width: 100%;
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+/* Each mount renders a single <section> card; if the panel
+ * isn't injected, the mount is empty — CSS keeps zero height
+ * so empty mounts don't add gap. */
+.monitor-shell .ss-first-run-mount:empty,
+.monitor-shell .ss-recs-mount:empty,
+.monitor-shell .ss-pack-info-mount:empty {
+  display: none;
+}
+
+/* Common banner-card surface — matches .ss-cell visual but
+ * spans full width (banner, not grid cell). */
+.monitor-shell .nac-card,
+.monitor-shell .rec-card,
+.monitor-shell .pic-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--hsh-bg-card, #101115);
+  border: 0.5px solid var(--hsh-border, rgba(255, 255, 255, 0.06));
+  border-radius: var(--hsh-radius-md, 4px);
+  padding: 14px 18px;
+  font-family: var(--hsh-font-sans, system-ui, sans-serif);
+  font-size: var(--hsh-fs-md, 11px);
+  color: var(--hsh-text, rgba(232, 230, 225, 0.95));
+}
+
+/* Card label: small mono caption above the content */
+.monitor-shell .nac-label,
+.monitor-shell .rec-label,
+.monitor-shell .pic-label {
+  font-family: var(--hsh-font-mono, ui-monospace, monospace);
+  font-size: var(--hsh-fs-xs, 9px);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--hsh-text-dim, rgba(232, 230, 225, 0.55));
+}
+
+/* ─── recommendations-card (SMART-1-c) ─────────────────────── */
+
+.monitor-shell .rec-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.monitor-shell .rec-row {
+  display: grid;
+  grid-template-columns: 8px 1fr auto;
+  align-items: start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 0.5px solid var(--hsh-border, rgba(255, 255, 255, 0.06));
+  border-radius: var(--hsh-radius, 3px);
+  background: rgba(255, 255, 255, 0.015);
+}
+
+/* Severity dot: 6px circle in the left column */
+.monitor-shell .rec-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-top: 5px;
+  background: var(--hsh-text-dim, rgba(232, 230, 225, 0.4));
+}
+
+.monitor-shell .rec-row[data-severity="critical"] .rec-dot {
+  background: var(--hsh-red, #E84B4B);
+}
+.monitor-shell .rec-row[data-severity="high"] .rec-dot {
+  background: var(--hsh-orange, #F4A23F);
+}
+.monitor-shell .rec-row[data-severity="medium"] .rec-dot {
+  background: var(--hsh-yellow, #E8C84B);
+}
+.monitor-shell .rec-row[data-severity="info"] .rec-dot {
+  background: var(--hsh-blue, #4B82E8);
+}
+
+/* SMART-1-BASELINE-a: system-ready baseline rec — visually
+ * subtle. Uses a green dot + lower-contrast surface so it
+ * feels like "all clear" rather than competing with urgent
+ * recs. The post-processing logic guarantees this row only
+ * appears alone (no other rec fires), so the styling can
+ * lean into the "everything is fine" affordance. */
+.monitor-shell .rec-row[data-rec-id="system-ready"] .rec-dot {
+  background: var(--hsh-green, #4BC972);
+}
+.monitor-shell .rec-row[data-rec-id="system-ready"] {
+  background: rgba(75, 201, 114, 0.04);
+  border-color: rgba(75, 201, 114, 0.18);
+}
+
+.monitor-shell .rec-body-block {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.monitor-shell .rec-title {
+  font-size: var(--hsh-fs-md, 11px);
+  font-weight: 600;
+  color: var(--hsh-text, rgba(232, 230, 225, 0.95));
+  line-height: 1.35;
+}
+
+.monitor-shell .rec-body {
+  font-size: var(--hsh-fs-sm, 10px);
+  color: var(--hsh-text-dim, rgba(232, 230, 225, 0.7));
+  line-height: 1.45;
+}
+
+.monitor-shell .rec-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+/* Primary CTA — soft outline button matching the harness
+ * shell button style. */
+.monitor-shell .rec-cta.is-primary {
+  font-family: inherit;
+  font-size: var(--hsh-fs-sm, 10px);
+  padding: 5px 10px;
+  background: transparent;
+  color: var(--hsh-text, rgba(232, 230, 225, 0.95));
+  border: 0.5px solid var(--hsh-border, rgba(255, 255, 255, 0.18));
+  border-radius: var(--hsh-radius, 3px);
+  cursor: pointer;
+}
+.monitor-shell .rec-cta.is-primary:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--hsh-text-dim, rgba(232, 230, 225, 0.4));
+}
+.monitor-shell .rec-cta.is-primary:focus-visible {
+  outline: 1px solid var(--hsh-blue, #4B82E8);
+  outline-offset: 2px;
+}
+
+/* Dismiss button — minimal, only visible on hover/focus */
+.monitor-shell .rec-dismiss {
+  font-family: inherit;
+  font-size: var(--hsh-fs-xs, 9px);
+  padding: 4px 8px;
+  background: transparent;
+  color: var(--hsh-text-dim, rgba(232, 230, 225, 0.5));
+  border: 0;
+  cursor: pointer;
+  opacity: 0.5;
+  transition: opacity 0.12s ease;
+}
+.monitor-shell .rec-row:hover .rec-dismiss,
+.monitor-shell .rec-dismiss:focus-visible {
+  opacity: 1;
+}
+
+/* Empty state — italic, dimmed, single line */
+.monitor-shell .rec-empty {
+  font-size: var(--hsh-fs-sm, 10px);
+  color: var(--hsh-text-dim, rgba(232, 230, 225, 0.5));
+  font-style: italic;
+}
+
+/* ─── pack-info-card (POL-UI-1-a) ──────────────────────────── */
+
+.monitor-shell .pic-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.monitor-shell .pic-current-pack {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  font-family: var(--hsh-font-mono, ui-monospace, monospace);
+  font-size: var(--hsh-fs-md, 11px);
+  font-weight: 600;
+  color: var(--hsh-text, rgba(232, 230, 225, 0.95));
+  border: 0.5px solid var(--hsh-border, rgba(255, 255, 255, 0.18));
+  border-radius: var(--hsh-radius-pill, 999px);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* Public-sector packs render in a distinct posture color so the
+ * operator can tell at a glance "this is a regulated deployment". */
+.monitor-shell .pic-current-pack[data-public-sector="true"] {
+  color: var(--hsh-orange, #F4A23F);
+  border-color: rgba(244, 162, 63, 0.45);
+  background: rgba(244, 162, 63, 0.08);
+}
+
+.monitor-shell .pic-current-hint {
+  font-size: var(--hsh-fs-xs, 9px);
+  color: var(--hsh-text-dim, rgba(232, 230, 225, 0.5));
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.monitor-shell .pic-runtime {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 4px;
+}
+
+.monitor-shell .pic-runtime-label {
+  font-size: var(--hsh-fs-xs, 9px);
+  color: var(--hsh-text-dim, rgba(232, 230, 225, 0.5));
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.monitor-shell .pic-runtime-values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.monitor-shell .pic-runtime-item {
+  font-family: var(--hsh-font-mono, ui-monospace, monospace);
+  font-size: var(--hsh-fs-sm, 10px);
+  color: var(--hsh-text, rgba(232, 230, 225, 0.85));
+}
+
+.monitor-shell .pic-runtime-override {
+  color: var(--hsh-yellow, #E8C84B);
+  font-style: italic;
+}
+
+/* Public-sector requirements — bold-bordered call-out so the
+ * 5-bullet checklist is hard to miss. */
+.monitor-shell .pic-public-sector-reqs {
+  margin-top: 4px;
+  padding: 10px 12px;
+  border: 0.5px solid rgba(244, 162, 63, 0.35);
+  border-left: 2px solid var(--hsh-orange, #F4A23F);
+  border-radius: var(--hsh-radius, 3px);
+  background: rgba(244, 162, 63, 0.04);
+}
+
+.monitor-shell .pic-reqs-title {
+  font-size: var(--hsh-fs-md, 11px);
+  font-weight: 600;
+  color: var(--hsh-orange, #F4A23F);
+  margin-bottom: 4px;
+}
+
+.monitor-shell .pic-reqs-intro {
+  font-size: var(--hsh-fs-sm, 10px);
+  color: var(--hsh-text-dim, rgba(232, 230, 225, 0.7));
+  margin-bottom: 6px;
+}
+
+.monitor-shell .pic-reqs-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: var(--hsh-fs-sm, 10px);
+  color: var(--hsh-text, rgba(232, 230, 225, 0.85));
+}
+
+.monitor-shell .pic-reqs-item {
+  line-height: 1.55;
+}
+
+/* Restart hint — subtle, italic, low-contrast (informational) */
+.monitor-shell .pic-restart-hint {
+  font-size: var(--hsh-fs-sm, 10px);
+  color: var(--hsh-text-dim, rgba(232, 230, 225, 0.5));
+  font-style: italic;
+  padding-top: 2px;
+}
+
+/* Collapsible alternatives — <details> + <summary> */
+.monitor-shell .pic-alternatives {
+  margin-top: 4px;
+  border-top: 0.5px solid var(--hsh-border, rgba(255, 255, 255, 0.06));
+  padding-top: 8px;
+}
+
+.monitor-shell .pic-alt-summary {
+  cursor: pointer;
+  font-size: var(--hsh-fs-sm, 10px);
+  color: var(--hsh-text-dim, rgba(232, 230, 225, 0.7));
+  user-select: none;
+  list-style: none;
+  padding: 4px 0;
+}
+.monitor-shell .pic-alt-summary::before {
+  content: "▸";
+  display: inline-block;
+  margin-right: 6px;
+  transition: transform 0.12s ease;
+}
+.monitor-shell .pic-alternatives[open] .pic-alt-summary::before {
+  transform: rotate(90deg);
+}
+.monitor-shell .pic-alt-summary:hover {
+  color: var(--hsh-text, rgba(232, 230, 225, 0.95));
+}
+
+.monitor-shell .pic-alt-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 8px;
+  padding-top: 8px;
+}
+
+.monitor-shell .pic-alt-card {
+  padding: 8px 10px;
+  border: 0.5px solid var(--hsh-border, rgba(255, 255, 255, 0.08));
+  border-radius: var(--hsh-radius, 3px);
+  background: rgba(255, 255, 255, 0.015);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.monitor-shell .pic-alt-label {
+  font-size: var(--hsh-fs-sm, 10px);
+  font-weight: 600;
+  color: var(--hsh-text, rgba(232, 230, 225, 0.9));
+}
+
+.monitor-shell .pic-alt-desc {
+  font-size: var(--hsh-fs-xs, 9px);
+  color: var(--hsh-text-dim, rgba(232, 230, 225, 0.55));
+  line-height: 1.4;
+}
+
+.monitor-shell .pic-alt-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.monitor-shell .pic-alt-badge {
+  font-family: var(--hsh-font-mono, ui-monospace, monospace);
+  font-size: 8px;
+  padding: 2px 6px;
+  border-radius: var(--hsh-radius-pill, 999px);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--hsh-text-dim, rgba(232, 230, 225, 0.65));
+  letter-spacing: 0.02em;
+}
+.monitor-shell .pic-alt-badge-ps {
+  background: rgba(244, 162, 63, 0.1);
+  color: var(--hsh-orange, #F4A23F);
+}
+.monitor-shell .pic-alt-badge-hg {
+  background: rgba(232, 75, 75, 0.1);
+  color: var(--hsh-red, #E84B4B);
+}
+.monitor-shell .pic-alt-badge-norm {
+  background: rgba(75, 130, 232, 0.1);
+  color: var(--hsh-blue, #4B82E8);
+}
+
+.monitor-shell .pic-alt-none {
+  font-size: var(--hsh-fs-sm, 10px);
+  color: var(--hsh-text-dim, rgba(232, 230, 225, 0.5));
+  font-style: italic;
+}
+
+.monitor-shell .pic-empty {
+  font-size: var(--hsh-fs-sm, 10px);
+  color: var(--hsh-text-dim, rgba(232, 230, 225, 0.55));
+  font-style: italic;
+  padding: 4px 0;
+}
+
+/* ─── next-action-card (UI-FirstRun-c) ─────────────────────── */
+
+.monitor-shell .nac-headline {
+  font-size: var(--hsh-fs-md, 11px);
+  font-weight: 600;
+  color: var(--hsh-text, rgba(232, 230, 225, 0.95));
+  line-height: 1.35;
+}
+
+.monitor-shell .nac-body {
+  font-size: var(--hsh-fs-sm, 10px);
+  color: var(--hsh-text-dim, rgba(232, 230, 225, 0.7));
+  line-height: 1.5;
+}
+
+.monitor-shell .nac-cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-top: 4px;
+}
+
+.monitor-shell .nac-cta {
+  font-family: inherit;
+  font-size: var(--hsh-fs-sm, 10px);
+  padding: 5px 12px;
+  background: transparent;
+  color: var(--hsh-text, rgba(232, 230, 225, 0.85));
+  border: 0.5px solid var(--hsh-border, rgba(255, 255, 255, 0.18));
+  border-radius: var(--hsh-radius, 3px);
+  cursor: pointer;
+}
+.monitor-shell .nac-cta:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--hsh-text, rgba(232, 230, 225, 0.95));
+}
+.monitor-shell .nac-cta.is-primary {
+  border-color: var(--hsh-blue, #4B82E8);
+  color: var(--hsh-blue, #4B82E8);
+}
+.monitor-shell .nac-cta.is-primary:hover {
+  background: rgba(75, 130, 232, 0.1);
+}
+.monitor-shell .nac-cta:focus-visible {
+  outline: 1px solid var(--hsh-blue, #4B82E8);
+  outline-offset: 2px;
+}
+
+.monitor-shell .nac-meta {
+  font-size: var(--hsh-fs-xs, 9px);
+  color: var(--hsh-text-dim, rgba(232, 230, 225, 0.45));
+  font-family: var(--hsh-font-mono, ui-monospace, monospace);
+  letter-spacing: 0.02em;
+}
+
+/* Mobile / narrow viewport: collapse rec-row 3-column grid to
+ * stacked layout so CTAs don't squeeze the title text. */
+@media (max-width: 720px) {
+  .monitor-shell .rec-row {
+    grid-template-columns: 8px 1fr;
+  }
+  .monitor-shell .rec-actions {
+    grid-column: 1 / -1;
+    margin-left: 18px;
+    margin-top: 4px;
+  }
+  .monitor-shell .pic-alt-list {
+    grid-template-columns: 1fr;
+  }
+}
