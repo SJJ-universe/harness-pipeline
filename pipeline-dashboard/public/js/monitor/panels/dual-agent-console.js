@@ -96,6 +96,19 @@
     // S3-d: optional i18n (HarnessI18n.bind() result). Used for
     // preset dropdown labels + "expert review focus" aria.
     i18n = null,
+    // SMART-3-POLISH-a (Phase 2 v2 follow-up, 2026-05-05): localStorage
+    // shim for recently-used preset memory. Defaults to globalThis.
+    // localStorage when available; tests pass an in-memory Map-backed
+    // shim. Setting `storage = null` (explicit) disables persistence
+    // entirely — the dropdown still works, it just doesn't remember
+    // selections across mounts.
+    storage,
+    // SMART-3-POLISH-a: localStorage key for the recently-used preset.
+    // Default uses the harness:<feature>:v1 namespace pattern shared
+    // across the dashboard (e.g. harness:runHistory:v1). Bumping the
+    // version (v2) is how a future schema change is rolled out without
+    // operator intervention — old keys simply become orphans.
+    recentPresetsKey = "harness:recentPresetId:v1",
   } = {}) {
     if (!root || typeof root.appendChild !== "function") {
       throw new Error("dual-agent-console.create: root must be an element");
@@ -123,6 +136,60 @@
       ? confirmFn
       : (typeof window !== "undefined" && typeof window.confirm === "function"
           ? window.confirm.bind(window) : null);
+
+    // SMART-3-POLISH-a: storage resolver. Three states:
+    //   - explicit null      → memory disabled
+    //   - undefined (default)→ try globalThis.localStorage; if missing
+    //                          (e.g. SSR / Node), memory disabled
+    //   - shim object        → use as-is (tests pass a Map-backed shim)
+    // The interface only requires getItem(k) → string|null and
+    // setItem(k, v) → void. removeItem is optional (we never strictly
+    // need it; setting a sentinel "" is enough to mean "free-form").
+    const _storage = (() => {
+      if (storage === null) return null;            // explicit opt-out
+      if (storage && typeof storage.getItem === "function"
+          && typeof storage.setItem === "function") {
+        return storage;
+      }
+      // Default — try globalThis.localStorage. Wrap in try/catch
+      // because some browser configs (e.g. private mode + iframe-with-
+      // restricted-storage) throw on access rather than returning null.
+      try {
+        if (typeof globalThis !== "undefined"
+            && globalThis.localStorage
+            && typeof globalThis.localStorage.getItem === "function"
+            && typeof globalThis.localStorage.setItem === "function") {
+          return globalThis.localStorage;
+        }
+      } catch (_) { /* fall through */ }
+      return null;
+    })();
+
+    function _readRecentPresetId() {
+      if (!_storage) return null;
+      try {
+        const v = _storage.getItem(recentPresetsKey);
+        if (typeof v !== "string") return null;
+        const trimmed = v.trim();
+        if (trimmed.length === 0) return null;
+        // Defensive cap — a corrupted entry shouldn't crash the panel.
+        if (trimmed.length > 128) return null;
+        return trimmed;
+      } catch (_) { return null; }
+    }
+
+    function _writeRecentPresetId(presetId) {
+      if (!_storage) return;
+      try {
+        // Empty string sentinel = "free-form (no preset)". Distinct
+        // from missing key (= "never selected before"); the read side
+        // collapses both to null but the write side preserves the
+        // operator's explicit choice across mounts.
+        _storage.setItem(recentPresetsKey,
+          typeof presetId === "string" && presetId.length > 0
+            ? presetId : "");
+      } catch (_) { /* never break the shell on a storage fault */ }
+    }
 
     // Pane state — which tab is active per pane. Defaults: Claude on
     // left, Codex on right (matches the mockup).
@@ -153,6 +220,20 @@
           if (payload && Array.isArray(payload.presets)) {
             availablePresets = payload.presets;
             presetsFetchFailed = false;
+            // SMART-3-POLISH-a: restore the operator's most-recent
+            // preset selection IF (a) the operator hasn't already
+            // explicitly selected something this session, and (b) the
+            // remembered preset is still in the catalog the server
+            // returned (a preset removed server-side falls back to
+            // null, matching legacy free-form dispatch behaviour).
+            if (selectedPresetId === null) {
+              const remembered = _readRecentPresetId();
+              if (remembered) {
+                const found = availablePresets.find(
+                  (p) => p && p.presetId === remembered);
+                if (found) selectedPresetId = remembered;
+              }
+            }
           } else {
             availablePresets = [];
             presetsFetchFailed = true;
@@ -575,6 +656,12 @@
       select.addEventListener("change", (ev) => {
         const v = ev && ev.target && ev.target.value;
         selectedPresetId = (typeof v === "string" && v.length > 0) ? v : null;
+        // SMART-3-POLISH-a: persist for the next mount. Free-form
+        // (selectedPresetId=null) writes empty-string sentinel so the
+        // explicit "I want free-form" choice survives across mounts
+        // and isn't fooled by a missing-key into auto-restoring an
+        // older preset.
+        _writeRecentPresetId(selectedPresetId);
         // Re-render so the tooltip + option-selected sync.
         render();
       });
