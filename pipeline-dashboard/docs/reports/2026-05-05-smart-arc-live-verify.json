@@ -1,0 +1,11 @@
+{
+  "schema": "harness-smart-lv-evidence/v1",
+  "runAt": "2026-05-05T02:49:37.801Z",
+  "verdict": "CONFIG",
+  "environment": {},
+  "properties": {},
+  "auditChain": {},
+  "notes": [
+    "server not reachable; cannot proceed"
+  ]
+}
