@@ -61,6 +61,8 @@
 
 "use strict";
 
+const presetLibrary = require("./presetLibrary");
+
 const ACTION_TYPES = Object.freeze({
   SEND_CODEX:       "send-codex",
   HAND_BACK_CLAUDE: "hand-back-claude",
@@ -130,7 +132,12 @@ class ReviewSpawnDispatcher {
    * @param {string} sessionId
    * @param {object} req
    * @param {string} req.instruction — operator's critique focus
-   * @returns {Promise<object>} { ok, sessionId, actionType, startedAt }
+   * @param {string} [req.presetId] — Slice S3-b: optional preset key
+   *   from `presetLibrary.PRESET_IDS`. When provided, the preset's
+   *   codexSystemPrompt + severityTagInstruction wrap the operator
+   *   instruction. Unknown presetId throws DISPATCH_INVALID_INPUT
+   *   (defense-in-depth — the routes layer is the primary validator).
+   * @returns {Promise<object>} { ok, sessionId, actionType, startedAt, presetId }
    *   on synchronous failure: throws Error with .code in DISPATCH_ERROR_CODES
    */
   async dispatchCodex(sessionId, req = {}) {
@@ -139,7 +146,10 @@ class ReviewSpawnDispatcher {
       actionType: ACTION_TYPES.SEND_CODEX,
       runner: this._codexRunner,
       runnerLabel: "codex",
-      buildPrompt: () => this._buildCodexPrompt(req.instruction, sessionId),
+      presetId: req.presetId || null,
+      buildPrompt: () => this._buildCodexPrompt(
+        req.instruction, sessionId, req.presetId || null,
+      ),
       requireLocalExecutor: false,
     });
   }
@@ -148,6 +158,10 @@ class ReviewSpawnDispatcher {
    * Spawn a Claude hand-back. Refused under public-sector posture
    * with !allowLocalExecutor. The manager has already transitioned
    * the session to AWAITING_CLAUDE before this is called.
+   *
+   * @param {string} [req.presetId] — Slice S3-b: optional preset key.
+   *   When provided, the preset's claudeSystemPrompt frames the
+   *   hand-back instruction.
    */
   async dispatchClaude(sessionId, req = {}) {
     return this._dispatchInternal({
@@ -155,10 +169,12 @@ class ReviewSpawnDispatcher {
       actionType: ACTION_TYPES.HAND_BACK_CLAUDE,
       runner: this._claudeRunner,
       runnerLabel: "claude",
+      presetId: req.presetId || null,
       buildPrompt: () => this._buildClaudePrompt(
         req.instruction,
         sessionId,
         req.includeCritique !== false,
+        req.presetId || null,
       ),
       requireLocalExecutor: true,
     });
@@ -167,6 +183,8 @@ class ReviewSpawnDispatcher {
   /**
    * Operator follow-up to Codex (read-only critique addendum).
    * Same posture rules as dispatchCodex (always allowed).
+   *
+   * @param {string} [req.presetId] — Slice S3-b: same as dispatchCodex.
    */
   async dispatchFollowUpCodex(sessionId, req = {}) {
     return this._dispatchInternal({
@@ -174,7 +192,10 @@ class ReviewSpawnDispatcher {
       actionType: ACTION_TYPES.FOLLOW_UP_CODEX,
       runner: this._codexRunner,
       runnerLabel: "codex",
-      buildPrompt: () => this._buildCodexFollowUpPrompt(req.question, sessionId),
+      presetId: req.presetId || null,
+      buildPrompt: () => this._buildCodexFollowUpPrompt(
+        req.question, sessionId, req.presetId || null,
+      ),
       requireLocalExecutor: false,
     });
   }
@@ -220,13 +241,30 @@ class ReviewSpawnDispatcher {
 
   async _dispatchInternal({
     sessionId, actionType, runner, runnerLabel, buildPrompt,
-    requireLocalExecutor,
+    requireLocalExecutor, presetId = null,
   }) {
     // 1. sessionId shape
     if (typeof sessionId !== "string" || sessionId.length === 0) {
       throw _dispatchError(
         DISPATCH_ERROR_CODES.DISPATCH_INVALID_INPUT,
         "sessionId required",
+      );
+    }
+    // 1b. (Slice S3-b) defense-in-depth presetId validation. Routes
+    //     layer is the primary validator (better error message). If a
+    //     non-string or unknown presetId reaches the dispatcher, throw
+    //     INVALID_INPUT so the operator sees a 400 rather than a silent
+    //     fallback to free-form prompt — silent fallback would hide a
+    //     bug in a custom caller (e.g., future scripted dispatcher).
+    const resolvedPresetId = presetId === null || presetId === undefined
+      ? null
+      : (typeof presetId === "string" && presetLibrary.isValidPresetId(presetId)
+          ? presetId
+          : "__invalid__");
+    if (resolvedPresetId === "__invalid__") {
+      throw _dispatchError(
+        DISPATCH_ERROR_CODES.DISPATCH_INVALID_INPUT,
+        `unknown presetId: ${presetId}`,
       );
     }
     // 2. session existence
@@ -248,6 +286,7 @@ class ReviewSpawnDispatcher {
     if (requireLocalExecutor && this._isLocalExecutorBlocked()) {
       this._safeAudit("review_session_dispatch_blocked", {
         sessionId, actionType, reason: "local_executor_disabled",
+        presetId: resolvedPresetId,
         at: this._clockFn(),
       });
       throw _dispatchError(
@@ -268,6 +307,7 @@ class ReviewSpawnDispatcher {
       const existing = this._inFlight.get(sessionId);
       this._safeAudit("review_session_dispatch_blocked", {
         sessionId, actionType, reason: "already_in_flight",
+        presetId: resolvedPresetId,
         existingActionType: existing.actionType,
         existingStartedAt: existing.startedAt,
         at: this._clockFn(),
@@ -305,9 +345,11 @@ class ReviewSpawnDispatcher {
     const startedAt = this._clockFn();
     this._inFlight.set(sessionId, {
       actionType, startedAt, runner: runnerLabel,
+      presetId: resolvedPresetId,
     });
     this._safeAudit("review_session_dispatch_started", {
       sessionId, actionType, runner: runnerLabel, startedAt,
+      presetId: resolvedPresetId,
     });
 
     // Fire-and-forget; the runner is responsible for piping chunks
@@ -328,6 +370,7 @@ class ReviewSpawnDispatcher {
       if (result && result.ok === true) {
         this._safeAudit("review_session_dispatch_completed", {
           sessionId, actionType, runner: runnerLabel,
+          presetId: resolvedPresetId,
           completedAt, elapsedMs,
         });
       } else {
@@ -336,6 +379,7 @@ class ReviewSpawnDispatcher {
           || "exec_failed";
         this._safeAudit("review_session_dispatch_failed", {
           sessionId, actionType, runner: runnerLabel,
+          presetId: resolvedPresetId,
           reason: String(reason).slice(0, 1024),
           completedAt, elapsedMs,
         });
@@ -351,7 +395,10 @@ class ReviewSpawnDispatcher {
       }
     });
 
-    return { ok: true, sessionId, actionType, runner: runnerLabel, startedAt };
+    return {
+      ok: true, sessionId, actionType, runner: runnerLabel, startedAt,
+      presetId: resolvedPresetId,
+    };
   }
 
   _isLocalExecutorBlocked() {
@@ -367,8 +414,28 @@ class ReviewSpawnDispatcher {
   }
 
   // ── Prompt builders ──────────────────────────────────────────
+  //
+  // Slice S3-b (2026-05-04): when presetId is provided, the preset's
+  // system prompt is prepended as a `[Preset: …]` header block, and
+  // the preset's severityTagInstruction REPLACES the default tagging
+  // line. The operator's free-form instruction sits between these
+  // two — preset frames the lens, instruction provides the focus,
+  // severity instruction guides the tagging.
+  //
+  // Layout:
+  //   [Preset: <Label>]
+  //   <preset.codexSystemPrompt>
+  //   ──────────────
+  //   <session label / runId line>
+  //   Focus: <operator instruction>
+  //   <plan snippet if any>
+  //
+  //   <preset.severityTagInstruction OR default severity boilerplate>
+  //
+  // When presetId is null, the original (pre-S3-b) prompt shape is
+  // preserved exactly — backwards compat for tests + legacy callers.
 
-  _buildCodexPrompt(instruction, sessionId) {
+  _buildCodexPrompt(instruction, sessionId, presetId) {
     if (typeof instruction !== "string" || instruction.length === 0) {
       throw new Error("instruction required");
     }
@@ -381,13 +448,21 @@ class ReviewSpawnDispatcher {
     const planLine = planSnippet
       ? `\nClaude plan to review:\n${planSnippet}\n`
       : "";
-    return `${labelLine}\nFocus: ${instruction}\n${planLine}` +
-      "\nProvide a structured critique. Use severity tags " +
-      "[critical] / [high] / [medium] / [low] for each finding so " +
-      "the harness can attribute counts back to the review session.";
+
+    const preset = presetId ? presetLibrary.getPreset(presetId) : null;
+    const presetHeader = preset
+      ? `[Preset: ${preset.defaultLabel}]\n${preset.codexSystemPrompt}\n──────────────\n`
+      : "";
+    const severityLine = preset
+      ? `\n${preset.severityTagInstruction}`
+      : ("\nProvide a structured critique. Use severity tags " +
+         "[critical] / [high] / [medium] / [low] for each finding so " +
+         "the harness can attribute counts back to the review session.");
+
+    return `${presetHeader}${labelLine}\nFocus: ${instruction}\n${planLine}${severityLine}`;
   }
 
-  _buildClaudePrompt(instruction, sessionId, includeCritique) {
+  _buildClaudePrompt(instruction, sessionId, includeCritique, presetId) {
     if (typeof instruction !== "string" || instruction.length === 0) {
       throw new Error("instruction required");
     }
@@ -409,10 +484,16 @@ class ReviewSpawnDispatcher {
         }
       }
     }
-    return `${labelLine}\nApply the following operator instruction: ${instruction}\n${critiqueLine}`;
+
+    const preset = presetId ? presetLibrary.getPreset(presetId) : null;
+    const presetHeader = preset
+      ? `[Preset: ${preset.defaultLabel}]\n${preset.claudeSystemPrompt}\n──────────────\n`
+      : "";
+
+    return `${presetHeader}${labelLine}\nApply the following operator instruction: ${instruction}\n${critiqueLine}`;
   }
 
-  _buildCodexFollowUpPrompt(question, sessionId) {
+  _buildCodexFollowUpPrompt(question, sessionId, presetId) {
     if (typeof question !== "string" || question.length === 0) {
       throw new Error("question required");
     }
@@ -420,9 +501,19 @@ class ReviewSpawnDispatcher {
     const labelLine = session && session.label
       ? `Session: ${session.label} (${sessionId})\n`
       : `Session: ${sessionId}\n`;
-    return `${labelLine}\nOperator follow-up question: ${question}\n` +
-      "\nRespond with additional critique or clarification. Same severity " +
-      "tags as the initial critique apply.";
+
+    // Follow-ups reuse the codex preset (same lens as the initial
+    // critique). Operator's preset choice persists across the session.
+    const preset = presetId ? presetLibrary.getPreset(presetId) : null;
+    const presetHeader = preset
+      ? `[Preset: ${preset.defaultLabel}]\n${preset.codexSystemPrompt}\n──────────────\n`
+      : "";
+    const severityLine = preset
+      ? `\n${preset.severityTagInstruction}`
+      : "\nRespond with additional critique or clarification. Same severity " +
+        "tags as the initial critique apply.";
+
+    return `${presetHeader}${labelLine}\nOperator follow-up question: ${question}\n${severityLine}`;
   }
 }
 
