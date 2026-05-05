@@ -1,0 +1,81 @@
+{
+  "schema": "live-verify-review-relay/v1",
+  "startedAt": "2026-05-05T12:27:07.001Z",
+  "options": {
+    "base": "http://127.0.0.1:4201",
+    "label": "operator-live-probe",
+    "posture": "standard",
+    "withFollowup": false,
+    "withHandback": false
+  },
+  "steps": [
+    {
+      "name": "health",
+      "pass": true,
+      "response": {
+        "status": "ok",
+        "app": "HarnessPipeline",
+        "healthVersion": 1,
+        "uptime": 23.2420322,
+        "terminal": true
+      }
+    },
+    {
+      "name": "server-info",
+      "pass": true,
+      "postureMatch": true
+    },
+    {
+      "name": "create-session",
+      "pass": true,
+      "sessionId": "158bbe28-a5f1-4bd5-b19b-b9d9990f1089"
+    },
+    {
+      "name": "send-codex",
+      "pass": true,
+      "dispatched": true,
+      "runner": "codex",
+      "state": "awaiting_critique"
+    },
+    {
+      "name": "poll-critique-received",
+      "pass": true,
+      "elapsedMs": 30101,
+      "severityCounts": {
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 2,
+        "note": 0
+      },
+      "summary": "- [low] `scripts/live-verify-review-relay.js:2`: Replace mojibake `??` markers in comments/log text with ASCII arrows or hyphens for cleaner diffs.\n- [low] `scripts/live-verify-review-relay.js:50`: Shorten decorative banner comments; concise section headers would make the script easier to scan."
+    },
+    {
+      "name": "archive",
+      "pass": true
+    }
+  ],
+  "sessionId": "158bbe28-a5f1-4bd5-b19b-b9d9990f1089",
+  "critiqueReceivedElapsedMs": 30101,
+  "serverInfo": {
+    "profile": {
+      "activeId": null,
+      "activeLabel": null,
+      "count": 0,
+      "credentialBackend": "none"
+    },
+    "deployment": {
+      "mode": "standard",
+      "publicSector": false,
+      "allowLocalExecutor": true,
+      "allowPlaintextSecrets": false,
+      "requireSandboxWorkspace": false,
+      "requirePiiScan": false,
+      "hardGatesDefault": false
+    },
+    "postureMatch": true
+  },
+  "verdict": "PASS",
+  "completedAt": "2026-05-05T12:27:37.155Z",
+  "exitCode": 0
+}

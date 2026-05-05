@@ -259,7 +259,13 @@ async function main() {
     evidence.properties.p1_hard_gates_env = { ok: false, error: "server-info unreachable" };
     return _emitAndExit(args, evidence, 1);
   }
-  const profile = info.body.deploymentProfile || {};
+  // SMART-ARC-PROBE-SCHEMA-FIX (2026-05-05): the server-info shape
+  // standardized on `info.body.deployment` (per
+  // src/routes/serverControlRoutes.js _summarizeDeployment).
+  // The earlier `info.body.deploymentProfile` was a stale name from
+  // an internal field. Read both for backward-compat but the live
+  // server schema is `deployment`.
+  const profile = info.body.deployment || info.body.deploymentProfile || {};
   evidence.environment = {
     pack: profile.pack || profile.mode,
     publicSector: profile.publicSector === true,

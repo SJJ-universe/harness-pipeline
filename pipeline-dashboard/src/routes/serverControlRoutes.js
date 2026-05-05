@@ -191,6 +191,7 @@ function _summarizeDeployment(deploymentProfile) {
       allowPlaintextSecrets: false,
       requireSandboxWorkspace: false,
       requirePiiScan: false,
+      hardGatesDefault: false,         // SMART-ARC-PROBE-SCHEMA-FIX
     };
   }
   return {
@@ -200,6 +201,11 @@ function _summarizeDeployment(deploymentProfile) {
     allowPlaintextSecrets: !!deploymentProfile.allowPlaintextSecrets,
     requireSandboxWorkspace: !!deploymentProfile.requireSandboxWorkspace,
     requirePiiScan: !!deploymentProfile.requirePiiScanBeforeProviderDispatch,
+    // SMART-ARC-PROBE-SCHEMA-FIX (2026-05-05): expose pack-level
+    // hardGatesDefault so smart-arc P2 can verify the SMART-2 default.
+    // This was missing — the probe FAIL'd on this property even when
+    // the pack legitimately had hardGatesDefault: true.
+    hardGatesDefault: !!deploymentProfile.hardGatesDefault,
   };
 }
 

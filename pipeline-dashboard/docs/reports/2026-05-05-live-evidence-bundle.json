@@ -1,0 +1,201 @@
+{
+  "schema": "harness-live-evidence-bundle/v1",
+  "createdAt": "2026-05-05T12:27:49.722Z",
+  "verdict": "PASS",
+  "summary": {
+    "smartArc": {
+      "sourceFile": "docs\\reports\\2026-05-05-smart-arc-live-verify.json",
+      "schema": "harness-smart-lv-evidence/v1",
+      "verdict": "PASS",
+      "timestamp": "2026-05-05T12:19:54.615Z"
+    },
+    "reviewRelay": {
+      "sourceFile": "docs\\reports\\2026-05-05-review-relay-live-verify.json",
+      "schema": "live-verify-review-relay/v1",
+      "verdict": "PASS",
+      "timestamp": "2026-05-05T12:27:07.001Z"
+    }
+  },
+  "components": {
+    "smartArc": {
+      "schema": "harness-smart-lv-evidence/v1",
+      "runAt": "2026-05-05T12:19:54.615Z",
+      "verdict": "PASS",
+      "environment": {
+        "pack": "finance-high-privacy",
+        "publicSector": true,
+        "hardGatesDefault": true,
+        "hardGatesEnv": true
+      },
+      "properties": {
+        "p1_hard_gates_env": {
+          "ok": true,
+          "hardGatesEnv": true
+        },
+        "p2_finance_high_privacy": {
+          "ok": true,
+          "pack": "finance-high-privacy",
+          "hardGatesDefault": true,
+          "publicSector": true
+        },
+        "p3_policy_gate_blocked": {
+          "ok": true,
+          "status": 409,
+          "error": "policy_gate_blocked",
+          "gate": "pii_block",
+          "reason": "pii_detected",
+          "findingTypes": [
+            "email"
+          ]
+        },
+        "p6_preset_dispatch": {
+          "ok": true,
+          "status": 200,
+          "runner": "codex",
+          "presetId": "security",
+          "dispatched": true
+        },
+        "p5_recommendations": {
+          "ok": true,
+          "booleans": {
+            "hasPii": false,
+            "approvalPending": false,
+            "codexReviewMissing": true,
+            "auditExportReady": false,
+            "publicSector": true,
+            "hasActiveProfile": false,
+            "needsHumanDecision": true,
+            "remoteRunnerActive": false
+          },
+          "counts": {
+            "activeRuns": 0,
+            "pendingApprovals": 0,
+            "openReviewSessions": 1,
+            "remoteRunnerCount": 0,
+            "evidenceLedgerEntries": 0
+          },
+          "posture": {
+            "mode": "finance-high-privacy",
+            "publicSector": true,
+            "allowLocalExecutor": false,
+            "requirePiiScan": false,
+            "requireSandboxWorkspace": true,
+            "requireSignedManifest": true
+          }
+        },
+        "p4_run_memory_redacted": {
+          "ok": true,
+          "status": 404,
+          "note": "expected — review session id is not a pipeline run; route shape verified",
+          "record": null
+        }
+      },
+      "auditChain": {
+        "sessionId": "9be989a3-f267-41ba-9e18-f4bda2b63bcc",
+        "systemRun": {
+          "ok": false,
+          "verbsObserved": [
+            "credential_backend_unavailable",
+            "deployment_profile_resolved",
+            "local_executor_blocked",
+            "review_session_created",
+            "review_session_dispatch_failed",
+            "review_session_dispatch_started",
+            "review_session_send_codex"
+          ],
+          "verbsExpected": [
+            "deployment_profile_resolved",
+            "policy_gate_blocked"
+          ],
+          "verbsMatched": [
+            "deployment_profile_resolved"
+          ],
+          "total": 256
+        }
+      },
+      "notes": []
+    },
+    "reviewRelay": {
+      "schema": "live-verify-review-relay/v1",
+      "startedAt": "2026-05-05T12:27:07.001Z",
+      "options": {
+        "base": "http://127.0.0.1:4201",
+        "label": "operator-live-probe",
+        "posture": "standard",
+        "withFollowup": false,
+        "withHandback": false
+      },
+      "steps": [
+        {
+          "name": "health",
+          "pass": true,
+          "response": {
+            "status": "ok",
+            "app": "HarnessPipeline",
+            "healthVersion": 1,
+            "uptime": 23.2420322,
+            "terminal": true
+          }
+        },
+        {
+          "name": "server-info",
+          "pass": true,
+          "postureMatch": true
+        },
+        {
+          "name": "create-session",
+          "pass": true,
+          "sessionId": "158bbe28-a5f1-4bd5-b19b-b9d9990f1089"
+        },
+        {
+          "name": "send-codex",
+          "pass": true,
+          "dispatched": true,
+          "runner": "codex",
+          "state": "awaiting_critique"
+        },
+        {
+          "name": "poll-critique-received",
+          "pass": true,
+          "elapsedMs": 30101,
+          "severityCounts": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 2,
+            "note": 0
+          },
+          "summary": "- [low] `scripts/live-verify-review-relay.js:2`: Replace mojibake `??` markers in comments/log text with ASCII arrows or hyphens for cleaner diffs.\n- [low] `scripts/live-verify-review-relay.js:50`: Shorten decorative banner comments; concise section headers would make the script easier to scan."
+        },
+        {
+          "name": "archive",
+          "pass": true
+        }
+      ],
+      "sessionId": "158bbe28-a5f1-4bd5-b19b-b9d9990f1089",
+      "critiqueReceivedElapsedMs": 30101,
+      "serverInfo": {
+        "profile": {
+          "activeId": null,
+          "activeLabel": null,
+          "count": 0,
+          "credentialBackend": "none"
+        },
+        "deployment": {
+          "mode": "standard",
+          "publicSector": false,
+          "allowLocalExecutor": true,
+          "allowPlaintextSecrets": false,
+          "requireSandboxWorkspace": false,
+          "requirePiiScan": false,
+          "hardGatesDefault": false
+        },
+        "postureMatch": true
+      },
+      "verdict": "PASS",
+      "completedAt": "2026-05-05T12:27:37.155Z",
+      "exitCode": 0
+    }
+  },
+  "missing": []
+}

@@ -1,11 +1,98 @@
 {
   "schema": "harness-smart-lv-evidence/v1",
-  "runAt": "2026-05-05T03:13:22.841Z",
-  "verdict": "CONFIG",
-  "environment": {},
-  "properties": {},
-  "auditChain": {},
-  "notes": [
-    "server not reachable; cannot proceed"
-  ]
+  "runAt": "2026-05-05T12:19:54.615Z",
+  "verdict": "PASS",
+  "environment": {
+    "pack": "finance-high-privacy",
+    "publicSector": true,
+    "hardGatesDefault": true,
+    "hardGatesEnv": true
+  },
+  "properties": {
+    "p1_hard_gates_env": {
+      "ok": true,
+      "hardGatesEnv": true
+    },
+    "p2_finance_high_privacy": {
+      "ok": true,
+      "pack": "finance-high-privacy",
+      "hardGatesDefault": true,
+      "publicSector": true
+    },
+    "p3_policy_gate_blocked": {
+      "ok": true,
+      "status": 409,
+      "error": "policy_gate_blocked",
+      "gate": "pii_block",
+      "reason": "pii_detected",
+      "findingTypes": [
+        "email"
+      ]
+    },
+    "p6_preset_dispatch": {
+      "ok": true,
+      "status": 200,
+      "runner": "codex",
+      "presetId": "security",
+      "dispatched": true
+    },
+    "p5_recommendations": {
+      "ok": true,
+      "booleans": {
+        "hasPii": false,
+        "approvalPending": false,
+        "codexReviewMissing": true,
+        "auditExportReady": false,
+        "publicSector": true,
+        "hasActiveProfile": false,
+        "needsHumanDecision": true,
+        "remoteRunnerActive": false
+      },
+      "counts": {
+        "activeRuns": 0,
+        "pendingApprovals": 0,
+        "openReviewSessions": 1,
+        "remoteRunnerCount": 0,
+        "evidenceLedgerEntries": 0
+      },
+      "posture": {
+        "mode": "finance-high-privacy",
+        "publicSector": true,
+        "allowLocalExecutor": false,
+        "requirePiiScan": false,
+        "requireSandboxWorkspace": true,
+        "requireSignedManifest": true
+      }
+    },
+    "p4_run_memory_redacted": {
+      "ok": true,
+      "status": 404,
+      "note": "expected — review session id is not a pipeline run; route shape verified",
+      "record": null
+    }
+  },
+  "auditChain": {
+    "sessionId": "9be989a3-f267-41ba-9e18-f4bda2b63bcc",
+    "systemRun": {
+      "ok": false,
+      "verbsObserved": [
+        "credential_backend_unavailable",
+        "deployment_profile_resolved",
+        "local_executor_blocked",
+        "review_session_created",
+        "review_session_dispatch_failed",
+        "review_session_dispatch_started",
+        "review_session_send_codex"
+      ],
+      "verbsExpected": [
+        "deployment_profile_resolved",
+        "policy_gate_blocked"
+      ],
+      "verbsMatched": [
+        "deployment_profile_resolved"
+      ],
+      "total": 256
+    }
+  },
+  "notes": []
 }

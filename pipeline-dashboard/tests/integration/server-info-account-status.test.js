@@ -443,19 +443,41 @@ test("D3-a: _summarizeProfile returns the documented stable shape", () => {
   );
 });
 
-test("D3-a: _summarizeDeployment returns 6 documented fields", () => {
+test("D3-a: _summarizeDeployment returns 7 documented fields (post SMART-ARC-PROBE-SCHEMA-FIX)", () => {
+  // SMART-ARC-PROBE-SCHEMA-FIX (2026-05-05) added `hardGatesDefault`
+  // so the smart-arc live probe can verify the SMART-2 default of the
+  // resolved pack. Both branches of _summarizeDeployment (null +
+  // populated) must include the field.
   const result = _summarizeDeployment(null);
   assert.deepEqual(
     Object.keys(result).sort(),
     [
       "allowLocalExecutor",
       "allowPlaintextSecrets",
+      "hardGatesDefault",
       "mode",
       "publicSector",
       "requirePiiScan",
       "requireSandboxWorkspace",
     ].sort(),
   );
+  assert.equal(result.hardGatesDefault, false,
+    "null deploymentProfile must default hardGatesDefault to false");
+});
+
+test("D3-a: _summarizeDeployment surfaces hardGatesDefault from a populated pack", () => {
+  // Mirror branch: populated profile must propagate hardGatesDefault.
+  const result = _summarizeDeployment({
+    mode: "finance-high-privacy",
+    publicSector: true,
+    allowLocalExecutor: false,
+    allowPlaintextSecrets: false,
+    requireSandboxWorkspace: true,
+    requirePiiScanBeforeProviderDispatch: true,
+    hardGatesDefault: true,
+  });
+  assert.equal(result.hardGatesDefault, true,
+    "populated deploymentProfile.hardGatesDefault must propagate to summary");
 });
 
 test("D3-a: _summarizeBridge returns { mode } only", () => {
