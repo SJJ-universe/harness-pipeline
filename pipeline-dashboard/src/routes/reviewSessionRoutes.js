@@ -50,7 +50,56 @@
 
 const express = require("express");
 
+const presetLibrary = require("../runtime/presetLibrary");
+
 const MAX_BODY_BYTES = 16 * 1024;  // 16 KB JSON body cap (instruction is the largest field)
+
+// Slice S3-c (Phase 2 / SMART-3, 2026-05-04): each POST endpoint that
+// dispatches a runner accepts an optional `preset` body field:
+//   { instruction: "...", preset: "security" }   ← shorthand string
+// or
+//   { instruction: "...", preset: { presetId: "security" } }
+// Returns 400 with `error: "invalid_preset"` when presetId is unknown.
+// Returns 400 with `error: "invalid_input"` when preset is the wrong
+// shape entirely (e.g., array, number).
+function _resolvePresetId(rawPreset) {
+  if (rawPreset === undefined || rawPreset === null) return null;
+  // Shorthand: bare string
+  if (typeof rawPreset === "string") {
+    return presetLibrary.isValidPresetId(rawPreset) ? rawPreset : "__invalid__";
+  }
+  // Object form: { presetId: "..." }
+  if (typeof rawPreset === "object" && !Array.isArray(rawPreset)) {
+    const id = rawPreset.presetId;
+    if (id === undefined || id === null) return null;
+    if (typeof id !== "string") return "__shape__";
+    return presetLibrary.isValidPresetId(id) ? id : "__invalid__";
+  }
+  return "__shape__";
+}
+
+// Maps the resolved presetId sentinel back to a route-level error
+// response. Returns null when the preset is OK (callers proceed).
+function _emitPresetError(res, sentinel, rawPreset) {
+  if (sentinel === "__invalid__") {
+    res.status(400).json({
+      ok: false,
+      error: "invalid_preset",
+      message: `Unknown presetId. Valid values: ${presetLibrary.PRESET_IDS.join(", ")}.`,
+      knownPresetIds: presetLibrary.PRESET_IDS,
+    });
+    return true;
+  }
+  if (sentinel === "__shape__") {
+    res.status(400).json({
+      ok: false,
+      error: "invalid_input",
+      message: "preset must be a string presetId or { presetId: string }.",
+    });
+    return true;
+  }
+  return false;
+}
 
 function createReviewSessionRoutes(deps = {}) {
   const router = express.Router();
@@ -72,6 +121,20 @@ function createReviewSessionRoutes(deps = {}) {
       return next(err);
     }
     next();
+  });
+
+  // ── GET /api/review-presets (Slice S3-c) ─────────────────────
+  //
+  // UI dropdown source. Returns slim summaries (no system prompt
+  // bodies) so the browser sees only id + label + description. The
+  // full prompt text lives server-side and reaches the LLM via the
+  // dispatcher, never via the browser.
+  router.get("/review-presets", (_req, res) => {
+    res.json({
+      schema: presetLibrary.SCHEMA,
+      presets: presetLibrary.listPresetSummaries(),
+      serverTime: Date.now(),
+    });
   });
 
   // ── GET /api/review-sessions ─────────────────────────────────
@@ -113,6 +176,11 @@ function createReviewSessionRoutes(deps = {}) {
   router.post("/review-sessions/:id/send-codex", async (req, res) => {
     const id = String(req.params.id || "");
     const body = req.body && typeof req.body === "object" ? req.body : {};
+    // 0. Slice S3-c: preset validation BEFORE state transition. If
+    //    the operator picked an unknown preset, fail loud with 400
+    //    rather than transitioning to AWAITING_CRITIQUE then 400.
+    const presetId = _resolvePresetId(body.preset);
+    if (_emitPresetError(res, presetId, body.preset)) return;
     let session;
     // 1. State transition first
     try {
@@ -134,6 +202,7 @@ function createReviewSessionRoutes(deps = {}) {
       try {
         dispatchAck = await dispatcher.dispatchCodex(id, {
           instruction: body.instruction,
+          presetId,
         });
       } catch (err) {
         return _emitDispatchError(res, err, { session });
@@ -144,6 +213,7 @@ function createReviewSessionRoutes(deps = {}) {
       dispatchedAt: dispatchAck ? dispatchAck.startedAt : Date.now(),
       runner: dispatchAck ? dispatchAck.runner : null,
       dispatched: !!dispatchAck,
+      presetId: dispatchAck ? dispatchAck.presetId : presetId,
     });
   });
 
@@ -152,6 +222,10 @@ function createReviewSessionRoutes(deps = {}) {
   router.post("/review-sessions/:id/follow-up", async (req, res) => {
     const id = String(req.params.id || "");
     const body = req.body && typeof req.body === "object" ? req.body : {};
+
+    // Slice S3-c: preset validation up front (same as send-codex).
+    const presetId = _resolvePresetId(body.preset);
+    if (_emitPresetError(res, presetId, body.preset)) return;
 
     // Public-sector posture: refuse follow-ups targeting "claude" if
     // posture forbids local executor AND deploymentProfile is wired.
@@ -189,6 +263,7 @@ function createReviewSessionRoutes(deps = {}) {
       try {
         dispatchAck = await dispatcher.dispatchFollowUpCodex(id, {
           question: body.question,
+          presetId,
         });
       } catch (err) {
         return _emitDispatchError(res, err, { session });
@@ -198,6 +273,7 @@ function createReviewSessionRoutes(deps = {}) {
       ok: true, session,
       dispatched: !!dispatchAck,
       dispatchedAt: dispatchAck ? dispatchAck.startedAt : null,
+      presetId: dispatchAck ? dispatchAck.presetId : presetId,
     });
   });
 
@@ -206,6 +282,10 @@ function createReviewSessionRoutes(deps = {}) {
   router.post("/review-sessions/:id/hand-back-claude", async (req, res) => {
     const id = String(req.params.id || "");
     const body = req.body && typeof req.body === "object" ? req.body : {};
+
+    // Slice S3-c: preset validation up front.
+    const presetId = _resolvePresetId(body.preset);
+    if (_emitPresetError(res, presetId, body.preset)) return;
 
     // Same posture gate as follow-up: hand-back triggers a Claude
     // spawn that may issue write-tools. Public-sector + no-local-
@@ -241,6 +321,7 @@ function createReviewSessionRoutes(deps = {}) {
         dispatchAck = await dispatcher.dispatchClaude(id, {
           instruction: body.instruction,
           includeCritique: body.includeCritique !== false,
+          presetId,
         });
       } catch (err) {
         return _emitDispatchError(res, err, { session });
@@ -251,6 +332,7 @@ function createReviewSessionRoutes(deps = {}) {
       dispatchedAt: dispatchAck ? dispatchAck.startedAt : Date.now(),
       runner: dispatchAck ? dispatchAck.runner : null,
       dispatched: !!dispatchAck,
+      presetId: dispatchAck ? dispatchAck.presetId : presetId,
     });
   });
 
