@@ -48,10 +48,11 @@ test("RUNBOOKS-INDEX-1: tagged with slice RUNBOOKS-INDEX-1", () => {
 
 const SECTIONS = [
   ["§1", "Field-pilot family"],
-  ["§2", "Live-verify family"],
-  ["§3", "How to add a new runbook"],
-  ["§4", "Conventions"],
-  ["§5", "References"],
+  ["§2", "Pre-deployment family"],     // PREFLIGHT-CHECKLIST round
+  ["§3", "Live-verify family"],
+  ["§4", "How to add a new runbook"],
+  ["§5", "Conventions"],
+  ["§6", "References"],
 ];
 
 for (const [num, name] of SECTIONS) {
@@ -127,6 +128,18 @@ for (const r of FIELD_PILOT_RUNBOOKS) {
   });
 }
 
+// ── Pre-deployment family — anchor (PREFLIGHT-CHECKLIST round) ──
+
+test("RUNBOOKS-INDEX-1: §2 lists deployment-readiness.md + preflight.js", () => {
+  const md = read();
+  const idx = md.indexOf("## §2 Pre-deployment family");
+  const seg = md.slice(idx, md.indexOf("## §3", idx));
+  assert.match(seg, /deployment-readiness\.md/,
+    "§2 must list deployment-readiness.md");
+  assert.match(seg, /preflight\.js/,
+    "§2 must reference scripts/preflight.js");
+});
+
 // ── Live-verify family — anchor entries + script pairing ──────
 
 const LIVE_VERIFY_PAIRS = [
@@ -139,30 +152,30 @@ const LIVE_VERIFY_PAIRS = [
 ];
 
 for (const [runbook, script] of LIVE_VERIFY_PAIRS) {
-  test(`RUNBOOKS-INDEX-1: §2 pairs ${runbook} with ${script}`, () => {
+  test(`RUNBOOKS-INDEX-1: §3 pairs ${runbook} with ${script}`, () => {
     const md = read();
-    const idx = md.indexOf("## §2 Live-verify family");
-    const seg = md.slice(idx, md.indexOf("## §3", idx));
+    const idx = md.indexOf("## §3 Live-verify family");
+    const seg = md.slice(idx, md.indexOf("## §4", idx));
     assert.match(seg, new RegExp(runbook.replace(/\./g, "\\.")),
-      `§2 must list ${runbook}`);
+      `§3 must list ${runbook}`);
     assert.match(seg, new RegExp(script.replace(/\./g, "\\.")),
-      `§2 must list ${script}`);
+      `§3 must list ${script}`);
   });
 }
 
 // ── §3 Add-a-runbook checklist ───────────────────────────────
 
-test("RUNBOOKS-INDEX-1: §3 documents the 5-step add-a-runbook procedure", () => {
+test("RUNBOOKS-INDEX-1: §4 documents the 5-step add-a-runbook procedure", () => {
   const md = read();
-  const idx = md.indexOf("## §3 How to add a new runbook");
-  const seg = md.slice(idx, md.indexOf("## §4", idx));
+  const idx = md.indexOf("## §4 How to add a new runbook");
+  const seg = md.slice(idx, md.indexOf("## §5", idx));
   for (const n of [1, 2, 3, 4, 5]) {
     assert.match(seg, new RegExp(`^${n}\\.`, "m"),
-      `§3 must include step ${n}.`);
+      `§4 must include step ${n}.`);
   }
   // Mentions the structural test by name
   assert.match(seg, /docs\.runbooks-readme\.test\.js/,
-    "§3 must point at the structural test that enforces drift detection");
+    "§4 must point at the structural test that enforces drift detection");
 });
 
 // ── Cross-references ─────────────────────────────────────────

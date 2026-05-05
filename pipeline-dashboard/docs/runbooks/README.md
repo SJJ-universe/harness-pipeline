@@ -29,7 +29,20 @@ survey at the end of the pilot window.
 | [`field-pilot-incident-ledger.md`](field-pilot-incident-ledger.md) | Incident ledger — append-only record of every S2+ event during the pilot. |
 | [`field-pilot-feedback-survey.md`](field-pilot-feedback-survey.md) | Pilot-end feedback survey — structured questionnaire for operator + end-user retrospective. |
 
-## §2 Live-verify family
+## §2 Pre-deployment family
+
+**Audience**: operator preparing a release or shipping a build to
+end users (slice **PREFLIGHT-CHECKLIST**, Phase 2 v2 follow-up).
+
+This family currently has one runbook — the single-command preflight
+that aggregates every gate the project enforces in CI. Run it before
+tagging a release.
+
+| Runbook | Probe script | One-line summary |
+| --- | --- | --- |
+| [`deployment-readiness.md`](deployment-readiness.md) | [`preflight.js`](../../scripts/preflight.js) | Pre-deployment health check — visual / readiness / scorecard / hooks gates plus optional smoke. |
+
+## §3 Live-verify family
 
 **Audience**: operator (or CI in opt-in mode) verifying a live
 running harness against a real browser or real Claude/Codex
@@ -38,6 +51,10 @@ binaries.
 Each runbook here drives a specific probe script in `scripts/` and
 captures its acceptance criteria. The probes are listed in
 [`scripts/README.md`](../../scripts/README.md) §5 and §7.
+
+(The pre-deployment runbook in §2 above is a related but distinct
+audience: §2 is for one-shot release verification, §3 is for
+ongoing live verification of a running deployment.)
 
 | Runbook | Probe script | Slice |
 | --- | --- | --- |
@@ -55,7 +72,7 @@ the others.
 
 ---
 
-## §3 How to add a new runbook
+## §4 How to add a new runbook
 
 When a new operator workflow lands, add the runbook here following
 the established conventions:
@@ -83,7 +100,7 @@ the established conventions:
 If the new runbook starts a third family, add a new section here
 and update the test's expected-section list in the same commit.
 
-## §4 Conventions
+## §5 Conventions
 
 - **Korean / English**: runbooks are written in either language but
   the title makes the choice clear ("Runbook" only → English content;
@@ -99,7 +116,7 @@ and update the test's expected-section list in the same commit.
   evidence. Per-run evidence (probe outputs, screenshots, JSON
   artifacts) lives under `docs/reports/`.
 
-## §5 References
+## §6 References
 
 - [`docs/README.md`](../README.md) — top-level documentation index.
 - [`scripts/README.md`](../../scripts/README.md) — operator/CI scripts

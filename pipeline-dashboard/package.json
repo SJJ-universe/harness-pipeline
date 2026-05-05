@@ -23,7 +23,8 @@
     "visual:assert-live": "node scripts/visual-assert-live.js",
     "visual:a11y-live": "node scripts/visual-a11y-live.js",
     "visual:button-live": "node scripts/visual-button-live.js",
-    "visual:fused-live": "node scripts/visual-fused-live.js"
+    "visual:fused-live": "node scripts/visual-fused-live.js",
+    "preflight": "node scripts/preflight.js"
   },
   "keywords": [],
   "author": "",
