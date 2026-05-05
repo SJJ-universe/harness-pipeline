@@ -277,6 +277,18 @@
     "policyPack.field.scannerFailurePolicy":             "Scanner failure policy",
     "policyPack.field.hardGatesDefault":                 "Hard gates default",
     "policyPack.field.runMemoryEnabled":                 "Run memory enabled",
+
+    // POL-UI-1-a (Phase 2 v2 follow-up, 2026-05-05) — pack-info-card panel keys
+    "policyPack.alternatives.summary":                   "Compare other packs",
+    "policyPack.alternatives.none":                      "(No other packs registered)",
+    "policyPack.empty":                                  "Loading policy pack info…",
+    "policyPack.value.yes":                              "Yes",
+    "policyPack.value.no":                               "No",
+    "policyPack.value.enabled":                          "Enabled",
+    "policyPack.value.disabled":                         "Disabled",
+    "policyPack.altBadge.publicSector":                  "Public sector",
+    "policyPack.altBadge.hardGates":                     "Hard gates default",
+    "policyPack.altBadge.noRunMemory":                   "Run memory OFF",
   };
 
   if (typeof module !== "undefined" && module.exports) {

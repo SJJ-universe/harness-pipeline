@@ -191,6 +191,32 @@
       },
     });
 
+    // Slice POL-UI-1-a (Phase 2 v2 follow-up, 2026-05-05): mount
+    // pack-info-card BETWEEN the recommendations-card and the 4-card
+    // grid. The pack-info card is a "deployment posture" banner — it
+    // tells the operator which policy pack is active + the runtime-
+    // effective hard-gates mode + run-memory state + (when applicable)
+    // public-sector requirements + restart hint + collapsible
+    // alternatives. Closes the POL-c deferred UI: POL-c shipped the
+    // store slice + legacy-bridge fetch + i18n; this is the surface.
+    //
+    // The card hides its scaffold until the store has data (the legacy-
+    // bridge fetches /api/policy-packs once at boot — packs are frozen
+    // for the life of the server, so polling is wasted work). Tests that
+    // don't want this card simply don't inject panels.packInfo and don't
+    // expose HarnessPackInfoCard on globalThis.
+    const packInfoMount = _doc.createElement("div");
+    packInfoMount.className = "ss-pack-info-mount";
+    root.appendChild(packInfoMount);
+
+    _mount("packInfo", "HarnessPackInfoCard", packInfoMount, {
+      i18n,
+      onCta: function (_ctaId, _meta) {
+        // Reserved seam — pack-info-card today has no CTAs but future
+        // slices (e.g. "compare packs side-by-side") may dispatch.
+      },
+    });
+
     // Card 1: 지금 AI가 하는 일
     _mount("nowDoing", "HarnessMonitorNowDoingCard", _makeCell());
     // Card 2: 승인 필요

@@ -288,6 +288,18 @@
     "policyPack.field.scannerFailurePolicy":             "스캐너 실패 정책",
     "policyPack.field.hardGatesDefault":                 "기본 하드 게이트",
     "policyPack.field.runMemoryEnabled":                 "런 메모리 활성",
+
+    // POL-UI-1-a (Phase 2 v2 follow-up, 2026-05-05) — pack-info-card panel keys
+    "policyPack.alternatives.summary":                   "다른 팩 비교 보기",
+    "policyPack.alternatives.none":                      "(다른 팩이 등록되어 있지 않습니다)",
+    "policyPack.empty":                                  "정책 팩 정보를 불러오는 중...",
+    "policyPack.value.yes":                              "예",
+    "policyPack.value.no":                               "아니오",
+    "policyPack.value.enabled":                          "활성",
+    "policyPack.value.disabled":                         "비활성",
+    "policyPack.altBadge.publicSector":                  "공공기관",
+    "policyPack.altBadge.hardGates":                     "기본 하드 게이트",
+    "policyPack.altBadge.noRunMemory":                   "런 메모리 OFF",
   };
 
   if (typeof module !== "undefined" && module.exports) {

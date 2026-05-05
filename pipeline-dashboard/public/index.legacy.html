@@ -570,6 +570,14 @@
        because the panel resolves the engine via globalThis.HarnessRecommendationEngine. -->
   <script src="js/runtime/recommendationEngine.js"></script>
   <script src="js/monitor/panels/recommendations-card.js"></script>
+  <!-- Slice POL-UI-1-a (Phase 2 v2 follow-up, 2026-05-05): Pack-info card.
+       Operator-facing display of the resolved policy pack + runtime-effective
+       hard-gates mode + run-memory state + public-sector requirements (when
+       applicable) + restart hint + collapsible alternatives. Reads from
+       store.policyPacks slice (POL-c plumbed; legacy-bridge fetches once
+       at boot). MUST load before simple-shell.js so the constructor is
+       registered on window.HarnessPackInfoCard. -->
+  <script src="js/monitor/panels/pack-info-card.js"></script>
   <script src="js/monitor/shells/simple-shell.js"></script>
   <script src="js/monitor/layout.js"></script>
   <script>
