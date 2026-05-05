@@ -24,7 +24,8 @@
     "visual:a11y-live": "node scripts/visual-a11y-live.js",
     "visual:button-live": "node scripts/visual-button-live.js",
     "visual:fused-live": "node scripts/visual-fused-live.js",
-    "preflight": "node scripts/preflight.js"
+    "preflight": "node scripts/preflight.js",
+    "collect-live-evidence": "node scripts/collect-live-evidence.js"
   },
   "keywords": [],
   "author": "",

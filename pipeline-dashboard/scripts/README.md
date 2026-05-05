@@ -78,6 +78,7 @@ property you want to verify.
 | --- | --- |
 | [`live-verify-review-relay.js`](live-verify-review-relay.js) | Dual-agent review-relay live probe (with `.sh` + `.ps1` wrappers). |
 | [`live-verify-smart-arc.js`](live-verify-smart-arc.js) | SMART arc live probe (with `.sh` + `.ps1` wrappers). |
+| [`collect-live-evidence.js`](collect-live-evidence.js) | Aggregate the two probe outputs into a single sealed bundle (schema `harness-live-evidence-bundle/v1`). See [`docs/live-evidence-schema.md`](../docs/live-evidence-schema.md) §4. |
 
 ## §6 Field pilot
 

@@ -50,10 +50,11 @@ const SECTIONS = [
   ["§1", "Why this exists"],
   ["§2", "Schema 1 — `harness-smart-lv-evidence/v1`"],
   ["§3", "Schema 2 — `live-verify-review-relay/v1`"],
-  ["§4", "Audit-chain anchors"],
-  ["§5", "Schema versioning policy"],
-  ["§6", "Schema convergence notes"],
-  ["§7", "References"],
+  ["§4", "Schema 3 — `harness-live-evidence-bundle/v1`"],  // LIVE-EVIDENCE-COLLECTOR added
+  ["§5", "Audit-chain anchors"],
+  ["§6", "Schema versioning policy"],
+  ["§7", "Schema convergence notes"],
+  ["§8", "References"],
 ];
 
 for (const [num, name] of SECTIONS) {
@@ -148,43 +149,73 @@ test("LIVE-EVIDENCE-SCHEMA-DOC: §3.4 documents the FAIL_* vocabulary", () => {
   }
 });
 
-// ── §4 audit-chain anchors ────────────────────────────────────
+// ── §4 Schema 3 (bundle) anchors ──────────────────────────────
 
-test("LIVE-EVIDENCE-SCHEMA-DOC: §4 names all 3 audit-chain anchor verbs", () => {
+test("LIVE-EVIDENCE-SCHEMA-DOC: §4 schema-3 identifier locked", () => {
   const text = read(DOC);
-  const idx = text.indexOf("## §4");
-  const seg = text.slice(idx, text.indexOf("## §5", idx));
+  const occurrences = (text.match(/harness-live-evidence-bundle\/v1/g) || []).length;
+  assert.ok(occurrences >= 3,
+    `expected ≥ 3 mentions of the bundle schema identifier, got ${occurrences}`);
+});
+
+test("LIVE-EVIDENCE-SCHEMA-DOC: §4.1 names all 6 bundle top-level fields", () => {
+  const text = read(DOC);
+  const idx = text.indexOf("### §4.1");
+  const seg = text.slice(idx, text.indexOf("### §4.2", idx));
+  for (const f of ["schema", "createdAt", "verdict", "summary",
+                    "components", "missing"]) {
+    assert.match(seg, new RegExp("`" + f + "`"),
+      `§4.1 must list bundle field \`${f}\``);
+  }
+});
+
+test("LIVE-EVIDENCE-SCHEMA-DOC: §4.4 documents the 3-verdict bundle vocabulary", () => {
+  const text = read(DOC);
+  const idx = text.indexOf("### §4.4");
+  const seg = text.slice(idx, text.indexOf("### §4.5", idx));
+  for (const v of ["PASS", "FAIL", "INCOMPLETE"]) {
+    assert.match(seg, new RegExp("`" + v + "`"),
+      `§4.4 must list verdict \`${v}\``);
+  }
+});
+
+// ── §5 audit-chain anchors ────────────────────────────────────
+
+test("LIVE-EVIDENCE-SCHEMA-DOC: §5 names all 3 audit-chain anchor verbs", () => {
+  const text = read(DOC);
+  const idx = text.indexOf("## §5");
+  const seg = text.slice(idx, text.indexOf("## §6", idx));
   for (const verb of [
     "deployment_profile_resolved",
     "policy_gate_blocked",
     "review_session_dispatch_started",
   ]) {
     assert.match(seg, new RegExp("`" + verb + "`"),
-      `§4 must name audit verb \`${verb}\``);
+      `§5 must name audit verb \`${verb}\``);
   }
 });
 
-// ── §5 versioning policy ──────────────────────────────────────
+// ── §6 versioning policy ──────────────────────────────────────
 
-test("LIVE-EVIDENCE-SCHEMA-DOC: §5 distinguishes breaking vs additive changes", () => {
+test("LIVE-EVIDENCE-SCHEMA-DOC: §6 distinguishes breaking vs additive changes", () => {
   const text = read(DOC);
-  const idx = text.indexOf("## §5");
-  const seg = text.slice(idx, text.indexOf("## §6", idx));
+  const idx = text.indexOf("## §6");
+  const seg = text.slice(idx, text.indexOf("## §7", idx));
   // Must explicitly say what bumps to v2 vs what stays v1.
   assert.match(seg, /breaking|breaking change|bump to v2/i);
   assert.match(seg, /additive/i);
 });
 
-// ── §6 convergence notes call out the 4 inconsistencies ──────
+// ── §7 convergence notes call out the 4 inconsistencies ──────
 
-test("LIVE-EVIDENCE-SCHEMA-DOC: §6 documents 4 v2 candidate fixes", () => {
+test("LIVE-EVIDENCE-SCHEMA-DOC: §7 documents 4 v2 candidate fixes", () => {
   const text = read(DOC);
-  const idx = text.indexOf("## §6");
-  const seg = text.slice(idx, text.indexOf("## §7", idx));
+  const idx = text.indexOf("## §7");
+  const seg = text.slice(idx, text.indexOf("## §8", idx));
   // 4 numbered items
   for (const n of [1, 2, 3, 4]) {
     assert.match(seg, new RegExp(`^${n}\\.\\s+\\*\\*`, "m"),
-      `§6 must include numbered convergence note ${n}.`);
+      `§7 must include numbered convergence note ${n}.`);
   }
   // The specific divergence points named
   assert.match(seg, /prefix/);
@@ -197,9 +228,9 @@ test("LIVE-EVIDENCE-SCHEMA-DOC: links to v1-blockers.md (the blocker this unlock
   assert.match(read(DOC), /v1-blockers\.md/);
 });
 
-test("LIVE-EVIDENCE-SCHEMA-DOC: links to both probe scripts in §7", () => {
+test("LIVE-EVIDENCE-SCHEMA-DOC: links to both probe scripts in §8", () => {
   const text = read(DOC);
-  const idx = text.indexOf("## §7");
+  const idx = text.indexOf("## §8");
   const seg = text.slice(idx);
   assert.match(seg, /live-verify-smart-arc\.js/);
   assert.match(seg, /live-verify-review-relay\.js/);

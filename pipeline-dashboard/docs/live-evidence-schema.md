@@ -258,7 +258,117 @@ can read the verdict alone and know which step broke.
 
 ---
 
-## §4 Audit-chain anchors (cross-cutting)
+## §4 Schema 3 — `harness-live-evidence-bundle/v1` (aggregation)
+
+Emitted by [`scripts/collect-live-evidence.js`](../scripts/collect-live-evidence.js)
+when an operator runs `npm run collect-live-evidence` after committing
+the per-probe evidence files. The bundle inlines both component
+evidence files plus a derived top-level verdict, producing a
+single artifact suitable for the v1.0.0 release evidence packet.
+
+### §4.1 Top-level required fields
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `schema` | string | Must equal `"harness-live-evidence-bundle/v1"`. |
+| `createdAt` | ISO-8601 string | Timestamp at which the bundle was assembled. UTC. |
+| `verdict` | enum | One of `"PASS"`, `"FAIL"`, `"INCOMPLETE"`. See §4.4 below. |
+| `summary` | object | Per-component summary. See §4.2. |
+| `components` | object | Full per-component evidence inlined. See §4.3. |
+| `missing` | string[] | Names of components not found (`"smartArc"`, `"reviewRelay"`). Empty if both present. |
+
+### §4.2 `summary` sub-shape
+
+Each entry is `null` when that component was not found, otherwise:
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `sourceFile` | string | Relative path of the file the bundle was assembled from. |
+| `schema` | string | Re-stated for convenience (`harness-smart-lv-evidence/v1` or `live-verify-review-relay/v1`). |
+| `verdict` | string | Component verdict (per §2.4 / §3.4). |
+| `timestamp` | ISO-8601 string | Component's `runAt` (smart-arc) or `startedAt` (review-relay). |
+
+The summary mirrors the most operator-relevant top-level fields
+of each component so a reviewer can read the bundle's `summary`
+without parsing the full `components` object.
+
+### §4.3 `components` sub-shape
+
+Each entry is the **full** evidence object as emitted by the
+underlying probe, or `null` if the component was missing. This
+makes the bundle self-contained: an offline reviewer can verify
+schema-1 conformance against `components.smartArc` and schema-2
+conformance against `components.reviewRelay` without needing the
+original per-probe files.
+
+### §4.4 `verdict` vocabulary
+
+| Verdict | Meaning | Exit code |
+| --- | --- | --- |
+| `PASS` | Both components present and both have component-verdict `"PASS"`. | `0` |
+| `FAIL` | Both components present, at least one has an explicit FAIL verdict. | `1` |
+| `INCOMPLETE` | At least one component missing, OR the smart-arc component has verdict `"CONFIG"`, OR the review-relay component has verdict `"PENDING"`. The partial bundle is still written so the gap is visible to a reviewer. | `1` |
+
+### §4.5 Example — INCOMPLETE (smart-arc CONFIG)
+
+```json
+{
+  "schema": "harness-live-evidence-bundle/v1",
+  "createdAt": "2026-05-05T15:00:00.000Z",
+  "verdict": "INCOMPLETE",
+  "summary": {
+    "smartArc": {
+      "sourceFile": "docs/reports/2026-05-05-smart-arc-live-verify.json",
+      "schema": "harness-smart-lv-evidence/v1",
+      "verdict": "CONFIG",
+      "timestamp": "2026-05-05T02:49:37.801Z"
+    },
+    "reviewRelay": null
+  },
+  "components": {
+    "smartArc": { "schema": "harness-smart-lv-evidence/v1", "...": "..." },
+    "reviewRelay": null
+  },
+  "missing": ["reviewRelay"]
+}
+```
+
+### §4.6 Example — PASS shape
+
+```json
+{
+  "schema": "harness-live-evidence-bundle/v1",
+  "createdAt": "2026-05-06T15:35:00.000Z",
+  "verdict": "PASS",
+  "summary": {
+    "smartArc": {
+      "sourceFile": "docs/reports/2026-05-06-smart-arc-live-verify.json",
+      "schema": "harness-smart-lv-evidence/v1",
+      "verdict": "PASS",
+      "timestamp": "2026-05-06T15:32:11.244Z"
+    },
+    "reviewRelay": {
+      "sourceFile": "docs/reports/2026-05-06-review-relay-live-verify.json",
+      "schema": "live-verify-review-relay/v1",
+      "verdict": "PASS",
+      "timestamp": "2026-05-06T15:30:00.000Z"
+    }
+  },
+  "components": {
+    "smartArc":    { "...": "(full schema-1 evidence)" },
+    "reviewRelay": { "...": "(full schema-2 evidence)" }
+  },
+  "missing": []
+}
+```
+
+A `PASS` bundle is the artifact that ships alongside `v1.0.0` and
+is referenced from the v1.0.0 release notes as the live-binary
+evidence anchor.
+
+---
+
+## §5 Audit-chain anchors (cross-cutting)
 
 Both schemas can reference the harness audit ledger. Three anchor
 audit verbs MUST appear in the committed evidence for v1.0.0
@@ -278,7 +388,7 @@ attach the matching ledger entries to the committed evidence.
 
 ---
 
-## §5 Schema versioning policy
+## §6 Schema versioning policy
 
 The schemas above are **v1**. They are locked: existing committed
 evidence under v1 remains valid indefinitely. New probe versions
@@ -303,7 +413,7 @@ historical reference.
 
 ---
 
-## §6 Schema convergence notes (v2 candidates)
+## §7 Schema convergence notes (v2 candidates)
 
 The two v1 schemas evolved independently and are **deliberately
 not normalized** in v1 to avoid silently breaking the existing
@@ -330,7 +440,7 @@ These are tracked as v2 follow-up; not blocking v1.0.0.
 
 ---
 
-## §7 References
+## §8 References
 
 - [`runbooks/v1-blockers.md`](runbooks/v1-blockers.md) §2 — the
   blocker this schema doc unlocks (Real-binary live verification).
