@@ -1215,6 +1215,18 @@ app.use("/api", createAuditRoutes({
   deploymentProfile: _deploymentProfile,
 }));
 
+// Slice SMART-4-b (2026-05-05): /api/runs/:runId/memory — read-only
+// run-memory endpoint. Records are written by pipeline-executor's
+// _complete hook (SMART-4-c) via runMemory.recordRunMemory; this
+// endpoint is the operator-UI read seam. auditFn is bound to the same
+// evidence ledger so run_memory_accessed audit lands in the same chain
+// the recorded memory itself uses.
+const { createRunMemoryRoutes } = require("./src/routes/runMemoryRoutes");
+app.use("/api", createRunMemoryRoutes({
+  evidenceLedger,
+  auditFn: evidenceLedger.append.bind(evidenceLedger),
+}));
+
 // MB4-b (Phase D Round 2, 2026-04-27): the ~270 lines of
 // runGeneralPipeline + finalizeGeneralRun + 3 prompt builders that
 // lived here have been lifted to src/server/generalPipelineRunner.js.
