@@ -33,14 +33,13 @@ survey at the end of the pilot window.
 
 **Audience**: operator preparing a release or shipping a build to
 end users (slice **PREFLIGHT-CHECKLIST**, Phase 2 v2 follow-up).
+Includes the first-time-use guide for non-technical end users
+(slice **END-USER-DEPLOY-POLISH**).
 
-This family currently has one runbook — the single-command preflight
-that aggregates every gate the project enforces in CI. Run it before
-tagging a release.
-
-| Runbook | Probe script | One-line summary |
-| --- | --- | --- |
-| [`deployment-readiness.md`](deployment-readiness.md) | [`preflight.js`](../../scripts/preflight.js) | Pre-deployment health check — visual / readiness / scorecard / hooks gates plus optional smoke. |
+| Runbook | Audience | Probe script | One-line summary |
+| --- | --- | --- | --- |
+| [`deployment-readiness.md`](deployment-readiness.md) | operator | [`preflight.js`](../../scripts/preflight.js) | Pre-deployment health check — visual / readiness / scorecard / hooks gates plus optional smoke. |
+| [`first-time-use.md`](first-time-use.md) | 일반 사용자 (non-technical end user) | (none — handbook only) | Korean-primary first-time-use guide. Setup → first run → connecting Claude/Codex → understanding approval cards. |
 
 ## §3 Live-verify family
 

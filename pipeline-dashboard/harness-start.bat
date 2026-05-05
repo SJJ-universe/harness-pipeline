@@ -77,6 +77,10 @@ if errorlevel 1 (
     echo [harness-start] Node.js not found on PATH.
     echo                 Install Node.js 24+ from https://nodejs.org/
     echo                 then re-run harness-start.bat.
+    echo.
+    echo                 [KO] Node.js가 설치되어 있지 않습니다.
+    echo                      https://nodejs.org/ 에서 LTS(24 이상^)을
+    echo                      설치한 다음 harness-start.bat을 다시 실행하세요.
     pause
     exit /b 10
 )
@@ -230,6 +234,11 @@ set RETRY=0
 :WAIT_LOOP
 if %RETRY% GEQ 10 (
     echo [harness-start] server did not respond within 10s - check the supervisor logs.
+    echo.
+    echo                 [KO] 서버가 10초 안에 응답하지 않았습니다.
+    echo                      위 로그에서 빨간색 오류 메시지를 확인하세요.
+    echo                      포트 충돌이면 'set HARNESS_PORT=4301' 후 다시 실행.
+    echo                      자세한 안내: docs/runbooks/first-time-use.md §4.2
     pause
     exit /b 20
 )
@@ -259,5 +268,10 @@ if "%HARNESS_NO_BROWSER%"=="1" (
 echo [harness-start] launcher complete. Server runs in the background.
 echo                 Close this window or Ctrl+C to keep server up; stop the
 echo                 server from the dashboard UI or with: taskkill /im node.exe
+echo.
+echo                 [KO] 시작 완료. 서버는 뒤에서 계속 실행됩니다.
+echo                      이 창을 닫아도 서버는 동작합니다. 종료하려면
+echo                      대시보드 UI 또는 'taskkill /im node.exe' 사용.
+echo                      처음 사용자: docs/runbooks/first-time-use.md
 endlocal
 exit /b 0
