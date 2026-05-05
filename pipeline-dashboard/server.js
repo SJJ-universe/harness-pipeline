@@ -97,8 +97,35 @@ const { sanitizeAuditData } = require("./src/security/auditSanitizer");
 // downstream (runners + profileSpawn) re-resolves at use-time, but
 // the operator-visible posture in the UI shouldn't flicker between
 // requests.
-const { resolveDeploymentProfile } = require("./src/policy/deploymentProfile");
-const _deploymentProfile = resolveDeploymentProfile();
+const {
+  resolveDeploymentProfile,
+  POLICY_PACK_UNKNOWN_CODE,
+} = require("./src/policy/deploymentProfile");
+
+// Slice S5-c (Phase 2 / SMART-5, 2026-05-05): production fail-closed
+// boot when HARNESS_DEPLOYMENT_PROFILE points at an unrecognized pack.
+// Plan §S §S-SMART-5 v2 invariant: an operator typo (e.g. "publicsector"
+// vs. "public-sector") MUST surface at boot rather than silently
+// downgrade posture. Operators in dev/migration windows opt into the
+// legacy fall-back-to-standard behavior with HARNESS_POLICY_FAIL_OPEN=1
+// (handled inside resolveDeploymentProfile; this block only catches
+// the throw).
+let _deploymentProfile;
+try {
+  _deploymentProfile = resolveDeploymentProfile();
+} catch (err) {
+  if (err && err.code === POLICY_PACK_UNKNOWN_CODE) {
+    // No audit emit here — evidenceLedger isn't constructed yet, and
+    // the process is about to exit. The error message goes to stderr
+    // so the operator sees it in launcher logs / docker logs.
+    process.stderr.write(
+      `[harness] FATAL: ${err.message}\n` +
+      `[harness] Set HARNESS_POLICY_FAIL_OPEN=1 to fall back to standard with a warning.\n`,
+    );
+    process.exit(1);
+  }
+  throw err;
+}
 
 const evidenceLedger = new EvidenceLedger({
   rootDir: runsDir,
@@ -109,6 +136,41 @@ const evidenceLedger = new EvidenceLedger({
   // D1-f: opt-in defense layer.
   sanitizer: sanitizeAuditData,
 });
+
+// Slice S5-c (Phase 2 / SMART-5, 2026-05-05): emit a single
+// `deployment_profile_resolved` audit row at boot. Carries the
+// resolved pack id + every rule field a forensic auditor needs to
+// reconstruct posture without re-reading env. Lands under the
+// "system" runId (same convention as policy_gate / runner_handshake
+// boot events). When resolveDeploymentProfile fell back via the
+// HARNESS_POLICY_FAIL_OPEN escape hatch, the row also carries
+// `resolvedFromFallback:true` + `unknownRequested:<typo>` so the
+// audit trail captures the dev-escape decision.
+try {
+  evidenceLedger.append("system", {
+    type: "deployment_profile_resolved",
+    data: {
+      pack: _deploymentProfile.pack,
+      packLabel: _deploymentProfile.packLabel,
+      publicSector: _deploymentProfile.publicSector,
+      allowLocalExecutor: _deploymentProfile.allowLocalExecutor,
+      allowPlaintextSecrets: _deploymentProfile.allowPlaintextSecrets,
+      requireSandboxWorkspace: _deploymentProfile.requireSandboxWorkspace,
+      requireSignedManifest: _deploymentProfile.requireSignedManifest,
+      requirePiiScanBeforeProviderDispatch: _deploymentProfile.requirePiiScanBeforeProviderDispatch,
+      scannerFailurePolicy: _deploymentProfile.scannerFailurePolicy,
+      hardGatesDefault: _deploymentProfile.hardGatesDefault,
+      runMemoryEnabled: _deploymentProfile.runMemoryEnabled,
+      resolvedFromFallback: _deploymentProfile.resolvedFromFallback,
+      unknownRequested: _deploymentProfile.unknownRequested,
+    },
+  });
+} catch (_err) {
+  // Defensive: ledger append failure (disk full, ledger corrupt) MUST
+  // NOT block boot. The orchestrator runs without the boot audit row;
+  // operators triaging missing rows can re-derive posture from env +
+  // profile.
+}
 
 // Slice R3-c-2 (Phase D R3, 2026-04-28): periodic stale-runner monitor.
 // Tied to the runnerRegistry lifecycle — only constructed when remote mode
