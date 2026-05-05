@@ -221,6 +221,37 @@ test("V1-BLOCKERS-RUNBOOK: runbooks/README.md §2 lists v1-blockers.md", () => {
 
 // ── Anti-claim guard ────────────────────────────────────────
 
+// ── RUNBOOK-CD-FIX: working-directory preamble ──────────────
+
+test("V1-BLOCKERS-RUNBOOK: documents the pipeline-dashboard working directory", () => {
+  const text = read(RUNBOOK);
+  // Must include a "working directory" preamble so a copy-pasting
+  // operator doesn't run npm from the wrong dir and hit ENOENT.
+  assert.match(text, /작업 디렉토리|Working directory/i,
+    "runbook must include the working-directory preamble");
+  assert.match(text, /pipeline-dashboard/,
+    "preamble must name the npm package directory");
+  // The preamble explicitly mentions cd
+  assert.match(text, /cd .*pipeline-dashboard/);
+});
+
+test("V1-BLOCKERS-RUNBOOK: each major command block opens with `cd`", () => {
+  const text = read(RUNBOOK);
+  // Each ```powershell block that contains node/npm should have cd
+  // as its first command. We collect all powershell blocks and check
+  // that any block calling `node` or `npm` is preceded (within the
+  // same fence) by a `cd` line.
+  const blocks = text.match(/```powershell\n([\s\S]*?)```/g) || [];
+  for (const blk of blocks) {
+    const inner = blk.slice("```powershell\n".length, -3);
+    if (/^npm |^node /m.test(inner)) {
+      assert.match(inner, /^cd /m,
+        "a ```powershell block running npm/node must open with `cd ...`:\n" +
+        inner.split("\n").slice(0, 3).join(" / "));
+    }
+  }
+});
+
 test("V1-BLOCKERS-RUNBOOK: does not claim premature v1.0.0 readiness", () => {
   const text = read(RUNBOOK);
   // The runbook MUST clearly state these are open blockers, not

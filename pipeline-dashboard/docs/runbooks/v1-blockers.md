@@ -16,6 +16,18 @@ round that requires actual deployment.
 
 ---
 
+> **작업 디렉토리 / Working directory**: every command in this
+> runbook runs from inside the npm package directory
+> `pipeline-dashboard/` (which sits inside the git repo at
+> `harness-pipeline-analysis/`). Running `git` from the parent
+> works (git walks up to find `.git`); running `npm` from the
+> parent fails with `ENOENT` because that's where `package.json`
+> lives. **`cd` first** before every block:
+>
+> ```powershell
+> cd C:\path\to\harness-pipeline-analysis\pipeline-dashboard
+> ```
+
 ## §1 Why this runbook exists
 
 The v1.0.0-rc.2 release candidate satisfies the in-process gates
@@ -61,10 +73,11 @@ claim "live-verified against real-binary Claude + Codex".
 PII block, redacted memory, recommendations, preset dispatch):
 
 ```powershell
+cd C:\path\to\harness-pipeline-analysis\pipeline-dashboard
 $env:HARNESS_DEPLOYMENT_PROFILE = "finance-high-privacy"
 $env:HARNESS_HARD_GATES = "1"
 $env:HARNESS_TOKEN = "<test-token>"
-node start.js          # in a separate terminal
+node start.js          # in a separate terminal (also cd into pipeline-dashboard there)
 node scripts/live-verify-smart-arc.js
 ```
 
@@ -75,8 +88,9 @@ Evidence: `docs/reports/<date>-smart-arc-live-verify.json`.
 hand-back end-to-end):
 
 ```powershell
+cd C:\path\to\harness-pipeline-analysis\pipeline-dashboard
 $env:HARNESS_TOKEN = "<test-token>"
-node start.js          # in a separate terminal
+node start.js          # in a separate terminal (also cd into pipeline-dashboard there)
 node scripts/live-verify-review-relay.js
 ```
 
@@ -156,6 +170,7 @@ least once with evidence captured.
 **Phase 1 — Generate a signed release manifest**:
 
 ```powershell
+cd C:\path\to\harness-pipeline-analysis\pipeline-dashboard
 node scripts/sign-manifest.js --help        # confirm tool reachable
 # Generate keypair, sign a sample release manifest. Specifics
 # depend on the deployer's signing infrastructure.

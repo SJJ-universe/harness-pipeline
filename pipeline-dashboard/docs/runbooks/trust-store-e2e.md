@@ -14,6 +14,17 @@ key is unknown, or the package SHA256 doesn't match the manifest.
 
 ---
 
+> **작업 디렉토리 / Working directory**: every command below runs
+> from inside the npm package directory `pipeline-dashboard/`
+> (which sits inside the git repo at `harness-pipeline-analysis/`).
+> Running `git` from the parent works (git walks up to find `.git`);
+> running `npm`/`node scripts/...` from the parent fails with
+> `ENOENT`. **`cd` first** before every block:
+>
+> ```powershell
+> cd C:\path\to\harness-pipeline-analysis\pipeline-dashboard
+> ```
+
 ## §1 Audience and trust scope
 
 This runbook is for two distinct operator roles:
@@ -57,6 +68,7 @@ signed manifest plus the public key.
 ### §3.1 Generate keypair (one-time per deployer)
 
 ```powershell
+cd C:\path\to\harness-pipeline-analysis\pipeline-dashboard
 node scripts/sign-manifest.js genkey --out C:\path\to\private\keystore\
 ```
 
@@ -73,6 +85,7 @@ you want a memorable identifier.
 ### §3.2 Sign the release manifest
 
 ```powershell
+cd C:\path\to\harness-pipeline-analysis\pipeline-dashboard
 node scripts/sign-manifest.js sign `
   --manifest C:\releases\v1.0.0\manifest.json `
   --private-key C:\path\to\private\keystore\harness-prod-2026Q2-private.pem `
@@ -306,6 +319,7 @@ For a sealed evidence packet matching the harness's other audit
 exports:
 
 ```powershell
+cd C:\path\to\harness-pipeline-analysis\pipeline-dashboard
 node scripts/external-review-bundle.js `
   --since 2026-05-05T00:00:00Z `
   --filter launcher_signature_ `

@@ -13,6 +13,14 @@ combines the **gates** (must-pass) with **informational** checks
 
 ---
 
+> **작업 디렉토리 / Working directory**: every command below runs
+> from inside the npm package directory `pipeline-dashboard/`.
+> Running `npm` from the parent fails with `ENOENT`. **`cd` first**:
+>
+> ```powershell
+> cd C:\path\to\harness-pipeline-analysis\pipeline-dashboard
+> ```
+
 ## §1 Prerequisites
 
 | Item | Required |
@@ -34,7 +42,7 @@ the exit-code semantics.
 ## §2 Standard usage
 
 ```powershell
-cd pipeline-dashboard
+cd C:\path\to\harness-pipeline-analysis\pipeline-dashboard
 npm run preflight
 ```
 
@@ -86,6 +94,7 @@ its detail. The most common failures are:
 ### §4.1 `--with-smoke` adds smoke tests
 
 ```powershell
+cd C:\path\to\harness-pipeline-analysis\pipeline-dashboard
 npm run preflight -- --with-smoke
 ```
 
@@ -108,6 +117,7 @@ its output depends on advisory data freshness. Run it separately
 before tagging:
 
 ```powershell
+cd C:\path\to\harness-pipeline-analysis\pipeline-dashboard
 npm run audit:moderate
 ```
 
@@ -116,6 +126,7 @@ Investigate any moderate or higher advisory before shipping.
 ## §5 JSON mode for CI integration
 
 ```powershell
+cd C:\path\to\harness-pipeline-analysis\pipeline-dashboard
 node scripts/preflight.js --json
 ```
 

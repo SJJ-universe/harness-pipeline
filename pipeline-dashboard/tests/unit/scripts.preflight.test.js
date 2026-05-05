@@ -155,3 +155,26 @@ test("PREFLIGHT-CHECKLIST: runbook §6 troubleshooting names the CONFIG case", (
     `expected ≥ 5 troubleshooting rows (header + 4+ entries), got ${tableRows.length}`);
   assert.match(seg, /CONFIG/);
 });
+
+// ── RUNBOOK-CD-FIX: working-directory preamble ──────────────
+
+test("PREFLIGHT-CHECKLIST: runbook documents the pipeline-dashboard working directory", () => {
+  const text = read(RUNBOOK);
+  assert.match(text, /작업 디렉토리|Working directory/i,
+    "runbook must include the working-directory preamble");
+  assert.match(text, /pipeline-dashboard/);
+  assert.match(text, /cd .*pipeline-dashboard/);
+});
+
+test("PREFLIGHT-CHECKLIST: runbook command blocks open with `cd`", () => {
+  const text = read(RUNBOOK);
+  const blocks = text.match(/```powershell\n([\s\S]*?)```/g) || [];
+  for (const blk of blocks) {
+    const inner = blk.slice("```powershell\n".length, -3);
+    if (/^npm |^node /m.test(inner)) {
+      assert.match(inner, /^cd /m,
+        "a ```powershell block running npm/node must open with `cd ...`:\n" +
+        inner.split("\n").slice(0, 3).join(" / "));
+    }
+  }
+});

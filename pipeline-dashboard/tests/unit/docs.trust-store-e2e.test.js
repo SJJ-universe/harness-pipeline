@@ -259,6 +259,29 @@ test("TRUST-STORE-E2E-RUNBOOK: scorecard backlog has v1.0.0 final-readiness sect
 
 // ── Anti-claim guard (mirrors v1-blockers anti-claim guard) ─
 
+// ── RUNBOOK-CD-FIX: working-directory preamble ──────────────
+
+test("TRUST-STORE-E2E-RUNBOOK: documents the pipeline-dashboard working directory", () => {
+  const text = read(RUNBOOK);
+  assert.match(text, /작업 디렉토리|Working directory/i,
+    "runbook must include the working-directory preamble");
+  assert.match(text, /pipeline-dashboard/);
+  assert.match(text, /cd .*pipeline-dashboard/);
+});
+
+test("TRUST-STORE-E2E-RUNBOOK: each major command block opens with `cd`", () => {
+  const text = read(RUNBOOK);
+  const blocks = text.match(/```powershell\n([\s\S]*?)```/g) || [];
+  for (const blk of blocks) {
+    const inner = blk.slice("```powershell\n".length, -3);
+    if (/^npm |^node /m.test(inner)) {
+      assert.match(inner, /^cd /m,
+        "a ```powershell block running npm/node must open with `cd ...`:\n" +
+        inner.split("\n").slice(0, 3).join(" / "));
+    }
+  }
+});
+
 test("TRUST-STORE-E2E-RUNBOOK: does not claim premature v1.0.0 readiness", () => {
   const text = read(RUNBOOK);
   // Operator verification is still required — the runbook is the
