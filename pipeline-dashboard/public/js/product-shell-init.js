@@ -43,6 +43,19 @@
     } catch (_) { /* defensive — private browsing / quota / etc. */ }
   }
 
+  function _resolveDemoMode() {
+    try {
+      const url = new URL(window.location.href);
+      const qs = url.searchParams.get("demo");
+      if (qs === "1" || qs === "true") return true;
+      if (qs === "0" || qs === "false") return false;
+    } catch (_) { /* defensive */ }
+    try {
+      const ls = window.localStorage && window.localStorage.getItem("harness:demo-mode");
+      return ls === "1" || ls === "true";
+    } catch (_) { return false; }
+  }
+
   // UI-P7: locale resolution defers to HarnessI18n which already owns
   // the localStorage key (`harness:lang`) and the supported set
   // (`["ko", "en"]`). Falling back to "ko" matches the i18n module's
@@ -55,6 +68,32 @@
       }
     } catch (_) { /* defensive */ }
     return "ko";
+  }
+
+  function _hydrateInitialStore(store) {
+    const hydrator = window.HarnessMonitorHydrate;
+    const normalizer = window.HarnessMonitorNormalizer;
+    if (!hydrator || typeof hydrator.hydrateMonitorStore !== "function") return;
+    if (!normalizer || typeof normalizer.normalize !== "function") return;
+
+    Promise.resolve(hydrator.hydrateMonitorStore({
+      store: store,
+      normalize: normalizer.normalize,
+    })).then(function (result) {
+      const snap = result && result.snapshot;
+      const runId = snap && snap.selectedRunId;
+      if (runId && typeof hydrator.hydrateRunDetail === "function") {
+        return hydrator.hydrateRunDetail({ store: store, runId: runId })
+          .catch(function (err) {
+            console.warn("[product-shell] run detail hydrate failed:",
+              err && err.message ? err.message : err);
+          });
+      }
+      return null;
+    }).catch(function (err) {
+      console.warn("[product-shell] bootstrap hydrate failed:",
+        err && err.message ? err.message : err);
+    });
   }
 
   function _bootProductShell() {
@@ -74,6 +113,7 @@
 
     const mode = _resolveMode();
     const locale = _resolveLocale();
+    const demoMode = _resolveDemoMode();
     const store = window.HarnessMonitorStore.createMonitorStore();
 
     // UI-P6: instantiate the review-relay client when the script is
@@ -91,6 +131,7 @@
         store: store,
         mode: mode,
         locale: locale,
+        allowMockData: demoMode,
         reviewClient: reviewClient,
         onModeChange: function (next) {
           _persistMode(next);
@@ -150,6 +191,8 @@
       console.warn("[product-shell] legacy-bridge install failed:", err && err.message ? err.message : err);
     }
 
+    _hydrateInitialStore(store);
+
     // Expose for tests + the eventual settings-accounts modal that
     // needs a handle to the running shell.
     window.__HarnessProductShell = {
@@ -157,6 +200,7 @@
       store: store,
       mode: mode,
       locale: locale,
+      demoMode: demoMode,
     };
   }
 

@@ -207,6 +207,7 @@
     if (!root || !_doc) throw new Error("HarnessProductPipelineRail.create: root + doc required");
 
     let mode = opts.mode || "simple";
+    const allowMockData = opts.allowMockData !== false;
     const store = opts.store || null;
     // UI-P5-b: selectors module resolves real run data → phases array
     // or null. Test injection via opts.dataSelectors; production reads
@@ -289,7 +290,7 @@
       while (body.firstChild) body.removeChild(body.firstChild);
 
       const data = _resolveData();
-      const stages = data.stages || MOCK_STAGES;
+      const stages = data.stages || (allowMockData ? MOCK_STAGES : []);
       const metrics = data.metrics; // null when no real metrics
       const isLive = data.isLive;
       const runId = data.runId;
@@ -311,6 +312,9 @@
       note.textContent = isLive
         ? ("활성 run: " + (runId || "default"))
         : "예시 단계 — 실행을 시작하면 실제 파이프라인으로 교체됩니다";
+      if (!isLive && !allowMockData) {
+        note.textContent = "아직 실행 중인 작업이 없습니다. 작업을 시작하면 실제 파이프라인이 표시됩니다.";
+      }
       body.appendChild(note);
 
       stages.forEach(function (stage, idx) {
@@ -318,7 +322,7 @@
         body.appendChild(_renderSkeletonNode(_doc, stage, mode, isLast));
       });
 
-      if (mode === "pro") {
+      if (mode === "pro" && (metrics || allowMockData)) {
         body.appendChild(_renderMetricsBlock(_doc, metrics));
       }
     }
@@ -359,7 +363,7 @@
         const data = _resolveData();
         return {
           mode,
-          phaseCount: (data.stages || MOCK_STAGES).length,
+          phaseCount: data.stages ? data.stages.length : (allowMockData ? MOCK_STAGES.length : 0),
           isLive: data.isLive,
           runId: data.runId,
           slot: "pipeline-rail",

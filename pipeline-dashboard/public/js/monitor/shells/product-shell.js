@@ -98,6 +98,12 @@
     // value to panels via setLocale + initial opts; the actual i18n
     // table lookup lives in HarnessI18n / per-panel _t() helpers.
     let locale = (opts.locale === "en") ? "en" : "ko";
+    // Runtime product shell must not show the reference/mock page by
+    // accident. Tests and visual-baseline capture omit this option so
+    // they continue to exercise the reference demo shape; the browser
+    // init script passes false unless the operator explicitly asks for
+    // demo mode (?demo=1).
+    const allowMockData = opts.allowMockData !== false;
 
     // Resolve panel factories. Production reads from window globals;
     // tests pass stubs via opts.panels. This keeps the shell DOM-aware
@@ -180,6 +186,7 @@
           doc: _doc,
           mode: mode,
           locale: locale,
+          allowMockData: allowMockData,
         }, extraOpts || {}));
       } catch (err) {
         const errEl = _doc.createElement("div");
@@ -275,6 +282,7 @@
       return {
         mode,
         locale,
+        allowMockData,
         panelsMounted: Object.keys(handles).filter((k) => handles[k] !== null),
       };
     }

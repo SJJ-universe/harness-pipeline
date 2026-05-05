@@ -214,6 +214,80 @@ test("UI-P4 contract: tool feed renders one row per MOCK_TOOL_FEED entry", () =>
   assert.deepEqual(tools, productMonitorGrid.MOCK_TOOL_FEED.map((m) => m.tool));
 });
 
+test("runtime contract: monitor grid can suppress reference mock feed", () => {
+  const root = makeRoot();
+  const store = createMonitorStore();
+  productMonitorGrid.create({
+    root,
+    store,
+    doc: makeStubDoc(),
+    mode: "pro",
+    allowMockData: false,
+  });
+  const toolRows = root._findAllByAttrPresent("data-line-index")
+    .filter((el) => el.classList.contains("prod-tool-row"));
+  const critiqueRows = root._findAllByAttrPresent("data-line-index")
+    .filter((el) => el.classList.contains("prod-critique-bubble-wrap"));
+  assert.equal(toolRows.length, 0, "empty runtime state must not render mock tool calls");
+  assert.equal(critiqueRows.length, 0, "empty runtime state must not render mock critique bubbles");
+});
+
+test("runtime contract: codex-live card reports idle (not 'live') when allowMockData=false and no stream", () => {
+  const root = makeRoot();
+  const store = createMonitorStore();
+  productMonitorGrid.create({
+    root,
+    store,
+    doc: makeStubDoc(),
+    mode: "pro",
+    allowMockData: false,
+  });
+  const card = root._findOneByAttr("data-card", "codex-live");
+  assert.ok(card, "codex-live card must exist in pro mode");
+  assert.equal(card.attributes["data-stream-state"], "idle",
+    "no live stream + non-demo runtime must mark the card idle, not live");
+  // Title-meta slot should NOT carry the "live" badge text in idle state.
+  const metaEl = card.children
+    .flatMap((c) => c.children || [])
+    .find((c) => c && c.attributes && c.attributes["data-card-slot"] === "title-meta");
+  assert.ok(metaEl, "title-meta slot must render");
+  assert.notEqual(metaEl.textContent, "live",
+    "idle codex-live card must not surface a 'live' badge");
+  // Stream pre should be empty (no fallback mock text in non-demo mode)
+  const streamEl = card.children.find((c) => c && c.attributes
+    && c.attributes["data-card-slot"] === "stream");
+  assert.ok(streamEl, "stream slot must render");
+  // The pre contains a text node (empty) + caret span. Find the text node.
+  const textChild = streamEl.children.find((c) => c && c.nodeType === 3);
+  if (textChild) {
+    assert.equal(textChild.textContent, "",
+      "idle codex-live stream must not contain mock text");
+  }
+});
+
+test("runtime contract: codex-live card preserves demo affordance when allowMockData=true", () => {
+  const root = makeRoot();
+  const store = createMonitorStore();
+  productMonitorGrid.create({
+    root,
+    store,
+    doc: makeStubDoc(),
+    mode: "pro",
+    // allowMockData omitted → defaults to true
+  });
+  const card = root._findOneByAttr("data-card", "codex-live");
+  assert.ok(card, "codex-live card must exist");
+  assert.equal(card.attributes["data-stream-state"], "idle",
+    "no live stream means stream-state stays idle even in demo mode");
+  // In demo mode the meta surfaces the reference model string (NOT 'live').
+  const metaEl = card.children
+    .flatMap((c) => c.children || [])
+    .find((c) => c && c.attributes && c.attributes["data-card-slot"] === "title-meta");
+  assert.ok(metaEl, "title-meta slot must render");
+  assert.equal(metaEl.textContent, productMonitorGrid.MOCK_CODEX_LIVE.model,
+    "demo mode meta should display the reference model string");
+});
+
 test("UI-P4 contract: critique stream renders bubbles with data-side + data-actor", () => {
   const root = makeRoot();
   const store = createMonitorStore();
@@ -242,6 +316,21 @@ test("UI-P4 contract: pipeline-rail renders 7 phase nodes with stable data-phase
   nodes.forEach((n, idx) => {
     assert.equal(n.attributes["data-phase-index"], String(idx));
   });
+});
+
+test("runtime contract: pipeline rail can suppress reference mock stages", () => {
+  const root = makeRoot();
+  const store = createMonitorStore();
+  productPipelineRail.create({
+    root,
+    store,
+    doc: makeStubDoc(),
+    mode: "pro",
+    allowMockData: false,
+  });
+  const nodes = root._findAllByAttrPresent("data-phase-id")
+    .filter((el) => el.classList.contains("prod-pipeline-node"));
+  assert.equal(nodes.length, 0, "empty runtime state must not render mock stages");
 });
 
 test("UI-P4 contract: pipeline-rail header buttons carry data-action", () => {
@@ -301,6 +390,21 @@ test("UI-P4 contract: dual-terminals body renders mock lines per tab", () => {
   );
 });
 
+test("runtime contract: dual-terminals can suppress reference mock streams", () => {
+  const root = makeRoot();
+  const store = createMonitorStore();
+  productDualTerminals.create({
+    root,
+    store,
+    doc: makeStubDoc(),
+    allowMockData: false,
+  });
+  const lines = root._findAllByAttrPresent("data-line-index");
+  const bodies = root._findAllByAttr("data-stream-source", "empty");
+  assert.equal(lines.length, 0, "empty runtime state must not render mock terminal lines");
+  assert.equal(bodies.length, 2, "both terminal bodies should report empty stream source");
+});
+
 test("UI-P4 contract: dual-terminals control buttons carry data-control", () => {
   const root = makeRoot();
   const store = createMonitorStore();
@@ -358,6 +462,65 @@ test("UI-P4 contract: harness-track exposes status-pill + horse mount slots", ()
   assert.ok(root._findOneByAttr("data-track-slot", "status-pill"));
   assert.ok(root._findOneByAttr("data-track-slot", "horse"));
   assert.ok(root._findOneByAttr("data-track-slot", "lanes"));
+});
+
+test("runtime contract: harness-track suppresses 'current' lane + horse + stage pill when allowMockData=false and no live run", () => {
+  const root = makeRoot();
+  const store = createMonitorStore();
+  const handle = productHarnessTrack.create({
+    root,
+    store,
+    doc: makeStubDoc(),
+    allowMockData: false,
+  });
+  // 7 lanes still render — they show the conceptual pipeline shape.
+  for (let i = 0; i < 7; i++) {
+    assert.ok(root._findOneByAttr("data-lane-index", String(i)),
+      `lane ${i} must still render in idle mode`);
+  }
+  // None of the lanes carry "current" — the visual "running" cue is gone.
+  const currentLanes = root._findAllByAttr("data-state", "current");
+  assert.equal(currentLanes.length, 0,
+    "idle harness-track must not highlight any lane as 'current'");
+  // Status pill carries data-activity=idle + idle copy (NOT "STAGE 1/7 · PLAN").
+  const pill = root._findOneByAttr("data-track-slot", "status-pill");
+  assert.ok(pill, "status pill must render");
+  assert.equal(pill.attributes["data-activity"], "idle",
+    "idle harness-track must mark the pill data-activity=idle");
+  assert.ok(!/STAGE 1\/7/.test(pill.textContent),
+    "idle pill must not surface the 'STAGE n/7' running label");
+  // Horse wrap still exists (layout placeholder) but carries no sprite/emoji.
+  const horse = root._findOneByAttr("data-track-slot", "horse");
+  assert.ok(horse, "horse wrap must render as layout placeholder");
+  const state = handle._state();
+  assert.equal(state.horseMounted, false,
+    "horse sprite must not mount when allowMockData=false and no live run");
+  assert.equal(state.showActivity, false);
+  assert.equal(state.allowMockData, false);
+});
+
+test("runtime contract: harness-track preserves galloping affordance in demo mode (allowMockData=true)", () => {
+  const root = makeRoot();
+  const store = createMonitorStore();
+  const handle = productHarnessTrack.create({
+    root,
+    store,
+    doc: makeStubDoc(),
+    // allowMockData omitted → defaults to true
+  });
+  // Lane 0 should be the "current" lane in demo mode (currentStage=0).
+  const currentLanes = root._findAllByAttr("data-state", "current");
+  assert.equal(currentLanes.length, 1,
+    "demo harness-track marks exactly one lane (PLAN) as current");
+  // Pill carries data-activity=active + the running stage label.
+  const pill = root._findOneByAttr("data-track-slot", "status-pill");
+  assert.equal(pill.attributes["data-activity"], "active");
+  assert.match(pill.textContent, /STAGE 1\/7/,
+    "demo pill must surface the running stage label");
+  const state = handle._state();
+  assert.equal(state.horseMounted, true,
+    "horse sprite mounts immediately in demo mode");
+  assert.equal(state.showActivity, true);
 });
 
 // ── Mock data invariants ────────────────────────────────────────

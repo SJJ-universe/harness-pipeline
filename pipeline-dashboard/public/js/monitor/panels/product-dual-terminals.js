@@ -219,6 +219,7 @@
     let activeTab = defaultTab;
     let autoScroll = true;
     let cleared = false;
+    const allowMockData = !opts || opts.allowMockData !== false;
 
     function _findTab(id) {
       for (let i = 0; i < tabs.length; i++) if (tabs[i].id === id) return tabs[i];
@@ -298,7 +299,7 @@
     body.setAttribute("data-terminal-slot", "body");
     body.setAttribute("role", "log");
     body.setAttribute("aria-live", "polite");
-    body.setAttribute("data-stream-source", "mock");
+    body.setAttribute("data-stream-source", allowMockData ? "mock" : "empty");
     term.appendChild(body);
 
     function _renderBody() {
@@ -329,10 +330,19 @@
         empty.textContent = "(cleared)";
         body.appendChild(empty);
       } else {
-        if (!lines) lines = MOCK_LINES[tab.id] || [];
-        lines.forEach(function (line, idx) {
-          body.appendChild(_renderLine(_doc, line, idx, tab));
-        });
+        if (!lines && allowMockData) lines = MOCK_LINES[tab.id] || [];
+        if (!lines) {
+          source = "empty";
+          const empty = _doc.createElement("div");
+          empty.className = "prod-terminal-empty";
+          empty.setAttribute("data-card-slot", "empty");
+          empty.textContent = "No live stream yet.";
+          body.appendChild(empty);
+        } else {
+          lines.forEach(function (line, idx) {
+            body.appendChild(_renderLine(_doc, line, idx, tab));
+          });
+        }
       }
       body.setAttribute("data-stream-source", source);
 
@@ -495,6 +505,7 @@
 
     const store = opts.store || null;
     const client = opts.client || null;
+    const allowMockData = opts.allowMockData !== false;
     const selectors = opts.dataSelectors
       || (typeof window !== "undefined" && window.HarnessProductShellData)
       || null;
@@ -578,8 +589,14 @@
       return _chunksToLines(chunks, tabId === "claude" ? "◇" : "◈");
     }
 
-    const left = _terminal(_doc, "left", TABS_LEFT, "claude", { resolveLiveLines: _resolveLiveLines });
-    const right = _terminal(_doc, "right", TABS_RIGHT, "codex", { resolveLiveLines: _resolveLiveLines });
+    const left = _terminal(_doc, "left", TABS_LEFT, "claude", {
+      resolveLiveLines: _resolveLiveLines,
+      allowMockData: allowMockData,
+    });
+    const right = _terminal(_doc, "right", TABS_RIGHT, "codex", {
+      resolveLiveLines: _resolveLiveLines,
+      allowMockData: allowMockData,
+    });
     terminals.appendChild(left.el);
     terminals.appendChild(right.el);
 

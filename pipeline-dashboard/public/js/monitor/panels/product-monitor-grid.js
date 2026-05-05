@@ -80,6 +80,27 @@
     { side: "right", actor: "Claude", text: "auth → cors 순서 교정. 재비평 요청.",        t: "16:42:24" },
     { side: "left",  actor: "Codex",  text: "재비평 진행 중...",                         t: "16:42:31" },
   ]);
+  const EMPTY_FINDINGS = Object.freeze([
+    { tier: "critical", count: 0 },
+    { tier: "high",     count: 0 },
+    { tier: "medium",   count: 0 },
+    { tier: "low",      count: 0 },
+    { tier: "note",     count: 0 },
+  ]);
+  const EMPTY_CONTEXT = Object.freeze({
+    percent: 0,
+    used: "0",
+    total: "0",
+    remaining: "no live run",
+  });
+  const EMPTY_VERIFY = Object.freeze({
+    status: "idle",
+    label: "IDLE",
+    gates: "waiting for run",
+  });
+  const EMPTY_SUBAGENTS = Object.freeze([]);
+  const EMPTY_TOOL_FEED = Object.freeze([]);
+  const EMPTY_CRITIQUE = Object.freeze([]);
 
   function _cardShell(_doc, opts) {
     const card = _doc.createElement("div");
@@ -210,17 +231,29 @@
     return card;
   }
 
-  function _buildCodexLive(_doc, liveText) {
-    const text = liveText != null ? liveText : MOCK_CODEX_LIVE.text;
-    const isLive = liveText != null;
+  function _buildCodexLive(_doc, liveText, allowMockData) {
+    // Treat both null AND empty string as "no live stream" — empty
+    // string is the runtime sentinel for "selectors returned nothing
+    // and we're in fail-closed mode" (see _withoutMockFallback). The
+    // historic check `liveText != null` mis-classified that sentinel
+    // as live and surfaced a fake "live" badge with an empty pre.
+    const isLive = liveText != null && liveText !== "";
+    const showSampleAffordance = allowMockData !== false;
+    const text = isLive
+      ? liveText
+      : (showSampleAffordance ? MOCK_CODEX_LIVE.text : "");
+    const meta = isLive
+      ? "live"
+      : (showSampleAffordance ? MOCK_CODEX_LIVE.model : "idle");
     const card = _cardShell(_doc, {
       id: "codex-live",
       title: "🤖 Codex 라이브 출력",
-      meta: isLive ? "live" : MOCK_CODEX_LIVE.model,
+      meta: meta,
       extraClass: "prod-card-codex-live",
       aria: "Codex 실시간 출력 스트림",
     });
     card.setAttribute("data-pro-only", "true");
+    card.setAttribute("data-stream-state", isLive ? "live" : "idle");
     const pre = _doc.createElement("pre");
     pre.className = "prod-codex-live-pre";
     pre.setAttribute("data-card-slot", "stream");
@@ -371,6 +404,7 @@
     if (!root || !_doc) throw new Error("HarnessProductMonitorGrid.create: root + doc required");
 
     let mode = opts.mode || "simple";
+    const allowMockData = opts.allowMockData !== false;
     const store = opts.store || null;
     const selectors = opts.dataSelectors
       || (typeof window !== "undefined" && window.HarnessProductShellData)
@@ -382,14 +416,29 @@
     grid.setAttribute("role", "region");
     grid.setAttribute("aria-label", "모니터 그리드");
 
+    function _withoutMockFallback(result) {
+      if (!result.findings) result.findings = EMPTY_FINDINGS;
+      if (!result.context) result.context = EMPTY_CONTEXT;
+      if (!result.verify) result.verify = EMPTY_VERIFY;
+      if (!result.subagents) result.subagents = EMPTY_SUBAGENTS;
+      if (!result.tools) result.tools = EMPTY_TOOL_FEED;
+      if (!result.critique) result.critique = EMPTY_CRITIQUE;
+      // codexLive intentionally stays null when the selector has
+      // nothing — _buildCodexLive treats null as "no live stream" and
+      // consults allowMockData to decide between the reference sample
+      // text and an operator-friendly idle state. Coercing to ""
+      // here mis-classified the empty sentinel as a live stream.
+      return result;
+    }
+
     function _resolveData() {
       const result = {
         findings: null, context: null, verify: null,
         codexLive: null, subagents: null, tools: null, critique: null,
       };
-      if (!store || !selectors) return result;
+      if (!store || !selectors) return allowMockData ? result : _withoutMockFallback(result);
       let snap;
-      try { snap = store.snapshot(); } catch (_) { return result; }
+      try { snap = store.snapshot(); } catch (_) { return allowMockData ? result : _withoutMockFallback(result); }
       const runId = selectors.selectActiveRunId(snap);
       result.findings  = selectors.selectFindings(snap, runId);
       result.context   = selectors.selectContextUsage(snap, runId);
@@ -398,7 +447,7 @@
       result.tools     = selectors.selectRecentToolCalls(snap, runId, 6);
       result.critique  = selectors.selectCritique(snap, runId);
       result.codexLive = selectors.selectCodexLiveTail(snap, runId, 240);
-      return result;
+      return allowMockData ? result : _withoutMockFallback(result);
     }
 
     function _renderGrid() {
@@ -412,7 +461,7 @@
       statRow.appendChild(_buildVerify(_doc, data.verify));
       grid.appendChild(statRow);
 
-      grid.appendChild(_buildCodexLive(_doc, data.codexLive));
+      grid.appendChild(_buildCodexLive(_doc, data.codexLive, allowMockData));
       grid.appendChild(_buildSubagents(_doc, data.subagents));
 
       const bottomRow = _doc.createElement("div");
@@ -486,5 +535,11 @@
     MOCK_SUBAGENTS,
     MOCK_TOOL_FEED,
     MOCK_CRITIQUE,
+    EMPTY_FINDINGS,
+    EMPTY_CONTEXT,
+    EMPTY_VERIFY,
+    EMPTY_SUBAGENTS,
+    EMPTY_TOOL_FEED,
+    EMPTY_CRITIQUE,
   };
 });

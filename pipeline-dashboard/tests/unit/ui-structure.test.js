@@ -13,6 +13,7 @@ const indexProduct = fs.readFileSync(path.join(root, "public", "index.html"), "u
 const index = fs.readFileSync(path.join(root, "public", "index.legacy.html"), "utf-8");
 const app = fs.readFileSync(path.join(root, "public", "app.js"), "utf-8");
 const css = fs.readFileSync(path.join(root, "public", "style.css"), "utf-8");
+const productShellInit = fs.readFileSync(path.join(root, "public", "js", "product-shell-init.js"), "utf-8");
 
 test("legacy index.html has zero inline event handlers (CSP-safe)", () => {
   const matches = index.match(/\son[a-z]+="/gi) || [];
@@ -87,4 +88,18 @@ test("product index.html loads core modules + panels before product-shell-init.j
     "missing required script tag in product shell");
   assert.ok(posStore < posInit, "store.js must load before init");
   assert.ok(posShell < posInit, "product-shell.js must load before init");
+});
+
+test("product shell runtime disables reference mock data unless demo mode is explicit", () => {
+  assert.match(productShellInit, /function _resolveDemoMode\(\)/);
+  assert.match(productShellInit, /url\.searchParams\.get\("demo"\)/);
+  assert.match(productShellInit, /localStorage\.getItem\("harness:demo-mode"\)/);
+  assert.match(productShellInit, /allowMockData:\s*demoMode/);
+});
+
+test("product shell runtime hydrates monitor bootstrap before relying on live websocket events", () => {
+  assert.match(productShellInit, /function _hydrateInitialStore\(store\)/);
+  assert.match(productShellInit, /hydrateMonitorStore/);
+  assert.match(productShellInit, /hydrateRunDetail/);
+  assert.match(productShellInit, /_hydrateInitialStore\(store\)/);
 });
