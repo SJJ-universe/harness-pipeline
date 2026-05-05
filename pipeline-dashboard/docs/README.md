@@ -27,6 +27,7 @@ For committers and reviewers learning how the harness is shaped.
 | [`ui-dashboard-design-notes.md`](ui-dashboard-design-notes.md) | Dashboard design tokens (`public/css/harness-shell.css`) and panel layout rules. |
 | [`ui-h-redesign-plan.md`](ui-h-redesign-plan.md) | UI-H hybrid redesign — SJ Harness mockup integration plan. |
 | [`ui-reference-port-plan.md`](ui-reference-port-plan.md) | UI reference port plan (UI-P0, Phase E Round 3). |
+| [`harness-pipeline-reference-guide-authoring-blueprint.md`](harness-pipeline-reference-guide-authoring-blueprint.md) | Forward-looking blueprint for a future GUIDE-* documentation round series. Plan only, not a finished guide. |
 | [`visual-contract-governance.md`](visual-contract-governance.md) | Visual baseline workflow: `npm run visual:check`, regression detection, refresh policy. |
 
 ## §2 Operations & deployment
