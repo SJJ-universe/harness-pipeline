@@ -2,6 +2,7 @@
 
 Date: 2026-04-27
 Status: Initial draft (Slice MB5 of Phase D Round 2)
+Last expanded: 2026-05-05 (Slice READINESS-DOC-1 — per-category narrative + operator workflow)
 Parent spec: `docs/superpowers/specs/2026-04-27-five-priority-roadmap.md` (P5)
 
 ## 1. Why this exists
@@ -22,15 +23,21 @@ Each category has 0..3 stars. Total 18 stars across the rubric. A category at 0 
 
 **Question**: Can an operator answer "what is running right now and what's it doing?" in under 5 seconds?
 
+**Why it matters**: An operator who can't tell *what is happening at this moment* can't trust any output the harness produces. Run visibility is the bedrock of every other operator-trust signal in this rubric — a 0/3 here makes the rest of the stars effectively vacuous, because the operator has no fixed point to evaluate them against.
+
 | Stars | Criterion |
 | --- | --- |
 | ★ | `/api/server/info` and `/api/monitor/bootstrap` both respond 200 with a usable shape. |
 | ★★ | The monitor shell (opt-in) renders the run-tree + run-summary panels with live data within 1s of the user opting in. |
 | ★★★ | `/api/monitor/runs/:runId` returns run detail (events / children / subagents / findings) for every run in the orchestrator's list. |
 
+**Star progression**: ★ tests the lowest-effort surface — the HTTP control plane returns *something* sensible. ★★ ensures that 200 wires through to live UI panels under realistic latency (a 200 that takes 30 seconds is functionally a failure here). ★★★ adds detail-on-demand: the per-run endpoint must serve every active run, not just the first or most-recent — this was the gap that triggered Slice MB1.
+
 ### 2.2 Child visibility
 
 **Question**: If the harness spawns 3 children (Codex + Claude + subagent), can an operator see all three from the dashboard?
+
+**Why it matters**: A typical run can spawn 3+ child processes — Codex (critic), Claude (executor), plus any subagents the executor delegates to. If a single child becomes invisible to the operator (e.g. a subagent stuck in a tight loop, or a runaway Codex token burst), there is no in-band way to catch it before it consumes resources. The agent-tree panel is what makes "spawn happened" survive into "spawn is observable".
 
 | Stars | Criterion |
 | --- | --- |
@@ -38,9 +45,13 @@ Each category has 0..3 stars. Total 18 stars across the rubric. A category at 0 
 | ★★ | The agent-tree panel renders one row per active child grouped by runId. |
 | ★★★ | The agent-tree panel ALSO renders active subagents (server-authoritative snapshot, MB2). Long-running subagents survive event-ring eviction. |
 
+**Star progression**: ★ exposes the registry over the read-only HTTP surface so an external scraper or CLI can see active children. ★★ groups children per-run in the in-browser shell — operators routinely run multiple pipelines and need to attribute children to the right one. ★★★ extends the visibility to subagents (the long-running, often-deep-in-the-tree spawns that simple event-ring inspection would lose first); MB2's server-authoritative snapshot is what closes this gap.
+
 ### 2.3 Replay visibility
 
 **Question**: If a client reconnects mid-run, can it reproduce the recent timeline accurately?
+
+**Why it matters**: Operators reconnect mid-run for ordinary reasons — network blip, browser tab crash, dashboard reload after editing a file. Without faithful replay, the timeline desynchronizes from server state and the operator's next decision is based on a stale screenshot. This is the category that catches a whole class of "the dashboard showed X but it actually was Y" bugs.
 
 | Stars | Criterion |
 | --- | --- |
@@ -48,9 +59,13 @@ Each category has 0..3 stars. Total 18 stars across the rubric. A category at 0 
 | ★★ | WS reconnect → client receives `pipeline_replay` with the correct run-scoped events (Phase 2.5 AA-2). |
 | ★★★ | Pinned events (MA6) survive ring eviction in the monitor store; the timeline still surfaces them after 200+ events have flowed past. |
 
+**Star progression**: ★ confirms the ring exists and supports the run-scoped filter the dashboard needs. ★★ ensures cross-run leakage is impossible on reconnect — a client that asked for run A doesn't accidentally see run B's events. ★★★ closes the operator-emphasis gap: when an operator pins an interesting event, that pin must survive the next 200+ events flowing past, otherwise the manual highlight is meaningless within minutes.
+
 ### 2.4 Event integrity
 
 **Question**: When the legacy WS stream and the monitor store both observe the same event, are they consistent?
+
+**Why it matters**: Two independent paths emit the same event today (legacy WS for the original dashboard, monitor store for the MA1+ shell). If they diverge, operators can't reason about "what really happened" — one panel asserts X, another asserts Y, and there is no privileged source of truth. Event integrity is the property that lets multiple panels disagree about *presentation* (filtering, sorting, highlighting) while agreeing on *substance*.
 
 | Stars | Criterion |
 | --- | --- |
@@ -58,9 +73,13 @@ Each category has 0..3 stars. Total 18 stars across the rubric. A category at 0 
 | ★★ | The monitor legacy-bridge (MB4-a) forwards every event into the monitor store via the dispatcher tap. Stats expose `eventsForwarded` and `eventsDropped`. |
 | ★★★ | A timeline filter chip toggle (MA6) drops the matching events from the monitor view but the bottom-dock raw log still shows them — the bridge stayed authoritative. |
 
+**Star progression**: ★ canonicalizes the envelope shape so downstream consumers don't have to dispatch on event-name patterns. ★★ verifies the bridge actually forwards every event (not "every event we remembered to add a case for") and exposes its own stats so silent drops are visible. ★★★ enforces "filtering is a UI concern, not a data concern" — a filter chip changes the rendered view but the underlying log retains every event the bridge saw.
+
 ### 2.5 Contract stability
 
 **Question**: Can a future panel be added without changing the server contract?
+
+**Why it matters**: New panels must arrive without breaking shipped clients. If shipping a feature requires changing `/api/server/info`'s shape, every external integration (CLI tools, third-party dashboards, smoke probes) breaks on upgrade. Contract stability is what lets the harness keep growing without the cost of growing scaling super-linearly with downstream consumer count.
 
 | Stars | Criterion |
 | --- | --- |
@@ -68,15 +87,21 @@ Each category has 0..3 stars. Total 18 stars across the rubric. A category at 0 
 | ★★ | The legacy `/api/server/info` and `/api/runs/current` shapes are unchanged from before Phase D — additive contracts only (MB1 was additive). |
 | ★★★ | A new monitor panel can be added by registering a `panels.X` override in `HarnessMonitorLayout.mount` without modifying any other module. |
 
+**Star progression**: ★ documents the contracts and locks them with tests so deviation is loud. ★★ enforces the additive-only rule for legacy contracts — older clients keep working when new fields land. ★★★ extends the additive principle to UI: a new panel is an inversion-of-control registration, not a multi-file edit, which is what lets contributors ship in isolation.
+
 ### 2.6 Remote isolation
 
 **Question**: When the operator opts into the remote-runner subsystem, does the trust boundary actually hold?
+
+**Why it matters**: When the operator opts into remote runners, the trust boundary is the difference between local-only inspection and exposing the orchestrator's authority to a distributed agent. A breach in this category is materially worse than any other star drop in this rubric — a compromised remote runner could potentially access local resources or forge audit entries. This is the only category where the *default* posture matters as much as the verified-behavior posture: the harness ships fail-closed and only opens the boundary on explicit operator opt-in.
 
 | Stars | Criterion |
 | --- | --- |
 | ★ | `HARNESS_REMOTE_MODE` defaults to `"off"` (workspace-boundary closed). `setupRemoteRunner({ env: {} })` returns `mode="off"`, `runnerRegistry=null`, both keys `null`; `createRunnerRoutes(mode="off")` 404s every route. |
 | ★★ | Token model with HKDF domain separation. The JWT signing key (`info="runner-jwt"`) and the audit-ledger signing key (`info="audit-ledger"`) derive from the same `HARNESS_TOKEN` IKM but produce two independent 32-byte keys. Compromising one must not compromise the other. |
 | ★★★ | **Live end-to-end round-trip** (R1-g upgrade). An in-process orchestrator + RunnerAgent: handshake → WS hello → `agent_started` frame → orchestrator's `childRegistry` shows the remote child with the right `runId` + `hostIdentity` + `remote:true` flag, AND the audit chain still verifies under HMAC. Subsumes the previous "audit chain only" check — a regression in path-aware demux, JWT verify, WS frame routing, child projection, OR ledger signing makes this star drop. |
+
+**Star progression**: ★ verifies the default-off posture — the most important security invariant in the harness. ★★ tests the cryptographic property that lets the two signing keys live in the same process without one's compromise cascading to the other. ★★★ exercises the entire remote pathway end-to-end so a regression anywhere in WS demux, JWT verify, frame routing, child projection, or ledger HMAC drops the star — there is no place to silently break this.
 
 > The full agent flow (handshake → heartbeat sliding TTL → JWT-authenticated WS hook → graceful release) is exercised by the integration suite (`tests/integration/runner-server-wiring.test.js`, `runner-routes.test.js`, `runner-ws-r1g.test.js`). The readiness rubric verifies these three invariants live; the suite covers the broader choreography.
 
@@ -194,3 +219,33 @@ the in-process behavior checks. CI runs in live mode by default.
 - `docs/superpowers/specs/2026-04-27-five-priority-roadmap.md` (P5)
 - `docs/superpowers/specs/2026-04-27-run-monitor-ui-hybrid-design.md` (Section 8)
 - Plan file `swift-waddling-hanrahan.md` Part E (Phase D Round 2 MB5 spec)
+
+## 7. Operator workflow — when to use this rubric
+
+This rubric is consulted in three operator workflows. Each has a different entry point and a different action on the result.
+
+### 7.1 Pre-deployment gate
+
+Before tagging a release, run `npm run readiness:check`. The exit code is the action:
+
+| Exit | Total | Action |
+| --- | --- | --- |
+| `0` | ≥ 17 / 18 | Proceed with the release. |
+| `1` | ≥ 12 / 18 | Release as preview only — note in changelog "preview-quality, see readiness report". |
+| `2` | ≥ 7  / 18 | Internal-only — do not advertise externally. |
+| `3` | < 7  / 18 | Do not ship. Investigate which categories dropped before the next attempt. |
+
+The CI gate uses the same exit codes. A category at 0 stars is blocking regardless of total — `readiness:check` will not return 0 if any category is fully empty.
+
+### 7.2 Regression diagnostics
+
+When a category drops between two consecutive `npm run scorecard:sync` runs, the auto-markers in §3 update and the diff in `docs/readiness-rubric.md` between versions tells you which category regressed. The protocol:
+
+1. `git log -p docs/readiness-rubric.md` to see the markers' last change.
+2. Read §2 narrative for the affected category to refresh on what each star measures.
+3. Pair with `docs/external-review/claim-evidence-matrix.md` to identify which slice was the cause.
+4. If the regression is real, file an internal investigation and revert (or fix-forward) before the next deployment gate.
+
+### 7.3 Onboarding orientation
+
+New committers reading this document first should follow the sections in order: §1 (why this exists) → §2 categories with star tables → §2 sub-rationales for the *why* of each star → §3 current readiness markers for live state. The narrative is what closes the gap between "I see a number" and "I know what changing the number costs". A reviewer who has read §1–§3 once should be able to evaluate any future PR's effect on readiness without re-reading.
