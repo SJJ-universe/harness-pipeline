@@ -32,7 +32,8 @@ operator instructions so the path to v1.0.0 is unambiguous.
 
 ## §2 Blocker #1 — Real-binary live verification
 
-**Status**: Open. Tooling exists; operator-time evidence required.
+**Status**: Open. Tooling complete (3 scripts + schema doc + collector);
+operator-time evidence required.
 **Priority**: Highest. Closes first because the artifacts feed §3
 and §4.
 
@@ -125,7 +126,9 @@ output that breaks v1 shape bumps to v2 there.
 
 ## §3 Blocker #2 — Trust-store + signed-manifest end-to-end
 
-**Status**: Open. UI work + operator verification required.
+**Status**: Open. Operator verification required for acceptance #2.
+Acceptance #1 (runbook), #3 (resolver test), and #4 (UI deferral)
+all closed (see §3.3). UI work formally deferred to post-v1.0.0.
 **Priority**: Second. Depends on §2 closure for the audit-chain
 property.
 
@@ -179,20 +182,33 @@ $env:HARNESS_REQUIRE_SIGNED_MANIFEST = "1"
 
 The blocker closes when **all** of the following are true:
 
-1. A committed runbook in `docs/runbooks/` walks Phases 1–3 with
-   exact commands.
-2. A committed report in `docs/reports/<date>-trust-store-e2e-eval.md`
-   documents at least one successful end-to-end run with audit-chain
-   anchors:
+1. ✅ **CLOSED** (TRUST-STORE-E2E-RUNBOOK, 2026-05-05) — A committed
+   runbook walks Phases 1–3 with exact commands. See
+   [`trust-store-e2e.md`](trust-store-e2e.md).
+2. ⏳ Operator-time — A committed report in
+   `docs/reports/<date>-trust-store-e2e-eval.md` documents at least
+   one successful end-to-end run with audit-chain anchors:
    - `launcher_signature_verified` (signed manifest accepted)
-   - `launcher_signature_failed` (unsigned manifest rejected)
-   - `launcher_signature_failed` with `cause=hash_mismatch` (tampered manifest rejected)
-3. The trust-store path resolver (`scripts/launcher/trust-store-path.js`)
-   has at least one integration test that exercises the full
-   precedence chain (CLI flag → env → portable → AppData → fallback).
-4. UI work (TRUST-STORE-0) is either landed or formally deferred
-   to a post-v1.0.0 round, with the deferral documented in
-   `docs/scorecard.md` backlog.
+   - `launcher_signature_failed` with `reason=signature_missing` (unsigned manifest rejected)
+   - `launcher_signature_failed` with `reason=hash_mismatch` (tampered manifest rejected)
+
+   Template in [`trust-store-e2e.md`](trust-store-e2e.md) §6.3.
+3. ✅ **CLOSED** (TRUST-STORE-PATH-IT, 2026-05-05) — The trust-store
+   path resolver (`scripts/launcher/trust-store-path.js`) has an
+   integration test that exercises the full precedence chain (CLI
+   flag → env → config-dir → OS-default → portable → fallback). See
+   [`tests/integration/trust-store-path-precedence.test.js`](../../tests/integration/trust-store-path-precedence.test.js).
+4. ✅ **DEFERRED** (TRUST-STORE-0 UI, post-v1.0.0) — UI work is
+   formally deferred. The v1.0.0 trust property is "signed manifests
+   with unknown-key + tampering rejection", which the launcher gate
+   + validator + path resolver deliver without a UI. Operators
+   manage trust-store JSON via direct file edit during the v1.0.0
+   window; that workflow is safe because the resolver path is
+   locked + the validator gates the eventual UI's CRUD operations
+   on the same file. Tracker in
+   [`../scorecard.md`](../scorecard.md) backlog
+   "v1.0.0 final-readiness backlog" + plan
+   `swift-waddling-hanrahan.md` §S.
 
 ### §3.4 Where evidence lives
 

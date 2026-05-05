@@ -41,6 +41,7 @@ Includes the first-time-use guide for non-technical end users
 | [`deployment-readiness.md`](deployment-readiness.md) | operator | [`preflight.js`](../../scripts/preflight.js) | Pre-deployment health check — visual / readiness / scorecard / hooks gates plus optional smoke. |
 | [`first-time-use.md`](first-time-use.md) | 일반 사용자 (non-technical end user) | (none — handbook only) | Korean-primary first-time-use guide. Setup → first run → connecting Claude/Codex → understanding approval cards. |
 | [`v1-blockers.md`](v1-blockers.md) | operator + release-lead | (multiple — see runbook) | The three v1.0.0 final-readiness blockers in priority order: real-binary live verification → trust-store + signed-manifest E2E → 1-week field-pilot evidence. Acceptance criteria + evidence locations. |
+| [`trust-store-e2e.md`](trust-store-e2e.md) | deployer + installation operator | [`sign-manifest.js`](../../scripts/sign-manifest.js) + [`launcher/install-version.ps1`](../../scripts/launcher/install-version.ps1) | Phase 1/2/3 sign / install / tampering-rejection loop for v1.0.0 Blocker #2. Public-sector posture variant + dev-escape carve-out. |
 
 ## §3 Live-verify family
 

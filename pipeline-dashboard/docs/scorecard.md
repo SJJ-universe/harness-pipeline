@@ -352,6 +352,55 @@ External review #5 projected score path: 97/110 → 99/110 with these three fixe
 
 ## Remaining backlog (priority order)
 
+### v1.0.0 final-readiness backlog (highest priority)
+
+The path from `v1.0.0-rc.2` to `v1.0.0` final is documented in
+[`docs/runbooks/v1-blockers.md`](./runbooks/v1-blockers.md). Cap
+movement (120/126 → 121/127) is deliberately deferred until all
+three blockers close with end-to-end trust property closure.
+
+**Blocker #1 — Real-binary live verification** (operator-time):
+- Tooling complete:
+  [`scripts/live-verify-smart-arc.js`](../scripts/live-verify-smart-arc.js),
+  [`scripts/live-verify-review-relay.js`](../scripts/live-verify-review-relay.js),
+  and [`scripts/collect-live-evidence.js`](../scripts/collect-live-evidence.js)
+  (the three together produce `harness-live-evidence-bundle/v1`,
+  schema locked in [`docs/live-evidence-schema.md`](./live-evidence-schema.md)).
+- Outstanding: operator runs probes against real Claude/Codex
+  binaries, commits the JSONs, runs the collector, ships a PASS
+  bundle.
+
+**Blocker #2 — Trust-store + signed-manifest E2E** (operator-time + 1 small deferral):
+- ✅ Acceptance #1 closed: operator runbook
+  [`docs/runbooks/trust-store-e2e.md`](./runbooks/trust-store-e2e.md)
+  with the Phase 1/2/3 sign / install / tampering loop.
+- Outstanding (acceptance #2): operator runs the loop, commits
+  `docs/reports/<date>-trust-store-e2e-eval.md` with the three
+  audit-chain anchors observed (`launcher_signature_verified`,
+  `launcher_signature_failed reason=signature_missing`,
+  `launcher_signature_failed reason=hash_mismatch`).
+- ✅ Acceptance #3 closed: full 5-step precedence chain integration
+  test ([`tests/integration/trust-store-path-precedence.test.js`](../tests/integration/trust-store-path-precedence.test.js))
+  + sample fixture ([`docs/fixtures/trust-store-example.json`](./fixtures/trust-store-example.json)).
+- ✅ Acceptance #4 — **TRUST-STORE-0 UI formally DEFERRED to post-v1.0.0**.
+  Rationale: the v1.0.0 trust property is "signed manifests with
+  unknown-key + tampering rejection" (closed by the launcher gate
+  + manifestSigner.loadTrustStore validator + the integration
+  test). Operators manage trust-store JSON via direct file edit
+  during the v1.0.0 window; that workflow is safe because the
+  resolver path is locked + the validator gates the UI's eventual
+  CRUD operations on the same file. Adding TRUST-STORE-0 UI before
+  v1.0.0 would force a multi-day UI build for a property the file
+  edit + path resolver already deliver. UI tracker stays in
+  `swift-waddling-hanrahan.md` §S as a planned post-v1.0.0 round.
+
+**Blocker #3 — 1-week field-pilot evidence** (operator-time):
+- Apparatus complete: 4 field-pilot runbooks under
+  [`docs/runbooks/field-pilot-*.md`](./runbooks/).
+- Outstanding: 7 daily `field-pilot-deployment-log.md` entries +
+  incident ledger (or signed "no S2+" entry) + survey responses +
+  closeout report `docs/reports/<date>-field-pilot-eval.md`.
+
 ### Phase D follow-ups
 
 - **MA7-d / extension**: more handleEvent cases via dispatcher.register (e.g. context_alarm, hook_event, codex_started, codex_progress). Each case extraction shrinks the legacy switch by 4-12 lines. Lower priority than Phase 3 prerequisites.
