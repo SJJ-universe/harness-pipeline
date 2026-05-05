@@ -294,6 +294,13 @@
     "policyPack.altBadge.publicSector":                  "Public sector",
     "policyPack.altBadge.hardGates":                     "Hard gates default",
     "policyPack.altBadge.noRunMemory":                   "Run memory OFF",
+
+    // POL-DIFF-1-a (Phase 2 v2 follow-up, 2026-05-05) — alt-card diff toggle
+    "policyPack.altDiff.toggle":                         "Compare ({count} differ)",
+    "policyPack.altDiff.collapse":                       "Hide comparison ({count} differ)",
+    "policyPack.altDiff.fieldHeader":                    "Rule",
+    "policyPack.altDiff.fromHeader":                     "Current ({label})",
+    "policyPack.altDiff.toHeader":                       "If switched ({label})",
   };
 
   if (typeof module !== "undefined" && module.exports) {

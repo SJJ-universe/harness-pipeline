@@ -2785,6 +2785,91 @@ body.monitor-active {
   letter-spacing: 0.02em;
 }
 
+/* POL-DIFF-1-a (Phase 2 v2 follow-up, 2026-05-05) — alt-card
+ * diff toggle + 3-column diff table. The toggle is a slim button
+ * inside the alt-card; the panel renders a 3-column grid (rule /
+ * current / target) with changed rows highlighted. */
+
+.monitor-shell .pic-alt-diff-wrap {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.monitor-shell .pic-alt-diff-toggle {
+  font-family: inherit;
+  font-size: var(--hsh-fs-xs, 9px);
+  padding: 4px 8px;
+  background: transparent;
+  color: var(--hsh-text-dim, rgba(232, 230, 225, 0.7));
+  border: 0.5px solid var(--hsh-border, rgba(255, 255, 255, 0.12));
+  border-radius: var(--hsh-radius, 3px);
+  cursor: pointer;
+  align-self: flex-start;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.monitor-shell .pic-alt-diff-toggle:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--hsh-text, rgba(232, 230, 225, 0.95));
+  border-color: var(--hsh-text-dim, rgba(232, 230, 225, 0.4));
+}
+.monitor-shell .pic-alt-diff-toggle:focus-visible {
+  outline: 1px solid var(--hsh-blue, #4B82E8);
+  outline-offset: 2px;
+}
+.monitor-shell .pic-alt-diff-wrap[data-diff-state="expanded"]
+  .pic-alt-diff-toggle {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--hsh-text, rgba(232, 230, 225, 0.9));
+}
+
+/* Diff table: 3-column grid (rule label / current value / target value) */
+.monitor-shell .pic-alt-diff-panel {
+  border: 0.5px solid var(--hsh-border, rgba(255, 255, 255, 0.06));
+  border-radius: var(--hsh-radius, 3px);
+  background: rgba(255, 255, 255, 0.015);
+  padding: 6px;
+}
+
+.monitor-shell .pic-alt-diff-table {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr 1fr;
+  gap: 0;
+  font-size: var(--hsh-fs-xs, 9px);
+}
+
+.monitor-shell .pic-alt-diff-row {
+  display: contents;
+}
+
+.monitor-shell .pic-alt-diff-header > * {
+  padding: 4px 6px;
+  font-family: var(--hsh-font-mono, ui-monospace, monospace);
+  font-size: var(--hsh-fs-xs, 9px);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--hsh-text-dim, rgba(232, 230, 225, 0.5));
+  border-bottom: 0.5px solid var(--hsh-border, rgba(255, 255, 255, 0.1));
+}
+
+.monitor-shell .pic-alt-diff-row:not(.pic-alt-diff-header) > * {
+  padding: 4px 6px;
+  color: var(--hsh-text-dim, rgba(232, 230, 225, 0.55));
+  border-bottom: 0.5px solid var(--hsh-border, rgba(255, 255, 255, 0.04));
+}
+
+/* Changed row: emphasize. The "from" cell stays dim; the "to" cell
+ * uses the orange accent (matches public-sector posture color). */
+.monitor-shell .pic-alt-diff-row[data-changed="true"] .pic-alt-diff-field {
+  color: var(--hsh-text, rgba(232, 230, 225, 0.95));
+  font-weight: 500;
+}
+.monitor-shell .pic-alt-diff-row[data-changed="true"] .pic-alt-diff-to {
+  color: var(--hsh-orange, #F4A23F);
+}
+
 /* Mobile / narrow viewport: collapse rec-row 3-column grid to
  * stacked layout so CTAs don't squeeze the title text. */
 @media (max-width: 720px) {
@@ -2798,5 +2883,12 @@ body.monitor-active {
   }
   .monitor-shell .pic-alt-list {
     grid-template-columns: 1fr;
+  }
+  /* On mobile, diff table stacks 3 columns into 1 column */
+  .monitor-shell .pic-alt-diff-table {
+    grid-template-columns: 1fr;
+  }
+  .monitor-shell .pic-alt-diff-header {
+    display: none;
   }
 }

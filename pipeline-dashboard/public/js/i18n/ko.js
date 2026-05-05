@@ -305,6 +305,13 @@
     "policyPack.altBadge.publicSector":                  "공공기관",
     "policyPack.altBadge.hardGates":                     "기본 하드 게이트",
     "policyPack.altBadge.noRunMemory":                   "런 메모리 OFF",
+
+    // POL-DIFF-1-a (Phase 2 v2 follow-up, 2026-05-05) — alt-card diff toggle
+    "policyPack.altDiff.toggle":                         "비교 보기 ({count}개 차이)",
+    "policyPack.altDiff.collapse":                       "비교 닫기 ({count}개 차이)",
+    "policyPack.altDiff.fieldHeader":                    "규칙",
+    "policyPack.altDiff.fromHeader":                     "현재 ({label})",
+    "policyPack.altDiff.toHeader":                       "전환 시 ({label})",
   };
 
   if (typeof module !== "undefined" && module.exports) {

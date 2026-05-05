@@ -78,6 +78,38 @@
     "scannerFailurePolicy",
   ]);
 
+  // POL-DIFF-1-a (Phase 2 v2 follow-up, 2026-05-05): All comparable
+  // fields in priority order — boolean fields first, then string
+  // fields. The diff renderer iterates this array so the table has
+  // stable ordering.
+  const DIFFABLE_RULE_FIELDS = Object.freeze([
+    ...BOOLEAN_RULE_FIELDS,
+    ...STRING_RULE_FIELDS,
+  ]);
+
+  // POL-DIFF-1-a: compute a structured diff between two pack
+  // entries from the /api/policy-packs response. Returns:
+  //   { changed: number, rows: [{ field, fromValue, toValue, isChanged }] }
+  // - `changed` count is the headline ("3 rules differ")
+  // - `rows` is the full ordered list, with `isChanged: true` for
+  //   the rows that differ + `false` for unchanged (rendered for
+  //   context but visually de-emphasized)
+  // Both packs must be objects from the bridge-fetched policyPacks
+  // catalog. Missing fields are treated as `null` (legitimate
+  // absence — older snapshots may not carry every field).
+  function diffPacks(packA, packB) {
+    const rows = [];
+    let changed = 0;
+    for (const field of DIFFABLE_RULE_FIELDS) {
+      const fromValue = packA && (field in packA) ? packA[field] : null;
+      const toValue = packB && (field in packB) ? packB[field] : null;
+      const isChanged = fromValue !== toValue;
+      if (isChanged) changed++;
+      rows.push({ field, fromValue, toValue, isChanged });
+    }
+    return { changed, rows };
+  }
+
   function _renderRuleValue(doc, value, i18n) {
     const span = doc.createElement("span");
     span.className = "pic-rule-value";
@@ -294,6 +326,14 @@
         altList.appendChild(noneEl);
         return;
       }
+      // POL-DIFF-1-a: resolve current pack entry once for diff
+      // computation. If currentPack object can't be resolved (e.g.
+      // catalog is partial), the diff button silently degrades to
+      // hidden — alt-card still renders without the comparison.
+      const currentPackEntry = packs.find((p) => p && p.modeId === currentPackId)
+        || packs.find((p) => p && p.isCurrent)
+        || null;
+
       for (const p of others) {
         const card = _doc.createElement("div");
         card.className = "pic-alt-card";
@@ -337,8 +377,139 @@
           badges.appendChild(b);
         }
         card.appendChild(badges);
+
+        // POL-DIFF-1-a: diff toggle. Operator clicks "비교 보기"
+        // → reveal a 2-column rule diff highlighting changes
+        // between currentPack and this alt. Read-only — no
+        // runtime mutation, just a "what would change if I
+        // switched" preview. Only mounted when we have BOTH
+        // a current-pack entry AND a non-zero diff (no point
+        // showing a button if the packs are identical).
+        if (currentPackEntry) {
+          const diff = diffPacks(currentPackEntry, p);
+          if (diff.changed > 0) {
+            const diffWrap = _doc.createElement("div");
+            diffWrap.className = "pic-alt-diff-wrap";
+            diffWrap.setAttribute("data-diff-state", "collapsed");
+
+            const toggleBtn = _doc.createElement("button");
+            toggleBtn.type = "button";
+            toggleBtn.className = "pic-alt-diff-toggle";
+            toggleBtn.setAttribute("aria-expanded", "false");
+            toggleBtn.setAttribute("data-diff-toggle", p.modeId);
+            toggleBtn.textContent = _t(
+              i18n, "policyPack.altDiff.toggle",
+              "비교 보기 ({count}개 차이)",
+              { count: diff.changed },
+            );
+
+            const diffPanel = _doc.createElement("div");
+            diffPanel.className = "pic-alt-diff-panel";
+            diffPanel.setAttribute("data-diff-panel", p.modeId);
+            diffPanel.hidden = true;
+            // Build the diff table once + cache (re-render on
+            // toggle would be wasted work — pack data is frozen
+            // for the life of the boot).
+            _renderDiffTable(diffPanel, diff, currentPackEntry, p);
+
+            // Toggle wiring
+            toggleBtn.addEventListener("click", function () {
+              const expanded = !diffPanel.hidden ? false : true;
+              diffPanel.hidden = !expanded;
+              toggleBtn.setAttribute("aria-expanded", expanded ? "true" : "false");
+              diffWrap.setAttribute("data-diff-state",
+                expanded ? "expanded" : "collapsed");
+              toggleBtn.textContent = _t(
+                i18n,
+                expanded
+                  ? "policyPack.altDiff.collapse"
+                  : "policyPack.altDiff.toggle",
+                expanded ? "비교 닫기 ({count}개 차이)" : "비교 보기 ({count}개 차이)",
+                { count: diff.changed },
+              );
+            });
+
+            diffWrap.appendChild(toggleBtn);
+            diffWrap.appendChild(diffPanel);
+            card.appendChild(diffWrap);
+          }
+        }
+
         altList.appendChild(card);
       }
+    }
+
+    // POL-DIFF-1-a: render the diff table inside a panel. Each
+    // changed row shows from→to; unchanged rows are present but
+    // visually de-emphasized (operator sees full context, not just
+    // the deltas — useful when a small change matters because
+    // surrounding rules support a posture).
+    function _renderDiffTable(panel, diff, fromPack, toPack) {
+      const table = _doc.createElement("div");
+      table.className = "pic-alt-diff-table";
+      table.setAttribute("role", "table");
+
+      // Header row
+      const headerRow = _doc.createElement("div");
+      headerRow.className = "pic-alt-diff-row pic-alt-diff-header";
+      headerRow.setAttribute("role", "row");
+
+      const fieldHeader = _doc.createElement("div");
+      fieldHeader.className = "pic-alt-diff-field-header";
+      fieldHeader.textContent = _t(i18n, "policyPack.altDiff.fieldHeader", "규칙");
+      headerRow.appendChild(fieldHeader);
+
+      const fromHeader = _doc.createElement("div");
+      fromHeader.className = "pic-alt-diff-from-header";
+      const fromLabel = _t(i18n,
+        "policyPack.modeId." + (fromPack.modeId || ""),
+        fromPack.label || fromPack.modeId || "현재");
+      fromHeader.textContent = _t(i18n, "policyPack.altDiff.fromHeader",
+        "현재 ({label})", { label: fromLabel });
+      headerRow.appendChild(fromHeader);
+
+      const toHeader = _doc.createElement("div");
+      toHeader.className = "pic-alt-diff-to-header";
+      const toLabel = _t(i18n,
+        "policyPack.modeId." + (toPack.modeId || ""),
+        toPack.label || toPack.modeId || "대상");
+      toHeader.textContent = _t(i18n, "policyPack.altDiff.toHeader",
+        "전환 시 ({label})", { label: toLabel });
+      headerRow.appendChild(toHeader);
+
+      table.appendChild(headerRow);
+
+      // Body rows — changed first, then unchanged (de-emphasized)
+      const changedFirst = diff.rows.slice().sort((a, b) => {
+        if (a.isChanged === b.isChanged) return 0;
+        return a.isChanged ? -1 : 1;
+      });
+      for (const row of changedFirst) {
+        const tr = _doc.createElement("div");
+        tr.className = "pic-alt-diff-row";
+        tr.setAttribute("role", "row");
+        if (row.isChanged) tr.setAttribute("data-changed", "true");
+
+        const fieldCell = _doc.createElement("div");
+        fieldCell.className = "pic-alt-diff-field";
+        fieldCell.textContent = _t(
+          i18n, "policyPack.field." + row.field, row.field);
+        tr.appendChild(fieldCell);
+
+        const fromCell = _doc.createElement("div");
+        fromCell.className = "pic-alt-diff-from";
+        fromCell.appendChild(_renderRuleValue(_doc, row.fromValue, i18n));
+        tr.appendChild(fromCell);
+
+        const toCell = _doc.createElement("div");
+        toCell.className = "pic-alt-diff-to";
+        toCell.appendChild(_renderRuleValue(_doc, row.toValue, i18n));
+        tr.appendChild(toCell);
+
+        table.appendChild(tr);
+      }
+
+      panel.appendChild(table);
     }
 
     function _renderCurrentPackBadge(currentPackEntry, currentPackId) {
@@ -420,5 +591,10 @@
     };
   }
 
-  return { create };
+  return {
+    create,
+    // POL-DIFF-1-a: helper exports for unit tests.
+    diffPacks,
+    DIFFABLE_RULE_FIELDS,
+  };
 });
