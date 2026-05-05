@@ -204,6 +204,25 @@
       reviewSessions: new Map(),
       selectedReviewSessionId: null,
       reviewStreams: new Map(),
+      // Slice RR0-c (Phase 2 / RELEASE-READY-0, 2026-05-05): runner
+      // activity slice. Tracks codex/claude long-running task state
+      // surfaced from the activityWatchdog (RR0-b). Map keyed by
+      // `${runner}:${runId}:${iteration}` so multiple iterations of
+      // the same phase don't collide. Populated by legacy-bridge from
+      // 4 WS events:
+      //   codex_idle_warning   → state="warning", warningFiredAt set
+      //   claude_idle_warning  → same shape, runner="claude"
+      //   codex_killed_for_idle → state="killed", killReason set
+      //   claude_killed_for_idle → same, runner="claude"
+      // Auto-cleared on pipeline_complete / pipeline_reset (the
+      // associated phase iteration is done).
+      //
+      // Per-entry shape:
+      //   { runner, runId, phase, iteration,
+      //     state: "warning"|"killed",
+      //     msSinceLastTick, msUntilKill,
+      //     warningFiredAt, killedAt, killReason }
+      runnerActivity: new Map(),
     };
   }
 
@@ -321,6 +340,12 @@
           .sort((a, b) => (b.lastActivityAt || 0) - (a.lastActivityAt || 0)),
         selectedReviewSessionId: state.selectedReviewSessionId,
         reviewStreams: _snapshotReviewStreams(state.reviewStreams),
+        // Slice RR0-c: runner activity snapshot — array sorted by
+        // most-recent-warning first so the simple-shell long-running
+        // task card surfaces fresh issues at the top.
+        runnerActivity: Array.from(state.runnerActivity.values())
+          .map((a) => ({ ...a }))
+          .sort((a, b) => (b.warningFiredAt || b.killedAt || 0) - (a.warningFiredAt || a.killedAt || 0)),
       };
     }
 
@@ -866,6 +891,94 @@
       return snapshot();
     }
 
+    // ── Slice RR0-c: runner activity slice mutators ────────────────
+
+    function _runnerActivityKey({ runner, runId, iteration }) {
+      return `${runner || "?"}:${runId || "default"}:${iteration || 0}`;
+    }
+
+    function recordRunnerIdleWarning(payload) {
+      // payload shape from codex_idle_warning / claude_idle_warning:
+      //   { runner, runId, phase, iteration,
+      //     msSinceLastTick, msUntilKill, totalElapsedMs }
+      if (!payload || typeof payload !== "object") return snapshot();
+      if (!payload.runner) return snapshot();
+      const key = _runnerActivityKey(payload);
+      const existing = state.runnerActivity.get(key);
+      const now = Date.now();
+      const entry = {
+        runner: payload.runner,
+        runId: payload.runId || "default",
+        phase: payload.phase || null,
+        iteration: payload.iteration || 0,
+        state: "warning",
+        msSinceLastTick: Number(payload.msSinceLastTick) || 0,
+        msUntilKill: Number(payload.msUntilKill) || 0,
+        warningFiredAt: now,
+        killedAt: existing && existing.killedAt ? existing.killedAt : null,
+        killReason: existing && existing.killReason ? existing.killReason : null,
+      };
+      state.runnerActivity.set(key, entry);
+      _publish();
+      return snapshot();
+    }
+
+    function recordRunnerKilled(payload) {
+      // payload shape from codex_killed_for_idle / claude_killed_for_idle:
+      //   { runner, runId, phase, iteration,
+      //     reason, msSinceLastTick, totalElapsedMs }
+      if (!payload || typeof payload !== "object") return snapshot();
+      if (!payload.runner) return snapshot();
+      const key = _runnerActivityKey(payload);
+      const existing = state.runnerActivity.get(key);
+      const now = Date.now();
+      const entry = {
+        runner: payload.runner,
+        runId: payload.runId || "default",
+        phase: payload.phase || null,
+        iteration: payload.iteration || 0,
+        state: "killed",
+        msSinceLastTick: Number(payload.msSinceLastTick) || 0,
+        msUntilKill: 0,
+        warningFiredAt: existing && existing.warningFiredAt ? existing.warningFiredAt : null,
+        killedAt: now,
+        killReason: typeof payload.reason === "string" ? payload.reason : "unknown",
+      };
+      state.runnerActivity.set(key, entry);
+      _publish();
+      return snapshot();
+    }
+
+    function clearRunnerActivity(key) {
+      // Specific key (string) — remove that entry; null/undefined → clear all.
+      if (key == null) {
+        if (state.runnerActivity.size === 0) return snapshot();
+        state.runnerActivity.clear();
+        _publish();
+        return snapshot();
+      }
+      if (typeof key !== "string" || !state.runnerActivity.has(key)) return snapshot();
+      state.runnerActivity.delete(key);
+      _publish();
+      return snapshot();
+    }
+
+    function clearRunnerActivityForRun(runId) {
+      // Sweep all entries for a runId. Called on pipeline_complete /
+      // pipeline_reset so finished runs don't leave warning entries
+      // hanging in the long-running task card.
+      if (typeof runId !== "string" || !runId) return snapshot();
+      let removed = false;
+      for (const [k, v] of state.runnerActivity.entries()) {
+        if (v && v.runId === runId) {
+          state.runnerActivity.delete(k);
+          removed = true;
+        }
+      }
+      if (removed) _publish();
+      return snapshot();
+    }
+
     // Test-only inspection so unit tests don't need to read the snapshot
     // every time. Internals not exposed by the public API.
     function _internal() {
@@ -919,6 +1032,14 @@
       appendReviewChunk,
       setReviewSessionsList,
       clearReviewSessions,
+      // Slice RR0-c: runner activity slice mutators (legacy-bridge wires
+      // codex_idle_warning / claude_idle_warning / codex_killed_for_idle /
+      // claude_killed_for_idle WS events; pipeline_complete / reset
+      // sweep stale entries)
+      recordRunnerIdleWarning,
+      recordRunnerKilled,
+      clearRunnerActivity,
+      clearRunnerActivityForRun,
       // testing aid
       _internal,
     };

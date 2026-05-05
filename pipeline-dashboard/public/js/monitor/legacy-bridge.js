@@ -172,6 +172,52 @@
       } catch (_) {
         // upsertRun can't normally fail; defensive only.
       }
+
+      // Slice RR0-c: when a run completes / resets, sweep its
+      // runner-activity entries so the long-running task card stops
+      // showing stale warnings. The watchdog itself emits no
+      // "runner_recovered" event — the kill timer + clear() in the
+      // runner are server-side; the client wipes state when the
+      // pipeline reports the run finished.
+      if ((type === "pipeline_complete" || type === "pipeline_reset")
+        && typeof store.clearRunnerActivityForRun === "function") {
+        try { store.clearRunnerActivityForRun(runId); } catch (_) {}
+      }
+      return true;
+    }
+
+    // Slice RR0-c (Phase 2 / RELEASE-READY-0, 2026-05-05): runner
+    // activity lifecycle events. Returns true when the event was a
+    // runner_*_idle_warning / _killed_for_idle event so the caller
+    // can skip the normal pushEvent path (these are tracked on a
+    // dedicated slice, not in the events ring — they'd be too
+    // frequent for ring-eviction sanity).
+    function _syncRunnerActivityFromEvent(type, data) {
+      const isWarn  = type === "codex_idle_warning"  || type === "claude_idle_warning";
+      const isKill  = type === "codex_killed_for_idle" || type === "claude_killed_for_idle";
+      if (!isWarn && !isKill) return false;
+      if (!data || typeof data !== "object") return true;
+      const runner = type.startsWith("codex_") ? "codex" : "claude";
+      const payload = {
+        runner,
+        runId: typeof data.runId === "string" ? data.runId : "default",
+        phase: data.phase || null,
+        iteration: data.iteration || 0,
+        msSinceLastTick: Number(data.msSinceLastTick) || 0,
+      };
+      if (isWarn) {
+        payload.msUntilKill = Number(data.msUntilKill) || 0;
+        if (typeof store.recordRunnerIdleWarning === "function") {
+          try { store.recordRunnerIdleWarning(payload); } catch (_) {}
+        }
+        stats.runnerActivitySyncs = (stats.runnerActivitySyncs || 0) + 1;
+      } else {
+        payload.reason = typeof data.reason === "string" ? data.reason : "unknown";
+        if (typeof store.recordRunnerKilled === "function") {
+          try { store.recordRunnerKilled(payload); } catch (_) {}
+        }
+        stats.runnerActivitySyncs = (stats.runnerActivitySyncs || 0) + 1;
+      }
       return true;
     }
 
@@ -346,6 +392,13 @@
       // their own slice (pendingApprovals) and don't go through the
       // generic events ring. Skip pushEvent + run sync for them.
       if (_syncApprovalFromEvent(event)) return;
+      // Slice RR0-c: runner activity events take precedence — own
+      // slice (runnerActivity), volume-prone (kicks every idle window),
+      // skip pushEvent so they don't pollute the events ring.
+      if (event && typeof event === "object"
+          && _syncRunnerActivityFromEvent(event.type, event.data || {})) {
+        return;
+      }
 
       const env = normalize(event);
       if (!env) {
