@@ -136,6 +136,22 @@
         try { window.HarnessToast.show(payload); } catch (_) {}
       }
     }
+    // PRODUCT-SHELL-WIRING: when the lazy-DOM modal submits a task,
+    // its `addLog` callback is the only way to surface "started"
+    // feedback in the product shell (legacy view shows a phase log
+    // entry; product shell has no log panel). Bridge addLog → toast
+    // so the operator sees a confirmation when the run kicks off.
+    function _addLogAdapter(_kind, message) {
+      if (window.HarnessToast && typeof window.HarnessToast.show === "function") {
+        try {
+          window.HarnessToast.show({
+            kind: "info",
+            message: message,
+            duration: 3500,
+          });
+        } catch (_) { /* defensive */ }
+      }
+    }
     const actionHandlers = (window.HarnessShellActions
         && typeof window.HarnessShellActions.createDefaultHandlers === "function")
       ? window.HarnessShellActions.createDefaultHandlers({
@@ -144,6 +160,7 @@
           fetchImpl: (typeof fetch === "function") ? fetch : null,
           confirmFn: (typeof confirm !== "undefined") ? confirm : null,
           toastFn: _toastAdapter,
+          addLog: _addLogAdapter,
         })
       : null;
 

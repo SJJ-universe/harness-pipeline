@@ -1328,3 +1328,144 @@ html, body {
   user-select: none;
 }
 
+/* ──────────────────────────────────────────────────────────────────
+ * PRODUCT-SHELL-WIRING (rc.5 prep, 2026-05-06) — modal overlay.
+ *
+ * The lazy-DOM general-pipeline-modal (public/js/general-pipeline-modal.js
+ * `_ensureOverlay()`) appends an overlay tree to document.body using
+ * the same class names as the legacy view (`.modal-overlay`,
+ * `.modal-content`, `.plan-textarea`, etc.). Legacy DOM is styled by
+ * style.css; the product shell loads ONLY style.product.css, so the
+ * lazy modal needs an equivalent rule set here. Visual language is
+ * adapted to product design tokens (bronze accent, prod text colors,
+ * prod border tokens) so the modal feels native rather than a graft.
+ * ────────────────────────────────────────────────────────────────── */
+.modal-overlay {
+  display: none; position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  align-items: center; justify-content: center;
+}
+.modal-overlay.visible {
+  display: flex;
+  animation: prod-modal-fade-in 0.2s ease;
+}
+@keyframes prod-modal-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.modal-content {
+  background: var(--prod-bg-card);
+  border: 1px solid var(--prod-border-strong);
+  border-radius: 12px;
+  width: 600px; max-width: 90vw; max-height: 80vh;
+  display: flex; flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  color: var(--prod-text);
+}
+.modal-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--prod-border);
+}
+.modal-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--prod-text);
+  letter-spacing: 0.2px;
+}
+.modal-close {
+  background: none; border: none;
+  color: var(--prod-text-dim-55);
+  font-size: 22px; line-height: 1;
+  padding: 0 4px; cursor: pointer;
+}
+.modal-close:hover { color: var(--prod-text); }
+.modal-body {
+  padding: 14px 18px;
+  overflow-y: auto;
+  flex: 1;
+  font-family: 'Cascadia Code', 'Fira Code', Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* General plan modal — task input form */
+.plan-help {
+  margin: 0 0 12px;
+  color: var(--prod-text-dim-65);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.plan-field-label {
+  display: block;
+  margin: 12px 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--prod-text-dim-65);
+  letter-spacing: 0.3px;
+}
+.plan-input,
+.plan-textarea {
+  width: 100%;
+  background: var(--prod-bg-app);
+  color: var(--prod-text);
+  border: 1px solid var(--prod-border-strong);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-family: 'Cascadia Code', 'Fira Code', Consolas, monospace;
+  box-sizing: border-box;
+}
+.plan-textarea { resize: vertical; min-height: 140px; }
+.plan-input:focus,
+.plan-textarea:focus { outline: none; border-color: var(--prod-bronze); }
+.plan-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+
+/* Action buttons inside modal body. Mirrors `.btn-ctrl` from
+ * legacy style.css but draws from prod tokens. The `primary`
+ * variant uses the bronze accent so it matches the rest of
+ * the product shell's call-to-action treatment. */
+.btn-ctrl {
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--prod-text);
+  border: 1px solid var(--prod-border-strong);
+  cursor: pointer;
+  transition: filter 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+  font-family: inherit;
+}
+.btn-ctrl:hover {
+  filter: brightness(1.15);
+  border-color: var(--prod-text-dim-40);
+}
+.btn-ctrl:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btn-ctrl.primary {
+  background: var(--prod-bronze);
+  color: #1a1411;
+  border-color: var(--prod-bronze);
+}
+.btn-ctrl.primary:hover { filter: brightness(1.08); }
+.btn-ctrl.danger {
+  color: #ffb2ad;
+  border-color: rgba(248, 81, 73, 0.35);
+  background: rgba(248, 81, 73, 0.06);
+}
+.btn-ctrl.danger:hover {
+  background: rgba(248, 81, 73, 0.12);
+  border-color: rgba(248, 81, 73, 0.55);
+}
+
