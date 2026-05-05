@@ -5,9 +5,20 @@
 //
 //   - default mode is permissive ("I did not opt into public-sector")
 //   - public-sector flips every fail-closed flag together
-//   - typos on the env value do NOT silently grant permissive posture
+//   - typos on the env value FAIL CLOSED (Slice S5-b — was: silent
+//     fallback; now: throws POLICY_PACK_UNKNOWN unless escape hatch
+//     is set)
 //   - HARNESS_ALLOW_PLAINTEXT_SECRETS=1 is honored in standard mode
 //     but IGNORED in public-sector mode (defense-in-depth)
+//
+// SMART-5-b additions:
+//   - 5 packs (standard / public-sector / finance-high-privacy /
+//     offline-internal-network / developer-lab) all resolve correctly
+//   - Unknown mode + production → throws POLICY_PACK_UNKNOWN
+//   - Unknown mode + HARNESS_POLICY_FAIL_OPEN=1 → fallback to standard
+//     with resolvedFromFallback=true + unknownRequested set
+//   - profile.pack / packLabel / hardGatesDefault / runMemoryEnabled
+//     populated from pack rules
 
 "use strict";
 
@@ -17,6 +28,7 @@ const test = require("node:test");
 const {
   resolveDeploymentProfile,
   RECOGNIZED_MODES,
+  POLICY_PACK_UNKNOWN_CODE,
 } = require("../../src/policy/deploymentProfile");
 
 // ─────────────────────────────────────────────────────────────────
@@ -95,23 +107,87 @@ test("D1-gov-1: public-sector IGNORES HARNESS_ALLOW_PLAINTEXT_SECRETS=1", () => 
 });
 
 // ─────────────────────────────────────────────────────────────────
-//  TYPO / UNKNOWN VALUE → STANDARD (NOT public-sector)
+//  TYPO / UNKNOWN VALUE → BOOT FAIL (Slice S5-b)
 // ─────────────────────────────────────────────────────────────────
 
-test("D1-gov-1: unrecognized env value falls back to standard (not auto-promoted)", () => {
-  // Operator typo of "publicsector" / "PUBLIC-SECTOR" / "agency"
-  // must not silently land us in standard mode IF they meant public-
-  // sector. We could also reject loudly — design choice: log + fall
-  // back. Loud rejection lives in the launcher (D2 wizard validates
-  // the env explicitly before boot).
+test("S5-b: unrecognized env value THROWS POLICY_PACK_UNKNOWN by default (production fail-closed)", () => {
+  // Slice S5-b reverses the pre-SMART-5 silent-fallback behavior.
+  // Now an operator typo loudly fails at boot so the misconfiguration
+  // surfaces before any pipeline runs.
   for (const bad of ["publicsector", "PUBLIC-SECTOR", "agency", "gov", "x"]) {
-    const profile = resolveDeploymentProfile({
-      env: { HARNESS_DEPLOYMENT_PROFILE: bad },
-    });
-    assert.equal(profile.mode, "standard",
-      `bad value "${bad}" must NOT promote to public-sector`);
-    assert.equal(profile.publicSector, false);
+    assert.throws(
+      () => resolveDeploymentProfile({
+        env: { HARNESS_DEPLOYMENT_PROFILE: bad },
+      }),
+      (err) => err.code === POLICY_PACK_UNKNOWN_CODE && err.requested === bad,
+      `bad value "${bad}" must throw POLICY_PACK_UNKNOWN`,
+    );
   }
+});
+
+test("S5-b: POLICY_PACK_UNKNOWN error carries known modeIds list", () => {
+  let caught;
+  try {
+    resolveDeploymentProfile({ env: { HARNESS_DEPLOYMENT_PROFILE: "x" } });
+    assert.fail("should have thrown");
+  } catch (err) {
+    caught = err;
+  }
+  assert.equal(caught.code, POLICY_PACK_UNKNOWN_CODE);
+  assert.ok(Array.isArray(caught.knownPackIds));
+  assert.equal(caught.knownPackIds.length, 5);
+  assert.ok(caught.knownPackIds.includes("standard"));
+  assert.ok(caught.knownPackIds.includes("public-sector"));
+});
+
+test("S5-b: HARNESS_POLICY_FAIL_OPEN=1 + unknown → fallback to standard with signal", () => {
+  const profile = resolveDeploymentProfile({
+    env: {
+      HARNESS_DEPLOYMENT_PROFILE: "publicsector",
+      HARNESS_POLICY_FAIL_OPEN: "1",
+    },
+  });
+  assert.equal(profile.mode, "standard");
+  assert.equal(profile.publicSector, false);
+  assert.equal(profile.resolvedFromFallback, true);
+  assert.equal(profile.unknownRequested, "publicsector");
+});
+
+test("S5-b: HARNESS_POLICY_FAIL_OPEN accepts true / yes / 1 (case-insensitive)", () => {
+  for (const v of ["1", "true", "yes", "TRUE", "Hard"]) {  // hard isn't an opener
+    if (v === "Hard") continue;  // sanity: hard is not a fail-open value
+    const profile = resolveDeploymentProfile({
+      env: {
+        HARNESS_DEPLOYMENT_PROFILE: "nonsense",
+        HARNESS_POLICY_FAIL_OPEN: v,
+      },
+    });
+    assert.equal(profile.resolvedFromFallback, true,
+      `HARNESS_POLICY_FAIL_OPEN="${v}" should enable dev escape`);
+  }
+});
+
+test("S5-b: HARNESS_POLICY_FAIL_OPEN=0 / empty → no escape, throws", () => {
+  for (const v of ["0", "", "false", "no"]) {
+    assert.throws(
+      () => resolveDeploymentProfile({
+        env: {
+          HARNESS_DEPLOYMENT_PROFILE: "x",
+          HARNESS_POLICY_FAIL_OPEN: v,
+        },
+      }),
+      (err) => err.code === POLICY_PACK_UNKNOWN_CODE,
+      `HARNESS_POLICY_FAIL_OPEN="${v}" must NOT enable escape`,
+    );
+  }
+});
+
+test("S5-b: empty / unset HARNESS_DEPLOYMENT_PROFILE is NOT a typo (resolves to standard, no fallback signal)", () => {
+  const profile = resolveDeploymentProfile({ env: {} });
+  assert.equal(profile.mode, "standard");
+  assert.equal(profile.resolvedFromFallback, false,
+    "unset env is NOT a fallback — it's the default");
+  assert.equal(profile.unknownRequested, null);
 });
 
 // ─────────────────────────────────────────────────────────────────
@@ -131,4 +207,115 @@ test("D1-gov-1: RECOGNIZED_MODES is exported and frozen (lock the wire format)",
   // the resolver, which forces the corresponding policy adjustments.
   // Not checking Object.isFrozen on the Set object itself because Set
   // is a built-in (the .add returning an error suffices).
+});
+
+// ─────────────────────────────────────────────────────────────────
+//  SLICE S5-b: 3 NEW PACKS (finance / offline / dev-lab)
+// ─────────────────────────────────────────────────────────────────
+
+test("S5-b: RECOGNIZED_MODES now contains all 5 SMART-5 packs", () => {
+  assert.ok(RECOGNIZED_MODES.has("standard"));
+  assert.ok(RECOGNIZED_MODES.has("public-sector"));
+  assert.ok(RECOGNIZED_MODES.has("finance-high-privacy"));
+  assert.ok(RECOGNIZED_MODES.has("offline-internal-network"));
+  assert.ok(RECOGNIZED_MODES.has("developer-lab"));
+  assert.equal(RECOGNIZED_MODES.size, 5);
+});
+
+test("S5-b: finance-high-privacy resolves to stricter-than-public-sector posture", () => {
+  const profile = resolveDeploymentProfile({
+    env: { HARNESS_DEPLOYMENT_PROFILE: "finance-high-privacy" },
+  });
+  assert.equal(profile.mode, "finance-high-privacy");
+  assert.equal(profile.publicSector, true);
+  assert.equal(profile.allowLocalExecutor, false);
+  assert.equal(profile.allowPlaintextSecrets, false);
+  assert.equal(profile.requireSandboxWorkspace, true);
+  assert.equal(profile.requireSignedManifest, true);
+  assert.equal(profile.requirePiiScanBeforeProviderDispatch, true);
+  assert.equal(profile.scannerFailurePolicy, "block");
+  // SMART-2 hard gates default ON for finance-high-privacy
+  assert.equal(profile.hardGatesDefault, true);
+});
+
+test("S5-b: offline-internal-network — sandbox + plaintext-off + signing-off", () => {
+  const profile = resolveDeploymentProfile({
+    env: { HARNESS_DEPLOYMENT_PROFILE: "offline-internal-network" },
+  });
+  assert.equal(profile.mode, "offline-internal-network");
+  assert.equal(profile.allowLocalExecutor, false);
+  assert.equal(profile.allowPlaintextSecrets, false);
+  assert.equal(profile.requireSandboxWorkspace, true);
+  assert.equal(profile.requireSignedManifest, false);
+  assert.equal(profile.scannerFailurePolicy, "warn");
+  assert.equal(profile.publicSector, false);
+});
+
+test("S5-b: developer-lab is most permissive, plaintext opt-in honored", () => {
+  const profile = resolveDeploymentProfile({
+    env: {
+      HARNESS_DEPLOYMENT_PROFILE: "developer-lab",
+      HARNESS_ALLOW_PLAINTEXT_SECRETS: "1",
+    },
+  });
+  assert.equal(profile.mode, "developer-lab");
+  assert.equal(profile.allowLocalExecutor, true);
+  assert.equal(profile.allowPlaintextSecrets, true);
+  assert.equal(profile.scannerFailurePolicy, "warn");
+});
+
+test("S5-b: developer-lab without plaintext opt-in env → plaintext disabled", () => {
+  // Pack-allowed but env opt-in still required (defense in depth).
+  const profile = resolveDeploymentProfile({
+    env: { HARNESS_DEPLOYMENT_PROFILE: "developer-lab" },
+  });
+  assert.equal(profile.allowPlaintextSecrets, false);
+});
+
+// ─────────────────────────────────────────────────────────────────
+//  SLICE S5-b: NEW PROFILE FIELDS (pack / packLabel / hardGates / runMemory)
+// ─────────────────────────────────────────────────────────────────
+
+test("S5-b: profile.pack is alias of mode", () => {
+  const profile = resolveDeploymentProfile({
+    env: { HARNESS_DEPLOYMENT_PROFILE: "public-sector" },
+  });
+  assert.equal(profile.pack, "public-sector");
+  assert.equal(profile.pack, profile.mode);
+});
+
+test("S5-b: profile.packLabel populated with operator-facing label", () => {
+  const profile = resolveDeploymentProfile({
+    env: { HARNESS_DEPLOYMENT_PROFILE: "finance-high-privacy" },
+  });
+  assert.equal(profile.packLabel, "Finance High-Privacy");
+});
+
+test("S5-b: profile.hardGatesDefault populated from pack rule", () => {
+  const standard = resolveDeploymentProfile({ env: {} });
+  assert.equal(standard.hardGatesDefault, false);
+  const finance = resolveDeploymentProfile({
+    env: { HARNESS_DEPLOYMENT_PROFILE: "finance-high-privacy" },
+  });
+  assert.equal(finance.hardGatesDefault, true,
+    "only finance-high-privacy ships hard gates ON");
+});
+
+test("S5-b: profile.runMemoryEnabled defaults true on every pack", () => {
+  for (const modeId of ["standard", "public-sector", "finance-high-privacy",
+                         "offline-internal-network", "developer-lab"]) {
+    const profile = resolveDeploymentProfile({
+      env: { HARNESS_DEPLOYMENT_PROFILE: modeId },
+    });
+    assert.equal(profile.runMemoryEnabled, true,
+      `pack "${modeId}" should have runMemoryEnabled=true`);
+  }
+});
+
+test("S5-b: profile.resolvedFromFallback / unknownRequested default to false / null", () => {
+  const profile = resolveDeploymentProfile({
+    env: { HARNESS_DEPLOYMENT_PROFILE: "standard" },
+  });
+  assert.equal(profile.resolvedFromFallback, false);
+  assert.equal(profile.unknownRequested, null);
 });
