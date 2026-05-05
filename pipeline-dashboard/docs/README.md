@@ -64,6 +64,7 @@ For committers building features on top of harness primitives.
 | --- | --- |
 | [`i18n-conventions.md`](i18n-conventions.md) | i18n key naming, placeholder regex, translation-quality rules, adding new locales. |
 | [`readiness-rubric.md`](readiness-rubric.md) | 6-category readiness model with per-star rationale + operator workflow. |
+| [`live-evidence-schema.md`](live-evidence-schema.md) | Locked schema reference for the two live-verification probes (`harness-smart-lv-evidence/v1` + `live-verify-review-relay/v1`); audit-chain anchors; v2 convergence notes. |
 
 ## §5 Status & health
 

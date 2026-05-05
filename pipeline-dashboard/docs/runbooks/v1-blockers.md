@@ -107,6 +107,11 @@ The blocker closes when **all** of the following are true:
 - Aggregation: a single sealed bundle is recommended for v1.0.0;
   see §5 below.
 
+The exact JSON shape each probe must emit is locked in
+[`../live-evidence-schema.md`](../live-evidence-schema.md). v1 of
+both schemas is the contract for v1.0.0 evidence; future probe
+output that breaks v1 shape bumps to v2 there.
+
 ### §2.5 Risks
 
 - Probes may fail with environment-specific issues (CLI not on
