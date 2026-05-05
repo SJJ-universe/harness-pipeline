@@ -40,6 +40,16 @@ npm test
 
 This runs unit, integration, legacy phase regression, smoke, and moderate audit checks.
 
+## Documentation
+
+This README covers quick-start. For everything else, three sub-directory indexes are the entry points:
+
+- [`docs/README.md`](docs/README.md) — long-form documentation: architecture, security, operator guides, RFCs, status reports.
+- [`tests/README.md`](tests/README.md) — test-suite layout: where each suite lives, where new tests go, speed budgets, stability rules.
+- [`scripts/README.md`](scripts/README.md) — operator/CI scripts: readiness, scorecard sync, external review, R2 evaluation, live verification, visual probes.
+
+A new contributor reading these three in order — docs → tests → scripts — has the full operator surface area in mind. Each is independently navigable; you do not need to read them in sequence.
+
 ## Runtime Proof
 
 `GET /api/version` returns:
