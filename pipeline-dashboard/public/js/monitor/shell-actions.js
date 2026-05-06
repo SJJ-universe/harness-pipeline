@@ -188,39 +188,53 @@
     const maxIterations = (typeof params.maxIterations === "number" && params.maxIterations >= 1)
       ? Math.min(Math.trunc(params.maxIterations), 5)
       : 3;
+    // Diagnostic logging — visible via DevTools (F12) in the
+    // Chrome/Edge --app window. Tracks the full lifecycle so when
+    // the chat says "시작했습니다" but the server is silent, the
+    // operator can see exactly where the call dropped.
+    try { console.log("[shell-actions] generalTask invoked", {
+      taskLength: task.length, maxIterations, hasFetch: typeof fetchImpl === "function",
+    }); } catch (_) {}
     if (!task || task.length < 3) {
       _toast(toastFn, { message: "작업 설명이 너무 짧습니다 (최소 3자).", kind: "error" });
-      return;
+      throw new Error("task too short (length=" + task.length + ")");
     }
     if (typeof fetchImpl !== "function") {
       _toast(toastFn, { message: "네트워크 사용 불가 (fetch)", kind: "error" });
-      return;
+      throw new Error("fetch not available");
     }
+    try { console.log("[shell-actions] POST /api/pipeline/general-run", { task: task.slice(0, 60), maxIterations }); } catch (_) {}
+    let r = null;
     try {
-      const r = await fetchImpl("/api/pipeline/general-run", {
+      r = await fetchImpl("/api/pipeline/general-run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ task: task, maxIterations: maxIterations }),
       });
-      let body = null;
-      try { body = await r.json(); } catch (_) { /* non-JSON */ }
-      if (!r || !r.ok) {
-        const errMsg = (body && body.error) || ("status " + (r && r.status));
-        _toast(toastFn, { message: "파이프라인 시작 실패: " + errMsg, kind: "error" });
-        return;
-      }
-      const runId = (body && body.runId) || "?";
+    } catch (netErr) {
+      try { console.error("[shell-actions] fetch threw:", netErr); } catch (_) {}
       _toast(toastFn, {
-        message: "파이프라인 시작 — runId " + runId,
-        kind: "info",
-        duration: 3500,
-      });
-    } catch (err) {
-      _toast(toastFn, {
-        message: "파이프라인 시작 실패: " + (err && err.message ? err.message : String(err)),
+        message: "파이프라인 시작 실패 (network): " + (netErr && netErr.message ? netErr.message : String(netErr)),
         kind: "error",
       });
+      throw netErr;
     }
+    try { console.log("[shell-actions] response", { status: r && r.status, ok: r && r.ok }); } catch (_) {}
+    let body = null;
+    try { body = await r.json(); } catch (_) { /* non-JSON body */ }
+    try { console.log("[shell-actions] response body", body); } catch (_) {}
+    if (!r || !r.ok) {
+      const errMsg = (body && body.error) || ("status " + (r && r.status));
+      _toast(toastFn, { message: "파이프라인 시작 실패: " + errMsg, kind: "error" });
+      throw new Error("server rejected: " + errMsg);
+    }
+    const runId = (body && body.runId) || "?";
+    _toast(toastFn, {
+      message: "파이프라인 시작 — runId " + runId,
+      kind: "info",
+      duration: 3500,
+    });
+    return body;
   }
 
   // show_status is purely informational (chat panel handles inline);

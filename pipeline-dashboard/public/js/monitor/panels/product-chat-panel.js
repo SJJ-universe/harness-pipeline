@@ -332,12 +332,29 @@
       // Dispatch through the shell's existing action handler. The
       // handler itself reaches the existing endpoints + audits via
       // the existing chain.
+      //
+      // Many handlers are async (generalTask awaits fetch + JSON
+      // parsing). _onActionClick → _dispatch returns the handler's
+      // result synchronously — Promises propagate. We chain here so
+      // async failures (network error, 4xx response) become a
+      // [system] bubble in the chat instead of just a toast that
+      // can be missed. The synchronous "시작했습니다" bubble lands
+      // first; if the underlying call rejects, a follow-up
+      // "[system] ⚠ ..." appears below it.
       try {
-        _onActionClick(dispatchKey, proposal.parameters || {});
+        const dispatched = _onActionClick(dispatchKey, proposal.parameters || {});
         _appendSystem("✓ 시작했습니다 (" + proposal.intent + ").");
+        if (dispatched && typeof dispatched.then === "function") {
+          dispatched.catch(function (err) {
+            const msg = (err && err.message) ? err.message : String(err);
+            _appendSystem("⚠ 실행 중 실패: " + msg);
+            try { console.error("[chat] dispatch rejected:", err); } catch (_) {}
+          });
+        }
       } catch (err) {
         _appendSystem("⚠ 실행 실패: "
           + (err && err.message ? err.message : String(err)));
+        try { console.error("[chat] dispatch threw:", err); } catch (_) {}
       }
     }
 
