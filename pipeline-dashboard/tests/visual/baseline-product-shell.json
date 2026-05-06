@@ -16,6 +16,7 @@
       "js/toast.js",
       "js/api-client.js",
       "js/ws-client.js",
+      "js/event-dispatcher.js",
       "js/monitor/store.js",
       "js/monitor/normalizer.js",
       "js/monitor/hydrate.js",

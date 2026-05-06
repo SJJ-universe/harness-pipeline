@@ -60,6 +60,18 @@
   <script src="js/ws-client.js"></script>
 
   <!-- ────────────────────────────────────────────────────────────
+       Event dispatcher — must load BEFORE legacy-bridge.js (the
+       bridge subscribes to it via addTap) and BEFORE the WS client
+       initializer in product-shell-init.js (which calls .dispatch
+       on every incoming event so the bridge's wildcard tap fires
+       and store updates flow). The legacy view ships this in
+       index.legacy.html:419; without it here the product shell
+       receives WS events that go nowhere → status pill stays
+       "대기 중" forever after a run starts.
+       ──────────────────────────────────────────────────────────── -->
+  <script src="js/event-dispatcher.js"></script>
+
+  <!-- ────────────────────────────────────────────────────────────
        Monitor infrastructure (DOM-free store + normalizer + bridge)
        ──────────────────────────────────────────────────────────── -->
   <script src="js/monitor/store.js"></script>

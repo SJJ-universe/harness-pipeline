@@ -70,6 +70,79 @@
     return "ko";
   }
 
+  // PRODUCT-SHELL-WIRING: WebSocket client installer for the product
+  // shell. Mirrors `connectWS()` in legacy app.js but feeds the
+  // dispatcher only — no `handleEvent()` switch (legacy DOM paths
+  // are not in scope for the product shell). The WS client itself
+  // is shared (`public/js/ws-client.js` already loaded by index.html);
+  // we just configure callbacks here.
+  function _installWsClient(store) {
+    if (!window.HarnessWsClient || typeof window.HarnessWsClient.install !== "function") {
+      console.warn("[product-shell] HarnessWsClient missing — live events will not flow");
+      return null;
+    }
+    if (!window.HarnessEventDispatcher
+        || typeof window.HarnessEventDispatcher.dispatch !== "function") {
+      console.warn(
+        "[product-shell] HarnessEventDispatcher missing — bridge tap will not fire; "
+        + "check that event-dispatcher.js loads before product-shell-init.js",
+      );
+      return null;
+    }
+    const protocol = (window.location && window.location.protocol === "https:") ? "wss:" : "ws:";
+    const host = (window.location && window.location.host) || "127.0.0.1:4201";
+    function _toast(payload) {
+      if (window.HarnessToast && typeof window.HarnessToast.show === "function") {
+        try { window.HarnessToast.show(payload); } catch (_) { /* defensive */ }
+      }
+    }
+    try {
+      const client = window.HarnessWsClient.install({
+        url: protocol + "//" + host,
+        onEvent: function (event) {
+          // Forward to the dispatcher. The legacy-bridge tap (registered
+          // when HarnessMonitorLegacyBridge.install ran above) catches
+          // every event, normalizes, and pushes to store.pushEvent —
+          // panels re-render through their store subscriptions.
+          try { window.HarnessEventDispatcher.dispatch(event); }
+          catch (err) {
+            console.warn("[product-shell] dispatch failed for event:",
+              event && event.type, err && err.message ? err.message : err);
+          }
+        },
+        onConnected: function () {
+          // Quiet on first connect — most operators expect online by default.
+        },
+        onReconnected: function () {
+          _toast({ kind: "info", message: "서버에 다시 연결되었습니다.", duration: 2500 });
+        },
+        onDisconnected: function () {
+          _toast({ kind: "warn", message: "서버 연결이 끊겼습니다 — 재연결 중...", duration: 4000 });
+        },
+        onInitialError: function (info) {
+          _toast({
+            kind: "error",
+            message: "서버에 연결할 수 없습니다.",
+            duration: 6000,
+          });
+          if (info && typeof info.retry === "function") {
+            // Schedule one retry attempt after the toast animates;
+            // operator can also refresh the page if this fails again.
+            try { setTimeout(info.retry, 2000); } catch (_) {}
+          }
+        },
+      });
+      // Stash on window so debugging from the console works the same
+      // way it does in the legacy view (`window._wsClient`).
+      window._wsClient = client;
+      return client;
+    } catch (err) {
+      console.error("[product-shell] WS install failed:",
+        err && err.message ? err.message : err);
+      return null;
+    }
+  }
+
   function _hydrateInitialStore(store) {
     const hydrator = window.HarnessMonitorHydrate;
     const normalizer = window.HarnessMonitorNormalizer;
@@ -225,8 +298,11 @@
     try {
       if (window.HarnessMonitorLegacyBridge
           && typeof window.HarnessMonitorLegacyBridge.install === "function") {
-        // The bridge needs an existing ws-client + normalizer. Install
-        // is no-op when ws-client isn't ready yet — bridge polls.
+        // The bridge subscribes to HarnessEventDispatcher via addTap
+        // — it needs the dispatcher to be loaded AND fed by the WS
+        // client (see _installWsClient below). install() returns a
+        // handle whose destroy() unhooks both the tap and the
+        // /api/server/info polling interval.
         window.HarnessMonitorLegacyBridge.install({
           store: store,
           normalize: window.HarnessMonitorNormalizer
@@ -236,6 +312,23 @@
     } catch (err) {
       console.warn("[product-shell] legacy-bridge install failed:", err && err.message ? err.message : err);
     }
+
+    // PRODUCT-SHELL-WIRING (rc.5 prep, 2026-05-06): install the WS
+    // client so server events flow → HarnessEventDispatcher.dispatch
+    // → legacy-bridge tap → store.pushEvent → panel re-render.
+    //
+    // Pre-rc.5 the product shell mounted the bridge but had nobody
+    // feeding the dispatcher — the WS client was only initialized in
+    // legacy app.js. Result: operator clicked 시작, server started a
+    // run, but the UI status pill stayed "대기 중" forever because no
+    // WebSocket events ever reached the store.
+    //
+    // The product shell does NOT need legacy app.js's `handleEvent()`
+    // 200-line switch — that drives legacy DOM directly. Forwarding
+    // each event into the dispatcher is enough; the bridge's
+    // wildcard tap normalizes and pushes to store, which is what
+    // every product panel reads.
+    _installWsClient(store);
 
     _hydrateInitialStore(store);
 

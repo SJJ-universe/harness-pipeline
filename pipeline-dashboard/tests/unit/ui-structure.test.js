@@ -103,3 +103,29 @@ test("product shell runtime hydrates monitor bootstrap before relying on live we
   assert.match(productShellInit, /hydrateRunDetail/);
   assert.match(productShellInit, /_hydrateInitialStore\(store\)/);
 });
+
+test("product index.html loads event-dispatcher.js BEFORE legacy-bridge.js + before product-shell-init.js", () => {
+  const posDispatcher = indexProduct.indexOf("js/event-dispatcher.js");
+  const posBridge = indexProduct.indexOf("js/monitor/legacy-bridge.js");
+  const posInit = indexProduct.indexOf("js/product-shell-init.js");
+  assert.ok(posDispatcher > 0,
+    "event-dispatcher.js must be loaded by product index.html (legacy-bridge taps it)");
+  assert.ok(posDispatcher < posBridge,
+    "event-dispatcher.js must load BEFORE legacy-bridge.js (the bridge subscribes via addTap)");
+  assert.ok(posDispatcher < posInit,
+    "event-dispatcher.js must load BEFORE product-shell-init.js (init's WS client calls .dispatch)");
+});
+
+test("product shell runtime installs HarnessWsClient + forwards events to EventDispatcher.dispatch", () => {
+  assert.match(productShellInit, /function _installWsClient\(store\)/);
+  assert.match(productShellInit, /HarnessWsClient\.install\(/);
+  assert.match(productShellInit, /HarnessEventDispatcher\.dispatch\(event\)/);
+  // Toast adapters for connection-state transitions are wired so
+  // operators see when the live event stream drops or recovers.
+  assert.match(productShellInit, /onReconnected/);
+  assert.match(productShellInit, /onDisconnected/);
+  assert.match(productShellInit, /onInitialError/);
+  // The init code must actually CALL _installWsClient(store) — not
+  // just define the helper.
+  assert.match(productShellInit, /_installWsClient\(store\)/);
+});
