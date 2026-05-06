@@ -342,6 +342,14 @@ const { createRunnerRoutes } = require("./src/routes/runnerRoutes");
 // (loopback binding is the existing safeguard).
 const { createDecisionContextRoutes } = require("./src/routes/decisionContextRoutes");
 
+// Slice AGENT-DESKTOP-0-a (2026-05-06): chat intent route — translates
+// free-form natural-language input into a typed actionProposal that
+// the frontend renders as an Approve/Edit/Cancel card. The route never
+// fires the underlying action; approval triggers the existing endpoints
+// (e.g. /api/pipeline/general-run) through the chat panel directly.
+const { createChatIntentRoutes } = require("./src/routes/chatIntentRoutes");
+const piiScannerModule = require("./src/security/piiScanner");
+
 app.use("/api", createHealthRoutes({ pty }));
 
 // Track connected clients + pty subprocesses so we can reap them on shutdown
@@ -1183,6 +1191,18 @@ app.use("/api", createDecisionContextRoutes({
   evidenceLedger,
   profileStore,
   runnerRegistry: _remoteRunner.runnerRegistry,
+}));
+
+// Slice AGENT-DESKTOP-0-a (2026-05-06): POST /api/chat/intent. Routes
+// the chat panel's natural-language input through the pure intent
+// parser + the existing PII scanner + the audit ledger. Returns a
+// typed proposal — approval triggers existing endpoints via the
+// frontend (no new execution path). See src/routes/chatIntentRoutes.js
+// header for the contract.
+app.use("/api", createChatIntentRoutes({
+  piiScanner: piiScannerModule,
+  evidenceLedger,
+  deploymentProfile: _deploymentProfile,
 }));
 
 // Slice R1-h (Phase D R1, 2026-04-28): /api/runner/handshake, /heartbeat,
