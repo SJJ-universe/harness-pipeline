@@ -24,14 +24,20 @@ function createPipelineRoutes({
 
   // General-run orchestration
   router.post("/pipeline/general-run", async (req, res) => {
+    // AGENT-DESKTOP-0-diag2 (2026-05-06): server-side breadcrumb so the
+    // bat console window shows the request flow when "modal closed but
+    // server silent" surfaces. Visible via the launcher's stdout.
+    console.log(`[pipeline-route] POST /api/pipeline/general-run received bodyTaskLen=${(req.body && typeof req.body.task === "string" ? req.body.task.length : 0)} maxIter=${(req.body && req.body.maxIterations) || "?"}`);
     let parsed;
     try {
       parsed = validateGeneralRun(req.body);
     } catch (err) {
+      console.log(`[pipeline-route] validation FAILED status=${err.status || 400} message="${err.message}"`);
       return res.status(err.status || 400).json({ error: err.message });
     }
     const { task, maxIterations } = parsed;
     if (generalRunRef.active) {
+      console.log(`[pipeline-route] LOCK CONFLICT — generalRunRef.active=${JSON.stringify(generalRunRef.active)}`);
       return res.status(409).json({ error: "another general-run pipeline is already active" });
     }
 
@@ -39,11 +45,14 @@ function createPipelineRoutes({
     const runId = `gr-${Date.now()}`;
     generalRunRef.active = { runId, startedAt: Date.now(), aborted: false };
 
+    console.log(`[pipeline-route] kicking off runGeneralPipeline runId=${runId} taskLen=${task.length} maxIter=${maxIter}`);
     res.json({ status: "started", runId, task, maxIterations: maxIter });
 
     runGeneralPipeline(task.trim(), maxIter, runId).catch((err) => {
+      console.error(`[pipeline-route] runGeneralPipeline THREW runId=${runId} err=${err && err.message ? err.message : err}`);
       broadcast({ type: "error", data: { phase: "general", node: "orchestrator", message: err.message } });
     }).finally(() => {
+      console.log(`[pipeline-route] runGeneralPipeline finally clear lock runId=${runId} elapsedMs=${Date.now() - generalRunRef.active.startedAt}`);
       generalRunRef.active = null;
     });
   });

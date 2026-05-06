@@ -139,10 +139,17 @@ function createGeneralPipelineRunner({
     const isTimedOut = () => (Date.now() - started) > PIPELINE_TIMEOUT_MS;
     const isAborted = () => _generalRunRef.active && _generalRunRef.active.aborted;
 
+    // AGENT-DESKTOP-0-diag2 (2026-05-06): server-side breadcrumbs to
+    // diagnose the "modal closed but server terminal silent" path.
+    // Visible in the bat console window so the operator can see exactly
+    // where the runner is when the UI says it never started.
+    console.log(`[runner] === pipeline START runId=${runId} task="${task.slice(0, 60)}" maxIter=${maxIter} ===`);
+
     broadcast({
       type: "pipeline_start",
       data: { targetFile: `task: ${task.slice(0, 80)}`, mode: "live", runId, template: "default" },
     });
+    console.log(`[runner] broadcast pipeline_start runId=${runId}`);
 
     // Phase A — context: marked completed immediately (the user-provided
     // task IS the context for this automated flow).
@@ -152,6 +159,7 @@ function createGeneralPipelineRunner({
     broadcast({ type: "node_update", data: { node: "context-analyzer", status: "completed" } });
     broadcast({ type: "phase_update", data: { phase: "A", status: "completed" } });
     if (isAborted() || isTimedOut()) {
+      console.log(`[runner] aborted/timeout BEFORE phase B runId=${runId}`);
       return finalizeGeneralRun({
         aborted: true, runId, started,
         reason: isTimedOut() ? "pipeline-timeout" : undefined,
@@ -162,13 +170,16 @@ function createGeneralPipelineRunner({
     broadcast({ type: "phase_update", data: { phase: "B", status: "active" } });
     broadcast({ type: "node_update", data: { node: "task-planner", status: "active" } });
 
+    console.log(`[runner] invoking claudeRunner.exec (Phase B planner) runId=${runId} timeout=180s`);
     const planResultB = await claudeRunner.exec(buildPlannerPrompt(task), {
       timeoutMs: 180000,
       cwd: _workingDir,
       onChild: (c) => _activeCodexChildren.add(c),
     });
+    console.log(`[runner] claudeRunner.exec returned runId=${runId} ok=${planResultB && planResultB.ok} exitCode=${planResultB && planResultB.exitCode} textLen=${(planResultB && planResultB.text || "").length} stderrHead="${((planResultB && planResultB.stderr) || "").slice(0, 200)}" errorHead="${((planResultB && planResultB.error) || "").slice(0, 200)}"`);
 
     if (!planResultB.ok || !planResultB.text) {
+      console.log(`[runner] Phase B FAILED runId=${runId} — broadcasting error + finalizing`);
       broadcast({
         type: "error",
         data: {

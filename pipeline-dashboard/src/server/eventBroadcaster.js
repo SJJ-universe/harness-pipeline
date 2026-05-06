@@ -60,10 +60,23 @@ function createEventBroadcaster({
 
   function _broadcastRaw(event) {
     const data = JSON.stringify(event);
+    let sent = 0;
+    let total = 0;
     for (const ws of clients) {
+      total++;
       if (ws && ws.readyState === 1 && typeof ws.send === "function") {
-        try { ws.send(data); } catch (_) {}
+        try { ws.send(data); sent++; } catch (_) {}
       }
+    }
+    // AGENT-DESKTOP-0-diag2 (2026-05-06): log lifecycle event delivery
+    // counts so the operator can see whether a pipeline_start broadcast
+    // actually reached any browser. The 0/0 case (no WS clients
+    // connected) is the silent failure mode we're trying to surface.
+    const t = event && event.type;
+    if (t === "pipeline_start" || t === "pipeline_complete" || t === "phase_update" || t === "error") {
+      try {
+        console.log(`[broadcaster] ${t} → sent=${sent}/${total} clients`);
+      } catch (_) {}
     }
   }
 
