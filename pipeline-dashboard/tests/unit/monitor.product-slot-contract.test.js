@@ -147,7 +147,7 @@ test("UI-P4 contract: every panel root carries data-region with documented value
   }
 });
 
-test("UI-P4 contract: shell skeleton carries data-region-mount slots for all 5 panel positions", () => {
+test("UI-P4 contract: shell skeleton carries data-region-mount slots for all panel positions", () => {
   const root = makeRoot();
   const store = createMonitorStore();
   const stubFactory = () => ({ destroy() {}, setMode() {} });
@@ -155,11 +155,13 @@ test("UI-P4 contract: shell skeleton carries data-region-mount slots for all 5 p
     root, store, doc: makeStubDoc(),
     panels: {
       header: stubFactory, track: stubFactory, rail: stubFactory,
-      grid: stubFactory, terminals: stubFactory,
+      grid: stubFactory, terminals: stubFactory, chat: stubFactory,
     },
   });
   const expected = ["header", "harness-track", "workspace", "pipeline-rail",
-    "monitor-stack", "monitor-grid", "dual-terminals"];
+    "monitor-stack", "monitor-grid", "dual-terminals",
+    // AGENT-DESKTOP-0-c (2026-05-06): chat panel mount slot.
+    "chat"];
   for (const slot of expected) {
     assert.ok(root._findOneByAttr("data-region-mount", slot),
       `shell must declare mount slot data-region-mount="${slot}"`,

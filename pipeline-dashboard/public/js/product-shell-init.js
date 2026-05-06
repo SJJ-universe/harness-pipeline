@@ -247,6 +247,12 @@
         allowMockData: demoMode,
         reviewClient: reviewClient,
         actionHandlers: actionHandlers,
+        // AGENT-DESKTOP-0-c (2026-05-06): the chat panel surfaces
+        // [system] confirmations (e.g. "✓ 시작했습니다") and any
+        // error fallbacks via this same toast adapter the rest of
+        // the shell uses. Passed down through product-shell.mount
+        // → chatFactory's opts.toastFn.
+        toastFn: _toastAdapter,
         onActionMissing: function (id) {
           // Forensic only — the shell's _dispatch already swallows
           // missing-handler clicks so the UI stays responsive.

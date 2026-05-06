@@ -188,17 +188,19 @@ test("pipelineTemplate handler navigates to /?mode=legacy#template-editor", () =
 
 // ── Default handler map ────────────────────────────────────────────
 
-test("createDefaultHandlers exposes all 7 action ids", () => {
+test("createDefaultHandlers exposes all documented action ids", () => {
   const handlers = shellActions.createDefaultHandlers({});
   assert.deepEqual(
     Object.keys(handlers).sort(),
     [
       "codex-verify",
+      "general-task",     // AGENT-DESKTOP-0-c: chat-flow general task dispatcher
       "history",
       "metrics",
       "pipeline-compact",
       "pipeline-start",
       "pipeline-template",
+      "show_status",      // AGENT-DESKTOP-0-c: inline status summary
       "shutdown",
     ],
   );

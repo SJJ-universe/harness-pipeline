@@ -120,6 +120,11 @@
       || (typeof window !== "undefined" && window.HarnessProductMonitorGrid && window.HarnessProductMonitorGrid.create);
     const terminalsFactory = panels.terminals
       || (typeof window !== "undefined" && window.HarnessProductDualTerminals && window.HarnessProductDualTerminals.create);
+    // AGENT-DESKTOP-0-c (2026-05-06): chat panel factory. Optional —
+    // if the script tag failed to load OR tests don't pass a stub,
+    // the chat region simply renders empty (gracefully degraded).
+    const chatFactory = (panels && panels.chat)
+      || (typeof window !== "undefined" && window.HarnessProductChatPanel && window.HarnessProductChatPanel.create);
 
     // Build skeleton DOM. The class names map 1:1 to style.product.css.
     // Each region carries data-region so UI-P5 wiring + visual
@@ -153,6 +158,13 @@
     terminalsMount.className = "prod-terminals-mount";
     terminalsMount.setAttribute("data-region-mount", "dual-terminals");
 
+    // AGENT-DESKTOP-0-c (2026-05-06): chat panel mount region.
+    // Sticky bottom strip below the workspace. ~200px tall when
+    // populated; the panel itself owns its internal layout.
+    const chatMount = _doc.createElement("div");
+    chatMount.className = "prod-chat-mount";
+    chatMount.setAttribute("data-region-mount", "chat");
+
     stack.appendChild(gridMount);
     stack.appendChild(terminalsMount);
     workspace.appendChild(railMount);
@@ -161,6 +173,7 @@
     shell.appendChild(headerMount);
     shell.appendChild(trackMount);
     shell.appendChild(workspace);
+    shell.appendChild(chatMount);
 
     root.appendChild(shell);
 
@@ -261,6 +274,20 @@
     handles.terminals = _mountPanel(terminalsFactory, terminalsMount, "dual-terminals", {
       client: opts.reviewClient || null,
       onError: opts.onPanelError || null,
+    });
+    // AGENT-DESKTOP-0-c (2026-05-06): mount chat panel.
+    // - onActionClick: routes Approve clicks through the same
+    //   _dispatch path the header + rail use, so chat-driven actions
+    //   share the existing audit chain + handler safety net.
+    // - toastFn: forwards the panel's [system] feedback to the
+    //   shared toast system used by the rest of the shell.
+    // - intentUrl + fetchImpl default to the production /api/chat/intent
+    //   + window.fetch; tests override.
+    handles.chat = _mountPanel(chatFactory, chatMount, "chat", {
+      onActionClick: _dispatch,
+      toastFn: opts.toastFn || null,
+      intentUrl: opts.intentUrl || "/api/chat/intent",
+      fetchImpl: opts.fetchImpl || null,
     });
 
     function setMode(next) {

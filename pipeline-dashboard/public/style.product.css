@@ -1469,3 +1469,263 @@ html, body {
   border-color: rgba(248, 81, 73, 0.55);
 }
 
+/* ──────────────────────────────────────────────────────────────────
+ * AGENT-DESKTOP-0-c (2026-05-06) — chat panel.
+ *
+ * Mounted by product-shell.js into a sticky bottom strip below the
+ * workspace. The panel hosts a scrollable chat history (user input,
+ * action proposal cards, [system] confirmations) and a composer
+ * (textarea + 보내기). Visual language is product-native: bronze
+ * accents for primary actions, dark surfaces, soft borders.
+ * ────────────────────────────────────────────────────────────────── */
+.prod-chat-mount {
+  flex-shrink: 0;
+  border-top: 1px solid var(--prod-border);
+  background: var(--prod-bg-body);
+}
+.prod-chat {
+  display: flex;
+  flex-direction: column;
+  height: 220px;
+  max-height: 35vh;
+  padding: 8px 12px 12px;
+  box-sizing: border-box;
+  gap: 8px;
+}
+.prod-chat-history {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  background: var(--prod-bg-app);
+  border: 1px solid var(--prod-border);
+  border-radius: 8px;
+  font-family: 'Cascadia Code', 'Fira Code', Consolas, monospace;
+  font-size: 12px;
+  color: var(--prod-text);
+}
+.prod-chat-message {
+  padding: 6px 10px;
+  margin: 4px 0;
+  border-radius: 6px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  line-height: 1.5;
+}
+.prod-chat-message[data-role="user"] {
+  background: rgba(127, 169, 203, 0.08);
+  border-left: 3px solid var(--prod-blue);
+  color: var(--prod-text);
+}
+.prod-chat-message[data-role="proposal"] {
+  background: rgba(201, 166, 107, 0.06);
+  border: 1px solid rgba(201, 166, 107, 0.2);
+}
+.prod-chat-message[data-role="system"] {
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--prod-text-dim-78);
+  font-size: 11px;
+}
+
+/* Recommended chips row (visible when history is empty) */
+.prod-chat-recommended {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 4px;
+}
+.prod-chat-chip {
+  background: rgba(201, 166, 107, 0.08);
+  color: var(--prod-bronze);
+  border: 1px solid rgba(201, 166, 107, 0.25);
+  border-radius: 14px;
+  padding: 4px 10px;
+  font-size: 11px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: filter 0.12s ease, background 0.12s ease;
+}
+.prod-chat-chip:hover {
+  filter: brightness(1.15);
+  background: rgba(201, 166, 107, 0.14);
+}
+
+/* Composer — textarea + 보내기 button */
+.prod-chat-composer {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+.prod-chat-input {
+  flex: 1;
+  background: var(--prod-bg-app);
+  color: var(--prod-text);
+  border: 1px solid var(--prod-border-strong);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-family: 'Cascadia Code', 'Fira Code', Consolas, monospace;
+  resize: vertical;
+  min-height: 38px;
+  max-height: 120px;
+  box-sizing: border-box;
+}
+.prod-chat-input:focus {
+  outline: none;
+  border-color: var(--prod-bronze);
+}
+.prod-chat-send {
+  background: var(--prod-bronze);
+  color: #1a1411;
+  border: 1px solid var(--prod-bronze);
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: filter 0.12s ease;
+}
+.prod-chat-send:hover { filter: brightness(1.08); }
+.prod-chat-send:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Action proposal card — header + summary + PII warn + trace + buttons */
+.prod-chat-proposal-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.prod-chat-proposal-intent {
+  background: rgba(201, 166, 107, 0.18);
+  color: var(--prod-bronze);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+.prod-chat-proposal-risk {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.3px;
+}
+.prod-chat-proposal-risk[data-risk="low"] {
+  color: #80c990;
+  background: rgba(128, 201, 144, 0.12);
+}
+.prod-chat-proposal-risk[data-risk="medium"] {
+  color: #e0c180;
+  background: rgba(224, 193, 128, 0.12);
+}
+.prod-chat-proposal-risk[data-risk="high"] {
+  color: #ffb2ad;
+  background: rgba(248, 81, 73, 0.12);
+}
+.prod-chat-proposal-summary {
+  margin: 6px 0;
+  color: var(--prod-text);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.prod-chat-proposal-pii-warn {
+  margin: 6px 0;
+  padding: 6px 10px;
+  background: rgba(248, 81, 73, 0.08);
+  border-left: 3px solid #f85149;
+  color: #ffb2ad;
+  font-size: 11px;
+  border-radius: 4px;
+}
+.prod-chat-proposal-trace {
+  margin: 4px 0;
+  font-size: 10px;
+  color: var(--prod-text-dim-50);
+  font-family: 'Cascadia Code', 'Fira Code', Consolas, monospace;
+}
+.prod-chat-proposal-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  margin-top: 8px;
+  align-items: center;
+}
+.prod-chat-proposal-btn {
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid var(--prod-border-strong);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--prod-text);
+  cursor: pointer;
+  font-family: inherit;
+  transition: filter 0.12s ease, border-color 0.12s ease;
+}
+.prod-chat-proposal-btn:hover {
+  filter: brightness(1.15);
+  border-color: var(--prod-text-dim-40);
+}
+.prod-chat-proposal-btn.approve {
+  background: var(--prod-bronze);
+  color: #1a1411;
+  border-color: var(--prod-bronze);
+}
+.prod-chat-proposal-btn.cancel {
+  background: rgba(255, 255, 255, 0.02);
+}
+.prod-chat-proposal-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.prod-chat-proposal-blocked-note {
+  font-size: 11px;
+  color: var(--prod-text-dim-65);
+  font-style: italic;
+}
+.prod-chat-proposal-badge {
+  font-size: 11px;
+  color: var(--prod-text-dim-65);
+  font-weight: 600;
+}
+
+/* Inline editor that appears when 수정 is clicked on a general_task card */
+.prod-chat-proposal-editor {
+  margin-top: 8px;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--prod-border);
+  border-radius: 6px;
+}
+.prod-chat-edit-task {
+  width: 100%;
+  background: var(--prod-bg-app);
+  color: var(--prod-text);
+  border: 1px solid var(--prod-border-strong);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-family: 'Cascadia Code', 'Fira Code', Consolas, monospace;
+  font-size: 11px;
+  box-sizing: border-box;
+  margin-bottom: 6px;
+}
+.prod-chat-edit-iter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--prod-text-dim-65);
+  margin-bottom: 6px;
+}
+.prod-chat-edit-iter input[type="number"] {
+  width: 60px;
+  background: var(--prod-bg-app);
+  color: var(--prod-text);
+  border: 1px solid var(--prod-border-strong);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-family: inherit;
+}
+

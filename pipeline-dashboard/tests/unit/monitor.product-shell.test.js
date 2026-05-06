@@ -195,22 +195,26 @@ test("UI-P1: setMode coerces unknown values to simple (no panel notification on 
 test("UI-P1: missing panel factory renders [panel missing: name] placeholder", () => {
   const root = makeRoot();
   const store = createMonitorStore();
-  // Only provide header; track/rail/grid/terminals undefined → placeholders
+  // Only provide header; track/rail/grid/terminals/chat undefined → placeholders.
+  // AGENT-DESKTOP-0-c (2026-05-06): added the chat panel slot — when its
+  // factory is omitted from the test stub, it joins the placeholder set
+  // (4 → 5).
   productShell.mount({
     root, store, doc: makeStubDoc(),
     panels: {
       header: () => ({}),
-      // track / rail / grid / terminals omitted
+      // track / rail / grid / terminals / chat omitted
     },
   });
   const placeholders = root._findAllByClass("prod-panel-missing");
-  assert.equal(placeholders.length, 4, "4 missing panels surface 4 placeholders");
+  assert.equal(placeholders.length, 5, "5 missing panels surface 5 placeholders");
   // Placeholders include the panel name in their text
   const names = placeholders.map((p) => p._textContent);
   assert.ok(names.some((n) => n.includes("harness-track")));
   assert.ok(names.some((n) => n.includes("pipeline-rail")));
   assert.ok(names.some((n) => n.includes("monitor-grid")));
   assert.ok(names.some((n) => n.includes("dual-terminals")));
+  assert.ok(names.some((n) => n.includes("chat")));
 });
 
 test("UI-P1: panel factory throw renders [panel error] (does NOT crash mount)", () => {

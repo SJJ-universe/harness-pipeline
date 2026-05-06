@@ -30,6 +30,7 @@
       "js/monitor/panels/product-pipeline-rail.js",
       "js/monitor/panels/product-monitor-grid.js",
       "js/monitor/panels/product-dual-terminals.js",
+      "js/monitor/panels/product-chat-panel.js",
       "js/monitor/shells/product-shell.js",
       "js/focus-trap.js",
       "js/general-pipeline-modal.js",
@@ -460,6 +461,7 @@
         "shell"
       ],
       "regionMounts": [
+        "chat",
         "dual-terminals",
         "harness-track",
         "header",

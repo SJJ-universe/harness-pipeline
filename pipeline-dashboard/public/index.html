@@ -102,6 +102,11 @@
   <script src="js/monitor/panels/product-pipeline-rail.js"></script>
   <script src="js/monitor/panels/product-monitor-grid.js"></script>
   <script src="js/monitor/panels/product-dual-terminals.js"></script>
+  <!-- AGENT-DESKTOP-0-c (2026-05-06): chat panel.
+       Mounted by product-shell.js below the workspace as a sticky
+       bottom strip. Loads after the existing panels so the shell
+       module sees window.HarnessProductChatPanel during mount. -->
+  <script src="js/monitor/panels/product-chat-panel.js"></script>
   <script src="js/monitor/shells/product-shell.js"></script>
 
   <!-- ────────────────────────────────────────────────────────────

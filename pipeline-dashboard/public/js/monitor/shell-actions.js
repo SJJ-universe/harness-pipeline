@@ -168,13 +168,83 @@
     _legacyRedirect(_resolveWin(opts), opts && opts.toastFn, "#template-editor", "템플릿 편집기");
   }
 
+  // ── AGENT-DESKTOP-0-c (2026-05-06) — chat-driven dispatchers ──────
+  //
+  // The chat panel approves a general_task proposal by passing the
+  // proposal's parameters ({task, maxIterations}) as the payload to
+  // _dispatch. This handler POSTs directly to /api/pipeline/general-run
+  // (the same endpoint the legacy modal uses) — bypassing the modal
+  // DOM since the operator already approved via the chat card.
+  //
+  // The endpoint itself enforces validateGeneralRun + the existing
+  // generalRunRef.active concurrency lock + audit chain, so the
+  // safety semantics match the modal flow exactly.
+
+  async function generalTask(opts) {
+    const fetchImpl = _resolveFetch(opts);
+    const toastFn = opts && opts.toastFn;
+    const params = (opts && opts.parameters) || {};
+    const task = (typeof params.task === "string") ? params.task.trim() : "";
+    const maxIterations = (typeof params.maxIterations === "number" && params.maxIterations >= 1)
+      ? Math.min(Math.trunc(params.maxIterations), 5)
+      : 3;
+    if (!task || task.length < 3) {
+      _toast(toastFn, { message: "작업 설명이 너무 짧습니다 (최소 3자).", kind: "error" });
+      return;
+    }
+    if (typeof fetchImpl !== "function") {
+      _toast(toastFn, { message: "네트워크 사용 불가 (fetch)", kind: "error" });
+      return;
+    }
+    try {
+      const r = await fetchImpl("/api/pipeline/general-run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ task: task, maxIterations: maxIterations }),
+      });
+      let body = null;
+      try { body = await r.json(); } catch (_) { /* non-JSON */ }
+      if (!r || !r.ok) {
+        const errMsg = (body && body.error) || ("status " + (r && r.status));
+        _toast(toastFn, { message: "파이프라인 시작 실패: " + errMsg, kind: "error" });
+        return;
+      }
+      const runId = (body && body.runId) || "?";
+      _toast(toastFn, {
+        message: "파이프라인 시작 — runId " + runId,
+        kind: "info",
+        duration: 3500,
+      });
+    } catch (err) {
+      _toast(toastFn, {
+        message: "파이프라인 시작 실패: " + (err && err.message ? err.message : String(err)),
+        kind: "error",
+      });
+    }
+  }
+
+  // show_status is purely informational (chat panel handles inline);
+  // we still register a no-op handler so _dispatch finds it without
+  // logging "no handler for action: show_status".
+  function showStatus(_opts) {
+    // Intentionally empty — chat panel renders the snapshot bubble
+    // itself before invoking _dispatch (see product-chat-panel.js
+    // _onApprove → _renderStatusSummary).
+  }
+
   // ── Default handler map for product-shell._dispatch ────────────────
 
   function createDefaultHandlers(env) {
     const baseEnv = env || {};
+    // The chat panel's _onApprove passes parameters as the second arg
+    // to _dispatch; product-shell._dispatch forwards that as `payload`
+    // to the handler (which we surface here as `extra.parameters`).
     function _wrap(fn) {
-      return function (extra) {
-        return fn(Object.assign({}, baseEnv, extra || {}));
+      return function (payload) {
+        const extra = (payload && typeof payload === "object")
+          ? { parameters: payload }
+          : {};
+        return fn(Object.assign({}, baseEnv, extra));
       };
     }
     return {
@@ -185,6 +255,9 @@
       "history":           _wrap(history),
       "codex-verify":      _wrap(codexVerify),
       "shutdown":          _wrap(shutdown),
+      // AGENT-DESKTOP-0-c (2026-05-06): chat-flow dispatchers
+      "general-task":      _wrap(generalTask),
+      "show_status":       _wrap(showStatus),
     };
   }
 
@@ -196,6 +269,8 @@
     history,
     pipelineCompact,
     pipelineTemplate,
+    generalTask,
+    showStatus,
     createDefaultHandlers,
   };
 });
