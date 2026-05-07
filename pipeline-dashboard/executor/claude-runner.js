@@ -176,18 +176,32 @@ class ClaudeRunner {
       (async () => {
         try {
           // --bare: skip hooks, memory, auto-discovery
-          // -p: print mode (non-interactive, exits after one response)
+          // -p: print mode (non-interactive, exits after one response).
+          //     With no positional argument, claude reads the prompt
+          //     from stdin — matches CodexRunner pattern.
           // --dangerously-skip-permissions: allow tool use without prompting
           //    (no tools are actually invoked — the prompts we send are
           //    planning-only and do not ask Claude to touch the filesystem)
+          //
+          // AGENT-DESKTOP-0-shellfix2 (2026-05-07): prompt is fed via
+          // stdin (NOT positional). Why: on Windows we set shell:true so
+          // that .cmd shims are launchable (CVE-2024-27980 mitigation in
+          // Node 20.12+/22+/24). With shell:true, args are concatenated
+          // into a single command line and NOT escaped (DEP0190 deprec.
+          // warning) — any user prompt containing cmd.exe metachars (
+          // `(`, `)`, `&`, `|`, `^`, `>`, `<`, `"`, etc.) gets mis-
+          // parsed by cmd.exe and the planner fails with exitCode=1
+          // and a tiny stdout. The user surfaced this with a Korean
+          // task containing `(하네스 엔진)` — the parens crashed the
+          // command line. Codex runner has used the stdin pattern since
+          // v6 (executor/codex-runner.js:326-330); Claude is now aligned.
           const args = [
             ...spec.argsPrefix,
             "-p",
             "--bare",
-            prompt,
           ];
           if (process.env.HARNESS_ALLOW_DANGEROUS_AGENT === "1" && explicitConfirmation) {
-            args.splice(args.length - 1, 0, "--dangerously-skip-permissions");
+            args.push("--dangerously-skip-permissions");
           }
           const policyDecision = dangerGate.evaluate({
             type: "agent-run",
@@ -319,7 +333,12 @@ class ClaudeRunner {
           let child;
           try {
             child = spawn(resolveCommand(spec.cmd), args, {
-              stdio: ["ignore", "pipe", "pipe"],
+              // AGENT-DESKTOP-0-shellfix2 (2026-05-07): stdin is now
+              // "pipe" (was "ignore"). The prompt rides stdin instead
+              // of being concatenated into the command line — see the
+              // long comment above the args[] construction for the
+              // full reasoning. Mirrors codex-runner.js:307.
+              stdio: ["pipe", "pipe", "pipe"],
               windowsHide: true,
               cwd: cwd || process.cwd(),
               // Windows + Node 20.12+/22+: spawning .cmd/.bat without
@@ -346,6 +365,16 @@ class ClaudeRunner {
           // so graceful shutdown can SIGTERM/SIGKILL it. Unregister fires from
           // the close/error handlers below — both code paths covered.
           this.childRegistry?.register(child, { label: "claude", runId });
+
+          // AGENT-DESKTOP-0-shellfix2 (2026-05-07): write prompt via stdin
+          // and close. Wrapped in try/catch so a stdin-error doesn't
+          // crash the runner — the close handler will still report the
+          // real exit reason.
+          try {
+            child.stdin.on("error", () => {});
+            child.stdin.write(prompt);
+            child.stdin.end();
+          } catch (_) { /* close handler reports real reason */ }
 
           if (typeof onChild === "function") onChild(child);
 
