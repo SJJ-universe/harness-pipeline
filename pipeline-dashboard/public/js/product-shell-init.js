@@ -77,8 +77,23 @@
   // is shared (`public/js/ws-client.js` already loaded by index.html);
   // we just configure callbacks here.
   function _installWsClient(store) {
+    // AGENT-DESKTOP-0-diag3 (2026-05-06): aggressive entry breadcrumbs.
+    // Operator reported Socket tab empty in DevTools — that means
+    // `new WebSocket(url)` was never called, so `_installWsClient`
+    // either returned early or threw. These logs surface every branch
+    // at page load so the next bug-report screenshot pinpoints the
+    // failure in one read.
+    console.log("[product-shell] _installWsClient ENTRY", {
+      hasWsClient: !!(window.HarnessWsClient
+        && typeof window.HarnessWsClient.install === "function"),
+      hasDispatcher: !!(window.HarnessEventDispatcher
+        && typeof window.HarnessEventDispatcher.dispatch === "function"),
+      hasWebSocketCtor: typeof WebSocket,
+      locationProtocol: window.location && window.location.protocol,
+      locationHost: window.location && window.location.host,
+    });
     if (!window.HarnessWsClient || typeof window.HarnessWsClient.install !== "function") {
-      console.warn("[product-shell] HarnessWsClient missing — live events will not flow");
+      console.warn("[product-shell] HarnessWsClient missing — live events will not flow. Check js/ws-client.js loaded.");
       return null;
     }
     if (!window.HarnessEventDispatcher
@@ -96,10 +111,23 @@
         try { window.HarnessToast.show(payload); } catch (_) { /* defensive */ }
       }
     }
+    const wsUrl = protocol + "//" + host;
+    console.log("[product-shell] calling HarnessWsClient.install", { url: wsUrl });
     try {
       const client = window.HarnessWsClient.install({
-        url: protocol + "//" + host,
+        url: wsUrl,
         onEvent: function (event) {
+          // First few events are the most diagnostic — log the type so
+          // we know the dispatch chain is actually running. After 10
+          // events stop logging to avoid console flood. Beyond the
+          // count, the bridge stats expose totals.
+          if (window.__harnessWsEventCount === undefined) window.__harnessWsEventCount = 0;
+          window.__harnessWsEventCount++;
+          if (window.__harnessWsEventCount <= 10) {
+            try { console.log("[product-shell] WS event #"
+              + window.__harnessWsEventCount, event && event.type); }
+            catch (_) {}
+          }
           // Forward to the dispatcher. The legacy-bridge tap (registered
           // when HarnessMonitorLegacyBridge.install ran above) catches
           // every event, normalizes, and pushes to store.pushEvent —
@@ -111,15 +139,18 @@
           }
         },
         onConnected: function () {
-          // Quiet on first connect — most operators expect online by default.
+          console.log("[product-shell] WS onConnected");
         },
         onReconnected: function () {
+          console.log("[product-shell] WS onReconnected");
           _toast({ kind: "info", message: "서버에 다시 연결되었습니다.", duration: 2500 });
         },
         onDisconnected: function () {
+          console.log("[product-shell] WS onDisconnected");
           _toast({ kind: "warn", message: "서버 연결이 끊겼습니다 — 재연결 중...", duration: 4000 });
         },
         onInitialError: function (info) {
+          console.warn("[product-shell] WS onInitialError — could not reach server");
           _toast({
             kind: "error",
             message: "서버에 연결할 수 없습니다.",
@@ -131,6 +162,10 @@
             try { setTimeout(info.retry, 2000); } catch (_) {}
           }
         },
+      });
+      console.log("[product-shell] HarnessWsClient.install returned", {
+        hasClient: !!client,
+        isConnectedNow: client && typeof client.isConnected === "function" ? client.isConnected() : "n/a",
       });
       // Stash on window so debugging from the console works the same
       // way it does in the legacy view (`window._wsClient`).
@@ -334,7 +369,21 @@
     // each event into the dispatcher is enough; the bridge's
     // wildcard tap normalizes and pushes to store, which is what
     // every product panel reads.
-    _installWsClient(store);
+    //
+    // AGENT-DESKTOP-0-diag3 (2026-05-06): wrap in try/catch +
+    // breadcrumb so silent throws / silent early-returns surface in
+    // the operator's Console at page load. The Socket-tab-empty
+    // symptom means we never got to `new WebSocket()` — these logs
+    // tell us why.
+    console.log("[product-shell-init] about to install WS client");
+    try {
+      const wsClient = _installWsClient(store);
+      console.log("[product-shell-init] _installWsClient returned",
+        { hasClient: !!wsClient });
+    } catch (err) {
+      console.error("[product-shell-init] _installWsClient threw:",
+        err && err.message ? err.message : err, err);
+    }
 
     _hydrateInitialStore(store);
 
