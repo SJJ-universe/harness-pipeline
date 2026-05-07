@@ -1,10 +1,24 @@
-// ClaudeRunner — invokes `claude -p --bare <prompt>` as a subprocess.
-// Mirrors the CodexRunner interface so PipelineExecutor can drive Claude-side
-// planning/refinement the same way it drives Codex-side critique.
+// ClaudeRunner — invokes `claude -p --tools "" <prompt-via-stdin>` as
+// a subprocess. Mirrors the CodexRunner interface so PipelineExecutor
+// can drive Claude-side planning/refinement the same way it drives
+// Codex-side critique.
 //
-// --bare strips hooks/memory/auto-discovery so this call does NOT re-enter
-// the harness and can't trigger recursion via Claude Code's own PreToolUse
-// hooks. Still uses OAuth token from the environment for auth.
+// Recursion protection: we pass `--tools ""` to disable ALL tools in
+// the planner subprocess. With no tools, Claude cannot fire any
+// PreToolUse hooks, so the harness's own hooks can never re-enter
+// during a planner call. (We previously used `--bare` for this, but
+// `claude --help` documents that --bare also blocks OAuth/keychain
+// reads — `Anthropic auth is strictly ANTHROPIC_API_KEY or
+// apiKeyHelper via --settings (OAuth and keychain are never read)`.
+// Dashboard users typically auth via OAuth, so --bare immediately
+// failed with "Not logged in · Please run /login". --tools "" gives
+// us the same recursion guarantee while preserving OAuth.)
+//
+// Auth fallback chain (Claude reads in this order without --bare):
+//   1. ANTHROPIC_API_KEY env var
+//   2. apiKeyHelper from --settings
+//   3. OAuth token from ~/.claude/.credentials.json
+//   4. OS keychain
 //
 // ENOENT fallback: tries `claude`, then `npx @anthropic-ai/claude-code`.
 
@@ -175,13 +189,18 @@ class ClaudeRunner {
       // beyond the error message.
       (async () => {
         try {
-          // --bare: skip hooks, memory, auto-discovery
           // -p: print mode (non-interactive, exits after one response).
           //     With no positional argument, claude reads the prompt
           //     from stdin — matches CodexRunner pattern.
-          // --dangerously-skip-permissions: allow tool use without prompting
-          //    (no tools are actually invoked — the prompts we send are
-          //    planning-only and do not ask Claude to touch the filesystem)
+          // --tools "": disable ALL tools in the planner subprocess.
+          //     This is our recursion guarantee — with no tools,
+          //     PreToolUse hooks cannot fire, so the harness can't
+          //     re-enter itself. Replaces the previous `--bare` flag
+          //     (which also blocked OAuth — see file header).
+          // --dangerously-skip-permissions: a leftover from when --bare
+          //     was used; harmless now since `--tools ""` already
+          //     prevents any tool invocation. Kept behind the same
+          //     env+confirmation gate for backward compatibility.
           //
           // AGENT-DESKTOP-0-shellfix2 (2026-05-07): prompt is fed via
           // stdin (NOT positional). Why: on Windows we set shell:true so
@@ -198,7 +217,8 @@ class ClaudeRunner {
           const args = [
             ...spec.argsPrefix,
             "-p",
-            "--bare",
+            "--tools",
+            "",
           ];
           if (process.env.HARNESS_ALLOW_DANGEROUS_AGENT === "1" && explicitConfirmation) {
             args.push("--dangerously-skip-permissions");
