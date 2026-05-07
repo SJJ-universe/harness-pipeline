@@ -278,21 +278,31 @@
 
   function selectCodexLiveTail(snap, runId, maxChars) {
     if (!snap || !snap.reviewStreams) return null;
-    const sessions = (typeof snap.reviewSessions && snap.reviewSessions.values === "function")
-      ? Array.from(snap.reviewSessions.values())
-      : Object.values(snap.reviewSessions || {});
-    const ours = sessions.filter(function (s) {
-      return s && (s.runId === runId || (!runId && s.runId == null));
-    });
-    if (ours.length === 0) return null;
-    const session = ours[ours.length - 1];
+    // PRODUCT-LIVE-STREAM-0 Gap G: route through selectActiveReviewSession
+    // so the same real-vs-synthetic priority applies (real session wins
+    // over synthetic `general:<runId>` when both exist for the runId).
+    const session = selectActiveReviewSession(snap, runId);
+    if (!session) return null;
+    const sid = session.sessionId || session.id;
     const streams = (typeof snap.reviewStreams.get === "function")
-      ? snap.reviewStreams.get(session.sessionId || session.id)
-      : (snap.reviewStreams[session.sessionId || session.id] || null);
-    if (!streams || !streams.codexChunks || streams.codexChunks.length === 0) return null;
-    // Concatenate the last N chunks; cap output length
+      ? snap.reviewStreams.get(sid)
+      : (snap.reviewStreams[sid] || null);
+    // PRODUCT-LIVE-STREAM-0 Gap C: store.appendReviewChunk writes into
+    // `streams.codex` (canonical, store.js:856) but legacy review-relay
+    // paths use `streams.codexChunks`. Fallback in both directions so
+    // both shapes render. selectReviewStreamChunks at line 342 already
+    // does this — selectCodexLiveTail was the asymmetric one.
+    const arr = streams && (streams.codex || streams.codexChunks);
+    if (!arr || arr.length === 0) return null;
+    // Concatenate the last N chunks; cap output length.
+    // Chunk shape is also bidirectional: appendReviewChunk stores
+    // { chunk, seq, ts }; some legacy paths use { text, ... }.
     const max = (typeof maxChars === "number" && maxChars > 0) ? maxChars : 240;
-    const text = streams.codexChunks.map(function (c) { return c.text || ""; }).join("");
+    const text = arr.map(function (c) {
+      return (typeof c.chunk === "string" ? c.chunk : null)
+        || (typeof c.text === "string" ? c.text : "")
+        || "";
+    }).join("");
     return text.length > max ? "…" + text.slice(-max) : text;
   }
 
@@ -302,9 +312,16 @@
    * Pick the most relevant review session for the panel to act on.
    * Priority:
    *   1. snap.selectedReviewSessionId if it points to an existing session
-   *   2. The most recent session matching `runId` (if runId given)
-   *   3. The most recent session at all
-   *   4. null when there are no review sessions
+   *   2. PRODUCT-LIVE-STREAM-0 Gap G: a REAL session for the runId
+   *      (source !== "general") beats any synthetic projection. This
+   *      keeps review-relay panels from getting hijacked by the
+   *      synthetic `general:<runId>` session that the bridge creates
+   *      to feed dual-terminals during a general-task run.
+   *   3. The most recent session matching `runId` (if runId given) —
+   *      this is where the synthetic session shows up when no real
+   *      review session exists.
+   *   4. The most recent session at all
+   *   5. null when there are no review sessions
    */
   function selectActiveReviewSession(snap, runId) {
     if (!snap || !snap.reviewSessions) return null;
@@ -321,7 +338,12 @@
     }
     if (runId) {
       const matching = sessions.filter(function (s) { return s && s.runId === runId; });
-      if (matching.length > 0) return matching[matching.length - 1];
+      if (matching.length > 0) {
+        // Gap G: prefer a real session over the synthetic one.
+        const real = matching.find(function (s) { return s && s.source !== "general"; });
+        if (real) return real;
+        return matching[matching.length - 1];
+      }
     }
     return sessions[sessions.length - 1] || null;
   }

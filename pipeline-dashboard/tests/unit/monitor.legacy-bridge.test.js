@@ -393,8 +393,12 @@ test("MC2: a phase_update sequence on the same run reflects every step in run-su
   });
   const r = store.snapshot().runs.S;
   assert.equal(r.status, "completed");
-  assert.equal(r.phase, "C");        // phase preserved through complete
-  assert.equal(r.phaseIdx, 2);
+  assert.equal(r.phase, "C");        // phase letter preserved through complete
+  // PRODUCT-LIVE-STREAM-0 Gap D + DoD-7: pipeline_complete (clean,
+  // no errors / failed flag) advances phaseIdx to 6 (DONE) so the
+  // harness-track panel shows full progress at the end of a run.
+  // The phase letter ("C") is unchanged — only the index slot.
+  assert.equal(r.phaseIdx, 6);
   assert.equal(r.completedAt, 555);
 });
 

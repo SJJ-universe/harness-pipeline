@@ -109,9 +109,34 @@
       // claude_stream_chunk / critique_received / handoff_to_claude_*
       // that reached the store.
       reviewSyncs: 0,
+      // PRODUCT-LIVE-STREAM-0: count synthetic-session syncs from
+      // general-task pipeline events (codex_progress, log_message,
+      // general_plan_complete, phase_update B/D active).
+      generalStreamSyncs: 0,
     };
     let unsubscribeTap = null;
     let intervalId = null;
+
+    // PRODUCT-LIVE-STREAM-0 (2026-05-07): phase letter → MOCK_STAGES idx
+    // mapping. The general pipeline runner (src/server/generalPipelineRunner.js)
+    // emits phase_update with `data.phase: "A"|"B"|"C"|"D"` (string) but
+    // never `data.phaseIdx` (number). The product-harness-track panel
+    // reads `run.phaseIdx` from the store, so without this mapping the
+    // panel never advances past STAGE 1/7. MOCK_STAGES order is:
+    //   [PLAN(0), CRITIQUE(1), REVISE(2), RE-CHECK(3),
+    //    EXECUTE(4), VERIFY(5), DONE(6)]
+    // General runner phase semantics:
+    //   A = context-analyzer (instant)  → PLAN
+    //   B = task-planner (Claude)        → PLAN
+    //   C = plan-critic (Codex)          → CRITIQUE
+    //   D = plan-refiner (Claude, loops) → REVISE
+    // 4 (EXECUTE) and 5 (VERIFY) have no general-task analogue; on
+    // pipeline_complete we jump to 6 (DONE) for closure.
+    const PHASE_LETTER_TO_IDX = { A: 0, B: 0, C: 1, D: 2 };
+    function _phaseLetterToIdx(letter) {
+      return Object.prototype.hasOwnProperty.call(PHASE_LETTER_TO_IDX, letter)
+        ? PHASE_LETTER_TO_IDX[letter] : null;
+    }
 
     // Slice MC2: lifecycle event → store.upsertRun mapping.
     //
@@ -137,13 +162,23 @@
           };
           break;
         case "pipeline_start":
+          // PRODUCT-LIVE-STREAM-0 Gap E: pipeline_start payload from the
+          // general runner has no `phase` field, so phase_update can't
+          // run its letter→idx fallback yet. Seed phaseIdx: 0 so the
+          // harness-track panel snaps from null/idle to PLAN immediately
+          // when the run begins.
           partial = {
             status: "active",
             templateId: data.template || data.templateId || null,
             startedAt: data.at || data.ts || now,
+            phaseIdx: 0,
           };
           if (typeof data.phase === "string") partial.phase = data.phase;
           if (typeof data.phaseIdx === "number") partial.phaseIdx = data.phaseIdx;
+          else if (typeof data.phase === "string") {
+            const _idx = _phaseLetterToIdx(data.phase);
+            if (_idx !== null) partial.phaseIdx = _idx;
+          }
           break;
         case "phase_update":
           partial = {
@@ -153,17 +188,33 @@
             // run as "active" (the legacy semantics).
             status: data.status === "error" ? "error" : "active",
           };
+          // PRODUCT-LIVE-STREAM-0 Gap A: server emits phase as a letter
+          // (A/B/C/D) without phaseIdx. Map letters via PHASE_LETTER_TO_IDX
+          // so the panel advances. Explicit phaseIdx still wins.
           if (typeof data.phaseIdx === "number") partial.phaseIdx = data.phaseIdx;
+          else {
+            const _idx = _phaseLetterToIdx(data.phase);
+            if (_idx !== null) partial.phaseIdx = _idx;
+          }
           break;
         case "pipeline_paused":
           partial = { status: "paused" };
           break;
-        case "pipeline_complete":
+        case "pipeline_complete": {
+          // PRODUCT-LIVE-STREAM-0 Gap D: pipeline_complete payload from
+          // the general runner uses `errors: [...]` (not `failed: bool`)
+          // to signal failure. Treat a non-empty errors array OR a
+          // truthy `failed` as error. On clean completion, jump phaseIdx
+          // to 6 (DONE) so harness-track shows full progress.
+          const _hasErrors = !!data.failed
+            || (Array.isArray(data.errors) && data.errors.length > 0);
           partial = {
-            status: "completed",
+            status: _hasErrors ? "error" : "completed",
             completedAt: data.at || data.ts || now,
           };
+          if (!_hasErrors) partial.phaseIdx = 6;
           break;
+        }
         case "pipeline_reset":
           partial = { status: "idle", phase: null, phaseIdx: null };
           break;
@@ -386,8 +437,167 @@
       }
     }
 
+    // PRODUCT-LIVE-STREAM-0 (2026-05-07): emergency projection bridge
+    // for the general-task pipeline. The product shell's dual-terminals
+    // panel reads from `reviewStreams` Map<sessionId, {claude, codex}>.
+    // General-task runs have no review session, so without this helper
+    // the terminals stay frozen at "No live stream yet." even though
+    // the server is broadcasting useful content (codex_progress every
+    // 500ms, log_message at phase boundaries, general_plan_complete
+    // with the full plan + critique summary).
+    //
+    // Strategy: synthesize a session id `"general:<runId>"` and fan
+    // these events into the existing reviewStreams slice. dual-terminals
+    // automatically picks up the synthesized session via
+    // selectActiveReviewSession + selectReviewStreamChunks; no panel
+    // changes required.
+    //
+    // Boundary discipline (so review-relay semantics aren't muddied):
+    //   - Every synthetic session is tagged with `source: "general"`
+    //     and `streamOnly: true`. The action-row gate in
+    //     product-dual-terminals checks streamOnly to suppress the
+    //     review API buttons (start session / send to codex / etc.)
+    //     for these synthesized entries.
+    //   - selectActiveReviewSession prefers a real session
+    //     (`source !== "general"`) when one exists for the same runId.
+    //   - codex_progress is gated on `data.source === "general-pipeline"`
+    //     so review-relay codex traffic isn't accidentally vacuumed
+    //     into the wrong stream.
+    //
+    // Always returns false so the caller continues normal processing
+    // (events ring, run sync, app.js handlers all still fire).
+    function _syncGeneralStreamFromEvent(event) {
+      if (!event || typeof event !== "object") return false;
+      const t = event.type;
+      if (t !== "codex_progress" && t !== "log_message"
+          && t !== "general_plan_complete" && t !== "phase_update") {
+        return false;
+      }
+      const data = (event.data && typeof event.data === "object") ? event.data : {};
+      const runId = data.runId;
+      if (typeof runId !== "string" || !runId) return false;
+
+      // Gap H: codex_progress source gate — only general-pipeline
+      // (vs review-session, etc.) flows into the synthetic stream.
+      if (t === "codex_progress" && data.source !== "general-pipeline") return false;
+
+      // phase_update: only "active" status on Claude phases (B/D)
+      // produces a synthetic claude-side status line. Other
+      // phase_update permutations fall through (run sync still fires
+      // through the normal switch).
+      if (t === "phase_update") {
+        const _isClaudePhase = data.phase === "B" || data.phase === "D";
+        if (!_isClaudePhase || data.status !== "active") return false;
+      }
+
+      const sid = "general:" + runId;
+      const now = Date.now();
+
+      if (typeof store.upsertReviewSession === "function") {
+        try {
+          store.upsertReviewSession(sid, {
+            sessionId: sid,
+            runId,
+            source: "general",
+            streamOnly: true,
+            state: "in_progress",
+            lastActivityAt: now,
+          });
+        } catch (_) { /* defensive */ }
+      }
+
+      if (typeof store.appendReviewChunk !== "function") return false;
+
+      if (t === "codex_progress") {
+        const chunkText = (typeof data.stdout === "string" && data.stdout)
+          || (typeof data.stderr === "string" && data.stderr) || "";
+        if (!chunkText) {
+          stats.generalStreamSyncs = (stats.generalStreamSyncs || 0) + 1;
+          return false;
+        }
+        try {
+          store.appendReviewChunk(sid, "codex", {
+            chunk: chunkText,
+            seq: data.elapsedMs || now,
+            ts: now,
+          });
+        } catch (_) { /* defensive */ }
+      } else if (t === "phase_update") {
+        // Gap F: insert an immediate status line into the Claude
+        // terminal so the operator can see Claude is actively
+        // working. Real stdout streaming is a follow-up round
+        // (PRODUCT-LIVE-STREAM-2).
+        const _label = data.phase === "B"
+          ? "Claude 계획 생성 중..."
+          : "Claude 수정 중...";
+        try {
+          store.appendReviewChunk(sid, "claude", {
+            chunk: "[" + data.phase + "] " + _label + "\n",
+            seq: now,
+            ts: now,
+          });
+        } catch (_) { /* defensive */ }
+      } else if (t === "log_message") {
+        const _msg = (typeof data.message === "string" ? data.message : "") || "";
+        if (_msg.length === 0) {
+          stats.generalStreamSyncs = (stats.generalStreamSyncs || 0) + 1;
+          return false;
+        }
+        try {
+          store.appendReviewChunk(sid, "claude", {
+            chunk: _msg,
+            seq: now,
+            ts: now,
+          });
+        } catch (_) { /* defensive */ }
+      } else if (t === "general_plan_complete") {
+        const _finalPlan = (typeof data.finalPlan === "string" ? data.finalPlan : "") || "";
+        if (_finalPlan) {
+          const _tail = _finalPlan.length > 4000
+            ? "...\n" + _finalPlan.slice(-4000) : _finalPlan;
+          try {
+            store.appendReviewChunk(sid, "claude", {
+              chunk: "[최종 plan]\n" + _tail,
+              seq: now,
+              ts: now,
+            });
+          } catch (_) { /* defensive */ }
+        }
+        const _summary = data.lastCritique
+          && typeof data.lastCritique.summary === "string"
+            ? data.lastCritique.summary : "";
+        if (_summary) {
+          try {
+            store.appendReviewChunk(sid, "codex", {
+              chunk: "[비평 요약]\n" + _summary,
+              seq: now + 1,
+              ts: now,
+            });
+          } catch (_) { /* defensive */ }
+        }
+        if (typeof store.upsertReviewSession === "function") {
+          try {
+            store.upsertReviewSession(sid, {
+              state: "completed",
+              lastActivityAt: now,
+            });
+          } catch (_) { /* defensive */ }
+        }
+      }
+
+      stats.generalStreamSyncs = (stats.generalStreamSyncs || 0) + 1;
+      return false;
+    }
+
     // ── 1. Wildcard tap → store.pushEvent + run sync ──
     function _onLegacyEvent(event) {
+      // PRODUCT-LIVE-STREAM-0: emergency projection bridge — fan
+      // selected general-pipeline events into a synthetic review
+      // session (`general:<runId>`) so the product shell terminals
+      // come alive. Always returns false; doesn't gate any other
+      // handler. See _syncGeneralStreamFromEvent for the boundary
+      // discipline (source gate, streamOnly tag, action-row guard).
+      try { _syncGeneralStreamFromEvent(event); } catch (_) { /* defensive */ }
       // Slice UI-H7-a: review-session events take precedence — they
       // have their own slice (reviewSessions / reviewStreams). Skip
       // pushEvent + run sync for them so high-volume stream chunks
@@ -609,6 +819,8 @@
       _syncRunFromEvent,
       // Slice UI-H7-a: same test-hook discipline.
       _syncReviewSessionFromEvent,
+      // PRODUCT-LIVE-STREAM-0: same test-hook discipline.
+      _syncGeneralStreamFromEvent,
     };
   }
 

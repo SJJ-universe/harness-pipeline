@@ -605,6 +605,23 @@
     let actionRowEl = null;
     function _renderActionRowIfNeeded() {
       if (!client) return;
+      // PRODUCT-LIVE-STREAM-0 Gap G: when the active session is a
+      // synthetic projection from the general-task pipeline (tagged
+      // streamOnly: true by legacy-bridge._syncGeneralStreamFromEvent),
+      // the review-relay action row would point at a session id that
+      // doesn't exist on the server (e.g. "general:gr-...") — the
+      // buttons (Start session / Send to Codex / Follow up / Hand
+      // back / Archive) would all hit 404. Skip the row entirely so
+      // those buttons aren't even visible. The terminals themselves
+      // still stream content; only the action row is suppressed.
+      const _active = _resolveActiveSession && _resolveActiveSession();
+      if (_active && _active.streamOnly) {
+        if (actionRowEl && actionRowEl.parentNode === wrap) {
+          try { wrap.removeChild(actionRowEl); } catch (_) {}
+          actionRowEl = null;
+        }
+        return;
+      }
       if (actionRowEl && actionRowEl.parentNode === wrap) {
         try { wrap.removeChild(actionRowEl); } catch (_) {}
       }
