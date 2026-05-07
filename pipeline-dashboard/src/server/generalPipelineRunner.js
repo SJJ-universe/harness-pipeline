@@ -19,7 +19,7 @@
 // it already had — no behaviour change for /api/pipeline/general.
 
 function createGeneralPipelineRunner({
-  broadcast,
+  broadcast: _outerBroadcast,
   claudeRunner,
   codexRunner,
   generalRunRef,
@@ -27,7 +27,7 @@ function createGeneralPipelineRunner({
   workingDir,
   timeoutMs,
 } = {}) {
-  if (typeof broadcast !== "function") {
+  if (typeof _outerBroadcast !== "function") {
     throw new Error("createGeneralPipelineRunner: broadcast must be a function");
   }
   if (!claudeRunner || typeof claudeRunner.exec !== "function") {
@@ -83,6 +83,27 @@ function createGeneralPipelineRunner({
 
   // ── finalizeGeneralRun (broadcast + summary builder). ──
 
+  // AGENT-DESKTOP-0-broadcast-runid (2026-05-07): wrap an event in a
+  // payload that includes runId. The product-shell legacy-bridge
+  // requires data.runId on every lifecycle event (pipeline_start,
+  // phase_update, pipeline_complete, etc.) — without it the bridge
+  // returns false at line 127 and the event never reaches the store,
+  // so panels never re-render. The dashboard logged 4 backend bug
+  // fixes (shell:true / stdin / --bare / sentinel) all working —
+  // claude returned ok=true textLen=2528 — but UI stayed frozen.
+  // Adding runId here makes the bridge upsertRun(runId, partial) call
+  // succeed, which is what panels subscribe to.
+  function _withRunId(event, runId) {
+    if (!event || typeof event !== "object") return event;
+    if (event.data && typeof event.data === "object" && event.data.runId) {
+      return event;  // already has runId — leave untouched
+    }
+    return {
+      ...event,
+      data: { ...(event.data || {}), runId },
+    };
+  }
+
   function finalizeGeneralRun({
     runId, started, plan, lastCritique, iterations,
     history, aborted, failed, reason,
@@ -98,7 +119,7 @@ function createGeneralPipelineRunner({
           ? "CONCERNS"
           : "CLEAN";
 
-    broadcast({
+    _outerBroadcast(_withRunId({
       type: "general_plan_complete",
       data: {
         runId,
@@ -111,9 +132,9 @@ function createGeneralPipelineRunner({
         aborted: !!aborted,
         failed: !!failed,
       },
-    });
+    }, runId));
 
-    broadcast({
+    _outerBroadcast(_withRunId({
       type: "pipeline_complete",
       data: {
         tokenUsage: {},
@@ -123,7 +144,7 @@ function createGeneralPipelineRunner({
         duration,
         harnessId: "general-plan",
       },
-    });
+    }, runId));
     return { verdict, iterations: iterations || 0, durationMs: duration, plan };
   }
 
@@ -138,6 +159,17 @@ function createGeneralPipelineRunner({
 
     const isTimedOut = () => (Date.now() - started) > PIPELINE_TIMEOUT_MS;
     const isAborted = () => _generalRunRef.active && _generalRunRef.active.aborted;
+
+    // AGENT-DESKTOP-0-broadcast-runid (2026-05-07): bind a local
+    // `broadcast` that auto-injects runId into every event payload.
+    // Every event broadcast from within this function (phase_update,
+    // node_update, error, log_message, cycle_iteration, ...) needs
+    // runId so the client-side legacy-bridge can call store.upsertRun
+    // (public/js/monitor/legacy-bridge.js:125-127 returns false when
+    // data.runId is missing). The outer broadcast is renamed to
+    // `_outerBroadcast` at the constructor's destructuring, so no
+    // TDZ collision when defining this local shadow.
+    const broadcast = (event) => _outerBroadcast(_withRunId(event, runId));
 
     // AGENT-DESKTOP-0-diag2 (2026-05-06): server-side breadcrumbs to
     // diagnose the "modal closed but server terminal silent" path.
