@@ -128,14 +128,31 @@
               + window.__harnessWsEventCount, event && event.type); }
             catch (_) {}
           }
-          // Forward to the dispatcher. The legacy-bridge tap (registered
-          // when HarnessMonitorLegacyBridge.install ran above) catches
-          // every event, normalizes, and pushes to store.pushEvent —
-          // panels re-render through their store subscriptions.
+          // AGENT-DESKTOP-0-tap-fire (2026-05-07): event-dispatcher
+          // exposes TWO surfaces. dispatch() only runs typed handlers
+          // registered via register(type, handler) — those return early
+          // if no handler is found for event.type. notifyTaps() runs
+          // the WILDCARD subscribers registered via addTap(fn), which
+          // is what the legacy-bridge uses (legacy-bridge.js:425-426)
+          // to observe every event flowing through the system. In the
+          // legacy view, app.js::handleEvent calls BOTH; in product
+          // shell we were calling only dispatch(), so the bridge tap
+          // never fired → store.upsertRun never called → no panel
+          // ever re-rendered, even though events were arriving.
+          // Comment in event-dispatcher.js line 25-26 documents the
+          // contract: "notifyTaps(event) → invoked by app.js handleEvent
+          // for every event, in addition to dispatch()."
           try { window.HarnessEventDispatcher.dispatch(event); }
           catch (err) {
             console.warn("[product-shell] dispatch failed for event:",
               event && event.type, err && err.message ? err.message : err);
+          }
+          if (typeof window.HarnessEventDispatcher.notifyTaps === "function") {
+            try { window.HarnessEventDispatcher.notifyTaps(event); }
+            catch (err) {
+              console.warn("[product-shell] notifyTaps failed for event:",
+                event && event.type, err && err.message ? err.message : err);
+            }
           }
         },
         onConnected: function () {
