@@ -322,7 +322,17 @@ class ClaudeRunner {
               stdio: ["ignore", "pipe", "pipe"],
               windowsHide: true,
               cwd: cwd || process.cwd(),
-              shell: false,
+              // Windows + Node 20.12+/22+: spawning .cmd/.bat without
+              // shell:true returns `spawn EINVAL` (CVE-2024-27980
+              // mitigation). `claude` on Windows is `claude.cmd` (npm
+              // shim at AppData/Roaming/npm/claude.cmd) — without this
+              // flag the planner phase fails immediately with
+              // exitCode=null, textLen=0. Codex runner has had this
+              // since v6 (executor/codex-runner.js:310); Claude runner
+              // missed the parity until AGENT-DESKTOP-0 surfaced it
+              // in a pilot console trace. Posix path (shell:false)
+              // unchanged — the bug is Windows-specific.
+              shell: process.platform === "win32",
               env: spawnEnv,
             });
           } catch (err) {
