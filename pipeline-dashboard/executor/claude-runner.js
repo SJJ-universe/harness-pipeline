@@ -1,18 +1,31 @@
-// ClaudeRunner — invokes `claude -p --tools "" <prompt-via-stdin>` as
-// a subprocess. Mirrors the CodexRunner interface so PipelineExecutor
-// can drive Claude-side planning/refinement the same way it drives
-// Codex-side critique.
+// ClaudeRunner — invokes `claude -p --tools <sentinel>` with the
+// prompt fed via stdin, as a subprocess. Mirrors the CodexRunner
+// interface so PipelineExecutor can drive Claude-side planning/
+// refinement the same way it drives Codex-side critique.
 //
-// Recursion protection: we pass `--tools ""` to disable ALL tools in
-// the planner subprocess. With no tools, Claude cannot fire any
-// PreToolUse hooks, so the harness's own hooks can never re-enter
-// during a planner call. (We previously used `--bare` for this, but
-// `claude --help` documents that --bare also blocks OAuth/keychain
-// reads — `Anthropic auth is strictly ANTHROPIC_API_KEY or
-// apiKeyHelper via --settings (OAuth and keychain are never read)`.
-// Dashboard users typically auth via OAuth, so --bare immediately
-// failed with "Not logged in · Please run /login". --tools "" gives
-// us the same recursion guarantee while preserving OAuth.)
+// Recursion protection: we pass `--tools NoOpDisableSentinel` (a
+// fictional tool name) so claude's allow-list contains only a tool
+// that doesn't exist — effectively disabling every real tool in the
+// planner subprocess. With no real tools available, PreToolUse hooks
+// cannot fire, so the harness's own hooks can never re-enter during
+// a planner call.
+//
+// Why a sentinel string rather than `--tools ""`?
+//   `--tools <tools...>` is a variadic option in commander.js. On
+//   Windows we set shell:true so that .cmd shims are launchable
+//   (CVE-2024-27980 mitigation). With shell:true, args are
+//   concatenated into a single command line and an empty positional
+//   collapses — claude then errors with "option '--tools <tools...>'
+//   argument missing". A non-empty sentinel survives the round trip.
+//
+// Why not `--bare`?
+//   `claude --help` documents that --bare also blocks OAuth/keychain
+//   reads — `Anthropic auth is strictly ANTHROPIC_API_KEY or
+//   apiKeyHelper via --settings (OAuth and keychain are never read)`.
+//   Dashboard users typically auth via OAuth, so --bare immediately
+//   failed with "Not logged in · Please run /login". The --tools
+//   approach gives us the same recursion guarantee while preserving
+//   OAuth.
 //
 // Auth fallback chain (Claude reads in this order without --bare):
 //   1. ANTHROPIC_API_KEY env var
@@ -192,15 +205,16 @@ class ClaudeRunner {
           // -p: print mode (non-interactive, exits after one response).
           //     With no positional argument, claude reads the prompt
           //     from stdin — matches CodexRunner pattern.
-          // --tools "": disable ALL tools in the planner subprocess.
-          //     This is our recursion guarantee — with no tools,
-          //     PreToolUse hooks cannot fire, so the harness can't
-          //     re-enter itself. Replaces the previous `--bare` flag
-          //     (which also blocked OAuth — see file header).
+          // --tools NoOpDisableSentinel: allow-list contains only a
+          //     fictional tool name. Since no real tool matches that
+          //     name, every real tool is implicitly disabled — same
+          //     recursion guarantee as `--tools ""` but survives the
+          //     Windows shell:true round trip. See file header for
+          //     full reasoning.
           // --dangerously-skip-permissions: a leftover from when --bare
-          //     was used; harmless now since `--tools ""` already
-          //     prevents any tool invocation. Kept behind the same
-          //     env+confirmation gate for backward compatibility.
+          //     was used; harmless now since the sentinel allow-list
+          //     already prevents any tool invocation. Kept behind the
+          //     same env+confirmation gate for backward compatibility.
           //
           // AGENT-DESKTOP-0-shellfix2 (2026-05-07): prompt is fed via
           // stdin (NOT positional). Why: on Windows we set shell:true so
@@ -218,7 +232,7 @@ class ClaudeRunner {
             ...spec.argsPrefix,
             "-p",
             "--tools",
-            "",
+            "NoOpDisableSentinel",
           ];
           if (process.env.HARNESS_ALLOW_DANGEROUS_AGENT === "1" && explicitConfirmation) {
             args.push("--dangerously-skip-permissions");
