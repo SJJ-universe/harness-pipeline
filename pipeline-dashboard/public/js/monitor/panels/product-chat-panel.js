@@ -86,6 +86,31 @@
     // Endpoint is configurable so tests can point to a stub server.
     const _intentUrl = opts.intentUrl || "/api/chat/intent";
 
+    // UX-POLISH-1 (2026-05-11): store + selectors + i18n for progress
+    // milestone subscription. All three are optional — the chat panel
+    // works without them (no progress bubbles, manual operator flow).
+    const _store = opts.store || null;
+    const _selectors = opts.selectors || null;
+    const _i18n = opts.i18n
+      || (typeof window !== "undefined" && window.OrchestratorI18n)
+      || null;
+    function _t(key, fallback, params) {
+      let s;
+      if (_i18n && typeof _i18n.t === "function") {
+        try { s = _i18n.t(key); } catch (_) { s = null; }
+      }
+      // OrchestratorI18n.t returns the key itself on miss (i18n.js:61).
+      // Treat that as "missing" so the fallback wins for UX-POLISH-1
+      // keys until they're populated in every locale table.
+      if (s == null || s === key) s = fallback;
+      if (params && typeof params === "object" && typeof s === "string") {
+        for (const k of Object.keys(params)) {
+          s = s.replace(new RegExp("\\{" + k + "\\}", "g"), String(params[k]));
+        }
+      }
+      return s;
+    }
+
     // ── DOM build ────────────────────────────────────────────────
 
     const chat = _doc.createElement("div");
@@ -450,8 +475,74 @@
       _appendSystem(summary);
     }
 
+    // ── UX-POLISH-1 (2026-05-11) — progress milestone emitter ──────
+    //
+    // Subscribes to the store and converts lifecycle events into
+    // [system] chat bubbles so the operator sees "1번 비평 완료",
+    // "B 단계 진입", "✓ 작업 완료" without having to scan the track or
+    // open the drawer. Dedupe via a per-run Set of emitted milestone
+    // IDs (selectProgressMilestones returns stable IDs); resets when
+    // the active runId changes so a fresh run starts with a clean set.
+    //
+    // Safety: store mutations from chat dispatch (e.g. Approve →
+    // /api/pipeline/general-run) fire subscribers reentrantly. We
+    // guard with _inSubscribe to prevent infinite loops if some
+    // future emit path accidentally writes back into the store.
+    let _emittedMilestones = new Set();
+    let _milestoneRunId = null;
+    let _lastEmittedTs = 0;
+    let _inSubscribe = false;
+    let _progressUnsubscribe = null;
+
+    function _emitMilestone(m) {
+      if (!m || !m.id || _emittedMilestones.has(m.id)) return;
+      _emittedMilestones.add(m.id);
+      if (typeof m.ts === "number" && m.ts > _lastEmittedTs) _lastEmittedTs = m.ts;
+      const fallback = _PROGRESS_FALLBACKS[m.kind] || "";
+      const key = "chat.progress." + _PROGRESS_KIND_TO_KEY[m.kind];
+      const text = _t(key, fallback, m.params || {});
+      if (text) _appendSystem(text);
+    }
+
+    function _refreshProgress() {
+      if (_inSubscribe) return;
+      _inSubscribe = true;
+      try {
+        if (!_store || typeof _store.snapshot !== "function") return;
+        const snap = _store.snapshot();
+        const runId = (_selectors && typeof _selectors.selectActiveRunId === "function")
+          ? _selectors.selectActiveRunId(snap) : null;
+        // Reset dedupe set when the active run changes — a new task
+        // starts with a clean progress trail.
+        if (runId !== _milestoneRunId) {
+          _milestoneRunId = runId;
+          _emittedMilestones = new Set();
+          _lastEmittedTs = 0;
+        }
+        if (!_selectors || typeof _selectors.selectProgressMilestones !== "function") return;
+        const ms = _selectors.selectProgressMilestones(snap, runId, _lastEmittedTs) || [];
+        for (const m of ms) _emitMilestone(m);
+      } catch (err) {
+        try { console.warn("[chat] progress refresh failed:", err); } catch (_) {}
+      } finally {
+        _inSubscribe = false;
+      }
+    }
+
+    if (_store && typeof _store.subscribe === "function") {
+      try { _progressUnsubscribe = _store.subscribe(_refreshProgress); }
+      catch (_) { /* defensive — chat panel still works without progress */ }
+      // Prime once so any milestones already in the snapshot at mount
+      // time get rendered (e.g. panel re-mounts mid-run).
+      _refreshProgress();
+    }
+
     return {
       destroy: function () {
+        if (typeof _progressUnsubscribe === "function") {
+          try { _progressUnsubscribe(); } catch (_) {}
+          _progressUnsubscribe = null;
+        }
         if (chat.parentNode === root) {
           try { root.removeChild(chat); } catch (_) {}
         }
@@ -468,8 +559,29 @@
       _submit: _submit,
       _appendMessage: _appendMessage,
       _renderProposalCard: _renderProposalCard,
+      _refreshProgress: _refreshProgress,
+      _emitMilestone: _emitMilestone,
+      _emittedMilestones: function () { return _emittedMilestones; },
     };
   }
+
+  // UX-POLISH-1: milestone kind → i18n key + fallback text. Kept at
+  // module scope so the create() closure doesn't re-build the table
+  // on every panel mount.
+  const _PROGRESS_KIND_TO_KEY = Object.freeze({
+    phase_enter:       "phaseEnter",
+    iteration_start:   "iterStart",
+    iteration_done:    "iterDone",
+    pipeline_complete: "complete",
+    pipeline_error:    "error",
+  });
+  const _PROGRESS_FALLBACKS = Object.freeze({
+    phase_enter:       "{phase} 단계 진입",
+    iteration_start:   "{n}번 비평 진행 중…",
+    iteration_done:    "{n}번 비평 완료 (CRITICAL {c} · HIGH {h})",
+    pipeline_complete: "✓ 작업 완료 ({iters}번 반복, 총 {sec}초)",
+    pipeline_error:    "✗ 작업 실패: {msg}",
+  });
 
   return {
     create,

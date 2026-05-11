@@ -1,10 +1,14 @@
 // LAYOUT-REORG-PRO-0 (2026-05-08) — findings drawer.
+// UX-POLISH-1 (2026-05-11) — added iteration summary section + i18n
+// fix (drawer.findings.* keys now resolve to Korean/English instead of
+// rendering raw strings) + enriched finding messages (severity + text).
 //
-// Right-side slide-in drawer that surfaces 3 monitor sections that
+// Right-side slide-in drawer that surfaces 4 monitor sections that
 // previously lived as standalone cards in the monitor-grid:
-//   1. Findings detail (full list with severity / file / line / message)
-//   2. TOOL CALLS timeline
-//   3. CRITIQUE timeline
+//   1. Iteration summary (NEW UX-POLISH-1 — total count + drivers + per-iter timing)
+//   2. Findings detail (full list with severity / file / line / message)
+//   3. TOOL CALLS timeline
+//   4. CRITIQUE timeline
 //
 // Triggered by clicking the FINDINGS card in the (now smaller)
 // monitor-grid. Per user direction, the operator wants these 3
@@ -37,8 +41,19 @@
 })(typeof window !== "undefined" ? window : globalThis, function () {
 
   function _t(t, key, fallback) {
+    // UX-POLISH-1 (2026-05-11): OrchestratorI18n.t (public/js/i18n.js)
+    // returns the lookup key itself when there's no entry in the
+    // active locale table (see i18n.js:61). The drawer used to render
+    // that raw key directly (the "drawer.findings.title" bug). Detect
+    // the miss + substitute the fallback so the surface never shows
+    // a key string in production. If `t` returns a properly resolved
+    // string (anything OTHER than the bare key), trust it — the
+    // operator may have a custom locale active.
     if (typeof t === "function") {
-      try { return t(key, fallback); } catch (_) { return fallback; }
+      try {
+        const v = t(key, fallback);
+        if (v != null && v !== key) return v;
+      } catch (_) { /* fall through to fallback */ }
     }
     return fallback;
   }
@@ -126,10 +141,15 @@
       return { section: s, content: c };
     }
 
-    const findingsSec = _section("findings", _t(t, "drawer.findings.section.findings", "발견 사항"));
-    const toolsSec    = _section("tools",    _t(t, "drawer.findings.section.tools",    "도구 호출"));
-    const critiqueSec = _section("critique", _t(t, "drawer.findings.section.critique", "비평 타임라인"));
+    // UX-POLISH-1 (2026-05-11): iteration section mounts FIRST so the
+    // operator sees "어떤 작업을 몇 번 진행했는지" + "어떤 CRITICAL/HIGH
+    // 가 비평 반복을 유발했는지" before scrolling into the raw lists.
+    const iterationsSec = _section("iterations", _t(t, "drawer.findings.section.iterations", "비평 반복"));
+    const findingsSec   = _section("findings",   _t(t, "drawer.findings.section.findings",   "발견 사항"));
+    const toolsSec      = _section("tools",      _t(t, "drawer.findings.section.tools",      "도구 호출"));
+    const critiqueSec   = _section("critique",   _t(t, "drawer.findings.section.critique",   "비평 타임라인"));
 
+    body.appendChild(iterationsSec.section);
     body.appendChild(findingsSec.section);
     body.appendChild(toolsSec.section);
     body.appendChild(critiqueSec.section);
@@ -144,6 +164,90 @@
     let priorFocus = null;
     let unsubscribe = null;
     let escListener = null;
+
+    // UX-POLISH-1 (2026-05-11): iteration summary renderer.
+    // Inputs come from selectIterationSummary(snap, runId):
+    //   { iterations, drivers: [...], timeline: [...] }
+    // Falls back to a friendly "아직 비평 반복이 없습니다." when empty.
+    function _renderIterations(summary) {
+      const c = iterationsSec.content;
+      while (c.firstChild) c.removeChild(c.firstChild);
+      if (!summary || (!summary.iterations && (!summary.drivers || summary.drivers.length === 0))) {
+        const empty = _doc.createElement("p");
+        empty.className = "prod-findings-drawer-empty";
+        empty.textContent = _t(t, "drawer.findings.empty.iterations", "아직 비평 반복이 없습니다.");
+        c.appendChild(empty);
+        return;
+      }
+      // 1) Total iteration count line.
+      const totalRow = _doc.createElement("div");
+      totalRow.className = "prod-findings-drawer-iter-total";
+      const totalLabel = _doc.createElement("span");
+      totalLabel.className = "prod-findings-drawer-iter-label";
+      totalLabel.textContent = _t(t, "drawer.findings.iteration.totalLabel", "총 진행:");
+      const totalValue = _doc.createElement("span");
+      totalValue.className = "prod-findings-drawer-iter-value";
+      totalValue.textContent = _t(t, "drawer.findings.iteration.totalValue", "{n}번")
+        .replace("{n}", String(summary.iterations || 0));
+      totalRow.appendChild(totalLabel);
+      totalRow.appendChild(totalValue);
+      c.appendChild(totalRow);
+      // 2) Drivers — what severity tiers triggered re-critique?
+      if (summary.drivers && summary.drivers.length > 0) {
+        const dh = _doc.createElement("h4");
+        dh.className = "prod-findings-drawer-iter-subhead";
+        dh.textContent = _t(t, "drawer.findings.iteration.driverHeader", "재진입 사유");
+        c.appendChild(dh);
+        const dlist = _doc.createElement("ul");
+        dlist.className = "prod-findings-drawer-iter-drivers";
+        for (const d of summary.drivers) {
+          const li = _doc.createElement("li");
+          li.className = "prod-findings-drawer-iter-driver";
+          li.setAttribute("data-severity", d.severity || "note");
+          const head = _doc.createElement("span");
+          head.className = "prod-findings-drawer-iter-driver-head";
+          head.textContent = _t(t, "drawer.findings.iteration.driverItem", "{sev} × {n}")
+            .replace("{sev}", String(d.severity || "").toUpperCase())
+            .replace("{n}", String(d.count || 0));
+          li.appendChild(head);
+          if (d.sampleMessage) {
+            const msg = _doc.createElement("span");
+            msg.className = "prod-findings-drawer-iter-driver-msg";
+            msg.textContent = " — " + d.sampleMessage;
+            li.appendChild(msg);
+          }
+          dlist.appendChild(li);
+        }
+        c.appendChild(dlist);
+      }
+      // 3) Per-iteration duration timeline.
+      if (summary.timeline && summary.timeline.length > 0) {
+        const th = _doc.createElement("h4");
+        th.className = "prod-findings-drawer-iter-subhead";
+        th.textContent = _t(t, "drawer.findings.iteration.timelineHeader", "단계별 소요");
+        c.appendChild(th);
+        const tlist = _doc.createElement("ol");
+        tlist.className = "prod-findings-drawer-iter-timeline";
+        for (const e of summary.timeline) {
+          const li = _doc.createElement("li");
+          li.className = "prod-findings-drawer-iter-timeline-row";
+          li.setAttribute("data-status", e.status || "done");
+          if (e.status === "active") {
+            li.textContent = _t(t, "drawer.findings.iteration.timelineActive", "{n}번 비평 — 진행 중")
+              .replace("{n}", String(e.n || 0));
+          } else {
+            const sec = (typeof e.durationMs === "number")
+              ? (Math.round(e.durationMs / 100) / 10).toFixed(1)
+              : "—";
+            li.textContent = _t(t, "drawer.findings.iteration.timelineItem", "{n}번 비평 — {sec}초")
+              .replace("{n}", String(e.n || 0))
+              .replace("{sec}", sec);
+          }
+          tlist.appendChild(li);
+        }
+        c.appendChild(tlist);
+      }
+    }
 
     function _renderFindings(arr) {
       const c = findingsSec.content;
@@ -259,6 +363,7 @@
       let snap;
       try { snap = store && store.snapshot(); } catch (_) { return; }
       if (!snap) {
+        _renderIterations(null);
         _renderFindings(null);
         _renderTools([]);
         _renderCritique([]);
@@ -266,9 +371,13 @@
       }
       const runId = selectors && typeof selectors.selectActiveRunId === "function"
         ? selectors.selectActiveRunId(snap) : null;
-      const findings  = selectors && selectors.selectFindings        && selectors.selectFindings(snap, runId);
-      const tools     = selectors && selectors.selectRecentToolCalls && selectors.selectRecentToolCalls(snap, runId, 30);
-      const critique  = selectors && selectors.selectCritique        && selectors.selectCritique(snap, runId);
+      // UX-POLISH-1: iteration summary feeds the new top section.
+      const iterations = selectors && selectors.selectIterationSummary
+        && selectors.selectIterationSummary(snap, runId);
+      const findings   = selectors && selectors.selectFindings        && selectors.selectFindings(snap, runId);
+      const tools      = selectors && selectors.selectRecentToolCalls && selectors.selectRecentToolCalls(snap, runId, 30);
+      const critique   = selectors && selectors.selectCritique        && selectors.selectCritique(snap, runId);
+      _renderIterations(iterations);
       _renderFindings(findings);
       _renderTools(tools);
       _renderCritique(critique);
@@ -333,6 +442,7 @@
     }
 
     // Initial render so opening is instant (no flicker).
+    _renderIterations(null);
     _renderFindings(null);
     _renderTools([]);
     _renderCritique([]);

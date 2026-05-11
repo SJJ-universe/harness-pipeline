@@ -374,6 +374,15 @@
       toastFn: opts.toastFn || null,
       intentUrl: opts.intentUrl || "/api/chat/intent",
       fetchImpl: opts.fetchImpl || null,
+      // UX-POLISH-1 (2026-05-11): chat panel subscribes to the store
+      // for lifecycle milestones (phase enter, critique iteration done,
+      // pipeline complete) and renders each as a [system] bubble. The
+      // selectors module supplies selectProgressMilestones; i18n
+      // supplies the chat.progress.* string table.
+      store: store,
+      selectors: (typeof window !== "undefined" && window.OrchestratorProductShellData)
+        || null,
+      i18n: (typeof window !== "undefined" && window.OrchestratorI18n) || null,
     });
 
     function setMode(next) {

@@ -312,6 +312,32 @@
     "policyPack.altDiff.fieldHeader":                    "규칙",
     "policyPack.altDiff.fromHeader":                     "현재 ({label})",
     "policyPack.altDiff.toHeader":                       "전환 시 ({label})",
+
+    // UX-POLISH-1 (2026-05-11) — findings drawer + chat progress bubbles.
+    "drawer.findings.title":                             "비평 요약 · 발견 사항 · 도구 호출",
+    "drawer.findings.aria":                              "비평 요약 + 발견 사항 + 도구 호출 + 비평 타임라인 drawer",
+    "drawer.findings.close":                             "닫기",
+    "drawer.findings.section.iterations":                "비평 반복",
+    "drawer.findings.section.findings":                  "발견 사항",
+    "drawer.findings.section.tools":                     "도구 호출",
+    "drawer.findings.section.critique":                  "비평 타임라인",
+    "drawer.findings.empty.iterations":                  "아직 비평 반복이 없습니다.",
+    "drawer.findings.empty.findings":                    "발견된 사항이 없습니다.",
+    "drawer.findings.empty.tools":                       "도구 호출 기록이 없습니다.",
+    "drawer.findings.empty.critique":                    "비평 타임라인이 비어 있습니다.",
+    "drawer.findings.iteration.totalLabel":              "총 진행:",
+    "drawer.findings.iteration.totalValue":              "{n}번",
+    "drawer.findings.iteration.driverHeader":            "재진입 사유",
+    "drawer.findings.iteration.driverItem":              "{sev} × {n}",
+    "drawer.findings.iteration.timelineHeader":          "단계별 소요",
+    "drawer.findings.iteration.timelineItem":            "{n}번 비평 — {sec}초",
+    "drawer.findings.iteration.timelineActive":          "{n}번 비평 — 진행 중",
+
+    "chat.progress.phaseEnter":                          "{phase} 단계 진입",
+    "chat.progress.iterStart":                           "{n}번 비평 진행 중…",
+    "chat.progress.iterDone":                            "{n}번 비평 완료 (CRITICAL {c} · HIGH {h})",
+    "chat.progress.complete":                            "✓ 작업 완료 ({iters}번 반복, 총 {sec}초)",
+    "chat.progress.error":                               "✗ 작업 실패: {msg}",
   };
 
   if (typeof module !== "undefined" && module.exports) {

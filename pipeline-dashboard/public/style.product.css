@@ -463,8 +463,16 @@ html, body {
 .prod-track-status-pill {
   position: absolute;
   right: 16px;
-  top: 50%;
-  transform: translateY(-50%);
+  /* UX-POLISH-1 (2026-05-11): anchored to top instead of vertical-
+   * center so the pill never overlaps the horse sprite (which is
+   * pinned at bottom: 8px of the 92px track). max-width + ellipsis
+   * defends against long stage labels (e.g. "STAGE 7/7 · DONE")
+   * wrapping to a second line and growing tall enough to crash into
+   * the sprite again. */
+  top: 8px;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-family: var(--prod-font-mono);
   font-size: var(--prod-fs-10);
   color: var(--prod-text-dim-55);
@@ -1966,6 +1974,76 @@ html, body {
   font-size: 11px;
   color: var(--prod-text-tertiary, #8b909a);
   flex-shrink: 0;
+}
+
+/* ── UX-POLISH-1 (2026-05-11) — drawer iteration summary section ──
+ * The new "비평 반복" / "Critique Iterations" section sits above
+ * findings/tools/critique. Shows total iteration count + which
+ * severity tiers triggered re-critique + per-iteration duration. */
+.prod-findings-drawer-iter-total {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding: 6px 8px;
+  background: rgba(201, 166, 107, 0.06);
+  border-left: 2px solid var(--prod-bronze, #c9a66b);
+  border-radius: 4px;
+}
+.prod-findings-drawer-iter-label {
+  font-size: 12px;
+  color: var(--prod-text-secondary, #b0b6c0);
+}
+.prod-findings-drawer-iter-value {
+  font-family: var(--prod-font-mono, 'Consolas', monospace);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--prod-bronze, #c9a66b);
+}
+.prod-findings-drawer-iter-subhead {
+  margin: 12px 0 6px 0;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--prod-text-tertiary, #8b909a);
+}
+.prod-findings-drawer-iter-drivers,
+.prod-findings-drawer-iter-timeline {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.prod-findings-drawer-iter-driver {
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 4px;
+  border-left: 2px solid rgba(255, 255, 255, 0.08);
+  font-size: 12px;
+}
+.prod-findings-drawer-iter-driver[data-severity="critical"] { border-left-color: #f7768e; }
+.prod-findings-drawer-iter-driver[data-severity="high"]     { border-left-color: #ff9e64; }
+.prod-findings-drawer-iter-driver[data-severity="medium"]   { border-left-color: #e0af68; }
+.prod-findings-drawer-iter-driver[data-severity="low"]      { border-left-color: #9ece6a; }
+.prod-findings-drawer-iter-driver-head {
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.prod-findings-drawer-iter-driver-msg {
+  color: var(--prod-text-tertiary, #8b909a);
+}
+.prod-findings-drawer-iter-timeline-row {
+  padding: 4px 8px;
+  font-family: var(--prod-font-mono, 'Consolas', monospace);
+  font-size: 11px;
+  color: var(--prod-text-secondary, #b0b6c0);
+}
+.prod-findings-drawer-iter-timeline-row[data-status="active"] {
+  color: var(--prod-bronze, #c9a66b);
+  font-weight: 600;
 }
 
 /* ── SIMPLE-MODE-VIZ-0 (2026-05-08) ── pipeline flow diagram + mode toggle */

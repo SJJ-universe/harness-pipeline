@@ -301,6 +301,32 @@
     "policyPack.altDiff.fieldHeader":                    "Rule",
     "policyPack.altDiff.fromHeader":                     "Current ({label})",
     "policyPack.altDiff.toHeader":                       "If switched ({label})",
+
+    // UX-POLISH-1 (2026-05-11) — findings drawer + chat progress bubbles.
+    "drawer.findings.title":                             "Critique Summary · Findings · Tool Calls",
+    "drawer.findings.aria":                              "Critique summary + findings + tool calls + critique timeline drawer",
+    "drawer.findings.close":                             "Close",
+    "drawer.findings.section.iterations":                "Critique Iterations",
+    "drawer.findings.section.findings":                  "Findings",
+    "drawer.findings.section.tools":                     "Tool Calls",
+    "drawer.findings.section.critique":                  "Critique Timeline",
+    "drawer.findings.empty.iterations":                  "No critique iterations yet.",
+    "drawer.findings.empty.findings":                    "No findings reported.",
+    "drawer.findings.empty.tools":                       "No tool calls recorded.",
+    "drawer.findings.empty.critique":                    "Critique timeline is empty.",
+    "drawer.findings.iteration.totalLabel":              "Total:",
+    "drawer.findings.iteration.totalValue":              "{n} iteration(s)",
+    "drawer.findings.iteration.driverHeader":            "Re-entry drivers",
+    "drawer.findings.iteration.driverItem":              "{sev} × {n}",
+    "drawer.findings.iteration.timelineHeader":          "Per-iteration duration",
+    "drawer.findings.iteration.timelineItem":            "Critique #{n} — {sec}s",
+    "drawer.findings.iteration.timelineActive":          "Critique #{n} — in progress",
+
+    "chat.progress.phaseEnter":                          "Entered phase {phase}",
+    "chat.progress.iterStart":                           "Critique #{n} starting…",
+    "chat.progress.iterDone":                            "Critique #{n} done (CRITICAL {c} · HIGH {h})",
+    "chat.progress.complete":                            "✓ Task complete ({iters} iterations, {sec}s total)",
+    "chat.progress.error":                               "✗ Task failed: {msg}",
   };
 
   if (typeof module !== "undefined" && module.exports) {
