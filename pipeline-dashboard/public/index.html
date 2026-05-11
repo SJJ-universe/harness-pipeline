@@ -107,6 +107,10 @@
        bottom strip. Loads after the existing panels so the shell
        module sees window.OrchestratorProductChatPanel during mount. -->
   <script src="js/monitor/panels/product-chat-panel.js"></script>
+  <!-- LAYOUT-REORG-PRO-0 (2026-05-08): findings drawer (right slide-in).
+       Loaded before product-shell so the shell can resolve
+       window.OrchestratorFindingsDrawer.mount during _mountPanel. -->
+  <script src="js/monitor/panels/findings-drawer.js"></script>
   <script src="js/monitor/shells/product-shell.js"></script>
 
   <!-- ────────────────────────────────────────────────────────────

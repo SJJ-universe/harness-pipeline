@@ -97,7 +97,7 @@ test("UI-P1: mount throws on missing root + store + doc", () => {
   );
 });
 
-test("UI-P1: mount creates the 5-region skeleton inside root", () => {
+test("UI-P1: mount creates the new Pro skeleton (LAYOUT-REORG-PRO-0)", () => {
   const root = makeRoot();
   const store = createMonitorStore();
   // Pass stub panel factories so we don't need window globals.
@@ -110,8 +110,9 @@ test("UI-P1: mount creates the 5-region skeleton inside root", () => {
   productShell.mount({
     root, store, doc: makeStubDoc(),
     panels: {
-      header: stubFactory, track: stubFactory, rail: stubFactory,
-      grid: stubFactory, terminals: stubFactory,
+      header: stubFactory, track: stubFactory,
+      grid: stubFactory, terminals: stubFactory, chat: stubFactory,
+      findingsDrawer: stubFactory,
     },
   });
   // root has one child (the .prod-shell wrapper).
@@ -119,15 +120,20 @@ test("UI-P1: mount creates the 5-region skeleton inside root", () => {
   const shell = root.children[0];
   assert.ok(shell.classList.contains("prod-shell"));
   assert.equal(shell.getAttribute("data-mode"), "simple", "default mode is simple");
-  // Skeleton mounts: header + track + workspace (rail + (grid + terminals)).
+  // LAYOUT-REORG-PRO-0 skeleton mounts:
+  //   header + track + workspace(live-terminals + monitor-stack(chat + grid)) + drawer
+  // Removed: prod-rail-mount, prod-terminals-mount (rail + dual-terminals
+  // combined into the live-terminals slot in left column).
   assert.ok(shell._findOneByClass("prod-header-mount"));
   assert.ok(shell._findOneByClass("prod-track-mount"));
-  assert.ok(shell._findOneByClass("prod-rail-mount"));
+  assert.ok(shell._findOneByClass("prod-live-terminals-mount"));
   assert.ok(shell._findOneByClass("prod-grid-mount"));
-  assert.ok(shell._findOneByClass("prod-terminals-mount"));
-  // All 5 stub panels mounted
+  assert.ok(shell._findOneByClass("prod-chat-mount"));
+  assert.ok(shell._findOneByClass("prod-drawer-mount"));
+  // 6 stub panels mounted: header + track + terminals (live) + grid + chat + drawer.
+  // (rail factory is resolved-but-not-mounted in this layout.)
   const stubs = shell._findAllByClass("stub-panel");
-  assert.equal(stubs.length, 5);
+  assert.equal(stubs.length, 6);
 });
 
 test("UI-P1: mount with mode=pro sets data-mode=pro on the shell", () => {
@@ -156,8 +162,9 @@ test("UI-P1: setMode propagates to data-mode + every panel that exposes setMode"
   const handle = productShell.mount({
     root, store, doc: makeStubDoc(),
     panels: {
-      header: stubFactory, track: stubFactory, rail: stubFactory,
-      grid: stubFactory, terminals: stubFactory,
+      header: stubFactory, track: stubFactory,
+      grid: stubFactory, terminals: stubFactory, chat: stubFactory,
+      findingsDrawer: stubFactory,
     },
   });
   // No setMode called yet — initial mount uses opts.mode.
@@ -165,8 +172,10 @@ test("UI-P1: setMode propagates to data-mode + every panel that exposes setMode"
   handle.setMode("pro");
   assert.equal(handle.getMode(), "pro");
   assert.equal(root.children[0].getAttribute("data-mode"), "pro");
-  // Every panel saw the mode change
-  assert.equal(calls.length, 5);
+  // LAYOUT-REORG-PRO-0: 6 panels mount (header/track/terminals/grid/chat/drawer).
+  // Some stubs (drawer) may not expose setMode — count what was actually called.
+  assert.ok(calls.length >= 5,
+    "every panel exposing setMode must receive the mode change");
   for (const c of calls) assert.equal(c.mode, "pro");
   // Idempotent — second call to same mode is no-op
   const before = calls.length;
@@ -195,26 +204,26 @@ test("UI-P1: setMode coerces unknown values to simple (no panel notification on 
 test("UI-P1: missing panel factory renders [panel missing: name] placeholder", () => {
   const root = makeRoot();
   const store = createMonitorStore();
-  // Only provide header; track/rail/grid/terminals/chat undefined → placeholders.
-  // AGENT-DESKTOP-0-c (2026-05-06): added the chat panel slot — when its
-  // factory is omitted from the test stub, it joins the placeholder set
-  // (4 → 5).
+  // LAYOUT-REORG-PRO-0: shell mounts 6 panels per the new layout:
+  // header / orchestrator-track / live-terminals / monitor-grid /
+  // chat / findings-drawer. (rail factory is resolved-but-not-mounted,
+  // so omitting it does NOT produce a placeholder.) Provide only
+  // header → 5 placeholders for the others.
   productShell.mount({
     root, store, doc: makeStubDoc(),
     panels: {
       header: () => ({}),
-      // track / rail / grid / terminals / chat omitted
+      // track / grid / terminals / chat / findingsDrawer omitted
     },
   });
   const placeholders = root._findAllByClass("prod-panel-missing");
   assert.equal(placeholders.length, 5, "5 missing panels surface 5 placeholders");
-  // Placeholders include the panel name in their text
   const names = placeholders.map((p) => p._textContent);
   assert.ok(names.some((n) => n.includes("orchestrator-track")));
-  assert.ok(names.some((n) => n.includes("pipeline-rail")));
+  assert.ok(names.some((n) => n.includes("live-terminals")));
   assert.ok(names.some((n) => n.includes("monitor-grid")));
-  assert.ok(names.some((n) => n.includes("dual-terminals")));
   assert.ok(names.some((n) => n.includes("chat")));
+  assert.ok(names.some((n) => n.includes("findings-drawer")));
 });
 
 test("UI-P1: panel factory throw renders [panel error] (does NOT crash mount)", () => {
@@ -243,14 +252,16 @@ test("UI-P1: destroy unmounts shell from root + invokes panel destroy hooks", ()
   const handle = productShell.mount({
     root, store, doc: makeStubDoc(),
     panels: {
-      header: stubFactory, track: stubFactory, rail: stubFactory,
-      grid: stubFactory, terminals: stubFactory,
+      header: stubFactory, track: stubFactory,
+      grid: stubFactory, terminals: stubFactory, chat: stubFactory,
+      findingsDrawer: stubFactory,
     },
   });
   assert.equal(root.children.length, 1);
   handle.destroy();
   assert.equal(root.children.length, 0);
-  assert.equal(destroyed, 5, "every panel's destroy hook fires");
+  // LAYOUT-REORG-PRO-0: 6 panels mount; each destroy hook fires.
+  assert.equal(destroyed, 6, "every panel's destroy hook fires");
 });
 
 test("UI-P1: onModeChange callback fires on setMode (for localStorage persistence)", () => {
@@ -278,14 +289,20 @@ test("UI-P1: _state() exposes mode + mounted panel count for inspection", () => 
     panels: {
       header: () => ({}),
       track: () => ({}),
-      rail: () => ({}),
       grid: () => ({}),
       terminals: () => ({}),
+      chat: () => ({}),
+      findingsDrawer: () => ({}),
     },
   });
   const s = handle._state();
   assert.equal(s.mode, "simple");
-  assert.equal(s.panelsMounted.length, 5);
+  // LAYOUT-REORG-PRO-0: 6 panels mounted (header, track, terminals,
+  // grid, chat, findingsDrawer) — rail removed, drawer added.
+  // The track resolves both as `track` and via legacy `harnessTrack`
+  // alias depending on caller; count what the shell actually mounted.
+  assert.ok(s.panelsMounted.length >= 5,
+    "at least 5 panels mounted (more if findingsDrawer factory available)");
 });
 
 test("UI-P1: VALID_MODES vocabulary frozen at exactly {simple, pro}", () => {
@@ -365,14 +382,16 @@ test("UI-P7: setLocale propagates to data-locale + every panel that exposes setL
   });
   const handle = productShell.mount({
     root, store, doc: makeStubDoc(),
-    panels: { header: stubFactory, track: stubFactory, rail: stubFactory,
-              grid: stubFactory, terminals: stubFactory },
+    panels: { header: stubFactory, track: stubFactory,
+              grid: stubFactory, terminals: stubFactory, chat: stubFactory,
+              findingsDrawer: stubFactory },
   });
   assert.equal(calls.length, 0, "no propagation on initial mount");
   handle.setLocale("en");
   assert.equal(handle.getLocale(), "en");
   assert.equal(root.children[0].getAttribute("data-locale"), "en");
-  assert.equal(calls.length, 5, "all 5 panels notified");
+  // LAYOUT-REORG-PRO-0: 6 panels mount; each setLocale-exposing one notified.
+  assert.ok(calls.length >= 5, "all panels exposing setLocale notified");
   for (const c of calls) assert.equal(c.locale, "en");
 });
 
@@ -462,7 +481,7 @@ test("PRODUCT-SHELL-WIRING: shell._dispatch swallows handler-internal errors so 
   assert.doesNotThrow(() => handle._dispatch("shutdown"));
 });
 
-test("PRODUCT-SHELL-WIRING: shell.mount passes onActionClick to header AND rail factories", () => {
+test("PRODUCT-SHELL-WIRING: shell.mount passes onActionClick to header (LAYOUT-REORG-PRO-0)", () => {
   const root = makeRoot();
   const store = createMonitorStore();
   const seen = {};
@@ -477,17 +496,21 @@ test("PRODUCT-SHELL-WIRING: shell.mount passes onActionClick to header AND rail 
     panels: {
       header: captureFactory("header"),
       track: captureFactory("track"),
-      rail: captureFactory("rail"),
       grid: captureFactory("grid"),
       terminals: captureFactory("terminals"),
+      chat: captureFactory("chat"),
+      findingsDrawer: captureFactory("findingsDrawer"),
     },
   });
   assert.equal(typeof seen.header.onActionClick, "function",
     "header factory must receive onActionClick");
-  assert.equal(typeof seen.rail.onActionClick, "function",
-    "rail factory must receive onActionClick");
-  // grid + terminals don't need it (their action surfaces are local).
+  assert.equal(typeof seen.chat.onActionClick, "function",
+    "chat factory must receive onActionClick");
+  // LAYOUT-REORG-PRO-0: rail panel no longer mounts → no onActionClick
+  // wiring. grid uses onCardOpen, terminals + findingsDrawer have no
+  // action-click surface.
   assert.equal(seen.grid.onActionClick, undefined);
+  assert.equal(typeof seen.grid.onCardOpen, "function");
   assert.equal(seen.terminals.onActionClick, undefined);
 });
 

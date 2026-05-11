@@ -600,47 +600,27 @@
     terminals.appendChild(left.el);
     terminals.appendChild(right.el);
 
-    // UI-P6: action row only when client is wired. Tests + UI-P4
-    // callers without a client get the original mock-only view.
+    // LAYOUT-REORG-PRO-0 (2026-05-08): the review-relay action row
+    // (Start session / Send to Codex / Follow up / Hand back /
+    // Archive) was REMOVED from the product shell per user direction.
+    // The Claude/Codex terminals are now a pure live-output view —
+    // operator interaction goes through the natural-language chat
+    // panel (which has its own approve/edit/cancel proposal UX).
+    //
+    // The handlers (_onSendToCodex, _onHandBack, etc.) and the row
+    // builder (_renderActionRow) are kept in the file in case a
+    // future round wants to surface review sessions as a separate
+    // view; they're just not invoked from the panel anymore.
+    //
+    // Backward compat: if a caller still passes opts.client, the
+    // handlers + state machine are still wired (for unit tests that
+    // exercise the underlying review-relay logic) — only the UI row
+    // mount is suppressed. The streamOnly synthetic-session guard
+    // from PRODUCT-LIVE-STREAM-0 Gap G is now the universal default.
     let actionRowEl = null;
     function _renderActionRowIfNeeded() {
-      if (!client) return;
-      // PRODUCT-LIVE-STREAM-0 Gap G: when the active session is a
-      // synthetic projection from the general-task pipeline (tagged
-      // streamOnly: true by legacy-bridge._syncGeneralStreamFromEvent),
-      // the review-relay action row would point at a session id that
-      // doesn't exist on the server (e.g. "general:gr-...") — the
-      // buttons (Start session / Send to Codex / Follow up / Hand
-      // back / Archive) would all hit 404. Skip the row entirely so
-      // those buttons aren't even visible. The terminals themselves
-      // still stream content; only the action row is suppressed.
-      const _active = _resolveActiveSession && _resolveActiveSession();
-      if (_active && _active.streamOnly) {
-        if (actionRowEl && actionRowEl.parentNode === wrap) {
-          try { wrap.removeChild(actionRowEl); } catch (_) {}
-          actionRowEl = null;
-        }
-        return;
-      }
-      if (actionRowEl && actionRowEl.parentNode === wrap) {
-        try { wrap.removeChild(actionRowEl); } catch (_) {}
-      }
-      const ctx = {
-        activeSession: _resolveActiveSession(),
-        posture: _resolvePosture(),
-        inFlight: inFlight,
-        t: _t,
-        handlers: {
-          onError: _onError,
-          onStart: _onStartSession,
-          onSendCodex: _onSendToCodex,
-          onFollowUp: _onFollowUp,
-          onHandBack: _onHandBack,
-          onArchive: _onArchive,
-        },
-      };
-      actionRowEl = _renderActionRow(_doc, ctx);
-      wrap.appendChild(actionRowEl);
+      // No-op in the new layout. Action row never mounts.
+      return;
     }
 
     function _askInstruction(message) {

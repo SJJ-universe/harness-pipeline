@@ -31,6 +31,7 @@
       "js/monitor/panels/product-monitor-grid.js",
       "js/monitor/panels/product-dual-terminals.js",
       "js/monitor/panels/product-chat-panel.js",
+      "js/monitor/panels/findings-drawer.js",
       "js/monitor/shells/product-shell.js",
       "js/focus-trap.js",
       "js/general-pipeline-modal.js",
@@ -397,12 +398,9 @@
       ],
       "regionMounts": [],
       "cards": [
-        "codex-live",
         "context",
-        "critique",
         "findings",
         "subagents",
-        "tools",
         "verify"
       ],
       "headerSlots": [],
@@ -410,7 +408,9 @@
       "railSlots": [],
       "actionsSlots": [],
       "indicators": [],
-      "actions": [],
+      "actions": [
+        "open-findings-drawer"
+      ],
       "tabs": [],
       "tiers": [
         "critical",
@@ -419,17 +419,11 @@
         "medium",
         "note"
       ],
-      "tools": [
-        "Bash",
-        "Edit",
-        "Grep",
-        "Read",
-        "Write"
-      ],
+      "tools": [],
       "modes": [],
       "laneIndices": [],
       "gateLanes": 0,
-      "proOnlyCount": 2
+      "proOnlyCount": 1
     },
     "dual-terminals": {
       "regions": [
@@ -462,12 +456,12 @@
       ],
       "regionMounts": [
         "chat",
-        "dual-terminals",
+        "findings-drawer",
         "header",
+        "live-terminals",
         "monitor-grid",
         "monitor-stack",
         "orchestrator-track",
-        "pipeline-rail",
         "workspace"
       ],
       "cards": [],

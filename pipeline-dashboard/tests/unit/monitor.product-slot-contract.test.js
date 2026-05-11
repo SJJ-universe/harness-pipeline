@@ -158,10 +158,12 @@ test("UI-P4 contract: shell skeleton carries data-region-mount slots for all pan
       grid: stubFactory, terminals: stubFactory, chat: stubFactory,
     },
   });
-  const expected = ["header", "orchestrator-track", "workspace", "pipeline-rail",
-    "monitor-stack", "monitor-grid", "dual-terminals",
-    // AGENT-DESKTOP-0-c (2026-05-06): chat panel mount slot.
-    "chat"];
+  // LAYOUT-REORG-PRO-0 (2026-05-08): mount slots updated to match
+  // the new Pro layout. Removed: pipeline-rail, dual-terminals.
+  // Added: live-terminals, findings-drawer.
+  const expected = ["header", "orchestrator-track", "workspace",
+    "live-terminals", "monitor-stack", "monitor-grid", "chat",
+    "findings-drawer"];
   for (const slot of expected) {
     assert.ok(root._findOneByAttr("data-region-mount", slot),
       `shell must declare mount slot data-region-mount="${slot}"`,
@@ -171,12 +173,15 @@ test("UI-P4 contract: shell skeleton carries data-region-mount slots for all pan
 
 // ── Monitor grid card vocabulary ────────────────────────────────
 
-test("UI-P4 contract: monitor-grid renders 7 documented cards", () => {
+test("UI-P4 contract: monitor-grid renders 4 documented cards (LAYOUT-REORG-PRO-0)", () => {
   const root = makeRoot();
   const store = createMonitorStore();
   productMonitorGrid.create({ root, store, doc: makeStubDoc(), mode: "pro" });
-  const expectedCards = ["findings", "context", "verify", "codex-live",
-    "subagents", "tools", "critique"];
+  // LAYOUT-REORG-PRO-0 (2026-05-08): grid trimmed from 7 to 4 cards.
+  // Removed cards' surfaces moved as follows:
+  //   codex-live → live-terminals panel (left column)
+  //   tools, critique → findings drawer (slide in on FINDINGS click)
+  const expectedCards = ["findings", "context", "verify", "subagents"];
   for (const id of expectedCards) {
     const card = root._findOneByAttr("data-card", id);
     assert.ok(card, `monitor-grid must render card data-card="${id}"`);
@@ -184,6 +189,23 @@ test("UI-P4 contract: monitor-grid renders 7 documented cards", () => {
       `card "${id}" must carry aria-label`,
     );
   }
+  // Removed cards must NOT be present anymore.
+  for (const id of ["codex-live", "tools", "critique"]) {
+    assert.equal(root._findOneByAttr("data-card", id), null,
+      `monitor-grid must NOT render removed card data-card="${id}"`,
+    );
+  }
+});
+
+test("UI-P4 contract: FINDINGS card is clickable (data-action + role + tabindex)", () => {
+  const root = makeRoot();
+  const store = createMonitorStore();
+  productMonitorGrid.create({ root, store, doc: makeStubDoc(), mode: "pro" });
+  const findingsCard = root._findOneByAttr("data-card", "findings");
+  assert.ok(findingsCard);
+  assert.equal(findingsCard.attributes["data-action"], "open-findings-drawer");
+  assert.equal(findingsCard.attributes["role"], "button");
+  assert.equal(findingsCard.attributes["tabindex"], "0");
 });
 
 test("UI-P4 contract: findings card has 5 tiers in documented order", () => {
@@ -201,7 +223,7 @@ test("UI-P4 contract: findings card has 5 tiers in documented order", () => {
   );
 });
 
-test("UI-P4 contract: tool feed renders one row per MOCK_TOOL_FEED entry", () => {
+test("UI-P4 contract: tool feed renders one row per MOCK_TOOL_FEED entry", { skip: "LAYOUT-REORG-PRO-0: tool-feed card moved to findings-drawer" }, () => {
   const root = makeRoot();
   const store = createMonitorStore();
   productMonitorGrid.create({ root, store, doc: makeStubDoc(), mode: "pro" });
@@ -234,7 +256,7 @@ test("runtime contract: monitor grid can suppress reference mock feed", () => {
   assert.equal(critiqueRows.length, 0, "empty runtime state must not render mock critique bubbles");
 });
 
-test("runtime contract: codex-live card reports idle (not 'live') when allowMockData=false and no stream", () => {
+test("runtime contract: codex-live card reports idle (not 'live') when allowMockData=false and no stream", { skip: "LAYOUT-REORG-PRO-0: codex-live card moved to live-terminals" }, () => {
   const root = makeRoot();
   const store = createMonitorStore();
   productMonitorGrid.create({
@@ -267,7 +289,7 @@ test("runtime contract: codex-live card reports idle (not 'live') when allowMock
   }
 });
 
-test("runtime contract: codex-live card preserves demo affordance when allowMockData=true", () => {
+test("runtime contract: codex-live card preserves demo affordance when allowMockData=true", { skip: "LAYOUT-REORG-PRO-0: codex-live card moved to live-terminals" }, () => {
   const root = makeRoot();
   const store = createMonitorStore();
   productMonitorGrid.create({
@@ -290,7 +312,7 @@ test("runtime contract: codex-live card preserves demo affordance when allowMock
     "demo mode meta should display the reference model string");
 });
 
-test("UI-P4 contract: critique stream renders bubbles with data-side + data-actor", () => {
+test("UI-P4 contract: critique stream renders bubbles with data-side + data-actor", { skip: "LAYOUT-REORG-PRO-0: critique card moved to findings-drawer" }, () => {
   const root = makeRoot();
   const store = createMonitorStore();
   productMonitorGrid.create({ root, store, doc: makeStubDoc(), mode: "pro" });

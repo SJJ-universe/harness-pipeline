@@ -154,7 +154,7 @@ test("UI-P6: action row absent when no client provided (backward compat)", () =>
   assert.equal(handle._state().hasActionRow, false);
 });
 
-test("UI-P6: action row appears with 5 documented action buttons", () => {
+test("UI-P6: action row appears with 5 documented action buttons", { skip: "LAYOUT-REORG-PRO-0: review-relay action row removed in this round" }, () => {
   const root = makeRoot();
   const store = createMonitorStore();
   const client = makeSpyClient();
@@ -181,7 +181,7 @@ test("UI-P6: action row appears with 5 documented action buttons", () => {
 
 // ── State-aware enable/disable ───────────────────────────────────
 
-test("UI-P6: with no session — only Start button enabled", () => {
+test("UI-P6: with no session — only Start button enabled", { skip: "LAYOUT-REORG-PRO-0: review-relay action row removed in this round" }, () => {
   const root = makeRoot();
   const store = createMonitorStore();
   const client = makeSpyClient();
@@ -196,7 +196,7 @@ test("UI-P6: with no session — only Start button enabled", () => {
   assert.equal(archive.disabled, true);
 });
 
-test("UI-P6: state=created — Send to Codex enabled", () => {
+test("UI-P6: state=created — Send to Codex enabled", { skip: "LAYOUT-REORG-PRO-0: review-relay action row removed in this round" }, () => {
   const root = makeRoot();
   const store = createMonitorStore();
   store.upsertReviewSession("s1", { sessionId: "s1", state: "created", runId: null });
@@ -210,7 +210,7 @@ test("UI-P6: state=created — Send to Codex enabled", () => {
   assert.equal(root._findOneByAttr("data-action-id", "hand-back").disabled, true);
 });
 
-test("UI-P6: state=critique_received — Hand back to Claude enabled", () => {
+test("UI-P6: state=critique_received — Hand back to Claude enabled", { skip: "LAYOUT-REORG-PRO-0: review-relay action row removed in this round" }, () => {
   const root = makeRoot();
   const store = createMonitorStore();
   store.upsertReviewSession("s1", { sessionId: "s1", state: "critique_received", runId: null });
@@ -225,7 +225,7 @@ test("UI-P6: state=critique_received — Hand back to Claude enabled", () => {
   assert.equal(root._findOneByAttr("data-action-id", "archive").disabled, false);
 });
 
-test("UI-P6: state=archived — all action buttons disabled except start", () => {
+test("UI-P6: state=archived — all action buttons disabled except start", { skip: "LAYOUT-REORG-PRO-0: review-relay action row removed in this round" }, () => {
   const root = makeRoot();
   const store = createMonitorStore();
   store.upsertReviewSession("s1", { sessionId: "s1", state: "archived", runId: null });
@@ -243,7 +243,7 @@ test("UI-P6: state=archived — all action buttons disabled except start", () =>
 
 // ── Public-sector posture ────────────────────────────────────────
 
-test("UI-P6: public-sector + !allowLocalExecutor hides hand-back + shows badge", () => {
+test("UI-P6: public-sector + !allowLocalExecutor hides hand-back + shows badge", { skip: "LAYOUT-REORG-PRO-0: review-relay action row removed in this round" }, () => {
   const root = makeRoot();
   const store = createMonitorStore();
   // Stamp posture into accountStatus slice
@@ -263,7 +263,7 @@ test("UI-P6: public-sector + !allowLocalExecutor hides hand-back + shows badge",
   assert.match(badge.textContent, /공공기관/);
 });
 
-test("UI-P6: standard posture keeps hand-back AND omits posture badge", () => {
+test("UI-P6: standard posture keeps hand-back AND omits posture badge", { skip: "LAYOUT-REORG-PRO-0: review-relay action row removed in this round" }, () => {
   const root = makeRoot();
   const store = createMonitorStore();
   // No accountStatus → defaults to standard
@@ -279,7 +279,7 @@ test("UI-P6: standard posture keeps hand-back AND omits posture badge", () => {
 
 // ── Click → client method dispatch ───────────────────────────────
 
-test("UI-P6: Start → client.createSession with prompt label", async () => {
+test("UI-P6: Start → client.createSession with prompt label", { skip: "LAYOUT-REORG-PRO-0: review-relay action row removed in this round" }, async () => {
   const root = makeRoot();
   const store = createMonitorStore();
   const client = makeSpyClient();
@@ -294,7 +294,7 @@ test("UI-P6: Start → client.createSession with prompt label", async () => {
   assert.equal(client.calls.createSession[0].label, "보안 리뷰 라운드");
 });
 
-test("UI-P6: Send to Codex → client.sendToCodex with sessionId + instruction", async () => {
+test("UI-P6: Send to Codex → client.sendToCodex with sessionId + instruction", { skip: "LAYOUT-REORG-PRO-0: review-relay action row removed in this round" }, async () => {
   const root = makeRoot();
   const store = createMonitorStore();
   store.upsertReviewSession("rs-1", { sessionId: "rs-1", state: "created", runId: null });
@@ -311,7 +311,7 @@ test("UI-P6: Send to Codex → client.sendToCodex with sessionId + instruction",
   assert.equal(client.calls.sendToCodex[0].opts.instruction, "정확성 리뷰");
 });
 
-test("UI-P6: Hand back → client.handBackToClaude in standard posture", async () => {
+test("UI-P6: Hand back → client.handBackToClaude in standard posture", { skip: "LAYOUT-REORG-PRO-0: review-relay action row removed in this round" }, async () => {
   const root = makeRoot();
   const store = createMonitorStore();
   store.upsertReviewSession("rs-1", { sessionId: "rs-1", state: "critique_received", runId: null });
@@ -328,7 +328,7 @@ test("UI-P6: Hand back → client.handBackToClaude in standard posture", async (
   assert.equal(client.calls.handBackToClaude[0].opts.instruction, "보안 권고 반영하세요");
 });
 
-test("UI-P6: Archive → confirm + client.archiveSession", async () => {
+test("UI-P6: Archive → confirm + client.archiveSession", { skip: "LAYOUT-REORG-PRO-0: review-relay action row removed in this round" }, async () => {
   const root = makeRoot();
   const store = createMonitorStore();
   store.upsertReviewSession("rs-1", { sessionId: "rs-1", state: "claude_received", runId: null });
@@ -344,7 +344,7 @@ test("UI-P6: Archive → confirm + client.archiveSession", async () => {
   assert.equal(client.calls.archiveSession[0].sessionId, "rs-1");
 });
 
-test("UI-P6: prompt cancel (returns null) → no client call", async () => {
+test("UI-P6: prompt cancel (returns null) → no client call", { skip: "LAYOUT-REORG-PRO-0: review-relay action row removed in this round" }, async () => {
   const root = makeRoot();
   const store = createMonitorStore();
   const client = makeSpyClient();
@@ -359,7 +359,7 @@ test("UI-P6: prompt cancel (returns null) → no client call", async () => {
 
 // ── Errors → onError callback ────────────────────────────────────
 
-test("UI-P6: client.sendToCodex throw → onError invoked, panel survives", async () => {
+test("UI-P6: client.sendToCodex throw → onError invoked, panel survives", { skip: "LAYOUT-REORG-PRO-0: review-relay action row removed in this round" }, async () => {
   const root = makeRoot();
   const store = createMonitorStore();
   store.upsertReviewSession("rs-1", { sessionId: "rs-1", state: "created", runId: null });
@@ -438,7 +438,7 @@ test("UI-P6: rerender on store change reflects new chunks", () => {
 
 // ── Slot contract additions for UI-P6 ────────────────────────────
 
-test("UI-P6 contract: action row carries data-region=dual-terminals-actions", () => {
+test("UI-P6 contract: action row carries data-region=dual-terminals-actions", { skip: "LAYOUT-REORG-PRO-0: review-relay action row removed" }, () => {
   const root = makeRoot();
   const store = createMonitorStore();
   const client = makeSpyClient();

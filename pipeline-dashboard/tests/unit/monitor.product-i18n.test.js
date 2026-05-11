@@ -288,7 +288,7 @@ test("UI-P7: header without i18n falls back to Korean defaults (Node test path)"
 
 // ── product-dual-terminals renders translated action row ─────────
 
-test("UI-P7: dual-terminals action row labels + posture use i18n", () => {
+test("UI-P7: dual-terminals action row labels + posture use i18n", { skip: "LAYOUT-REORG-PRO-0: action row removed" }, () => {
   const root = makeRoot();
   const store = createMonitorStore();
   store.upsertReviewSession("s1", { sessionId: "s1", state: "critique_received", runId: null });
@@ -315,7 +315,7 @@ test("UI-P7: dual-terminals action row labels + posture use i18n", () => {
   assert.match(badge.textContent, /Public-sector/, "EN posture text");
 });
 
-test("UI-P7: dual-terminals.setLocale('en') refreshes action row labels", () => {
+test("UI-P7: dual-terminals.setLocale('en') refreshes action row labels", { skip: "LAYOUT-REORG-PRO-0: action row removed" }, () => {
   const root = makeRoot();
   const store = createMonitorStore();
   store.upsertReviewSession("s1", { sessionId: "s1", state: "created", runId: null });
@@ -339,7 +339,7 @@ test("UI-P7: dual-terminals.setLocale('en') refreshes action row labels", () => 
   assert.equal(startBtn.textContent, en["prod.terminals.action.start"]);
 });
 
-test("UI-P7: dual-terminals without i18n falls back to Korean (Node test path)", () => {
+test("UI-P7: dual-terminals without i18n falls back to Korean (Node test path)", { skip: "LAYOUT-REORG-PRO-0: action row removed" }, () => {
   const root = makeRoot();
   const store = createMonitorStore();
   const client = { async createSession() {}, async sendToCodex() {},

@@ -171,14 +171,13 @@ test("UI-P9 visual contract: every product panel renders the documented region/s
   }
 });
 
-test("UI-P9 visual contract: monitor-grid renders 7 documented cards", () => {
+test("UI-P9 visual contract: monitor-grid renders 4 documented cards (LAYOUT-REORG-PRO-0)", () => {
   const actual = captureSnapshot();
   assert.deepEqual(
     actual.panels["monitor-grid"].cards.slice().sort(),
-    ["codex-live", "critique", "findings", "subagents", "tools", "verify"]
-      .concat(["context"]).sort(),
-    "monitor-grid must render the 7 cards documented in " +
-    "ui-reference-port-plan.md §4 reference layout"
+    ["context", "findings", "subagents", "verify"].sort(),
+    "monitor-grid must render the 4 cards remaining after LAYOUT-REORG-PRO-0 " +
+    "(codex-live → live-terminals; tools + critique → findings drawer)"
   );
 });
 
@@ -190,11 +189,13 @@ test("UI-P9 visual contract: orchestrator-track has 7 lanes + 3 gate markers", (
     "track must mark exactly 3 lanes as gates (CRITIQUE / RE-CHECK / VERIFY)");
 });
 
-test("UI-P9 visual contract: shell skeleton mounts 5 region slots", () => {
+test("UI-P9 visual contract: shell skeleton mounts new layout slots (LAYOUT-REORG-PRO-0)", () => {
   const actual = captureSnapshot();
+  // LAYOUT-REORG-PRO-0: pipeline-rail + dual-terminals removed;
+  // live-terminals + findings-drawer added.
   const required = ["header", "orchestrator-track", "workspace",
-                    "pipeline-rail", "monitor-stack",
-                    "monitor-grid", "dual-terminals"];
+                    "live-terminals", "monitor-stack",
+                    "monitor-grid", "chat", "findings-drawer"];
   for (const slot of required) {
     assert.ok(actual.panels.shell.regionMounts.indexOf(slot) >= 0,
       `shell skeleton must declare data-region-mount="${slot}"`);

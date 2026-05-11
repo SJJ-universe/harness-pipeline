@@ -136,9 +136,18 @@
       id: "findings",
       title: "발견 사항 · Findings",
       meta: mode === "pro" ? (isLive ? "5-tier · live" : "5-tier") : null,
-      extraClass: "prod-card-findings",
-      aria: "발견 사항 — 5단계 심각도별 카운트",
+      extraClass: "prod-card-findings prod-card-clickable",
+      aria: "발견 사항 — 5단계 심각도별 카운트 (클릭하여 상세/도구 호출/비평 타임라인 보기)",
     });
+    // LAYOUT-REORG-PRO-0: clickable card. The shell wires
+    // onCardOpen("findings") to the findings drawer's open() method,
+    // so a click reveals the full findings list, the tool-call
+    // timeline, and the critique timeline (the latter two used to
+    // live as standalone cards in this grid; they moved into the
+    // drawer to free up real-estate for the chat panel).
+    card.setAttribute("data-action", "open-findings-drawer");
+    card.setAttribute("role", "button");
+    card.setAttribute("tabindex", "0");
     const grid = _doc.createElement("div");
     grid.className = "prod-findings-grid";
     grid.setAttribute("data-card-slot", "tiers");
@@ -409,6 +418,12 @@
     const selectors = opts.dataSelectors
       || (typeof window !== "undefined" && window.OrchestratorProductShellData)
       || null;
+    // LAYOUT-REORG-PRO-0: optional callback fired when a clickable
+    // card (currently only FINDINGS) is activated. The shell wires
+    // this to findingsDrawer.open(). When omitted (tests / legacy
+    // callers), the click is a no-op.
+    const onCardOpen = typeof opts.onCardOpen === "function"
+      ? opts.onCardOpen : null;
 
     const grid = _doc.createElement("div");
     grid.className = "prod-grid";
@@ -454,21 +469,41 @@
       const data = _resolveData();
       while (grid.firstChild) grid.removeChild(grid.firstChild);
 
+      // LAYOUT-REORG-PRO-0: 4 cards remain in the grid:
+      //   FINDINGS (clickable → drawer), CONTEXT, VERIFY, SUBAGENTS
+      // Removed in this round (now elsewhere):
+      //   CODEX LIVE     → live terminals panel (left column)
+      //   TOOL CALLS     → findings drawer
+      //   CRITIQUE 타임라인 → findings drawer
       const statRow = _doc.createElement("div");
       statRow.className = "prod-grid-stat-row";
-      statRow.appendChild(_buildFindings(_doc, data.findings, mode));
+      const findingsCard = _buildFindings(_doc, data.findings, mode);
+      statRow.appendChild(findingsCard);
       statRow.appendChild(_buildContext(_doc, data.context));
       statRow.appendChild(_buildVerify(_doc, data.verify));
       grid.appendChild(statRow);
 
-      grid.appendChild(_buildCodexLive(_doc, data.codexLive, allowMockData));
       grid.appendChild(_buildSubagents(_doc, data.subagents));
 
-      const bottomRow = _doc.createElement("div");
-      bottomRow.className = "prod-grid-bottom-row";
-      bottomRow.appendChild(_buildToolFeed(_doc, data.tools, mode));
-      bottomRow.appendChild(_buildCritique(_doc, data.critique));
-      grid.appendChild(bottomRow);
+      // Wire FINDINGS click → onCardOpen("findings"). Defensive:
+      // when no handler is wired (tests / legacy), the card is still
+      // clickable but the action is a no-op (per opt contract).
+      if (findingsCard && typeof findingsCard.addEventListener === "function") {
+        findingsCard.addEventListener("click", function () {
+          if (onCardOpen) {
+            try { onCardOpen("findings"); } catch (_) { /* defensive */ }
+          }
+        });
+        findingsCard.addEventListener("keydown", function (e) {
+          if (!onCardOpen) return;
+          // Enter or Space activates clickable card (a11y).
+          const k = e && (e.key || "");
+          if (k === "Enter" || k === " " || k === "Spacebar") {
+            try { e.preventDefault && e.preventDefault(); } catch (_) {}
+            try { onCardOpen("findings"); } catch (_) { /* defensive */ }
+          }
+        });
+      }
 
       _applyMode();
     }

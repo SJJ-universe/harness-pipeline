@@ -187,7 +187,7 @@ test("PLS-0: synthetic session chunks render into terminals as live content", ()
 
 // ── DoD-5 / Gap G: real session beats synthetic on the same runId ────
 
-test("PLS-0 DoD-5: real review session for same runId takes precedence — action row mounts on the real one", () => {
+test("PLS-0 DoD-5: real review session for same runId takes precedence — action row mounts on the real one", { skip: "LAYOUT-REORG-PRO-0: action row removed, hijack defense moot" }, () => {
   const root = makeRoot();
   const store = createMonitorStore();
   store.upsertRun("R1", { status: "active" });
@@ -222,7 +222,7 @@ test("PLS-0 DoD-5: real review session for same runId takes precedence — actio
     "action row must mount for the real review session, not be hijacked by synthetic");
 });
 
-test("PLS-0 DoD-5: real session preferred even when synthetic has newer lastActivityAt", () => {
+test("PLS-0 DoD-5: real session preferred even when synthetic has newer lastActivityAt", { skip: "LAYOUT-REORG-PRO-0: action row removed, hijack defense moot" }, () => {
   // Edge case: synthetic ticked more recently (e.g. just got a codex_progress
   // chunk) but the real session is what the user is actually working on.
   const root = makeRoot();
@@ -259,7 +259,7 @@ test("PLS-0 DoD-5: real session preferred even when synthetic has newer lastActi
 
 // ── Backward compat: legacy session shape unchanged ──────────────────
 
-test("PLS-0: legacy review session (no streamOnly) still mounts action row as before", () => {
+test("PLS-0: legacy review session (no streamOnly) still mounts action row as before", { skip: "LAYOUT-REORG-PRO-0: action row removed" }, () => {
   const root = makeRoot();
   const store = createMonitorStore();
   store.upsertReviewSession("rs-1", {

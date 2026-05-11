@@ -114,6 +114,9 @@
       || (typeof window !== "undefined" && window.OrchestratorProductHeader && window.OrchestratorProductHeader.create);
     const trackFactory = panels.track
       || (typeof window !== "undefined" && window.OrchestratorProductTrack && window.OrchestratorProductTrack.create);
+    // LAYOUT-REORG-PRO-0: rail factory kept resolvable for tests +
+    // simple-mode fallback in a future round, but NOT mounted in the
+    // current Pro layout. See workspace section below.
     const railFactory = panels.rail
       || (typeof window !== "undefined" && window.OrchestratorProductPipelineRail && window.OrchestratorProductPipelineRail.create);
     const gridFactory = panels.grid
@@ -125,6 +128,11 @@
     // the chat region simply renders empty (gracefully degraded).
     const chatFactory = (panels && panels.chat)
       || (typeof window !== "undefined" && window.OrchestratorProductChatPanel && window.OrchestratorProductChatPanel.create);
+    // LAYOUT-REORG-PRO-0: findings drawer factory. Optional — when
+    // missing (tests or older bundles), the FINDINGS card click is
+    // a no-op (the card is still rendered + clickable).
+    const drawerFactory = (panels && panels.findingsDrawer)
+      || (typeof window !== "undefined" && window.OrchestratorFindingsDrawer && window.OrchestratorFindingsDrawer.mount);
 
     // Build skeleton DOM. The class names map 1:1 to style.product.css.
     // Each region carries data-region so UI-P5 wiring + visual
@@ -142,38 +150,65 @@
     trackMount.className = "prod-track-mount";
     trackMount.setAttribute("data-region-mount", "orchestrator-track");
 
+    // LAYOUT-REORG-PRO-0 (2026-05-08) — new Pro mode workspace:
+    //
+    //   ┌───────────────────────────────┬──────────────────────────┐
+    //   │ liveTerminalsMount (LEFT col) │ chatMount  (RIGHT, top)  │
+    //   │   Claude live output          │   natural-language chat  │
+    //   │   Codex live output           │   (bigger than before)   │
+    //   │                               ├──────────────────────────┤
+    //   │                               │ gridMount  (RIGHT, bot)  │
+    //   │                               │   4 cards: FINDINGS·CTX·│
+    //   │                               │   VERIFY·SUBAGENTS       │
+    //   └───────────────────────────────┴──────────────────────────┘
+    //
+    // Removed:
+    //   - pipelineRailMount   (left column was empty/mock anyway)
+    //   - dualTerminalsMount  (replaced by liveTerminalsMount in left col)
+    //   - sticky-bottom chat  (chat moved into right column)
+    //
+    // Added:
+    //   - drawerMount         (off-screen right slide-in for findings detail
+    //                          + tool calls + critique timeline)
+    //
+    // The legacy mount NAMES (gridMount, chatMount) are preserved so
+    // panel factories don't have to change their wiring expectations.
     const workspace = _doc.createElement("div");
     workspace.className = "prod-workspace";
     workspace.setAttribute("data-region-mount", "workspace");
-    const railMount = _doc.createElement("div");
-    railMount.className = "prod-rail-mount";
-    railMount.setAttribute("data-region-mount", "pipeline-rail");
+
+    // Left column: live terminals, large.
+    const liveTerminalsMount = _doc.createElement("div");
+    liveTerminalsMount.className = "prod-live-terminals-mount";
+    liveTerminalsMount.setAttribute("data-region-mount", "live-terminals");
+
+    // Right column: chat (top, larger) + monitor-grid (bottom, 4 cards).
     const stack = _doc.createElement("div");
     stack.className = "prod-monitor-stack";
     stack.setAttribute("data-region-mount", "monitor-stack");
+    const chatMount = _doc.createElement("div");
+    chatMount.className = "prod-chat-mount prod-chat-mount-inline";
+    chatMount.setAttribute("data-region-mount", "chat");
     const gridMount = _doc.createElement("div");
     gridMount.className = "prod-grid-mount";
     gridMount.setAttribute("data-region-mount", "monitor-grid");
-    const terminalsMount = _doc.createElement("div");
-    terminalsMount.className = "prod-terminals-mount";
-    terminalsMount.setAttribute("data-region-mount", "dual-terminals");
 
-    // AGENT-DESKTOP-0-c (2026-05-06): chat panel mount region.
-    // Sticky bottom strip below the workspace. ~200px tall when
-    // populated; the panel itself owns its internal layout.
-    const chatMount = _doc.createElement("div");
-    chatMount.className = "prod-chat-mount";
-    chatMount.setAttribute("data-region-mount", "chat");
-
+    stack.appendChild(chatMount);
     stack.appendChild(gridMount);
-    stack.appendChild(terminalsMount);
-    workspace.appendChild(railMount);
+    workspace.appendChild(liveTerminalsMount);
     workspace.appendChild(stack);
+
+    // Drawer mount: sibling of workspace so the slide-in transform
+    // doesn't fight the workspace flex layout. The drawer panel
+    // itself is positioned via CSS (right: 0; transform: translateX).
+    const drawerMount = _doc.createElement("div");
+    drawerMount.className = "prod-drawer-mount";
+    drawerMount.setAttribute("data-region-mount", "findings-drawer");
 
     shell.appendChild(headerMount);
     shell.appendChild(trackMount);
     shell.appendChild(workspace);
-    shell.appendChild(chatMount);
+    shell.appendChild(drawerMount);
 
     root.appendChild(shell);
 
@@ -261,19 +296,45 @@
       onActionClick: _dispatch,
     });
     handles.track = _mountPanel(trackFactory, trackMount, "orchestrator-track");
-    handles.rail = _mountPanel(railFactory, railMount, "pipeline-rail", {
-      // PRODUCT-SHELL-WIRING: route rail action buttons (pipeline-start,
-      // pipeline-compact, pipeline-template) through _dispatch.
-      onActionClick: _dispatch,
-    });
-    handles.grid = _mountPanel(gridFactory, gridMount, "monitor-grid");
-    // UI-P6: pass review-relay client to dual-terminals so the action
-    // row (start / send-codex / followup / hand-back / archive) is
-    // wired. When opts.reviewClient is null/undefined the terminals
-    // panel falls back to its UI-P4 mock-only view.
-    handles.terminals = _mountPanel(terminalsFactory, terminalsMount, "dual-terminals", {
-      client: opts.reviewClient || null,
+
+    // LAYOUT-REORG-PRO-0: rail panel + dualTerminalsMount removed
+    // from the Pro layout. Rail factory still resolved above for
+    // future Simple-mode reuse, but no mount happens here.
+    // Reference is kept in `railFactory` so downstream eslint
+    // doesn't flag it; setMode iteration handles missing handles
+    // gracefully (typeof check).
+    void railFactory;
+
+    // LAYOUT-REORG-PRO-0: live terminals (Claude + Codex) mount in
+    // the new left-column slot. Use the existing dual-terminals
+    // panel — review-relay action row is now a no-op (the panel
+    // itself decides not to render it), so the terminals are a
+    // pure live-output view.
+    handles.terminals = _mountPanel(terminalsFactory, liveTerminalsMount, "live-terminals", {
+      client: null, // action row removed; pass null even if reviewClient was provided
       onError: opts.onPanelError || null,
+    });
+
+    // LAYOUT-REORG-PRO-0: findings drawer — mounts AS A SIBLING of
+    // the workspace so its slide transform doesn't fight flex.
+    // Resolved into handles.findingsDrawer. The grid below wires
+    // the FINDINGS card click → drawer.open().
+    handles.findingsDrawer = _mountPanel(drawerFactory, drawerMount, "findings-drawer", {
+      selectors: (typeof window !== "undefined" && window.OrchestratorProductShellData)
+        || null,
+      t: (typeof window !== "undefined" && window.OrchestratorI18n
+        && typeof window.OrchestratorI18n.t === "function")
+          ? window.OrchestratorI18n.t : null,
+    });
+
+    handles.grid = _mountPanel(gridFactory, gridMount, "monitor-grid", {
+      onCardOpen: function (cardId) {
+        if (cardId === "findings"
+            && handles.findingsDrawer
+            && typeof handles.findingsDrawer.open === "function") {
+          try { handles.findingsDrawer.open(); } catch (_) { /* defensive */ }
+        }
+      },
     });
     // AGENT-DESKTOP-0-c (2026-05-06): mount chat panel.
     // - onActionClick: routes Approve clicks through the same
