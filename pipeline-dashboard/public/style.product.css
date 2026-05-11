@@ -1967,3 +1967,245 @@ html, body {
   color: var(--prod-text-tertiary, #8b909a);
   flex-shrink: 0;
 }
+
+/* ── SIMPLE-MODE-VIZ-0 (2026-05-08) ── pipeline flow diagram + mode toggle */
+
+/* Mode-driven visibility. Simple mode: pipeline-flow + chat only.
+ * Pro mode: live-terminals + chat + grid + drawer (existing layout). */
+.prod-shell[data-mode="simple"] .prod-pro-only {
+  display: none !important;
+}
+.prod-shell[data-mode="pro"] .prod-simple-only {
+  display: none !important;
+}
+
+/* Simple mode reshapes the workspace: pipeline-flow gets the dominant
+ * left area, chat fills the right column on its own. */
+.prod-shell[data-mode="simple"] .prod-workspace {
+  grid-template-columns: minmax(420px, 6fr) minmax(320px, 4fr);
+}
+.prod-shell[data-mode="simple"] .prod-monitor-stack {
+  grid-template-rows: 1fr;
+}
+
+.prod-flow-mount {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  background: var(--prod-bg-body);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+}
+.prod-flow-mount > * {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Phase Flow Diagram */
+.prod-pipeline-flow {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 24px 28px;
+  color: var(--prod-text-primary, #e8eaed);
+  background: var(--prod-bg-app, #14161c);
+}
+.prod-pipeline-flow-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 28px;
+}
+.prod-pipeline-flow-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.prod-pipeline-flow-meta {
+  font-size: 13px;
+  color: var(--prod-text-secondary, #b0b6c0);
+}
+
+/* Diagram row: 4 boxes + 3 arrows. */
+.prod-pipeline-flow-diagram {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  flex: 1;
+  min-height: 0;
+}
+
+.prod-pipeline-flow-box {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 12px;
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  position: relative;
+  transition: border-color 0.25s ease, background 0.25s ease,
+              transform 0.25s ease;
+  overflow: hidden;
+  max-width: 200px;
+}
+
+.prod-pipeline-flow-box-letter {
+  font-size: 36px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--prod-text-secondary, #b0b6c0);
+  font-family: var(--prod-font-mono, 'Consolas', monospace);
+  line-height: 1;
+}
+.prod-pipeline-flow-box-label {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--prod-text-secondary, #b0b6c0);
+  text-align: center;
+}
+.prod-pipeline-flow-box-check {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  font-size: 16px;
+  color: #9ece6a;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+.prod-pipeline-flow-box-pulse {
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  pointer-events: none;
+  opacity: 0;
+}
+
+/* Pending: dim default. */
+.prod-pipeline-flow-box[data-flow-box-state="pending"] {
+  opacity: 0.55;
+}
+
+/* Active: bright border + pulse animation. */
+.prod-pipeline-flow-box[data-flow-box-state="active"] {
+  border-color: var(--prod-accent, #7aa2f7);
+  background: rgba(122, 162, 247, 0.08);
+  transform: translateY(-2px);
+}
+.prod-pipeline-flow-box[data-flow-box-state="active"] .prod-pipeline-flow-box-letter,
+.prod-pipeline-flow-box[data-flow-box-state="active"] .prod-pipeline-flow-box-label {
+  color: var(--prod-text-primary, #e8eaed);
+}
+.prod-pipeline-flow-box[data-flow-box-state="active"] .prod-pipeline-flow-box-pulse {
+  opacity: 1;
+  background: radial-gradient(circle at center,
+    rgba(122, 162, 247, 0.18) 0%, rgba(122, 162, 247, 0) 70%);
+  animation: prod-flow-pulse 1.4s ease-in-out infinite;
+}
+@keyframes prod-flow-pulse {
+  0%, 100% { transform: scale(0.85); opacity: 0.6; }
+  50%      { transform: scale(1.05); opacity: 1.0; }
+}
+
+/* Completed: green border + checkmark. */
+.prod-pipeline-flow-box[data-flow-box-state="completed"] {
+  border-color: rgba(158, 206, 106, 0.5);
+  background: rgba(158, 206, 106, 0.06);
+}
+.prod-pipeline-flow-box[data-flow-box-state="completed"] .prod-pipeline-flow-box-check {
+  opacity: 1;
+}
+.prod-pipeline-flow-box[data-flow-box-state="completed"] .prod-pipeline-flow-box-letter {
+  color: var(--prod-text-primary, #e8eaed);
+}
+
+/* Arrow: simple stem + chevron head. */
+.prod-pipeline-flow-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 56px;
+  position: relative;
+  color: rgba(255, 255, 255, 0.22);
+  transition: color 0.25s ease;
+}
+.prod-pipeline-flow-arrow-stem {
+  flex: 1;
+  height: 2px;
+  background: currentColor;
+}
+.prod-pipeline-flow-arrow-head {
+  font-size: 14px;
+  margin-left: -2px;
+  line-height: 1;
+}
+.prod-pipeline-flow-arrow[data-flow-arrow-state="active"] {
+  color: var(--prod-accent, #7aa2f7);
+}
+
+/* D → C loop arrow. Visually below the diagram, curving back. */
+.prod-pipeline-flow-loop {
+  margin-top: 18px;
+  margin-left: auto;
+  margin-right: 24%;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.32);
+  transition: color 0.25s ease;
+}
+.prod-pipeline-flow-loop[data-flow-arrow-state="active"] {
+  color: var(--prod-accent, #7aa2f7);
+}
+.prod-pipeline-flow-loop-arrow {
+  font-size: 18px;
+  display: inline-block;
+}
+.prod-pipeline-flow-loop[data-flow-arrow-state="active"] .prod-pipeline-flow-loop-arrow {
+  animation: prod-flow-loop-spin 2.4s linear infinite;
+}
+@keyframes prod-flow-loop-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(-360deg); }
+}
+
+/* Footer: progress bar + elapsed/iteration stats. */
+.prod-pipeline-flow-footer {
+  margin-top: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.prod-pipeline-flow-progress {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.prod-pipeline-flow-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg,
+    var(--prod-accent, #7aa2f7) 0%,
+    rgba(158, 206, 106, 0.9) 100%);
+  transition: width 0.4s ease;
+}
+.prod-pipeline-flow-stats {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--prod-text-tertiary, #8b909a);
+  font-family: var(--prod-font-mono, 'Consolas', monospace);
+}
+
+/* Error state shifts box border + stats color toward danger. */
+.prod-pipeline-flow[data-flow-state="error"] .prod-pipeline-flow-meta {
+  color: #f7768e;
+}
+.prod-pipeline-flow[data-flow-state="complete"] .prod-pipeline-flow-meta {
+  color: #9ece6a;
+}

@@ -32,6 +32,7 @@
       "js/monitor/panels/product-dual-terminals.js",
       "js/monitor/panels/product-chat-panel.js",
       "js/monitor/panels/findings-drawer.js",
+      "js/monitor/panels/product-pipeline-flow.js",
       "js/monitor/shells/product-shell.js",
       "js/focus-trap.js",
       "js/general-pipeline-modal.js",
@@ -270,7 +271,7 @@
     "--prod-yellow"
   ],
   "productCssClasses": {
-    "prod-shell": 4,
+    "prod-shell": 8,
     "prod-header": 13,
     "prod-track": 18,
     "prod-rail": 13,
@@ -462,6 +463,7 @@
         "monitor-grid",
         "monitor-stack",
         "orchestrator-track",
+        "pipeline-flow",
         "workspace"
       ],
       "cards": [],

@@ -213,17 +213,21 @@ test("UI-P1: missing panel factory renders [panel missing: name] placeholder", (
     root, store, doc: makeStubDoc(),
     panels: {
       header: () => ({}),
-      // track / grid / terminals / chat / findingsDrawer omitted
+      // track / grid / terminals / chat / findingsDrawer / flow omitted
     },
   });
   const placeholders = root._findAllByClass("prod-panel-missing");
-  assert.equal(placeholders.length, 5, "5 missing panels surface 5 placeholders");
+  // SIMPLE-MODE-VIZ-0: pipeline-flow joins the placeholder set
+  // when missing (now 6 panels expected: track + terminals + grid +
+  // chat + findings-drawer + pipeline-flow).
+  assert.equal(placeholders.length, 6, "6 missing panels surface 6 placeholders");
   const names = placeholders.map((p) => p._textContent);
   assert.ok(names.some((n) => n.includes("orchestrator-track")));
   assert.ok(names.some((n) => n.includes("live-terminals")));
   assert.ok(names.some((n) => n.includes("monitor-grid")));
   assert.ok(names.some((n) => n.includes("chat")));
   assert.ok(names.some((n) => n.includes("findings-drawer")));
+  assert.ok(names.some((n) => n.includes("pipeline-flow")));
 });
 
 test("UI-P1: panel factory throw renders [panel error] (does NOT crash mount)", () => {

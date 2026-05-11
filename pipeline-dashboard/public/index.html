@@ -111,6 +111,10 @@
        Loaded before product-shell so the shell can resolve
        window.OrchestratorFindingsDrawer.mount during _mountPanel. -->
   <script src="js/monitor/panels/findings-drawer.js"></script>
+  <!-- SIMPLE-MODE-VIZ-0 (2026-05-08): pipeline flow diagram for Simple mode.
+       4 phase boxes (A→B→C↔D) with pulse + loop arrow visualization.
+       Mounted in both modes; CSS toggles visibility based on data-mode. -->
+  <script src="js/monitor/panels/product-pipeline-flow.js"></script>
   <script src="js/monitor/shells/product-shell.js"></script>
 
   <!-- ────────────────────────────────────────────────────────────

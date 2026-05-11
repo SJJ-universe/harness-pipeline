@@ -194,7 +194,7 @@ test("UI-P9 visual contract: shell skeleton mounts new layout slots (LAYOUT-REOR
   // LAYOUT-REORG-PRO-0: pipeline-rail + dual-terminals removed;
   // live-terminals + findings-drawer added.
   const required = ["header", "orchestrator-track", "workspace",
-                    "live-terminals", "monitor-stack",
+                    "live-terminals", "pipeline-flow", "monitor-stack",
                     "monitor-grid", "chat", "findings-drawer"];
   for (const slot of required) {
     assert.ok(actual.panels.shell.regionMounts.indexOf(slot) >= 0,

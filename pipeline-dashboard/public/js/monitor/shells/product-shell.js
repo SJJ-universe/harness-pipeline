@@ -133,6 +133,12 @@
     // a no-op (the card is still rendered + clickable).
     const drawerFactory = (panels && panels.findingsDrawer)
       || (typeof window !== "undefined" && window.OrchestratorFindingsDrawer && window.OrchestratorFindingsDrawer.mount);
+    // SIMPLE-MODE-VIZ-0 (2026-05-08): pipeline flow factory.
+    // Mounted in BOTH modes (DOM-wise) but CSS hides it in Pro mode
+    // and hides the Pro-mode panels (live-terminals + grid) in
+    // Simple mode. The chat panel remains visible in both modes.
+    const flowFactory = (panels && panels.flow)
+      || (typeof window !== "undefined" && window.OrchestratorProductPipelineFlow && window.OrchestratorProductPipelineFlow.create);
 
     // Build skeleton DOM. The class names map 1:1 to style.product.css.
     // Each region carries data-region so UI-P5 wiring + visual
@@ -177,10 +183,18 @@
     workspace.className = "prod-workspace";
     workspace.setAttribute("data-region-mount", "workspace");
 
-    // Left column: live terminals, large.
+    // Left column: live terminals (Pro mode only — CSS hides in Simple).
     const liveTerminalsMount = _doc.createElement("div");
-    liveTerminalsMount.className = "prod-live-terminals-mount";
+    liveTerminalsMount.className = "prod-live-terminals-mount prod-pro-only";
     liveTerminalsMount.setAttribute("data-region-mount", "live-terminals");
+
+    // SIMPLE-MODE-VIZ-0: pipeline flow diagram mount (Simple mode only).
+    // Sibling of live-terminals; CSS shows one and hides the other
+    // based on .prod-shell[data-mode] attribute. Mounted in both
+    // modes so a mode toggle is purely a visual change (no remount).
+    const flowMount = _doc.createElement("div");
+    flowMount.className = "prod-flow-mount prod-simple-only";
+    flowMount.setAttribute("data-region-mount", "pipeline-flow");
 
     // Right column: chat (top, larger) + monitor-grid (bottom, 4 cards).
     const stack = _doc.createElement("div");
@@ -193,9 +207,13 @@
     gridMount.className = "prod-grid-mount";
     gridMount.setAttribute("data-region-mount", "monitor-grid");
 
+    // SIMPLE-MODE-VIZ-0: gridMount is Pro-only (CSS hides in Simple).
+    gridMount.classList.add("prod-pro-only");
+
     stack.appendChild(chatMount);
     stack.appendChild(gridMount);
     workspace.appendChild(liveTerminalsMount);
+    workspace.appendChild(flowMount);
     workspace.appendChild(stack);
 
     // Drawer mount: sibling of workspace so the slide-in transform
@@ -325,6 +343,13 @@
       t: (typeof window !== "undefined" && window.OrchestratorI18n
         && typeof window.OrchestratorI18n.t === "function")
           ? window.OrchestratorI18n.t : null,
+    });
+
+    // SIMPLE-MODE-VIZ-0: pipeline-flow panel for Simple mode.
+    // Mounts in both modes; CSS hides it when data-mode="pro".
+    handles.flow = _mountPanel(flowFactory, flowMount, "pipeline-flow", {
+      dataSelectors: (typeof window !== "undefined" && window.OrchestratorProductShellData)
+        || null,
     });
 
     handles.grid = _mountPanel(gridFactory, gridMount, "monitor-grid", {
