@@ -35,7 +35,7 @@ const QUIET = { log: () => {}, warn: () => {}, error: () => {} };
 
 function startOrchestrator({ token = "r1g-token", bootstrapMap = {}, ledgerDir = null } = {}) {
   const setup = setupRemoteRunner({
-    env: { HARNESS_REMOTE_MODE: "preview", HARNESS_TOKEN: token },
+    env: { ORCHESTRATOR_REMOTE_MODE: "preview", ORCHESTRATOR_TOKEN: token },
   });
   setup.runnerRegistry._bootstrapTokenFor = (h) => bootstrapMap[h] || null;
 
@@ -94,16 +94,16 @@ function startOrchestrator({ token = "r1g-token", bootstrapMap = {}, ledgerDir =
   });
 }
 
-function buildToken(runId, key, harness = {}) {
+function buildToken(runId, key, orchestrator = {}) {
   return jwt.issue({
     runId,
     key,
     runDurationMs: 60_000,
-    harness: {
+    orchestrator: {
       runOrigin: "container-remote",
       sandboxClass: "container-strict",
       hostIdentity: "runner-r1g",
-      ...harness,
+      ...orchestrator,
     },
   });
 }

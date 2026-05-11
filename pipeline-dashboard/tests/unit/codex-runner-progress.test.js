@@ -31,7 +31,7 @@ function makeFakeSpawn() {
 }
 
 test("defaultRedact masks common secret patterns", () => {
-  const input = "token: sk-ABCDEFGHIJKLMNOPQRSTUVWX, ghp_ZYXWVUTSRQPONMLKJIHGF, HARNESS_TOKEN=abc123xyz";
+  const input = "token: sk-ABCDEFGHIJKLMNOPQRSTUVWX, ghp_ZYXWVUTSRQPONMLKJIHGF, ORCHESTRATOR_TOKEN=abc123xyz";
   const out = defaultRedact(input);
   assert.ok(out.includes("[REDACTED]"));
   assert.ok(!out.includes("sk-ABCDEFG"));

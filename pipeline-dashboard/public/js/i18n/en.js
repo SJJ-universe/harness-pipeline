@@ -181,8 +181,8 @@
     "firstRun.cta.copyLoginCommandClaude":               "Copy Claude login command (claude auth login)",
     "firstRun.cta.copyLoginCommandCodex":                "Copy Codex login command (codex auth login)",
     "firstRun.cta.recheckProviders":                     "Re-check",
-    "firstRun.safeGuidance.short":                       "Harness never asks for your password or OAuth token.",
-    "firstRun.safeGuidance.long":                        "Sign-in happens entirely inside the official Claude/Codex CLI. Harness only (1) copies the login command to your clipboard, or (2) opens the official docs in a new tab. After signing in, click \"Re-check\" above to refresh the status.",
+    "firstRun.safeGuidance.short":                       "Orchestrator never asks for your password or OAuth token.",
+    "firstRun.safeGuidance.long":                        "Sign-in happens entirely inside the official Claude/Codex CLI. Orchestrator only (1) copies the login command to your clipboard, or (2) opens the official docs in a new tab. After signing in, click \"Re-check\" above to refresh the status.",
     "firstRun.docsUrl.claude":                           "https://docs.anthropic.com/en/docs/claude-code/cli-usage",
     "firstRun.docsUrl.codex":                            "https://github.com/openai/codex#authentication",
 
@@ -259,7 +259,7 @@
     "policyPack.cardLabel":                              "Current policy pack",
     "policyPack.aria.region":                            "Policy pack information",
     "policyPack.currentLabel":                           "Currently active",
-    "policyPack.changeHint":                             "Pack changes require a server restart (set HARNESS_DEPLOYMENT_PROFILE env, then reboot).",
+    "policyPack.changeHint":                             "Pack changes require a server restart (set ORCHESTRATOR_DEPLOYMENT_PROFILE env, then reboot).",
     "policyPack.publicSectorRequirements.title":         "🛡 Public-sector / regulated deployment requirements",
     "policyPack.publicSectorRequirements.intro":         "Before selecting this pack, ensure the following are in place:",
     "policyPack.runtimeEffective.label":                 "Effective runtime state",
@@ -307,7 +307,7 @@
     module.exports = table;
   }
   if (typeof root !== "undefined") {
-    root.HARNESS_I18N = root.HARNESS_I18N || {};
-    root.HARNESS_I18N.en = table;
+    root.ORCHESTRATOR_I18N = root.ORCHESTRATOR_I18N || {};
+    root.ORCHESTRATOR_I18N.en = table;
   }
 })(typeof window !== "undefined" ? window : globalThis);

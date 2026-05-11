@@ -14,7 +14,7 @@ const { PipelineExecutor } = require("../../executor/pipeline-executor");
 const { PipelineState } = require("../../executor/pipeline-state");
 
 function makeEnv() {
-  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "harness-sstart-"));
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-sstart-"));
   const events = [];
   const ex = new PipelineExecutor({
     broadcast: (event) => events.push(event),
@@ -27,14 +27,14 @@ function makeEnv() {
 }
 
 function writeSummary(repoRoot, body) {
-  const dir = path.join(repoRoot, ".harness");
+  const dir = path.join(repoRoot, ".orchestrator");
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, "last-compact-summary.md"), body, "utf-8");
 }
 
 test("source=compact returns the summary file as additionalContext", async () => {
   const { ex, repoRoot } = makeEnv();
-  const summary = "# Harness PreCompact Summary\n- Phase: B\n- Task: test";
+  const summary = "# Orchestrator PreCompact Summary\n- Phase: B\n- Task: test";
   writeSummary(repoRoot, summary);
 
   const result = await ex.onSessionStart({ source: "compact" });

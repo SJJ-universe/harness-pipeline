@@ -23,7 +23,7 @@ const path = require("node:path");
 // test required skill-registry first, SKILLS_DIR is already locked to
 // whatever HOME was then. We invalidate the cache slot before requiring so
 // our env override takes effect deterministically.
-const TMP_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "harness-sk-home-"));
+const TMP_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-sk-home-"));
 process.env.HOME = TMP_HOME;
 process.env.USERPROFILE = TMP_HOME;
 const SKILLS_DIR = path.join(TMP_HOME, ".claude", "skills");
@@ -87,7 +87,7 @@ test("getSkillContent rejects non-string id", () => {
 // ── pathSandbox layer: even if regex were bypassed, symlink-out fails ─
 
 test("getSkillContent rejects a skill dir that is a symlink to outside SKILLS_DIR", () => {
-  const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), "harness-outside-skills-"));
+  const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-outside-skills-"));
   const outsideSkill = path.join(outsideDir, "SKILL.md");
   fs.writeFileSync(outsideSkill, "# leaked", "utf-8");
   const linkedSkillDir = path.join(SKILLS_DIR, "leakto-outside");

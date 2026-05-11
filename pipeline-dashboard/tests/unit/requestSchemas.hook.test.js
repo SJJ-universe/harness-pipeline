@@ -36,7 +36,7 @@ test("validateHook accepts the 5 new lifecycle aliases (Slice A v4)", () => {
 test("validateHook rejects unknown events and canonical PascalCase names", () => {
   assert.throws(() => validateHook({ event: "unknown", payload: {} }), /not allowed/);
   // Canonical Claude Code event names are PascalCase — we translate them to
-  // kebab-case aliases in harness-hook.js / settings.json, and only the
+  // kebab-case aliases in orchestrator-hook.js / settings.json, and only the
   // kebab-case form is valid at /api/hook.
   assert.throws(() => validateHook({ event: "SessionStart", payload: {} }), /not allowed/);
   assert.throws(() => validateHook({ event: "PreCompact", payload: {} }), /not allowed/);

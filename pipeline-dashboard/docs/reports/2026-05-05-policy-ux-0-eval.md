@@ -13,8 +13,8 @@
 ### Sub-slice POL-a — Runtime wiring (the SMART-5 deferred work)
 - `src/policy/policyGates.js`:
   - `resolveGateMode(env, deploymentProfile?)` — new 2-arg signature with 4-step precedence:
-    1. env `HARNESS_HARD_GATES=1/true/hard` → "hard"
-    2. env `HARNESS_HARD_GATES=0/false/warn/no` → "warn" (operator override)
+    1. env `ORCHESTRATOR_HARD_GATES=1/true/hard` → "hard"
+    2. env `ORCHESTRATOR_HARD_GATES=0/false/warn/no` → "warn" (operator override)
     3. `deploymentProfile.hardGatesDefault === true` → "hard" (pack rule)
     4. "warn" (default; legacy 1-arg callers see this)
   - All 4 gate functions (gatePiiBlock / gateReleaseSigned / gateEvidenceExportReady / gateCompletionAllowed) updated to pass deploymentProfile to resolveGateMode internally
@@ -59,14 +59,14 @@
 ## End-to-end behavior change
 
 **Pre-POLICY-UX-0**:
-- Operator chooses `HARNESS_DEPLOYMENT_PROFILE=finance-high-privacy` expecting strict gates
+- Operator chooses `ORCHESTRATOR_DEPLOYMENT_PROFILE=finance-high-privacy` expecting strict gates
 - Pack rule `hardGatesDefault=true` exists but isn't consulted at runtime
-- Operator must ALSO set `HARNESS_HARD_GATES=1` to actually get hard gates
+- Operator must ALSO set `ORCHESTRATOR_HARD_GATES=1` to actually get hard gates
 - Pack catalog only visible by reading source code or `policyPackRegistry.js` directly
 
 **Post-POLICY-UX-0**:
 - Operator chooses finance-high-privacy → automatic hard gates (pack rule consulted)
-- Operator can override to warn during incident triage with `HARNESS_HARD_GATES=0`
+- Operator can override to warn during incident triage with `ORCHESTRATOR_HARD_GATES=0`
 - `GET /api/policy-packs` returns full catalog with `hardGatesEffectiveMode` reflecting actual runtime resolution
 - Dashboard UI (when panel ships) can render the comparison view from `store.policyPacks`
 - 5-bullet `publicSectorRequirements` checklist visible in API + i18n keys ready for UI rendering
@@ -82,7 +82,7 @@ Rationale:
 4. Cap movement evidence requires operator field deployment (per FIELD-PILOT-0 round) where:
    - Operator runs finance-high-privacy in production for 1+ week
    - `live-verify-smart-arc.sh` from SMART-LV-0 produces verdict=PASS
-   - Evidence packets demonstrate hardGatesDefault auto-applied without manual `HARNESS_HARD_GATES=1`
+   - Evidence packets demonstrate hardGatesDefault auto-applied without manual `ORCHESTRATOR_HARD_GATES=1`
    - No incident reports related to the runtime wiring change
 
 The plan §S §S-score-trajectory has consistently followed this pattern across SMART-2/4/5/RR0/LV0 closeouts. POL maintains it.
@@ -124,7 +124,7 @@ Per sub-slice:
 
 1. **2-arg signature beats 1-arg renames**: `resolveGateMode(env, deploymentProfile)` keeps full backwards compatibility with pre-POL-a 1-arg callers (legacy tests + production callers without `deploymentProfile` see legacy behavior). Renaming or breaking the signature would have forced cascading test updates with no benefit.
 
-2. **Operator override beats pack default**: An operator on finance-high-privacy who needs to triage an incident can set `HARNESS_HARD_GATES=0` to soften gates WITHOUT changing the pack id (which would also flip sandbox / signing requirements). This was anchored by the "incident triage on finance-high-privacy" scenario test. Plan §S §S-SMART-5 anticipated this.
+2. **Operator override beats pack default**: An operator on finance-high-privacy who needs to triage an incident can set `ORCHESTRATOR_HARD_GATES=0` to soften gates WITHOUT changing the pack id (which would also flip sandbox / signing requirements). This was anchored by the "incident triage on finance-high-privacy" scenario test. Plan §S §S-SMART-5 anticipated this.
 
 3. **Pack catalog is READ-ONLY**: Changing pack mid-run would require auditing + atomic re-resolution + restart of every active runner. Out of scope for POLICY-UX-0. The route documents "restart required" via `metadata.changeHint` (i18n) and the `publicSectorRequirements` checklist explains what the operator needs to set up before booting with a public-sector pack.
 

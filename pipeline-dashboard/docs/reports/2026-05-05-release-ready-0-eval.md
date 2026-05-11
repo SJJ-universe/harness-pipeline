@@ -20,8 +20,8 @@ Five sub-slices addressing the user's "처음 설치한 사람이 자기 Claude/
   | interactive (default) | 2 min | 3 min | 2 min | 30 s |
   | long_run | 20 min | 30 min | 20 min | 5 min |
   | public_sector | 30 min | 45 min | 30 min | 2 min |
-- Resolver precedence: per-field env override → HARNESS_TIMEOUT_PRESET → deploymentProfile.publicSector → interactive
-- Per-field overrides: HARNESS_CODEX_TIMEOUT_MS, HARNESS_CLAUDE_TIMEOUT_MS, HARNESS_PHASE_TIMEOUT_MS, HARNESS_CHILD_QUEUE_TIMEOUT_MS
+- Resolver precedence: per-field env override → ORCHESTRATOR_TIMEOUT_PRESET → deploymentProfile.publicSector → interactive
+- Per-field overrides: ORCHESTRATOR_CODEX_TIMEOUT_MS, ORCHESTRATOR_CLAUDE_TIMEOUT_MS, ORCHESTRATOR_PHASE_TIMEOUT_MS, ORCHESTRATOR_CHILD_QUEUE_TIMEOUT_MS
 - Bounds: [100 ms, 4 hours] — out-of-range overrides fall back to preset
 - 31 unit tests
 
@@ -82,7 +82,7 @@ Five sub-slices addressing the user's "처음 설치한 사람이 자기 Claude/
 
 ## End-to-end behavior change
 
-**Pre-RR0-b**: Operator runs `HARNESS_DEPLOYMENT_PROFILE=public-sector` and starts a 25-minute Codex security review. Runner kills the child at minute 2 with a misleading "timeout" reason. Operator can't tell if Codex is broken or just slow.
+**Pre-RR0-b**: Operator runs `ORCHESTRATOR_DEPLOYMENT_PROFILE=public-sector` and starts a 25-minute Codex security review. Runner kills the child at minute 2 with a misleading "timeout" reason. Operator can't tell if Codex is broken or just slow.
 
 **Post-RR0-e**:
 1. Server boots → `resolveTimeoutPolicy()` returns public_sector preset (codex 30 min total / claude 45 min)
@@ -145,7 +145,7 @@ Per sub-slice:
 
 ## Decisions worth re-reading later
 
-1. **Backward compat preserved verbatim**: Every pre-RR0-b runner caller (test or production) that doesn't pass `idleTimeoutMs` sees the legacy single-timer behavior unchanged. The new watchdog path engages only when an operator explicitly opts in via env (HARNESS_TIMEOUT_PRESET=long_run/public_sector) or deployment profile (publicSector). This invariant is anchored by the codex-runner-progress.test.js (7 tests, all green) which exercises the legacy path.
+1. **Backward compat preserved verbatim**: Every pre-RR0-b runner caller (test or production) that doesn't pass `idleTimeoutMs` sees the legacy single-timer behavior unchanged. The new watchdog path engages only when an operator explicitly opts in via env (ORCHESTRATOR_TIMEOUT_PRESET=long_run/public_sector) or deployment profile (publicSector). This invariant is anchored by the codex-runner-progress.test.js (7 tests, all green) which exercises the legacy path.
 
 2. **Two-timer over one-timer because "long" ≠ "stuck"**: Pre-RR0-b's single setTimeout treated a 25-min critique with constant output the same as a 25-min hung process. The watchdog distinguishes via the idle timer — long but progressing keeps ticking; hung doesn't. Operators see different audit verbs (`total_timeout` vs `idle_timeout`) and the UI can render different copy.
 
@@ -180,6 +180,6 @@ Per sub-slice:
 
 User-supplied roadmap: "RELEASE-READY-0 뒤에는 SMART live verification을 추천합니다." Next round candidate:
 
-**SMART-LV-0**: Live evidence packet for SMART arc — exercises HARNESS_HARD_GATES=1 + finance-high-privacy or public-sector pack on a real run + captures `policy_gate_blocked` audit, redacted run memory entry, recommendation card render, expert preset dispatch in actual operator output. Provides the cap-movement evidence the SMART arc closeouts queued.
+**SMART-LV-0**: Live evidence packet for SMART arc — exercises ORCHESTRATOR_HARD_GATES=1 + finance-high-privacy or public-sector pack on a real run + captures `policy_gate_blocked` audit, redacted run memory entry, recommendation card render, expert preset dispatch in actual operator output. Provides the cap-movement evidence the SMART arc closeouts queued.
 
 End of RELEASE-READY-0 closeout.

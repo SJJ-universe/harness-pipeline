@@ -296,7 +296,7 @@ Five rounds, one day, four cap-movement candidates held pending
 operator-time + reviewer-time evidence. Per plan §S §S-out-of-scope,
 the next candidates are:
 
-- **Operator runs `harness-start.bat` in production for ≥1 week** — the
+- **Operator runs `orchestrator-start.bat` in production for ≥1 week** — the
   FIELD-PILOT-0 bundle gets filled in, daily probes get committed,
   the deployment-log + incident-ledger become real artifacts
 - **External reviewer engagement** — someone other than the committer

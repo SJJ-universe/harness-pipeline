@@ -1,8 +1,8 @@
-# Harness i18n conventions
+# Orchestrator i18n conventions
 
 **Slice I18N-DOC-1 (Phase 2 v2 follow-up, 2026-05-05)**
 
-The harness UI is bilingual (Korean default + English alternative).
+The orchestrator UI is bilingual (Korean default + English alternative).
 Translations live in two flat-object tables:
 
 - `public/js/i18n/ko.js` — Korean values
@@ -209,7 +209,7 @@ messages:
 
 ## §7 Adding new locales
 
-The harness today supports `ko` + `en` only. If a future round adds
+The orchestrator today supports `ko` + `en` only. If a future round adds
 `ja` or `zh`:
 
 1. Add `public/js/i18n/<locale>.js` with the same key set

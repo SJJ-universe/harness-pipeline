@@ -34,7 +34,7 @@ function setupClient({ originalFetch }) {
   const toasts = [];
   const warnings = [];
   const win = {
-    HARNESS_TOKEN: null,
+    ORCHESTRATOR_TOKEN: null,
     OrchestratorToast: { show: (opts) => { toasts.push(opts); return "t1"; } },
     // api-client captures `window.fetch.bind(window)` at IIFE time, so this
     // must be a real function that works with .bind and then gets replaced
@@ -58,7 +58,7 @@ async function flush() {
   await new Promise((r) => setImmediate(r));
 }
 
-test("successful /api/* calls attach x-harness-token and do NOT toast", async () => {
+test("successful /api/* calls attach x-orchestrator-token and do NOT toast", async () => {
   const seenCalls = [];
   const originalFetch = async (url, init) => {
     seenCalls.push({ url, init });
@@ -74,7 +74,7 @@ test("successful /api/* calls attach x-harness-token and do NOT toast", async ()
   assert.equal(res.ok, true);
   const hookCall = seenCalls.find((c) => c.url === "/api/hook");
   assert.ok(hookCall);
-  assert.equal(hookCall.init.headers.get("x-harness-token"), "abc123");
+  assert.equal(hookCall.init.headers.get("x-orchestrator-token"), "abc123");
   assert.equal(toasts.length, 0, "happy-path calls must not surface toasts");
 });
 

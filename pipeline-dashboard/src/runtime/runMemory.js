@@ -2,9 +2,9 @@
 //
 // What this module is
 // ───────────────────
-// "Run memory" is the harness's lightweight, RECONSTRUCTABLE-FROM-LEDGER
+// "Run memory" is the orchestrator's lightweight, RECONSTRUCTABLE-FROM-LEDGER
 // summary of what a pipeline run did. It's NOT the run's full transcript.
-// Operators get to see "the harness remembered this about run X" via a
+// Operators get to see "the orchestrator remembered this about run X" via a
 // future UI tab + a token-gated HTTP route. SMART-5 (policy packs) +
 // SMART-2 hard gate audit verbs + the recommendation engine all consume
 // this.
@@ -15,7 +15,7 @@
 // surface. A naïve implementation would dump every prompt + every patch
 // + every Codex critique into a JSONL file. That's three privacy
 // problems:
-//   1. Prompts can carry PII that the harness already chose to refuse
+//   1. Prompts can carry PII that the orchestrator already chose to refuse
 //      forwarding to the LLM (GOV-PII-0); persisting them anyway in
 //      "memory" reintroduces the leak.
 //   2. Patch / diff text can carry source-code secrets (API keys
@@ -24,12 +24,12 @@
 //
 // Six privacy guards SMART-4 v2 implements:
 //
-//   1. TTL — `HARNESS_RUN_MEMORY_TTL_MS` (default 30 days). After
+//   1. TTL — `ORCHESTRATOR_RUN_MEMORY_TTL_MS` (default 30 days). After
 //      that, the entry can be cleaned by evidenceLedger.cleanup().
 //      Records live in the ledger as `run_memory_recorded` rows so
 //      the existing TTL machinery covers them automatically.
 //
-//   2. Opt-out — `HARNESS_RUN_MEMORY_DISABLE=1` → recordRunMemory
+//   2. Opt-out — `ORCHESTRATOR_RUN_MEMORY_DISABLE=1` → recordRunMemory
 //      returns {recorded:false, reason:"disabled_by_env"} immediately.
 //
 //   3. Max length per field — every text field has a hard cap
@@ -38,7 +38,7 @@
 //
 //   4. NO raw text persistence — diff / patch raw bodies are never
 //      stored. Instead a `sourceHash` (sha256 of the canonical change
-//      content) lets a forensic auditor verify "yes, the harness saw
+//      content) lets a forensic auditor verify "yes, the orchestrator saw
 //      this exact diff" by re-hashing source files, without the diff
 //      itself being on disk.
 //
@@ -49,13 +49,13 @@
 //
 //   6. Public-sector route auth + audit — getRunMemory itself is
 //      pure (no auth check). The HTTP route layer (S4-b) enforces
-//      loopback + x-harness-token + emits `run_memory_accessed`
+//      loopback + x-orchestrator-token + emits `run_memory_accessed`
 //      audit so a forensic auditor can see WHO read the memory.
 //
 // Schema (frozen)
 // ───────────────
 // {
-//   schema:        "harness-run-memory/v1",
+//   schema:        "orchestrator-run-memory/v1",
 //   runId:         string,
 //   recordedAt:    ISO timestamp,
 //   truncated:     bool (any field exceeded its FIELD_LIMITS cap),
@@ -94,10 +94,10 @@ const { resolveDeploymentProfile } = require("../policy/deploymentProfile");
 
 // ── Frozen vocabulary ──────────────────────────────────────────────
 
-const SCHEMA = "harness-run-memory/v1";
+const SCHEMA = "orchestrator-run-memory/v1";
 
 // Audit verb. Operators grep this when a forensic question lands:
-// "what did the harness remember about run X?"
+// "what did the orchestrator remember about run X?"
 const AUDIT_VERBS = Object.freeze({
   RECORDED: "run_memory_recorded",
   ACCESSED: "run_memory_accessed",
@@ -126,14 +126,14 @@ function _isOptOut(env, deploymentProfile) {
   // runMemoryEnabled=true today, but a future "minimal-debug" pack
   // could disable memory at the rule level.
   // Precedence (high → low):
-  //   1. env HARNESS_RUN_MEMORY_DISABLE truthy → opt out (operator
+  //   1. env ORCHESTRATOR_RUN_MEMORY_DISABLE truthy → opt out (operator
   //      override, beats pack default)
   //   2. pack.runMemoryEnabled === false → opt out
   //   3. record (default)
   // Backwards compat: pre-POL-a 1-arg callers (no deploymentProfile)
   // see step 1 only — identical to legacy behavior.
   const e = env || (typeof process !== "undefined" ? process.env : {});
-  const v = String(e.HARNESS_RUN_MEMORY_DISABLE || "").trim().toLowerCase();
+  const v = String(e.ORCHESTRATOR_RUN_MEMORY_DISABLE || "").trim().toLowerCase();
   if (v === "1" || v === "true" || v === "yes") return true;
   if (deploymentProfile && deploymentProfile.runMemoryEnabled === false) {
     return true;

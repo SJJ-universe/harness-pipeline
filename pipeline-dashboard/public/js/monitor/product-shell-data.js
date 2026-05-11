@@ -83,7 +83,7 @@
   /**
    * Returns "idle" | "running" | "error" based on store.runs aggregate.
    * Mirrors product-header.js _statusFromStoreSnapshot but lives here
-   * for shared use (e.g. harness-track's status pill).
+   * for shared use (e.g. orchestrator-track's status pill).
    */
   function selectAggregateRunStatus(snap) {
     if (!snap) return "idle";

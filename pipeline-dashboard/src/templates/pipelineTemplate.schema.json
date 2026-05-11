@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "harness://templates/pipeline-template.schema.json",
-  "title": "Harness pipeline template (user-uploadable)",
+  "title": "Orchestrator pipeline template (user-uploadable)",
   "type": "object",
   "additionalProperties": false,
   "required": ["id", "name", "phases"],

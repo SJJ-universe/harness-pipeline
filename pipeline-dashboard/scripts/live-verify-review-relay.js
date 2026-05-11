@@ -2,7 +2,7 @@
 // Slice LV-2 (Phase D / Phase E1.5, 2026-04-30) — operator live probe
 // for the review-relay chain.
 //
-// Run this AFTER booting the harness server (harness-start.bat or
+// Run this AFTER booting the orchestrator server (orchestrator-start.bat or
 // `node start.js`) to verify the end-to-end Codex/Claude review
 // relay against REAL Codex/Claude binaries via the running
 // dispatcher.
@@ -168,7 +168,7 @@ async function jsonPost(base, path, body) {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      "x-harness-token": token,
+      "x-orchestrator-token": token,
     },
     body: JSON.stringify(body || {}),
   });

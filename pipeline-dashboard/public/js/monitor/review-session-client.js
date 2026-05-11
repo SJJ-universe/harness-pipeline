@@ -15,7 +15,7 @@
 //   - listSessions:  writes to store via setReviewSessionsList
 //   - getSession:    writes to store via upsertReviewSession
 //
-// All state-changing requests rely on the global x-harness-token
+// All state-changing requests rely on the global x-orchestrator-token
 // auto-attached by api-client.js's fetch wrapper. Read-only GETs
 // follow loopback CSRF (no token needed).
 //

@@ -1,7 +1,7 @@
 // Slice POL-UI-1-a (Phase 2 v2 follow-up, 2026-05-05) — Pack-info card.
 //
 // Operator-facing display of the current policy pack (resolved at boot
-// from HARNESS_DEPLOYMENT_PROFILE) + the runtime-effective hard-gates
+// from ORCHESTRATOR_DEPLOYMENT_PROFILE) + the runtime-effective hard-gates
 // mode + run-memory state + public-sector requirement checklist (when
 // applicable) + restart hint + collapsible alternatives.
 //
@@ -27,7 +27,7 @@
 // Does NOT write to store: read-only display.
 //
 // CTAs (forwarded via onCta(actionId, meta)):
-//   - "open-deployment-docs" — link to harness-pipeline-distribution-guide
+//   - "open-deployment-docs" — link to orchestrator-pipeline-distribution-guide
 //
 // Mount position (set by simple-shell.js):
 //   Below recommendations-card, above the 4-card grid. Operator sees
@@ -196,7 +196,7 @@
     hintEl.className = "pic-restart-hint";
     hintEl.textContent = _t(
       i18n, "policyPack.changeHint",
-      "팩 변경은 서버 재시작이 필요합니다 (HARNESS_DEPLOYMENT_PROFILE 환경변수 변경 + 재부팅).",
+      "팩 변경은 서버 재시작이 필요합니다 (ORCHESTRATOR_DEPLOYMENT_PROFILE 환경변수 변경 + 재부팅).",
     );
     card.appendChild(hintEl);
 

@@ -106,7 +106,7 @@ test("UI-P10 routes: documented 4 must each be present (canonical IDs)", () => {
 
 test("UI-P10 routes: legacy route waits for UI-P8 banner element", () => {
   const legacy = ROUTES.find((r) => r.id === "legacy");
-  assert.equal(legacy.waitForSelector, "#harness-legacy-banner",
+  assert.equal(legacy.waitForSelector, "#orchestrator-legacy-banner",
     "legacy route must wait for UI-P8 banner mount — proves legacy retreat " +
     "deprecation still wired",
   );
@@ -139,7 +139,7 @@ test("UI-P10 server-boot: defaults pin documented values", () => {
   assert.equal(serverBoot.DEFAULT_PORT, 4799,
     "DEFAULT_PORT must stay 4799 (avoids collision with prod 4201, " +
     "integration test 43xx, readiness 5099). Override via env " +
-    "HARNESS_VISUAL_LIVE_PORT.",
+    "ORCHESTRATOR_VISUAL_LIVE_PORT.",
   );
   assert.equal(serverBoot.DEFAULT_HOST, "127.0.0.1",
     "DEFAULT_HOST must stay loopback — visual-live never binds 0.0.0.0",
@@ -150,17 +150,17 @@ test("UI-P10 server-boot: defaults pin documented values", () => {
 
 test("UI-P10 server-boot: env override wins over default port", () => {
   // Snapshot + restore to keep the rest of the suite isolated.
-  const previous = process.env.HARNESS_VISUAL_LIVE_PORT;
+  const previous = process.env.ORCHESTRATOR_VISUAL_LIVE_PORT;
   try {
-    process.env.HARNESS_VISUAL_LIVE_PORT = "4823";
+    process.env.ORCHESTRATOR_VISUAL_LIVE_PORT = "4823";
     delete require.cache[require.resolve("../../scripts/visual-live/server-boot")];
     const reloaded = require("../../scripts/visual-live/server-boot");
     assert.equal(reloaded.DEFAULT_PORT, 4823,
-      "HARNESS_VISUAL_LIVE_PORT env must override default 4799",
+      "ORCHESTRATOR_VISUAL_LIVE_PORT env must override default 4799",
     );
   } finally {
-    if (previous === undefined) delete process.env.HARNESS_VISUAL_LIVE_PORT;
-    else process.env.HARNESS_VISUAL_LIVE_PORT = previous;
+    if (previous === undefined) delete process.env.ORCHESTRATOR_VISUAL_LIVE_PORT;
+    else process.env.ORCHESTRATOR_VISUAL_LIVE_PORT = previous;
     delete require.cache[require.resolve("../../scripts/visual-live/server-boot")];
   }
 });

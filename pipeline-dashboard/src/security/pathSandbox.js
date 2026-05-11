@@ -48,7 +48,7 @@ function assertInsideRoot(resolvedPath, root) {
     }
   }
   throw new PathSandboxError(
-    `path escapes harness root: ${resolvedPath}`,
+    `path escapes orchestrator root: ${resolvedPath}`,
     "PATH_OUTSIDE_ROOT"
   );
 }

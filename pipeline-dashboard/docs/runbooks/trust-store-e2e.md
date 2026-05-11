@@ -16,13 +16,13 @@ key is unknown, or the package SHA256 doesn't match the manifest.
 
 > **작업 디렉토리 / Working directory**: every command below runs
 > from inside the npm package directory `pipeline-dashboard/`
-> (which sits inside the git repo at `harness-pipeline-analysis/`).
+> (which sits inside the git repo at `orchestrator-pipeline-analysis/`).
 > Running `git` from the parent works (git walks up to find `.git`);
 > running `npm`/`node scripts/...` from the parent fails with
 > `ENOENT`. **`cd` first** before every block:
 >
 > ```powershell
-> cd C:\path\to\harness-pipeline-analysis\pipeline-dashboard
+> cd C:\path\to\orchestrator-pipeline-analysis\pipeline-dashboard
 > ```
 
 ## §1 Audience and trust scope
@@ -52,10 +52,10 @@ distributed to installation operators contains only public keys.
 | Node.js 24+ | yes | 1, 2, 3 | Both `sign-manifest.js` and the launcher require Node 24+. |
 | `scripts/sign-manifest.js` reachable | yes | 1 | Verify with `node scripts/sign-manifest.js --help`. |
 | Release zip + `manifest.json` template | yes | 1 | Manifest fields: `version`, `url`, `sha256`, `minNodeVersion`. See `scripts/launcher/manifest.json.example`. |
-| Trust store JSON file | yes | 2, 3 | Schema `harness-release-trust/v1`. See [`../fixtures/trust-store-example.json`](../fixtures/trust-store-example.json). Path resolved by [`launcher/trust-store-path.js`](../../scripts/launcher/trust-store-path.js). |
-| `harness-start.bat` (Windows) or `harness-start.sh` (Linux/macOS) | yes | 2, 3 | Bundled with the release. |
+| Trust store JSON file | yes | 2, 3 | Schema `orchestrator-release-trust/v1`. See [`../fixtures/trust-store-example.json`](../fixtures/trust-store-example.json). Path resolved by [`launcher/trust-store-path.js`](../../scripts/launcher/trust-store-path.js). |
+| `orchestrator-start.bat` (Windows) or `orchestrator-start.sh` (Linux/macOS) | yes | 2, 3 | Bundled with the release. |
 | Audit ledger writable | yes | 2, 3 | Launcher writes to `runs/system/ledger.jsonl`. Dir must be writable by the launcher user. |
-| `HARNESS_REQUIRE_SIGNED_MANIFEST=1` env at install time | yes for v1.0.0 | 2, 3 | Production fail-closed posture. Without this, the launcher accepts unsigned manifests in standard mode (the old, lenient behavior). |
+| `ORCHESTRATOR_REQUIRE_SIGNED_MANIFEST=1` env at install time | yes for v1.0.0 | 2, 3 | Production fail-closed posture. Without this, the launcher accepts unsigned manifests in standard mode (the old, lenient behavior). |
 
 ---
 
@@ -68,7 +68,7 @@ signed manifest plus the public key.
 ### §3.1 Generate keypair (one-time per deployer)
 
 ```powershell
-cd C:\path\to\harness-pipeline-analysis\pipeline-dashboard
+cd C:\path\to\orchestrator-pipeline-analysis\pipeline-dashboard
 node scripts/sign-manifest.js genkey --out C:\path\to\private\keystore\
 ```
 
@@ -79,17 +79,17 @@ This emits two files in the chosen directory:
 
 The `keyId` is auto-generated (timestamp + short random suffix) so
 fresh runs don't overwrite. Pick a stable keyId convention for your
-deployer (e.g. `harness-prod-2026Q2`) and re-name the file pair if
+deployer (e.g. `orchestrator-prod-2026Q2`) and re-name the file pair if
 you want a memorable identifier.
 
 ### §3.2 Sign the release manifest
 
 ```powershell
-cd C:\path\to\harness-pipeline-analysis\pipeline-dashboard
+cd C:\path\to\orchestrator-pipeline-analysis\pipeline-dashboard
 node scripts/sign-manifest.js sign `
   --manifest C:\releases\v1.0.0\manifest.json `
-  --private-key C:\path\to\private\keystore\harness-prod-2026Q2-private.pem `
-  --key-id harness-prod-2026Q2 `
+  --private-key C:\path\to\private\keystore\orchestrator-prod-2026Q2-private.pem `
+  --key-id orchestrator-prod-2026Q2 `
   --out C:\releases\v1.0.0\manifest.signed.json
 ```
 
@@ -103,11 +103,11 @@ Add the new public key to the trust store distributed to operators:
 
 ```json
 {
-  "schema": "harness-release-trust/v1",
+  "schema": "orchestrator-release-trust/v1",
   "keys": [
     {
-      "keyId": "harness-prod-2026Q2",
-      "label": "Harness Production Release Key (Q2 2026)",
+      "keyId": "orchestrator-prod-2026Q2",
+      "label": "Orchestrator Production Release Key (Q2 2026)",
       "publicKeyDerBase64": "<base64 of the .pub.pem DER bytes>",
       "addedAt": "2026-05-06T00:00:00.000Z",
       "addedBy": "release-engineer-jane"
@@ -157,15 +157,15 @@ Copy-Item C:\releases\v1.0.0\trust-store.json "$trustDir\trust-store.json"
 Or explicit override (portable / deployer-pinned path):
 
 ```powershell
-$env:HARNESS_TRUST_STORE = "C:\path\to\custom\trust-store.json"
+$env:ORCHESTRATOR_TRUST_STORE = "C:\path\to\custom\trust-store.json"
 ```
 
 ### §4.2 Invoke the launcher with production posture
 
 ```powershell
-$env:HARNESS_REQUIRE_SIGNED_MANIFEST = "1"
-$env:HARNESS_MANIFEST_URL = "https://releases.example.com/v1.0.0/manifest.signed.json"
-.\harness-start.bat
+$env:ORCHESTRATOR_REQUIRE_SIGNED_MANIFEST = "1"
+$env:ORCHESTRATOR_MANIFEST_URL = "https://releases.example.com/v1.0.0/manifest.signed.json"
+.\orchestrator-start.bat
 ```
 
 ### §4.3 Expected verdict — signed manifest accepted
@@ -173,18 +173,18 @@ $env:HARNESS_MANIFEST_URL = "https://releases.example.com/v1.0.0/manifest.signed
 Audit-chain anchor (in `runs/system/ledger.jsonl`):
 
 ```text
-launcher_signature_verified  reason=keyId=harness-prod-2026Q2 posture=standard
+launcher_signature_verified  reason=keyId=orchestrator-prod-2026Q2 posture=standard
 ```
 
 Launcher behavior:
 
 - SHA256 verification passes.
 - Signature verification passes.
-- Install proceeds; server starts; `[harness-start] server up at http://127.0.0.1:4201`.
+- Install proceeds; server starts; `[orchestrator-start] server up at http://127.0.0.1:4201`.
 
 ### §4.4 Expected verdict — unsigned manifest rejected
 
-Repeat §4.2 but point `HARNESS_MANIFEST_URL` at an **unsigned**
+Repeat §4.2 but point `ORCHESTRATOR_MANIFEST_URL` at an **unsigned**
 manifest (one without the `signature` object).
 
 ```text
@@ -195,7 +195,7 @@ exit 37
 Operator sees:
 
 ```text
-[harness-start] install-version.ps1 failed - see log above.
+[orchestrator-start] install-version.ps1 failed - see log above.
 ```
 
 ### §4.5 Expected verdict — unknown keyId rejected
@@ -204,7 +204,7 @@ Sign a manifest with a key whose public key is **not** in the
 trust store, then attempt install:
 
 ```text
-launcher_signature_failed  reason=signature_unknown_key keyId=harness-rogue-2026Q2
+launcher_signature_failed  reason=signature_unknown_key keyId=orchestrator-rogue-2026Q2
 exit 38
 ```
 
@@ -213,20 +213,20 @@ exit 38
 Set both:
 
 ```powershell
-$env:HARNESS_DEPLOYMENT_PROFILE = "public-sector"
-$env:HARNESS_ALLOW_UNSIGNED_MANIFEST = "1"   # dev escape — IGNORED in public-sector
-.\harness-start.bat
+$env:ORCHESTRATOR_DEPLOYMENT_PROFILE = "public-sector"
+$env:ORCHESTRATOR_ALLOW_UNSIGNED_MANIFEST = "1"   # dev escape — IGNORED in public-sector
+.\orchestrator-start.bat
 ```
 
 Expected:
 
 ```text
-[harness-start] WARNING: HARNESS_ALLOW_UNSIGNED_MANIFEST=1 is IGNORED under public-sector posture.
+[orchestrator-start] WARNING: ORCHESTRATOR_ALLOW_UNSIGNED_MANIFEST=1 is IGNORED under public-sector posture.
 launcher_signature_failed  reason=signature_missing posture=public-sector
 exit 37
 ```
 
-The dev escape `HARNESS_ALLOW_UNSIGNED_MANIFEST=1` allows install
+The dev escape `ORCHESTRATOR_ALLOW_UNSIGNED_MANIFEST=1` allows install
 of unsigned manifests in **standard** mode (with `launcher_signature_bypass`
 audit + LOUD warning). Public-sector posture **never** honors that
 escape — that is the load-bearing safety property.
@@ -256,15 +256,15 @@ signed the manifest.
 ```powershell
 # Take a known-good signed manifest pointing at the legitimate zip.
 $sig = "C:\releases\v1.0.0\manifest.signed.json"
-$zip = "C:\releases\v1.0.0\harness-pipeline-1.0.0.zip"
+$zip = "C:\releases\v1.0.0\orchestrator-pipeline-1.0.0.zip"
 
 # Tamper with the zip (any bit flip suffices).
 Add-Content -Path $zip -Value " "
 
 # Attempt install.
-$env:HARNESS_REQUIRE_SIGNED_MANIFEST = "1"
-$env:HARNESS_MANIFEST_URL = "file:///$($sig -replace '\\', '/')"
-.\harness-start.bat
+$env:ORCHESTRATOR_REQUIRE_SIGNED_MANIFEST = "1"
+$env:ORCHESTRATOR_MANIFEST_URL = "file:///$($sig -replace '\\', '/')"
+.\orchestrator-start.bat
 ```
 
 ### §5.2 Expected verdict
@@ -279,8 +279,8 @@ exit 37
 Operator-facing:
 
 ```text
-[harness-start] install-version.ps1 failed - see log above.
-[harness-start] [KO] 서버가 10초 안에 응답하지 않았습니다.   (only if launcher continues past install)
+[orchestrator-start] install-version.ps1 failed - see log above.
+[orchestrator-start] [KO] 서버가 10초 안에 응답하지 않았습니다.   (only if launcher continues past install)
 ```
 
 (In practice the launcher exits 37 before the server-up step, so
@@ -315,11 +315,11 @@ started.
 
 ### §6.2 Run the auditor-bundle exporter
 
-For a sealed evidence packet matching the harness's other audit
+For a sealed evidence packet matching the orchestrator's other audit
 exports:
 
 ```powershell
-cd C:\path\to\harness-pipeline-analysis\pipeline-dashboard
+cd C:\path\to\orchestrator-pipeline-analysis\pipeline-dashboard
 node scripts/external-review-bundle.js `
   --since 2026-05-05T00:00:00Z `
   --filter launcher_signature_ `
@@ -373,9 +373,9 @@ is what closes Blocker #2 acceptance #2. Required content:
 | Risk | Mitigation |
 | --- | --- |
 | Private key leakage into source control | Deployer's `.gitignore` excludes the keystore directory; trust-store-example.json fixture has the `REPLACE_ME` placeholder check enforced by integration test |
-| Operator runs Phase 2 without `HARNESS_REQUIRE_SIGNED_MANIFEST=1` | The standard-mode install ACCEPTS unsigned manifests. v1.0.0 release notes MUST require this env. The deployment-readiness preflight check (Phase E1) will catch missing env in a future round. |
+| Operator runs Phase 2 without `ORCHESTRATOR_REQUIRE_SIGNED_MANIFEST=1` | The standard-mode install ACCEPTS unsigned manifests. v1.0.0 release notes MUST require this env. The deployment-readiness preflight check (Phase E1) will catch missing env in a future round. |
 | Audit ledger loss between phases | Phase evidence depends on `runs/system/ledger.jsonl`. Operator must rotate / archive the ledger between phases or use `external-review-bundle.js` per phase. |
-| `HARNESS_ALLOW_UNSIGNED_MANIFEST=1` left set in production | This dev-escape env is honored only in standard mode and emits LOUD warning + `launcher_signature_bypass` audit. Public-sector posture ignores it entirely (§4.6). v1.0.0 release notes MUST call this out as a production no-op. |
+| `ORCHESTRATOR_ALLOW_UNSIGNED_MANIFEST=1` left set in production | This dev-escape env is honored only in standard mode and emits LOUD warning + `launcher_signature_bypass` audit. Public-sector posture ignores it entirely (§4.6). v1.0.0 release notes MUST call this out as a production no-op. |
 | Trust-store path resolver returns wrong path | Closed by integration test [`tests/integration/trust-store-path-precedence.test.js`](../../tests/integration/trust-store-path-precedence.test.js) (TRUST-STORE-PATH-IT round, 2026-05-05). |
 | TRUST-STORE-0 UI absent | Formally **deferred** to post-v1.0.0 (see [`../scorecard.md`](../scorecard.md) backlog). Operators manage the trust-store JSON file directly during the v1.0.0 window. The path resolver is what makes that file-direct workflow safe. |
 

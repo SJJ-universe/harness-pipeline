@@ -4,9 +4,9 @@
 //
 //   Algorithm:  HS256 (HMAC-SHA256, symmetric)
 //   Issuer:     orchestrator (self-signed; single-tenant)
-//   Key:        HKDF derivative of HARNESS_TOKEN, info="runner-jwt"
+//   Key:        HKDF derivative of ORCHESTRATOR_TOKEN, info="runner-jwt"
 //   Lifetime:   per-run; no refresh
-//   Claims:     sub=runId, aud=runner-${runId}, iat, exp, harness:{...}
+//   Claims:     sub=runId, aud=runner-${runId}, iat, exp, orchestrator:{...}
 //
 // Why hand-rolled instead of pulling in `jsonwebtoken`:
 //   - Zero new runtime deps (matches every other src/security/*.js).
@@ -30,11 +30,11 @@ const crypto = require("crypto");
 // ── HKDF key derivation (RFC 5869) ──────────────────────────────────
 
 /**
- * Derive a 32-byte JWT signing key from HARNESS_TOKEN via HKDF-SHA256.
+ * Derive a 32-byte JWT signing key from ORCHESTRATOR_TOKEN via HKDF-SHA256.
  *
- * @param {string|Buffer} ikm   - The harness token (input keying material).
+ * @param {string|Buffer} ikm   - The orchestrator token (input keying material).
  * @param {object}        [opts]
- * @param {string}        [opts.salt="harness-jwt-v1"] - Versioned salt; bump
+ * @param {string}        [opts.salt="orchestrator-jwt-v1"] - Versioned salt; bump
  *                          for breaking key-derivation changes.
  * @param {string}        [opts.info="runner-jwt"] - Domain-separation label.
  *                          Audit ledger uses a different `info` so the keys
@@ -43,7 +43,7 @@ const crypto = require("crypto");
  * @returns {Buffer} - The derived key.
  */
 function deriveJwtKey(ikm, opts = {}) {
-  const salt = opts.salt || "harness-jwt-v1";
+  const salt = opts.salt || "orchestrator-jwt-v1";
   const info = opts.info || "runner-jwt";
   const keyLen = opts.keyLen || 32;
   if (!ikm || (typeof ikm !== "string" && !Buffer.isBuffer(ikm))) {
@@ -104,13 +104,13 @@ function _timingSafeEqual(a, b) {
  * @param {number} [opts.runDurationMs=3600000] - Run-declared timeout.
  *                          The token's `exp` is `iat + runDurationMs/1000 + 60`
  *                          (60s grace for last-minute hooks).
- * @param {object} [opts.harness]    - Per-run origin metadata mirrored
+ * @param {object} [opts.orchestrator]    - Per-run origin metadata mirrored
  *                          from the monitor envelope (MF1 §3.1):
  *                          { runOrigin, sandboxClass, hostIdentity }.
  * @param {number} [opts.now=Date.now()] - Override clock (tests).
  * @returns {string} - Compact-serialized JWT (`header.payload.sig`).
  */
-function issue({ runId, key, runDurationMs = 3600000, harness, now } = {}) {
+function issue({ runId, key, runDurationMs = 3600000, orchestrator, now } = {}) {
   if (typeof runId !== "string" || runId.length === 0) {
     throw new TypeError("issue: runId is required (non-empty string)");
   }
@@ -130,13 +130,13 @@ function issue({ runId, key, runDurationMs = 3600000, harness, now } = {}) {
     iat,
     exp,
   };
-  if (harness && typeof harness === "object") {
+  if (orchestrator && typeof orchestrator === "object") {
     // Mirror MF1 §3.1 envelope `origin` keys when present.
     const h = {};
-    if (typeof harness.runOrigin === "string") h.runOrigin = harness.runOrigin;
-    if (typeof harness.sandboxClass === "string") h.sandboxClass = harness.sandboxClass;
-    if (typeof harness.hostIdentity === "string") h.hostIdentity = harness.hostIdentity;
-    if (Object.keys(h).length > 0) payload.harness = h;
+    if (typeof orchestrator.runOrigin === "string") h.runOrigin = orchestrator.runOrigin;
+    if (typeof orchestrator.sandboxClass === "string") h.sandboxClass = orchestrator.sandboxClass;
+    if (typeof orchestrator.hostIdentity === "string") h.hostIdentity = orchestrator.hostIdentity;
+    if (Object.keys(h).length > 0) payload.orchestrator = h;
   }
 
   const payloadB64u = b64uEncode(Buffer.from(JSON.stringify(payload), "utf-8"));

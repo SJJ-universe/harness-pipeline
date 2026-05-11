@@ -188,7 +188,7 @@ function main() {
   // signal. Exit 4 propagates so `npm run scorecard:sync` and
   // `npm run scorecard:check` both fail clearly.
   if (readiness.configError === true || readiness.exit === 4) {
-    warn("CONFIG: readiness-report could not boot the harness server.");
+    warn("CONFIG: readiness-report could not boot the orchestrator server.");
     warn("  cause:      " + (readiness.boot && readiness.boot.cause));
     warn("  error code: " + (readiness.boot && readiness.boot.code));
     warn("  kind:       " + (readiness.boot && readiness.boot.kind));

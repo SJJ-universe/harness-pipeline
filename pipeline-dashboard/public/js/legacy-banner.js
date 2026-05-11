@@ -4,14 +4,14 @@
 // Mounted only in /?mode=legacy via index.legacy.html. Manages the
 // banner element added at the top of the document:
 //
-//   - Reads localStorage `harness:legacy-banner-dismissed` on load.
+//   - Reads localStorage `orchestrator:legacy-banner-dismissed` on load.
 //     If "true", the banner is removed from the DOM at first paint
 //     so the legacy chrome reflows naturally.
 //   - Wires the dismiss button. On click: drops the banner element +
 //     writes the storage key. The CTA link is plain `<a href="/">`,
 //     so it works without JS — no listener needed there.
 //   - Re-runs OrchestratorI18n.applyDom() on the banner element when the
-//     KO/EN toggle fires `harness:lang-changed`, so the message and
+//     KO/EN toggle fires `orchestrator:lang-changed`, so the message and
 //     CTA labels swap in place.
 //
 // Per UI-P0 §285-286: this view stays available indefinitely. The
@@ -28,8 +28,8 @@
 })(typeof window !== "undefined" ? window : globalThis, function () {
   "use strict";
 
-  const STORAGE_KEY = "harness:legacy-banner-dismissed";
-  const BANNER_ID = "harness-legacy-banner";
+  const STORAGE_KEY = "orchestrator:legacy-banner-dismissed";
+  const BANNER_ID = "orchestrator-legacy-banner";
 
   /** Read the persisted dismiss flag. Defensive against localStorage
    *  being unavailable (private browsing / quota / etc.). */
@@ -120,9 +120,9 @@
     }
 
     // Re-run i18n.applyDom on locale change so message/CTA labels swap
-    // in place (OrchestratorI18n dispatches harness:lang-changed on setLang).
+    // in place (OrchestratorI18n dispatches orchestrator:lang-changed on setLang).
     if (typeof _doc.addEventListener === "function") {
-      _doc.addEventListener("harness:lang-changed", function () {
+      _doc.addEventListener("orchestrator:lang-changed", function () {
         try {
           if (i18n && typeof i18n.applyDom === "function" && banner.parentNode) {
             i18n.applyDom(banner);

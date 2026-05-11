@@ -35,7 +35,7 @@ const { RULES, recommendFromContext, getRule } = re;
 
 function _validDc(overrides) {
   return {
-    schema: "harness-decision-context/v1",
+    schema: "orchestrator-decision-context/v1",
     timestamp: "2026-05-05T00:00:00.000Z",
     booleans: Object.assign({
       hasPii: false, approvalPending: false, codexReviewMissing: false,

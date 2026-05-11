@@ -3,15 +3,15 @@
 // Single source of truth for filtering sensitive environment variables
 // before passing them to child processes. Used by:
 //
-//   executor/claude-runner.js   spawn(claude, ...) — HARNESS_TOKEN blocked
-//   executor/codex-runner.js    spawn(codex, ...)  — HARNESS_TOKEN blocked
-//   server.js                   pty.spawn(shell, ...) — HARNESS_TOKEN allowed
+//   executor/claude-runner.js   spawn(claude, ...) — ORCHESTRATOR_TOKEN blocked
+//   executor/codex-runner.js    spawn(codex, ...)  — ORCHESTRATOR_TOKEN blocked
+//   server.js                   pty.spawn(shell, ...) — ORCHESTRATOR_TOKEN allowed
 //
 // Why this lives in src/security/ (not in each runner):
 //
 // Pre-P0, executor/claude-runner.js:116 passed `env: process.env` raw, and
 // executor/codex-runner.js:136 omitted the env option entirely (Node.js
-// default = inherit parent env). Result: HARNESS_TOKEN, RUNNER_BOOTSTRAP_TOKEN,
+// default = inherit parent env). Result: ORCHESTRATOR_TOKEN, RUNNER_BOOTSTRAP_TOKEN,
 // ANTHROPIC_API_KEY, OPENAI_API_KEY, GITHUB_TOKEN, AWS_SECRET_ACCESS_KEY,
 // NPM_TOKEN, etc. all leaked into Claude/Codex child processes. Process
 // Explorer / `ps eww` / `/proc/<pid>/environ` then exposed them. If the
@@ -22,14 +22,14 @@
 // it into a shared module and applies the same filter to spawn paths,
 // removing the inconsistency. The Phase E D1 slice (`profileSpawn.js`)
 // builds on top of this base — profile-scoped credentials get inject'd
-// AFTER the base filter so HARNESS_TOKEN can never accidentally reach
+// AFTER the base filter so ORCHESTRATOR_TOKEN can never accidentally reach
 // any child.
 //
 // Threat model:
 //   - Claude/Codex are trusted (we exec them) but the env they see is
 //     not part of our security boundary. Don't pass tokens we don't
 //     need them to see.
-//   - HARNESS_TOKEN: gates the dashboard. Claude/Codex children never
+//   - ORCHESTRATOR_TOKEN: gates the dashboard. Claude/Codex children never
 //     need it. PTY children might (operator typed `curl` themselves).
 //   - RUNNER_BOOTSTRAP_TOKEN, runJWT keys: runner-side auth. Local
 //     children never need it.
@@ -45,7 +45,7 @@
  *   TOKEN, SECRET, KEY, PASSWORD, CREDENTIAL
  *
  * False positives caught by `allowKeys` (e.g. operator-defined
- * HARNESS_DEBUG_TOKEN_NOTE that's actually a comment, not a secret).
+ * ORCHESTRATOR_DEBUG_TOKEN_NOTE that's actually a comment, not a secret).
  */
 const SENSITIVE_KEY_RE = /TOKEN|SECRET|KEY|PASSWORD|CREDENTIAL/i;
 
@@ -59,7 +59,7 @@ const SENSITIVE_KEY_RE = /TOKEN|SECRET|KEY|PASSWORD|CREDENTIAL/i;
  *   to drop something the regex doesn't catch.
  * @param {string[]} [opts.allowKeys=[]] - Keys to PRESERVE even if they
  *   match the SENSITIVE_KEY_RE pattern. Used by PTY which needs
- *   HARNESS_TOKEN so an operator can curl their own dashboard from the
+ *   ORCHESTRATOR_TOKEN so an operator can curl their own dashboard from the
  *   terminal.
  * @returns {object} Shallow-copied env object with sensitive keys removed.
  */

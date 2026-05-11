@@ -24,7 +24,7 @@ test("RR0-d: SAFE_GUIDANCE_PRINCIPLE exported + frozen", () => {
 
 test("RR0-d: SAFE_GUIDANCE_PRINCIPLE has stable id + i18n keys", () => {
   const p = fr.SAFE_GUIDANCE_PRINCIPLE;
-  assert.equal(p.id, "harness-no-credential-collection/v1");
+  assert.equal(p.id, "orchestrator-no-credential-collection/v1");
   assert.equal(p.shortKey, "firstRun.safeGuidance.short");
   assert.equal(p.longKey, "firstRun.safeGuidance.long");
 });

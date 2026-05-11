@@ -1,4 +1,4 @@
-// Slice UI-H2 (Phase D / Phase E1.5, 2026-04-30) — Harness Track panel.
+// Slice UI-H2 (Phase D / Phase E1.5, 2026-04-30) — Orchestrator Track panel.
 //
 // Renders a 7-lane horizontal pipeline with a galloping horse marker
 // at the active lane. Reads from the store:
@@ -20,7 +20,7 @@
 //   .ht-callout   "◈ HARNESS · {GATE}" appears when displayState=rearing
 //   .ht-status    pill showing current stage at right edge
 //
-// Accessibility: role="region", aria-label="Harness pipeline track",
+// Accessibility: role="region", aria-label="Orchestrator pipeline track",
 // aria-live="polite" so a screen-reader announces phase changes.
 
 (function (root, factory) {
@@ -39,18 +39,18 @@
 
   function create({ root, store, doc } = {}) {
     if (!root || typeof root.appendChild !== "function") {
-      throw new Error("harness-track.create: root must be an element");
+      throw new Error("orchestrator-track.create: root must be an element");
     }
     if (!store || typeof store.subscribe !== "function" || typeof store.snapshot !== "function") {
-      throw new Error("harness-track.create: store must be a OrchestratorMonitorStore");
+      throw new Error("orchestrator-track.create: store must be a OrchestratorMonitorStore");
     }
     const _doc = doc || (typeof document !== "undefined" ? document : null);
     if (!_doc || typeof _doc.createElement !== "function") {
-      throw new Error("harness-track.create: no document available");
+      throw new Error("orchestrator-track.create: no document available");
     }
     const SM = _resolveStateMachine();
     if (!SM) {
-      throw new Error("harness-track.create: OrchestratorHorseStateMachine unavailable");
+      throw new Error("orchestrator-track.create: OrchestratorHorseStateMachine unavailable");
     }
 
     let unsubscribe = null;
@@ -187,9 +187,9 @@
       const machineState = SM.computeHorseState(inputs);
 
       root.innerHTML = "";
-      root.classList.add("harness-track-region");
+      root.classList.add("orchestrator-track-region");
       root.setAttribute("role", "region");
-      root.setAttribute("aria-label", "Harness pipeline track");
+      root.setAttribute("aria-label", "Orchestrator pipeline track");
       root.setAttribute("aria-live", "polite");
       root.setAttribute("data-lane-idx", String(machineState.laneIdx));
       root.setAttribute("data-display-state", machineState.displayState);
@@ -231,7 +231,7 @@
         root.removeAttribute("data-lane-idx");
         root.removeAttribute("data-display-state");
         root.removeAttribute("data-gate");
-        root.classList.remove("harness-track-region");
+        root.classList.remove("orchestrator-track-region");
       },
       _render: render,
     };

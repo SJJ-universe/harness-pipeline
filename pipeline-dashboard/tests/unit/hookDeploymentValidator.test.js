@@ -1,7 +1,7 @@
 // Slice F0 (v5) — Hook Deployment Validator regression.
 //
 // Exercises validateDeployment() against crafted settings.json fixtures so we
-// can guarantee the harness fails loud if .claude/settings.json drifts out of
+// can guarantee the orchestrator fails loud if .claude/settings.json drifts out of
 // sync with the 10 hooks the code knows how to route.
 
 const test = require("node:test");
@@ -16,7 +16,7 @@ const {
 } = require("../../src/hooks/deploymentValidator");
 
 function mkTmpSettings(settings) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "harness-hook-dep-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-hook-dep-"));
   const filePath = path.join(dir, "settings.json");
   fs.writeFileSync(filePath, JSON.stringify(settings, null, 2));
   return filePath;
@@ -29,7 +29,7 @@ function validBlock(alias, matcher = "") {
       hooks: [
         {
           type: "command",
-          command: `node "/abs/path/pipeline-dashboard/hooks/harness-hook.js" ${alias}`,
+          command: `node "/abs/path/pipeline-dashboard/hooks/orchestrator-hook.js" ${alias}`,
         },
       ],
     },
@@ -80,7 +80,7 @@ test("validateDeployment: alias mismatch → ok:false + aliasFound recorded", ()
   const settings = fullySpecSettings();
   // Scramble UserPromptSubmit's alias so validator catches the typo.
   settings.hooks.UserPromptSubmit[0].hooks[0].command =
-    'node "/abs/path/harness-hook.js" WRONG';
+    'node "/abs/path/orchestrator-hook.js" WRONG';
   const p = mkTmpSettings(settings);
   const report = validateDeployment(p);
   assert.equal(report.hooks.UserPromptSubmit.ok, false);
@@ -112,7 +112,7 @@ test("validateDeployment: '*' matcher also satisfies required tools", () => {
   assert.equal(report.overallOk, true);
 });
 
-test("validateDeployment: command not pointing at harness-hook.js → ok:false", () => {
+test("validateDeployment: command not pointing at orchestrator-hook.js → ok:false", () => {
   const settings = fullySpecSettings();
   settings.hooks.Stop[0].hooks[0].command = 'node "/abs/path/unrelated.js" stop';
   const p = mkTmpSettings(settings);
@@ -122,7 +122,7 @@ test("validateDeployment: command not pointing at harness-hook.js → ok:false",
 });
 
 test("validateDeployment: malformed JSON → errors non-empty", () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "harness-hook-dep-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-hook-dep-"));
   const p = path.join(dir, "settings.json");
   fs.writeFileSync(p, "{ broken json");
   const report = validateDeployment(p);

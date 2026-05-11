@@ -7,7 +7,7 @@
 //   - Dismiss button click removes the banner element + persists "true"
 //   - i18n.applyDom is called on the banner subtree on first paint
 //     when an i18n stub is provided
-//   - harness:lang-changed event re-applies i18n on the banner
+//   - orchestrator:lang-changed event re-applies i18n on the banner
 //   - reset() clears the storage key (operator escape hatch)
 //   - STORAGE_KEY + BANNER_ID exposed as constants for tests + future
 //     audit chain entries
@@ -198,7 +198,7 @@ test("UI-P8: i18n.applyDom is called on the banner subtree on first paint", () =
   assert.equal(calls[0], banner, "applyDom called with the banner element");
 });
 
-test("UI-P8: harness:lang-changed event re-applies i18n on the banner", () => {
+test("UI-P8: orchestrator:lang-changed event re-applies i18n on the banner", () => {
   const doc = makeStubDoc();
   const storage = makeStubStorage();
   const { banner } = makeBannerElement(doc);
@@ -207,7 +207,7 @@ test("UI-P8: harness:lang-changed event re-applies i18n on the banner", () => {
   legacyBanner.install({ doc, storage, i18n });
   assert.equal(calls.length, 1, "initial applyDom");
   // Simulate OrchestratorI18n.setLang dispatching the event
-  doc._fireDocEvent("harness:lang-changed", { lang: "en" });
+  doc._fireDocEvent("orchestrator:lang-changed", { lang: "en" });
   assert.equal(calls.length, 2, "applyDom re-fired on lang change");
   assert.equal(calls[1], banner);
 });
@@ -220,7 +220,7 @@ test("UI-P8: lang-changed handler is a no-op when banner already removed", () =>
   const i18n = { applyDom: (el) => calls.push(el) };
   legacyBanner.install({ doc, storage, i18n });
   btn._click(); // dismiss → banner removed from parent
-  doc._fireDocEvent("harness:lang-changed", { lang: "en" });
+  doc._fireDocEvent("orchestrator:lang-changed", { lang: "en" });
   assert.equal(calls.length, 1,
     "applyDom only fired on initial install — dismissed banner doesn't re-translate",
   );
@@ -251,6 +251,6 @@ test("UI-P8: _isDismissed returns true only when storage value is exactly 'true'
 // ── Surface contract ─────────────────────────────────────────────
 
 test("UI-P8: STORAGE_KEY + BANNER_ID exported as stable constants", () => {
-  assert.equal(legacyBanner.STORAGE_KEY, "harness:legacy-banner-dismissed");
-  assert.equal(legacyBanner.BANNER_ID,   "harness-legacy-banner");
+  assert.equal(legacyBanner.STORAGE_KEY, "orchestrator:legacy-banner-dismissed");
+  assert.equal(legacyBanner.BANNER_ID,   "orchestrator-legacy-banner");
 });

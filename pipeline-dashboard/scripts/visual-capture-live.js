@@ -4,7 +4,7 @@
 //
 //   1. Boots the dashboard server in-process via
 //      `scripts/visual-live/server-boot` (default port 4799,
-//      override via env HARNESS_VISUAL_LIVE_PORT or --port).
+//      override via env ORCHESTRATOR_VISUAL_LIVE_PORT or --port).
 //   2. Runs the 16-cell capture matrix via
 //      `scripts/visual-live/capture.runCapture` (4 routes × 4
 //      viewports).
@@ -52,7 +52,7 @@ function printHelp() {
   process.stdout.write(`Usage: node scripts/visual-capture-live.js [options]
 
 Options:
-  --port <n>           Server port (default 4799 or HARNESS_VISUAL_LIVE_PORT)
+  --port <n>           Server port (default 4799 or ORCHESTRATOR_VISUAL_LIVE_PORT)
   --out-dir <path>     Output directory for PNGs + manifest.json
                        (default docs/reports/<YYYY-MM-DD>-ui-p10-live/)
   --label <text>       Optional label echoed into manifest filename

@@ -1,18 +1,18 @@
-# Pipeline Dashboard — 하네스 엔지니어링 가이드
+# Pipeline Dashboard — 오케스트레이터 엔지니어링 가이드
 
-> Claude Code + Codex CLI를 위한 **Directive-mode Harness** 프레임워크 및 실시간 시각화 대시보드
+> Claude Code + Codex CLI를 위한 **Directive-mode Orchestrator** 프레임워크 및 실시간 시각화 대시보드
 
 ---
 
-## 1. 하네스 엔지니어링이란 무엇인가
+## 1. 오케스트레이터 엔지니어링이란 무엇인가
 
 ### 1.1. 정의
 
-**하네스(Harness)** 는 원래 "말의 멍에 + 고삐"를 뜻합니다. 말이 아무 방향으로나 달리지 않도록 길을 지시하고, 필요할 때 멈추게 하며, 특정 과업에 집중시키는 장치죠. 소프트웨어 용어로 옮기면:
+**오케스트레이터(Orchestrator)** 는 원래 "말의 멍에 + 고삐"를 뜻합니다. 말이 아무 방향으로나 달리지 않도록 길을 지시하고, 필요할 때 멈추게 하며, 특정 과업에 집중시키는 장치죠. 소프트웨어 용어로 옮기면:
 
-> **하네스 엔지니어링이란, LLM 에이전트가 자유롭게 생성하는 출력의 "가능한 경로(state space)"를, 외부 제어 루프·검증 단계·규칙 엔진으로 좁혀 목표 달성에 수렴시키는 설계 기법이다.**
+> **오케스트레이터 엔지니어링이란, LLM 에이전트가 자유롭게 생성하는 출력의 "가능한 경로(state space)"를, 외부 제어 루프·검증 단계·규칙 엔진으로 좁혀 목표 달성에 수렴시키는 설계 기법이다.**
 
-전통적인 **프롬프트 엔지니어링**이 "모델에게 무엇을 어떻게 말할 것인가"를 다룬다면, 하네스 엔지니어링은 한 단계 위에서 "모델이 무엇을 할 수 있게/없게 할 것인가, 언제 멈추고 언제 다음 단계로 넘어갈 것인가, 어떤 외부 검증을 통과해야 하는가"를 다룹니다.
+전통적인 **프롬프트 엔지니어링**이 "모델에게 무엇을 어떻게 말할 것인가"를 다룬다면, 오케스트레이터 엔지니어링은 한 단계 위에서 "모델이 무엇을 할 수 있게/없게 할 것인가, 언제 멈추고 언제 다음 단계로 넘어갈 것인가, 어떤 외부 검증을 통과해야 하는가"를 다룹니다.
 
 ### 1.2. 왜 필요한가 — LLM 에이전트의 근본 문제
 
@@ -29,11 +29,11 @@ LLM 에이전트(Claude Code, Cursor, Aider 등)는 다음과 같은 실패 모�
 
 이 실패들은 모델의 "지능" 부족이 아니라, **자기 출력을 검증·반박할 외부 기준이 없다는 구조적 한계**에서 나옵니다. 프롬프트만으로는 해결되지 않습니다 — 아무리 "꼼꼼히 검토해줘"라고 써도 모델이 "검토했습니다"라고 거짓말하면 그만입니다.
 
-**하네스 엔지니어링은 이 한계를 외부 통제로 메웁니다.** 모델이 "완료했다"고 주장해도 외부 게이트가 "아니오, 이 조건이 충족되지 않았습니다"라고 반박할 수 있어야 합니다.
+**오케스트레이터 엔지니어링은 이 한계를 외부 통제로 메웁니다.** 모델이 "완료했다"고 주장해도 외부 게이트가 "아니오, 이 조건이 충족되지 않았습니다"라고 반박할 수 있어야 합니다.
 
-### 1.3. 하네스 엔지니어링의 4가지 구성 요소
+### 1.3. 오케스트레이터 엔지니어링의 4가지 구성 요소
 
-좋은 하네스는 다음 4가지를 반드시 갖춥니다:
+좋은 오케스트레이터는 다음 4가지를 반드시 갖춥니다:
 
 1. **Phase 분해 (Decomposition)** — 복잡한 작업을 탐색/계획/검토/실행/검증 등 단계로 나눔
 2. **도구 제한 (Tool Gating)** — 각 단계에서 허용되는 도구를 명시적으로 제한 (예: 계획 단계에서는 코드 수정 금지)
@@ -44,11 +44,11 @@ LLM 에이전트(Claude Code, Cursor, Aider 등)는 다음과 같은 실패 모�
 
 ---
 
-## 2. 이 도구가 왜 하네스 엔지니어링에 적합한가
+## 2. 이 도구가 왜 오케스트레이터 엔지니어링에 적합한가
 
-Pipeline Dashboard는 **위 4가지를 모두 런타임에 강제**하는 Claude Code용 하네스입니다. Claude Code의 **Hook API**를 활용해, 사용자가 Claude와 자연스럽게 대화하는 동안 뒤에서 조용히 작동합니다.
+Pipeline Dashboard는 **위 4가지를 모두 런타임에 강제**하는 Claude Code용 오케스트레이터입니다. Claude Code의 **Hook API**를 활용해, 사용자가 Claude와 자연스럽게 대화하는 동안 뒤에서 조용히 작동합니다.
 
-| 하네스 요건 | 이 도구의 대응 |
+| 오케스트레이터 요건 | 이 도구의 대응 |
 |---|---|
 | Phase 분해 | `pipeline-templates.json`에 선언된 A~F 단계 (탐색/계획/검토/보완/실행/검증) |
 | 도구 제한 | `PreToolUse` 훅이 `phase.allowedTools`를 초과하는 도구 호출을 **즉시 차단** |
@@ -57,9 +57,9 @@ Pipeline Dashboard는 **위 4가지를 모두 런타임에 강제**하는 Claude
 
 **핵심 특징 — Directive Mode**
 
-Claude Code의 훅은 단순히 이벤트를 기록하는 용도가 아니라 **결정을 되돌려 보낼 수 있습니다**. 훅이 `{decision: "block", reason: "..."}`를 반환하면 Claude는 해당 도구 호출을 중단하거나, 턴 종료를 연기하고 이유에 따라 행동을 조정합니다. 이 양방향 채널 덕에 하네스가 실제로 "고삐"를 당길 수 있습니다.
+Claude Code의 훅은 단순히 이벤트를 기록하는 용도가 아니라 **결정을 되돌려 보낼 수 있습니다**. 훅이 `{decision: "block", reason: "..."}`를 반환하면 Claude는 해당 도구 호출을 중단하거나, 턴 종료를 연기하고 이유에 따라 행동을 조정합니다. 이 양방향 채널 덕에 오케스트레이터가 실제로 "고삐"를 당길 수 있습니다.
 
-**Claude가 스스로 멈추지 못하는 것을, 외부 하네스가 대신 멈추게 한다 — 이것이 이 도구의 본질입니다.**
+**Claude가 스스로 멈추지 못하는 것을, 외부 오케스트레이터가 대신 멈추게 한다 — 이것이 이 도구의 본질입니다.**
 
 ---
 
@@ -70,7 +70,7 @@ Claude Code의 훅은 단순히 이벤트를 기록하는 용도가 아니라 **
 │                     Claude Code 세션                          │
 │                                                                │
 │  ┌──────────┐   UserPromptSubmit   ┌──────────────────┐      │
-│  │  사용자   │ ───────────────────> │  harness-hook.js │      │
+│  │  사용자   │ ───────────────────> │  orchestrator-hook.js │      │
 │  └──────────┘                       │   (stdio bridge) │      │
 │                                     └────────┬─────────┘      │
 │  ┌──────────┐   PreToolUse, Stop            │                 │
@@ -121,7 +121,7 @@ Claude Code의 훅은 단순히 이벤트를 기록하는 용도가 아니라 **
 
 ### 3.1. 계층별 책임
 
-**① 훅 브릿지** — `hooks/harness-hook.js`
+**① 훅 브릿지** — `hooks/orchestrator-hook.js`
 - Claude Code가 훅 이벤트를 발생시키면 stdin으로 JSON을 받음
 - HTTP POST로 `/api/hook`에 전달
 - 응답을 stdout으로 Claude에 돌려줌
@@ -132,8 +132,8 @@ Claude Code의 훅은 단순히 이벤트를 기록하는 용도가 아니라 **
 - 통계 수집 (`/api/hook/stats`)
 
 **③ PipelineExecutor** — `executor/pipeline-executor.js`
-- 하네스의 두뇌. 6개 내부 모듈을 오케스트레이션
-- 환경변수 `HARNESS_ENABLED=1` 또는 API로 활성화
+- 오케스트레이터의 두뇌. 6개 내부 모듈을 오케스트레이션
+- 환경변수 `ORCHESTRATOR_ENABLED=1` 또는 API로 활성화
 
 **④ 6개 협력 모듈**
 - `PipelineState` — 모든 도구/파일/finding의 중앙 저장소
@@ -179,7 +179,7 @@ async onPreTool(tool, _input) {
   if (!phase.allowedTools.includes(tool)) {
     return {
       decision: "block",
-      reason: `Harness ${phase.label}(${phase.name}) 단계에서는 다음 도구만 허용됩니다: ${phase.allowedTools.join(", ")}. 요청한 도구: ${tool}.`,
+      reason: `Orchestrator ${phase.label}(${phase.name}) 단계에서는 다음 도구만 허용됩니다: ${phase.allowedTools.join(", ")}. 요청한 도구: ${tool}.`,
     };
   }
   return {};
@@ -245,7 +245,7 @@ switch (c.type) {
 
 **무한 루프 방지 — MAX_GATE_RETRIES=3**
 
-Claude이 3번 연속 같은 게이트에 실패하면, 하네스는 포기하고 다음 phase로 넘어갑니다 (`gate_bypassed` 이벤트 브로드캐스트). 무한히 붙잡아두는 것보다 전진이 낫기 때문입니다. 이 우회는 로그에 남아 사후 분석이 가능합니다.
+Claude이 3번 연속 같은 게이트에 실패하면, 오케스트레이터는 포기하고 다음 phase로 넘어갑니다 (`gate_bypassed` 이벤트 브로드캐스트). 무한히 붙잡아두는 것보다 전진이 낫기 때문입니다. 이 우회는 로그에 남아 사후 분석이 가능합니다.
 
 ### 4.6. Codex Cycle — 계획에 대한 제2의 눈
 
@@ -292,7 +292,7 @@ Codex의 출력에서 `- [severity] message` 패턴을 regex로 파싱해 `findi
 
 ### 4.7. PipelineAdapter — 런타임 변형
 
-하네스의 "적응" 요소. `_advance()`가 다음 phase로 넘어가기 **직전**에 호출됩니다:
+오케스트레이터의 "적응" 요소. `_advance()`가 다음 phase로 넘어가기 **직전**에 호출됩니다:
 
 ```javascript
 async _advance() {
@@ -390,13 +390,13 @@ _applyMutation(mutation) {
 `C:\Users\SJ\workspace\CLAUDE.md`에 선언된 스킬 카테고리:
 
 - **Superpowers (14)** — `brainstorming`, `writing-plans`, `executing-plans`, `tdd`, `debugging`, `root-cause-analysis`, `verification-before-completion` 등 방법론 스킬
-- **Harness (1)** — 에이전트 팀 자동 설계 메타스킬
+- **Orchestrator (1)** — 에이전트 팀 자동 설계 메타스킬
 - **Engineering (20)** — `agent-designer`, `database`, `docker`, `ci-cd`, `performance-optimization` 등
 - **Toolkit (23)** — `python`, `react`, `nextjs`, `typescript`, `security-audit` 등
 - **Product / Marketing (8)** — `content-writing`, `landing-page`, `market-research`
 - **Others (7)** — `senior-backend`, `senior-frontend`, `senior-fullstack`, `playwright`
 
-**스킬과 하네스의 연결**
+**스킬과 오케스트레이터의 연결**
 
 `SkillInjector.gather(phase)`가 `phase.skill` 필드(예: `"superpowers:writing-plans"`)를 보고 `skillRegistry.getSkillContent(id)`로 SKILL.md 본문을 로드합니다. 이후 Codex 프롬프트의 `## Guidelines` 섹션에 주입되어, **Codex가 해당 스킬의 방법론에 따라 계획을 평가**하도록 합니다. 템플릿 JSON에 `skill: "superpowers:writing-plans"`를 추가하면 별도 코드 없이 연결됩니다.
 
@@ -425,12 +425,12 @@ _applyMutation(mutation) {
 
 브라우저에서 `http://127.0.0.1:4200`이 열립니다.
 
-### 6.2. 하네스 활성화
+### 6.2. 오케스트레이터 활성화
 
 대시보드 우상단에 회색/녹색 토글 배지가 있습니다:
 
-- **Harness OFF** — 훅은 연결되어 있지만 도구 차단·게이트 평가는 비활성화 (안전 모드)
-- **🔒 Harness ON** — 전체 Directive Mode 작동
+- **Orchestrator OFF** — 훅은 연결되어 있지만 도구 차단·게이트 평가는 비활성화 (안전 모드)
+- **🔒 Orchestrator ON** — 전체 Directive Mode 작동
 
 토글을 클릭하거나, 터미널에서:
 
@@ -445,7 +445,7 @@ curl -X POST http://127.0.0.1:4200/api/executor/mode -H "Content-Type: applicati
 ```json
 {
   "hooks": {
-    "UserPromptSubmit": [{"command": "node C:/Users/SJ/workspace/pipeline-dashboard/hooks/harness-hook.js user-prompt"}],
+    "UserPromptSubmit": [{"command": "node C:/Users/SJ/workspace/pipeline-dashboard/hooks/orchestrator-hook.js user-prompt"}],
     "PreToolUse":       [{"matcher": "Edit|Write|Bash", "command": "..."}],
     "PostToolUse":      [{"command": "..."}],
     "Stop":             [{"command": "..."}],
@@ -470,10 +470,10 @@ Claude Code를 재시작하면 훅이 로드됩니다. 이후 사용자가 "구�
 ### 6.5. 안전 장치
 
 **Self-block 방지** — 훅이 이 도구 자체를 개발하는 Claude 세션까지 차단하는 불상사를 막기 위해:
-- `HARNESS_ENABLED` 환경변수 + API 토글 이중 게이팅
+- `ORCHESTRATOR_ENABLED` 환경변수 + API 토글 이중 게이팅
 - 훅 요청 타임아웃 1.5초 (서버 죽으면 빠르게 포기)
 - 모든 실패 경로가 `exit(0)` → Claude는 절대 막히지 않음 (fail-open)
-- MCP preview 도구(`mcp__Claude_Preview__preview_*`)는 `PreToolUse` 매처(`Edit|Write|Bash`)에 포함되지 않아 하네스 우회 가능 — 응급 해제 경로
+- MCP preview 도구(`mcp__Claude_Preview__preview_*`)는 `PreToolUse` 매처(`Edit|Write|Bash`)에 포함되지 않아 오케스트레이터 우회 가능 — 응급 해제 경로
 
 ---
 
@@ -562,7 +562,7 @@ case "file-size-growth": {
 
 | 파일 | 책임 |
 |---|---|
-| `hooks/harness-hook.js` | Claude Code 훅 ↔ HTTP 브릿지 |
+| `hooks/orchestrator-hook.js` | Claude Code 훅 ↔ HTTP 브릿지 |
 | `executor/hook-router.js` | 훅 이벤트 → PipelineExecutor 메서드 라우팅 |
 | `executor/pipeline-executor.js` | 메인 오케스트레이터 |
 | `executor/pipeline-state.js` | 도구/산출물/finding 누적 저장소 |
@@ -609,7 +609,7 @@ node executor/__phase2-test.js && node executor/__phase3-test.js && node executo
 
 업계 대부분이 1번에 집중하지만, 1번의 개선은 분기별로만 찾아옵니다. 반면 2번은 **지금 당장** 할 수 있고, 같은 모델로도 극적으로 다른 결과를 낼 수 있습니다. 이 도구는 2번의 실천입니다.
 
-> 좋은 하네스는 모델을 제약하는 게 아니라, 모델의 **최선**을 끌어내는 구조를 만든다.
+> 좋은 오케스트레이터는 모델을 제약하는 게 아니라, 모델의 **최선**을 끌어내는 구조를 만든다.
 
 말을 잘 달리게 하려면 멍에를 씌워야 하듯이.
 

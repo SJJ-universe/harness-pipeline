@@ -18,7 +18,7 @@
 //   3. profile.activeId !== null
 //      → overlay is hidden entirely (handle.update() returns false).
 //
-// Dismissal is session-scoped: `localStorage.setItem("harness:welcomeDismissed", "1")`.
+// Dismissal is session-scoped: `localStorage.setItem("orchestrator:welcomeDismissed", "1")`.
 // The overlay re-appears on each new session (new tab / new boot)
 // until a profile is actually active. This is intentional — once a
 // profile is configured the overlay disappears regardless of dismissal.
@@ -38,7 +38,7 @@
   if (typeof window !== "undefined") root.OrchestratorMonitorWelcomeOverlay = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
 
-  const DISMISS_KEY = "harness:welcomeDismissed";
+  const DISMISS_KEY = "orchestrator:welcomeDismissed";
 
   function _readDismissed(storage) {
     if (!storage || typeof storage.getItem !== "function") return false;

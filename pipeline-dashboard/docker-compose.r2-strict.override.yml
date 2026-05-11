@@ -16,9 +16,9 @@
 #   strict was on.
 #
 #   R3-a splits the topology in two:
-#     - harness-r2-operator (non-internal, declared in the base file)
+#     - orchestrator-r2-operator (non-internal, declared in the base file)
 #       — host port mapping path. NOT touched by this override.
-#     - harness-r2-runner   (internal:true HERE)
+#     - orchestrator-r2-runner   (internal:true HERE)
 #       — runner + probe egress. Severed from host gateway.
 #
 #   Orchestrator dual-homes on both, so:
@@ -34,7 +34,7 @@
 #     up -d orchestrator runner probe
 #
 # The probe service is the alpine sidecar from the base compose. With
-# `internal: true` only on harness-r2-runner, inter-container traffic
+# `internal: true` only on orchestrator-r2-runner, inter-container traffic
 # on the same network is unaffected — the probe can still reach
 # `orchestrator` over Docker DNS through the runner bridge, and the
 # runner can still reach the orchestrator. What WILL fail (verified
@@ -59,12 +59,12 @@ services:
   # file (REPLACE semantics, so re-listing is required).
   orchestrator:
     networks:
-      - harness-r2-operator
-      - harness-r2-runner
+      - orchestrator-r2-operator
+      - orchestrator-r2-runner
 
   runner:
     networks:
-      - harness-r2-runner
+      - orchestrator-r2-runner
 
   # Force the probe sidecar to actually start (default profile gating
   # in the base file means `up` skips it). Strict mode without the
@@ -72,14 +72,14 @@ services:
   probe:
     profiles: []  # empty profiles = always start
     networks:
-      - harness-r2-runner
+      - orchestrator-r2-runner
 
 networks:
   # R3-a: only the runner-internal bridge becomes internal. The
   # operator bridge (declared in the base file) stays normal so the
   # dashboard host port (127.0.0.1:4201) survives strict mode.
-  harness-r2-runner:
-    name: harness-r2-runner-network
+  orchestrator-r2-runner:
+    name: orchestrator-r2-runner-network
     driver: bridge
     # The single behaviour change vs. the base file. Default Docker
     # bridges have a NAT-out hook on the host's iptables that lets

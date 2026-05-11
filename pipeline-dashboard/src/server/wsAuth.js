@@ -46,7 +46,7 @@ function createWsAuth({ allowRemote, host, auth, isLoopbackAddress, isLoopbackHo
       suppliedToken = wsUrl.searchParams.get("token") || "";
     } catch (_) { /* malformed URL → no token */ }
     if (!auth.validateToken(suppliedToken)) {
-      return { ok: false, code: 1008, reason: "missing or invalid harness token" };
+      return { ok: false, code: 1008, reason: "missing or invalid orchestrator token" };
     }
     const originHeader = req.headers && req.headers.origin;
     if (originHeader) {

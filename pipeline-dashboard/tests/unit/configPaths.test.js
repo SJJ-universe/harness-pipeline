@@ -12,13 +12,13 @@ const { resolve, versionInstallDir, APP_NAME } = require("../../src/runtime/conf
 
 // ── env override (portable mode + test isolation) ──────────────────
 
-test("D0-a: HARNESS_CONFIG_DIR env override wins over OS default", () => {
+test("D0-a: ORCHESTRATOR_CONFIG_DIR env override wins over OS default", () => {
   // Use a POSIX path to keep the test cross-platform — node's path.join
   // produces native separators, so a Windows-style "C:\\portable\\config"
   // expectation would fail on Linux CI. The override mechanism itself
   // doesn't care about path style; both are accepted as opaque strings.
   const r = resolve({
-    env: { HARNESS_CONFIG_DIR: "/portable/config" },
+    env: { ORCHESTRATOR_CONFIG_DIR: "/portable/config" },
     platform: "linux",
     homedir: "/home/sj",
   });
@@ -28,9 +28,9 @@ test("D0-a: HARNESS_CONFIG_DIR env override wins over OS default", () => {
   assert.equal(r.profileFile, path.join("/portable/config", "profiles.json"));
 });
 
-test("D0-a: HARNESS_DATA_DIR env override wins over OS default", () => {
+test("D0-a: ORCHESTRATOR_DATA_DIR env override wins over OS default", () => {
   const r = resolve({
-    env: { HARNESS_DATA_DIR: "/mnt/portable/data" },
+    env: { ORCHESTRATOR_DATA_DIR: "/mnt/portable/data" },
     platform: "linux",
     homedir: "/home/sj",
   });
@@ -49,7 +49,7 @@ test("D0-a: env override is independent — config can be overridden alone", () 
   // Operator might want config in a roaming/synced folder but data on
   // a local SSD. Each override is independent.
   const r = resolve({
-    env: { HARNESS_CONFIG_DIR: "/synced/config" },
+    env: { ORCHESTRATOR_CONFIG_DIR: "/synced/config" },
     platform: "linux",
     homedir: "/home/sj",
   });
@@ -159,7 +159,7 @@ test("D0-a: unknown platform falls back to XDG layout", () => {
 
 test("D0-a: derived paths consistently nest under data/config dirs", () => {
   const r = resolve({
-    env: { HARNESS_DATA_DIR: "/data", HARNESS_CONFIG_DIR: "/config" },
+    env: { ORCHESTRATOR_DATA_DIR: "/data", ORCHESTRATOR_CONFIG_DIR: "/config" },
   });
   assert.equal(r.logDir, path.join("/data", "logs"));
   assert.equal(r.runDir, path.join("/data", "runs"));
@@ -171,12 +171,12 @@ test("D0-a: derived paths consistently nest under data/config dirs", () => {
 // ── versionInstallDir ──────────────────────────────────────────────
 
 test("D0-a: versionInstallDir builds paths under versionsDir/<version>/", () => {
-  const dir = versionInstallDir("1.1.0", { env: { HARNESS_DATA_DIR: "/data" } });
+  const dir = versionInstallDir("1.1.0", { env: { ORCHESTRATOR_DATA_DIR: "/data" } });
   assert.equal(dir, path.join("/data", "versions", "1.1.0"));
 });
 
 test("D0-a: versionInstallDir accepts pre-release semver", () => {
-  const dir = versionInstallDir("1.1.0-rc.1", { env: { HARNESS_DATA_DIR: "/data" } });
+  const dir = versionInstallDir("1.1.0-rc.1", { env: { ORCHESTRATOR_DATA_DIR: "/data" } });
   assert.equal(dir, path.join("/data", "versions", "1.1.0-rc.1"));
 });
 
@@ -185,7 +185,7 @@ test("D0-a: versionInstallDir rejects path-traversal attempts", () => {
   // version dir by setting version to "../../etc/passwd".
   for (const bad of ["../escape", "..\\escape", "/abs/path", "C:\\abs", "1.2.3/sub", "1.2.3\\sub"]) {
     assert.throws(
-      () => versionInstallDir(bad, { env: { HARNESS_DATA_DIR: "/data" } }),
+      () => versionInstallDir(bad, { env: { ORCHESTRATOR_DATA_DIR: "/data" } }),
       /invalid version/,
       `expected ${bad} to be rejected`,
     );
@@ -193,10 +193,10 @@ test("D0-a: versionInstallDir rejects path-traversal attempts", () => {
 });
 
 test("D0-a: versionInstallDir rejects empty / non-string version", () => {
-  assert.throws(() => versionInstallDir("", { env: { HARNESS_DATA_DIR: "/data" } }), /non-empty/);
-  assert.throws(() => versionInstallDir(null, { env: { HARNESS_DATA_DIR: "/data" } }), /non-empty/);
-  assert.throws(() => versionInstallDir(undefined, { env: { HARNESS_DATA_DIR: "/data" } }), /non-empty/);
-  assert.throws(() => versionInstallDir(123, { env: { HARNESS_DATA_DIR: "/data" } }), /non-empty/);
+  assert.throws(() => versionInstallDir("", { env: { ORCHESTRATOR_DATA_DIR: "/data" } }), /non-empty/);
+  assert.throws(() => versionInstallDir(null, { env: { ORCHESTRATOR_DATA_DIR: "/data" } }), /non-empty/);
+  assert.throws(() => versionInstallDir(undefined, { env: { ORCHESTRATOR_DATA_DIR: "/data" } }), /non-empty/);
+  assert.throws(() => versionInstallDir(123, { env: { ORCHESTRATOR_DATA_DIR: "/data" } }), /non-empty/);
 });
 
 // ── APP_NAME constant pin ──────────────────────────────────────────

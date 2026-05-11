@@ -30,7 +30,7 @@ Plus auxiliary suites that run on demand:
 | --- | --- | --- |
 | **visual** | `tests/visual/` + `scripts/visual-baseline-update.js` | Visual regression baselines for the dashboard shell. |
 | **readiness** | `scripts/readiness-report.js` | Operational rubric — see [`docs/readiness-rubric.md`](../docs/readiness-rubric.md). |
-| **hook deployment** | `scripts/validate-hook-deployment.js` | Verifies the harness hook contracts ship correctly. |
+| **hook deployment** | `scripts/validate-hook-deployment.js` | Verifies the orchestrator hook contracts ship correctly. |
 
 ## §2 Where does my new test go?
 
@@ -51,7 +51,7 @@ A decision tree. Walk it from the top.
    - Examples: server-info smoke probes, ProviderProbe live checks.
      Use sparingly — every smoke test adds boot latency to CI.
 4. **Is the test about a phase-pipeline transition that the legacy
-   harness used to verify?** → leave it in `executor/__phase{2,3,4}-test.js`.
+   orchestrator used to verify?** → leave it in `executor/__phase{2,3,4}-test.js`.
    - These three files are intentionally kept in the format the
      original phase pipeline used. New phase tests should go in
      `tests/integration/` instead — the legacy files are a

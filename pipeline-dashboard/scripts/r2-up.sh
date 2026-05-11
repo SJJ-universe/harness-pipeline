@@ -50,24 +50,24 @@ require_real_value() {
     exit 78
   fi
 }
-require_real_value HARNESS_TOKEN
+require_real_value ORCHESTRATOR_TOKEN
 require_real_value RUNNER_BOOTSTRAP_TOKEN
-require_real_value HARNESS_HOST_IDENTITY
-require_real_value HARNESS_RUN_ID
+require_real_value ORCHESTRATOR_HOST_IDENTITY
+require_real_value ORCHESTRATOR_RUN_ID
 
 # Mint the per-run JWT using src/security/jwt.js. Fresh on every up so a
 # previous run's token can't be reused after compose restart.
-echo "[r2-up] minting HARNESS_RUN_JWT for runId=$HARNESS_RUN_ID hostIdentity=$HARNESS_HOST_IDENTITY"
+echo "[r2-up] minting ORCHESTRATOR_RUN_JWT for runId=$ORCHESTRATOR_RUN_ID hostIdentity=$ORCHESTRATOR_HOST_IDENTITY"
 RUN_JWT="$(cd "$REPO_ROOT" && node -e '
   const { issue, deriveJwtKey } = require("./src/security/jwt");
-  const key = deriveJwtKey(process.env.HARNESS_TOKEN);
+  const key = deriveJwtKey(process.env.ORCHESTRATOR_TOKEN);
   const token = issue({
-    runId: process.env.HARNESS_RUN_ID,
+    runId: process.env.ORCHESTRATOR_RUN_ID,
     key,
     runDurationMs: 3600000,
     harness: {
-      hostIdentity: process.env.HARNESS_HOST_IDENTITY,
-      sandboxClass: process.env.HARNESS_SANDBOX_CLASS || "container-strict",
+      hostIdentity: process.env.ORCHESTRATOR_HOST_IDENTITY,
+      sandboxClass: process.env.ORCHESTRATOR_SANDBOX_CLASS || "container-strict",
       runOrigin: "container-remote",
     },
   });
@@ -77,8 +77,8 @@ RUN_JWT="$(cd "$REPO_ROOT" && node -e '
   echo "$RUN_JWT" >&2
   exit 70
 }
-export HARNESS_RUN_JWT="$RUN_JWT"
-echo "[r2-up] runJWT minted (length: ${#HARNESS_RUN_JWT})"
+export ORCHESTRATOR_RUN_JWT="$RUN_JWT"
+echo "[r2-up] runJWT minted (length: ${#ORCHESTRATOR_RUN_JWT})"
 
 # Build images first so any build error surfaces clearly before `up`.
 echo "[r2-up] building orchestrator + runner images…"

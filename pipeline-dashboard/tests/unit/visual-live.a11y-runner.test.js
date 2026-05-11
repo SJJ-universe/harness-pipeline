@@ -95,7 +95,7 @@ test("UI-P12 buildA11yManifest: schema + summary derivation", () => {
     totalElapsedMs: 5000,
     axeVersion: "4.11.4",
   });
-  assert.equal(m.schema, "harness-visual-a11y/v1");
+  assert.equal(m.schema, "orchestrator-visual-a11y/v1");
   assert.equal(m.axe.name, "axe-core");
   assert.equal(m.axe.version, "4.11.4");
   assert.deepEqual(m.axe.tags, Array.from(A11Y_AXE_TAGS));

@@ -15,7 +15,7 @@ const { PipelineExecutor } = require("../../executor/pipeline-executor");
 const { PipelineState } = require("../../executor/pipeline-state");
 
 function makeExecutor({ codex, templates, events = [] }) {
-  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "harness-phase-metrics-"));
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-phase-metrics-"));
   const ex = new PipelineExecutor({
     broadcast: (e) => events.push(e),
     templates,

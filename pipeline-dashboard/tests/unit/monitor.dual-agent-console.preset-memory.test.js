@@ -162,7 +162,7 @@ test("SMART-3-POLISH-a: change writes selectedPresetId to storage", async () => 
   select._change("security");
   // setItem called with the canonical key + presetId
   assert.equal(storage.calls.setItem.length, 1, "setItem invoked once");
-  assert.equal(storage.calls.setItem[0].k, "harness:recentPresetId:v1");
+  assert.equal(storage.calls.setItem[0].k, "orchestrator:recentPresetId:v1");
   assert.equal(storage.calls.setItem[0].v, "security");
   handle.destroy();
 });
@@ -170,7 +170,7 @@ test("SMART-3-POLISH-a: change writes selectedPresetId to storage", async () => 
 test("SMART-3-POLISH-a: change to free-form writes empty-string sentinel", async () => {
   const root = makeRoot();
   const store = createMonitorStore();
-  const storage = makeStorage({ "harness:recentPresetId:v1": "security" });
+  const storage = makeStorage({ "orchestrator:recentPresetId:v1": "security" });
   const handle = dualConsole.create({
     root, store, doc: makeStubDoc(),
     client: fakeClient(),
@@ -188,7 +188,7 @@ test("SMART-3-POLISH-a: change to free-form writes empty-string sentinel", async
 test("SMART-3-POLISH-a: pre-existing storage value restores selectedPresetId on mount", async () => {
   const root = makeRoot();
   const store = createMonitorStore();
-  const storage = makeStorage({ "harness:recentPresetId:v1": "security" });
+  const storage = makeStorage({ "orchestrator:recentPresetId:v1": "security" });
   const handle = dualConsole.create({
     root, store, doc: makeStubDoc(),
     client: fakeClient(),
@@ -207,7 +207,7 @@ test("SMART-3-POLISH-a: empty-string sentinel does NOT restore (free-form)", asy
   // Operator previously chose free-form; the empty-string sentinel
   // should result in selectedPresetId === null after mount (NOT a
   // crash, NOT an auto-restore of the catalog's first preset).
-  const storage = makeStorage({ "harness:recentPresetId:v1": "" });
+  const storage = makeStorage({ "orchestrator:recentPresetId:v1": "" });
   const handle = dualConsole.create({
     root, store, doc: makeStubDoc(),
     client: fakeClient(),
@@ -225,7 +225,7 @@ test("SMART-3-POLISH-a: stored presetId removed from server falls back to null",
   const store = createMonitorStore();
   // Storage remembers a preset that the server no longer ships.
   const storage = makeStorage({
-    "harness:recentPresetId:v1": "removed-preset-id",
+    "orchestrator:recentPresetId:v1": "removed-preset-id",
   });
   const handle = dualConsole.create({
     root, store, doc: makeStubDoc(),
@@ -265,19 +265,19 @@ test("SMART-3-POLISH-a: recentPresetsKey custom value is honored", async () => {
     root, store, doc: makeStubDoc(),
     client: fakeClient(),
     storage,
-    recentPresetsKey: "harness:custom-key:v9",
+    recentPresetsKey: "orchestrator:custom-key:v9",
   });
   await tick();
   const select = root._findOneByClass("dac-preset-select");
   select._change("security");
-  assert.equal(storage.calls.setItem[0].k, "harness:custom-key:v9",
+  assert.equal(storage.calls.setItem[0].k, "orchestrator:custom-key:v9",
     "custom key honored on write");
   // And on read (next mount with same key)
   const handle2 = dualConsole.create({
     root: makeRoot(), store, doc: makeStubDoc(),
     client: fakeClient(),
     storage,
-    recentPresetsKey: "harness:custom-key:v9",
+    recentPresetsKey: "orchestrator:custom-key:v9",
   });
   await tick();
   assert.equal(handle2._state().selectedPresetId, "security",
@@ -326,7 +326,7 @@ test("SMART-3-POLISH-a: corrupt storage value (>128 chars) ignored", async () =>
   const root = makeRoot();
   const store = createMonitorStore();
   const storage = makeStorage({
-    "harness:recentPresetId:v1": "x".repeat(200),  // pathological
+    "orchestrator:recentPresetId:v1": "x".repeat(200),  // pathological
   });
   const handle = dualConsole.create({
     root, store, doc: makeStubDoc(),
@@ -371,7 +371,7 @@ test("SMART-3-POLISH-a: free-form change → unmount → remount stays free-form
   // Storage starts with a remembered preset; operator switches to
   // free-form on first mount; the second mount should NOT
   // auto-restore the prior preset (operator's choice persists).
-  const storage = makeStorage({ "harness:recentPresetId:v1": "security" });
+  const storage = makeStorage({ "orchestrator:recentPresetId:v1": "security" });
   const root1 = makeRoot();
   const handle1 = dualConsole.create({
     root: root1, store, doc: makeStubDoc(),
@@ -399,7 +399,7 @@ test("SMART-3-POLISH-a: free-form change → unmount → remount stays free-form
 test("SMART-3-POLISH-a: presetsFetchFailed → no restore attempted (storage left intact)", async () => {
   const root = makeRoot();
   const store = createMonitorStore();
-  const storage = makeStorage({ "harness:recentPresetId:v1": "security" });
+  const storage = makeStorage({ "orchestrator:recentPresetId:v1": "security" });
   // Client whose listPresets returns null (soft-fail path).
   const failingClient = {
     listPresets: async () => null,
@@ -417,7 +417,7 @@ test("SMART-3-POLISH-a: presetsFetchFailed → no restore attempted (storage lef
   assert.equal(handle._state().selectedPresetId, null,
     "soft-fail path leaves selectedPresetId null (cannot validate stored id)");
   // Storage value still present (not auto-cleared)
-  assert.equal(storage.map.get("harness:recentPresetId:v1"), "security",
+  assert.equal(storage.map.get("orchestrator:recentPresetId:v1"), "security",
     "storage value preserved across a soft-fail mount");
   handle.destroy();
 });

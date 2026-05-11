@@ -3,17 +3,17 @@
 // What this module is
 // ───────────────────
 // A frozen registry of 5 named deployment "policy packs" — each a
-// well-defined preset of all the booleans + thresholds the harness
+// well-defined preset of all the booleans + thresholds the orchestrator
 // reads from `deploymentProfile`. Operators pick one via:
 //
-//   HARNESS_DEPLOYMENT_PROFILE=<modeId>
+//   ORCHESTRATOR_DEPLOYMENT_PROFILE=<modeId>
 //
 // and the orchestrator boots with that pack's rules instead of
 // hand-tuning a dozen env vars.
 //
 // 5 frozen packs (alphabetical):
 //
-//   developer-lab            Permissive; for harness developers running
+//   developer-lab            Permissive; for orchestrator developers running
 //                            their own pipelines locally. Plaintext
 //                            secrets opt-in OK; warn-mode gates.
 //
@@ -35,13 +35,13 @@
 //                            sandbox + signed-manifest + PII fail-
 //                            closed. Hard gates default OFF (warn
 //                            graduated rollout); operator opts in via
-//                            HARNESS_HARD_GATES=1.
+//                            ORCHESTRATOR_HARD_GATES=1.
 //
 //   standard                 The pre-SMART-5 default. Permissive
 //                            defaults; operator can opt into
-//                            plaintext via HARNESS_ALLOW_PLAINTEXT_SECRETS=1.
+//                            plaintext via ORCHESTRATOR_ALLOW_PLAINTEXT_SECRETS=1.
 //                            Backwards-compatible with all pre-SMART-5
-//                            harness deployments.
+//                            orchestrator deployments.
 //
 // Why a separate module from `deploymentProfile.js`
 // ─────────────────────────────────────────────────
@@ -71,13 +71,13 @@
 //     requirePiiScanBeforeProviderDispatch: bool,
 //     scannerFailurePolicy: "warn" | "block",
 //     // SMART-2 additions:
-//     hardGatesDefault: bool,   // implicit HARNESS_HARD_GATES=1 for this pack
+//     hardGatesDefault: bool,   // implicit ORCHESTRATOR_HARD_GATES=1 for this pack
 //     // SMART-4 additions:
-//     runMemoryEnabled: bool,   // implicit !HARNESS_RUN_MEMORY_DISABLE for this pack
+//     runMemoryEnabled: bool,   // implicit !ORCHESTRATOR_RUN_MEMORY_DISABLE for this pack
 //   }
 //
 // Pack rules are intentionally OVERRIDABLE by env vars where it
-// makes sense (HARNESS_HARD_GATES, HARNESS_RUN_MEMORY_DISABLE) but
+// makes sense (ORCHESTRATOR_HARD_GATES, ORCHESTRATOR_RUN_MEMORY_DISABLE) but
 // SECURITY-CRITICAL fields (publicSector, allowLocalExecutor, etc.)
 // are pack-only — operators can't soften them via env.
 //
@@ -91,13 +91,13 @@
 
 "use strict";
 
-const SCHEMA = "harness-policy-pack/v1";
+const SCHEMA = "orchestrator-policy-pack/v1";
 
 const RAW_PACKS = [
   {
     modeId: "developer-lab",
     label: "Developer Lab",
-    description: "Permissive; harness developers running pipelines locally. Plaintext secrets opt-in OK; warn-mode gates.",
+    description: "Permissive; orchestrator developers running pipelines locally. Plaintext secrets opt-in OK; warn-mode gates.",
     publicSector: false,
     allowLocalExecutor: true,
     allowPersonalAccounts: true,
@@ -165,7 +165,7 @@ const RAW_PACKS = [
   {
     modeId: "standard",
     label: "Standard",
-    description: "Pre-SMART-5 default. Permissive; operator opts into plaintext via HARNESS_ALLOW_PLAINTEXT_SECRETS=1. Backwards-compatible.",
+    description: "Pre-SMART-5 default. Permissive; operator opts into plaintext via ORCHESTRATOR_ALLOW_PLAINTEXT_SECRETS=1. Backwards-compatible.",
     publicSector: false,
     allowLocalExecutor: true,
     allowPersonalAccounts: true,

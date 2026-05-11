@@ -122,7 +122,7 @@ test("three concurrent execs — third waits until a slot frees", async () => {
 test("two subagents record tools into isolated SubRuns concurrently", async () => {
   const events = [];
   const broadcast = (e) => events.push(e);
-  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "harness-parallel-"));
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-parallel-"));
   const templates = {
     default: {
       id: "default",

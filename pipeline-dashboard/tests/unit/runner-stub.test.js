@@ -1,4 +1,4 @@
-// Slice R1-f (Phase D R1, 2026-04-28) — harness-runner entrypoint test.
+// Slice R1-f (Phase D R1, 2026-04-28) — orchestrator-runner entrypoint test.
 //
 // HISTORY: this file used to assert the R1-f stub's EX_CONFIG (78) exit.
 // R1-e-3 replaced the stub with the real agent (`src/runner/runnerAgent.js`
@@ -26,7 +26,7 @@ function spawnEntry(env = {}) {
 }
 
 test("R1-e-3: missing env → exit 2 with explanatory stderr", () => {
-  // Spawn with no harness env — every required key missing.
+  // Spawn with no orchestrator env — every required key missing.
   // Note: pass an empty env-like object that explicitly clears the
   // required keys so the parent shell's settings can't accidentally
   // satisfy them.
@@ -34,18 +34,18 @@ test("R1-e-3: missing env → exit 2 with explanatory stderr", () => {
     env: {
       // Keep PATH so node resolves; everything else stripped.
       PATH: process.env.PATH || "",
-      HARNESS_BOOTSTRAP_TOKEN: "",
-      HARNESS_HOST_IDENTITY: "",
-      HARNESS_ORCHESTRATOR_URL: "",
-      HARNESS_RUN_ID: "",
-      HARNESS_RUN_JWT: "",
+      ORCHESTRATOR_BOOTSTRAP_TOKEN: "",
+      ORCHESTRATOR_HOST_IDENTITY: "",
+      ORCHESTRATOR_ORCHESTRATOR_URL: "",
+      ORCHESTRATOR_RUN_ID: "",
+      ORCHESTRATOR_RUN_JWT: "",
     },
   });
   assert.equal(result.status, 2, `expected exit 2, got ${result.status} (signal=${result.signal})`);
   const stderr = result.stderr.toString();
   assert.match(stderr, /missing required env/);
   // The error message should list at least one missing key by env name.
-  assert.match(stderr, /HARNESS_/);
+  assert.match(stderr, /ORCHESTRATOR_/);
 });
 
 test("R1-e-3: entrypoint exit code is NOT 78 (the legacy stub code)", () => {

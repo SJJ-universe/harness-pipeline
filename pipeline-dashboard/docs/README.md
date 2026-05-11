@@ -1,8 +1,8 @@
-# Harness Pipeline Documentation Index
+# Orchestrator Pipeline Documentation Index
 
 **Slice DOC-INDEX-1 (Phase 2 v2 follow-up, 2026-05-05)**
 
-This directory contains every long-form document for the harness
+This directory contains every long-form document for the orchestrator
 pipeline. It is organised by **the audience that gets the most value
 out of it first**: a committer joining the project reads from
 "Architecture & design"; an operator preparing a deployment reads from
@@ -17,29 +17,29 @@ else.
 
 ## §1 Architecture & design
 
-For committers and reviewers learning how the harness is shaped.
+For committers and reviewers learning how the orchestrator is shaped.
 
 | Doc | One-line summary |
 | --- | --- |
-| [`harness-architecture.md`](harness-architecture.md) | Runtime shape, control flow, hook router, agent contracts. |
+| [`orchestrator-architecture.md`](orchestrator-architecture.md) | Runtime shape, control flow, hook router, agent contracts. |
 | [`security-model.md`](security-model.md) | Trust boundary, defense layers, threat assumptions for the local-first deployment. |
 | [`container-sandbox.md`](container-sandbox.md) | Container sandbox shape; defers to the RFC for current authoritative design. |
-| [`ui-dashboard-design-notes.md`](ui-dashboard-design-notes.md) | Dashboard design tokens (`public/css/harness-shell.css`) and panel layout rules. |
-| [`ui-h-redesign-plan.md`](ui-h-redesign-plan.md) | UI-H hybrid redesign — SJ Harness mockup integration plan. |
+| [`ui-dashboard-design-notes.md`](ui-dashboard-design-notes.md) | Dashboard design tokens (`public/css/orchestrator-shell.css`) and panel layout rules. |
+| [`ui-h-redesign-plan.md`](ui-h-redesign-plan.md) | UI-H hybrid redesign — SJ Orchestrator mockup integration plan. |
 | [`ui-reference-port-plan.md`](ui-reference-port-plan.md) | UI reference port plan (UI-P0, Phase E Round 3). |
-| [`harness-pipeline-reference-guide-authoring-blueprint.md`](harness-pipeline-reference-guide-authoring-blueprint.md) | Forward-looking blueprint for a future GUIDE-* documentation round series. Plan only, not a finished guide. |
+| [`orchestrator-pipeline-reference-guide-authoring-blueprint.md`](orchestrator-pipeline-reference-guide-authoring-blueprint.md) | Forward-looking blueprint for a future GUIDE-* documentation round series. Plan only, not a finished guide. |
 | [`visual-contract-governance.md`](visual-contract-governance.md) | Visual baseline workflow: `npm run visual:check`, regression detection, refresh policy. |
 
 ## §2 Operations & deployment
 
-For operators running the harness in single-user, internal-team, or
+For operators running the orchestrator in single-user, internal-team, or
 public-sector deployments.
 
 | Doc | One-line summary |
 | --- | --- |
-| [`operator-guide.md`](operator-guide.md) | `harness-start` launcher operator guide (Phase E1, D0). |
-| [`harness-pipeline-distribution-guide.md`](harness-pipeline-distribution-guide.md) | 배포용 통합 가이드 — Korean distribution / installation / first-run instructions. |
-| [`harness-pipeline-reference-guide-draft.md`](harness-pipeline-reference-guide-draft.md) | 전공서형 통합 가이드 초안 — comprehensive Korean reference draft. |
+| [`operator-guide.md`](operator-guide.md) | `orchestrator-start` launcher operator guide (Phase E1, D0). |
+| [`orchestrator-pipeline-distribution-guide.md`](orchestrator-pipeline-distribution-guide.md) | 배포용 통합 가이드 — Korean distribution / installation / first-run instructions. |
+| [`orchestrator-pipeline-reference-guide-draft.md`](orchestrator-pipeline-reference-guide-draft.md) | 전공서형 통합 가이드 초안 — comprehensive Korean reference draft. |
 
 ## §3 Policy, security & remote-mode design
 
@@ -58,13 +58,13 @@ working on the remote-runner subsystem.
 
 ## §4 Reference & contracts
 
-For committers building features on top of harness primitives.
+For committers building features on top of orchestrator primitives.
 
 | Doc | One-line summary |
 | --- | --- |
 | [`i18n-conventions.md`](i18n-conventions.md) | i18n key naming, placeholder regex, translation-quality rules, adding new locales. |
 | [`readiness-rubric.md`](readiness-rubric.md) | 6-category readiness model with per-star rationale + operator workflow. |
-| [`live-evidence-schema.md`](live-evidence-schema.md) | Locked schema reference for the two live-verification probes (`harness-smart-lv-evidence/v1` + `live-verify-review-relay/v1`); audit-chain anchors; v2 convergence notes. |
+| [`live-evidence-schema.md`](live-evidence-schema.md) | Locked schema reference for the two live-verification probes (`orchestrator-smart-lv-evidence/v1` + `live-verify-review-relay/v1`); audit-chain anchors; v2 convergence notes. |
 
 ## §5 Status & health
 
@@ -114,7 +114,7 @@ Search strategies that work well in this layout:
 ## §8 Conventions
 
 - Top-level docs are written in English unless they carry a clear
-  Korean-audience tag (the two `harness-pipeline-*-guide-*.md` files,
+  Korean-audience tag (the two `orchestrator-pipeline-*-guide-*.md` files,
   and `security-reimpl-backlog.md`).
 - Round-specific evidence — closeout reports, JSON probe artifacts,
   visual baselines — lives under `docs/reports/` or in its own

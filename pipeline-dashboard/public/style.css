@@ -654,7 +654,7 @@ h1 {
 .sev-dot.sev-low      { background: #60a5fa; }
 .sev-dot.sev-note     { background: #64748b; }
 
-/* ── Harness Recommendation Cards ── */
+/* ── Orchestrator Recommendation Cards ── */
 /* ── Right Tabs (Terminal / Log) ── */
 .right-tabs {
   flex: 1;
@@ -864,8 +864,8 @@ h1 {
 
 @keyframes rotate-cycle { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-/* ── Harness mode indicator (header) ── */
-.harness-mode-indicator {
+/* ── Orchestrator mode indicator (header) ── */
+.orchestrator-mode-indicator {
   display: inline-block;
   padding: 4px 10px;
   border-radius: 12px;
@@ -878,15 +878,15 @@ h1 {
   user-select: none;
   transition: all 0.15s ease;
 }
-.harness-mode-indicator:hover { filter: brightness(1.2); }
-.harness-mode-indicator.on {
+.orchestrator-mode-indicator:hover { filter: brightness(1.2); }
+.orchestrator-mode-indicator.on {
   background: linear-gradient(90deg, #1a4a2a, #2a6a3a);
   color: #6fdc8c;
   border-color: #2ea043;
   box-shadow: 0 0 6px rgba(46, 160, 67, 0.4);
 }
 
-/* ── Phase flash effects (harness events) ── */
+/* ── Phase flash effects (orchestrator events) ── */
 @keyframes flash-mutated {
   0%   { box-shadow: 0 0 0 0 rgba(212, 165, 116, 0.7); }
   50%  { box-shadow: 0 0 0 8px rgba(212, 165, 116, 0); }
@@ -1160,8 +1160,8 @@ h1 {
 .compact-label { font-size: 14px; font-weight: 800; }
 .compact-name { font-size: 8px; color: var(--text-dim); letter-spacing: 0.3px; }
 
-/* ── Harness Track (horse animation) ── */
-.harness-track {
+/* ── Orchestrator Track (horse animation) ── */
+.orchestrator-track {
   position: relative;
   height: 44px;
   background: var(--bg);
@@ -1191,7 +1191,7 @@ h1 {
   100% { transform: translateX(0) translateY(0) rotate(0deg); }
 }
 
-.harness-status {
+.orchestrator-status {
   margin-left: 12px;
   font-size: 11px;
   font-weight: 600;
@@ -1199,8 +1199,8 @@ h1 {
   transition: color 0.3s;
   white-space: nowrap;
 }
-.harness-status.active { color: var(--claude); }
-.harness-status.blocked { color: var(--red); }
+.orchestrator-status.active { color: var(--claude); }
+.orchestrator-status.blocked { color: var(--red); }
 
 /* prefers-reduced-motion */
 @media (prefers-reduced-motion: reduce) {
@@ -1629,7 +1629,7 @@ h1 {
  * Per UI-P0 §285-286: legacy view stays available indefinitely —
  * banner advertises the new shell without forcing migration.
  * ──────────────────────────────────────────────────────────────── */
-.harness-legacy-banner {
+.orchestrator-legacy-banner {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -1641,7 +1641,7 @@ h1 {
   line-height: 1.45;
   flex-wrap: wrap;
 }
-.harness-legacy-banner[data-dismissed="true"] {
+.orchestrator-legacy-banner[data-dismissed="true"] {
   display: none;
 }
 .legacy-banner-body {

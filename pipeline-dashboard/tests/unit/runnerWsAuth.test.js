@@ -3,7 +3,7 @@
 // Locks the path-aware demux contract that R1-e-2 (server.js wiring)
 // depends on:
 //
-//   - mode/key gating mirrors HARNESS_REMOTE_MODE — "off" closes
+//   - mode/key gating mirrors ORCHESTRATOR_REMOTE_MODE — "off" closes
 //     every upgrade with WS code 1011, NOT 1008. This is intentional:
 //     1008 is "policy violation" (caller error), 1011 is "internal
 //     error" (server can't honor). When the orchestrator is misconfigured
@@ -22,7 +22,7 @@ const jwt = require("../../src/security/jwt");
 
 function setupLive(token = "ws-auth-test-token") {
   return setupRemoteRunner({
-    env: { HARNESS_REMOTE_MODE: "preview", HARNESS_TOKEN: token },
+    env: { ORCHESTRATOR_REMOTE_MODE: "preview", ORCHESTRATOR_TOKEN: token },
   });
 }
 
@@ -30,12 +30,12 @@ function makeReq({ url = "/api/runner/events", host = "127.0.0.1:4201" } = {}) {
   return { url, headers: { host }, socket: { remoteAddress: "10.1.2.3" } };
 }
 
-function buildToken(runId, key, harness = {}) {
+function buildToken(runId, key, orchestrator = {}) {
   return jwt.issue({
     runId,
     key,
     runDurationMs: 60_000,
-    harness: { runOrigin: "container-remote", sandboxClass: "container-strict", ...harness },
+    orchestrator: { runOrigin: "container-remote", sandboxClass: "container-strict", ...orchestrator },
   });
 }
 
@@ -113,7 +113,7 @@ test("R1-e-1: token only (runId missing) → 1008", () => {
 
 // ── happy path ────────────────────────────────────────────────────
 
-test("R1-e-1: valid runJWT round-trip → ok + harness sub-claim exposed", () => {
+test("R1-e-1: valid runJWT round-trip → ok + orchestrator sub-claim exposed", () => {
   const setup = setupLive();
   const token = buildToken("rr-42", setup.jwtKey, { hostIdentity: "runner-a" });
   const verify = createRunnerWsAuth({ mode: "preview", jwtKey: setup.jwtKey });
@@ -127,10 +127,10 @@ test("R1-e-1: valid runJWT round-trip → ok + harness sub-claim exposed", () =>
   assert.equal(r.payload.sub, "rr-42");
 });
 
-test("R1-e-1: harness sub-claim is optional — missing fields tolerated", () => {
+test("R1-e-1: orchestrator sub-claim is optional — missing fields tolerated", () => {
   const setup = setupLive();
-  // Issue a token without `harness` sub-claim — `issue` defaults to {}
-  // when harness is omitted.
+  // Issue a token without `orchestrator` sub-claim — `issue` defaults to {}
+  // when orchestrator is omitted.
   const token = jwt.issue({ runId: "rr-99", key: setup.jwtKey, runDurationMs: 60_000 });
   const verify = createRunnerWsAuth({ mode: "preview", jwtKey: setup.jwtKey });
   const r = verify(makeReq({ url: `/api/runner/events?runId=rr-99&token=${token}` }));

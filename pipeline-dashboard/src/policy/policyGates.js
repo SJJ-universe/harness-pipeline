@@ -57,11 +57,11 @@
 //     ▼
 //   dispatch / spawn / broadcast
 //
-// Mode: warn (default) vs hard (HARNESS_HARD_GATES=1)
+// Mode: warn (default) vs hard (ORCHESTRATOR_HARD_GATES=1)
 // ───────────────────────────────────────────────────
 // Plan §S §S-SMART-2 v2 ships in WARN mode by default so existing
 // deployments continue to work. Operators opt into hard mode via
-// HARNESS_HARD_GATES=1 (or "hard"/"true"). In hard mode, gates that
+// ORCHESTRATOR_HARD_GATES=1 (or "hard"/"true"). In hard mode, gates that
 // detect a violation set `blocked=true` + emit `policy_gate_blocked`;
 // callers should turn that into a 4xx HTTP response. In warn mode,
 // the same violation sets `ok=true` + emits `policy_gate_warn`;
@@ -91,7 +91,7 @@ const { scanForPii } = require("../security/piiScanner");
 
 // ── Frozen vocabulary ─────────────────────────────────────────────
 
-const SCHEMA = "harness-policy-gate/v1";
+const SCHEMA = "orchestrator-policy-gate/v1";
 
 const GATE_MODES = Object.freeze({
   HARD: "hard",
@@ -132,12 +132,12 @@ const AUDIT_VERBS = Object.freeze({
  * deployment profile.
  *
  * Precedence (high → low):
- *   1. env HARNESS_HARD_GATES is "1" / "true" / "hard"  → HARD
- *   2. env HARNESS_HARD_GATES is "0" / "false" / "warn" / "no" → WARN
+ *   1. env ORCHESTRATOR_HARD_GATES is "1" / "true" / "hard"  → HARD
+ *   2. env ORCHESTRATOR_HARD_GATES is "0" / "false" / "warn" / "no" → WARN
  *      (explicit operator override — beats pack default)
  *   3. deploymentProfile.hardGatesDefault === true → HARD
  *      (pack-level default — POL-a wiring per plan §S §S-SMART-5
- *      "Per-pack default HARNESS_HARD_GATES override env" deferred)
+ *      "Per-pack default ORCHESTRATOR_HARD_GATES override env" deferred)
  *   4. WARN (safe rollout default; existing deployments untouched
  *      unless they pick a pack with hardGatesDefault=true)
  *
@@ -151,7 +151,7 @@ const AUDIT_VERBS = Object.freeze({
  * Why explicit env can OVERRIDE pack default to WARN:
  *   An operator running finance-high-privacy (hardGatesDefault=true)
  *   may need to temporarily soften gates during incident triage or
- *   migration. Setting HARNESS_HARD_GATES=0 / =warn lets them do
+ *   migration. Setting ORCHESTRATOR_HARD_GATES=0 / =warn lets them do
  *   that without changing the pack id (which would also flip
  *   sandbox / signing / etc. requirements). Plan §S §S-SMART-5
  *   anticipates this with the documented escape pattern.
@@ -162,7 +162,7 @@ const AUDIT_VERBS = Object.freeze({
  */
 function resolveGateMode(env, deploymentProfile) {
   const e = env || (typeof process !== "undefined" ? process.env : {});
-  const raw = String(e.HARNESS_HARD_GATES || "").trim().toLowerCase();
+  const raw = String(e.ORCHESTRATOR_HARD_GATES || "").trim().toLowerCase();
   // Step 1: explicit hard
   if (raw === "1" || raw === "true" || raw === "hard") return GATE_MODES.HARD;
   // Step 2: explicit warn (operator override of pack default)

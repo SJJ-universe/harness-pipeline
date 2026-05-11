@@ -387,7 +387,7 @@ test("archiveSession rejects empty sessionId", async () => {
 
 test("listPresets GETs /api/review-presets", async () => {
   const { fetchImpl, calls } = _capture(() => _okResponse({
-    schema: "harness-review-preset/v1",
+    schema: "orchestrator-review-preset/v1",
     presets: [
       { presetId: "security", defaultLabel: "Security", defaultDescription: "..." },
     ],
@@ -396,7 +396,7 @@ test("listPresets GETs /api/review-presets", async () => {
   assert.equal(calls.length, 1);
   assert.equal(calls[0].url, "/api/review-presets");
   assert.equal(calls[0].init.method, "GET");
-  assert.equal(result.schema, "harness-review-preset/v1");
+  assert.equal(result.schema, "orchestrator-review-preset/v1");
   assert.equal(result.presets.length, 1);
 });
 

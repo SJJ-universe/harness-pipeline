@@ -28,7 +28,7 @@ const { createRunMemoryRoutes } = require("../../src/routes/runMemoryRoutes");
 // ── Fixtures ──────────────────────────────────────────────────────
 
 function makeTempLedgerDir() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "harness-run-memory-test-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-run-memory-test-"));
   return dir;
 }
 
@@ -273,7 +273,7 @@ test("S4-b routes: opt-out ledger has only an opt-out marker → 404", async () 
     runMemory.recordRunMemory({
       runId: "run-OptOut",
       inputs: { goal: "x" }, ledger,
-      env: { HARNESS_RUN_MEMORY_DISABLE: "1" },
+      env: { ORCHESTRATOR_RUN_MEMORY_DISABLE: "1" },
       deploymentProfile: { publicSector: false },
     });
     const res = await httpGet(port, "/api/runs/run-OptOut/memory");

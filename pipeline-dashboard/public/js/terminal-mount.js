@@ -110,7 +110,7 @@
 
       // Resolve the auth token. apiTokenGetter is the canonical
       // injection point; falls back to window.OrchestratorApi.getToken,
-      // then window.HARNESS_TOKEN.
+      // then window.ORCHESTRATOR_TOKEN.
       let token = "";
       if (typeof apiTokenGetter === "function") {
         try { token = await apiTokenGetter(); } catch (_) { token = ""; }
@@ -118,7 +118,7 @@
         if (globalThis.OrchestratorApi && typeof globalThis.OrchestratorApi.getToken === "function") {
           try { token = await globalThis.OrchestratorApi.getToken(); } catch (_) {}
         }
-        if (!token && globalThis.HARNESS_TOKEN) token = globalThis.HARNESS_TOKEN;
+        if (!token && globalThis.ORCHESTRATOR_TOKEN) token = globalThis.ORCHESTRATOR_TOKEN;
       }
 
       const protocol = locationProtocol

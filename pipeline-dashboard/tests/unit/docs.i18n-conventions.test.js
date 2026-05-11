@@ -31,7 +31,7 @@ test("I18N-DOC-1: file exists + non-empty", () => {
 });
 
 test("I18N-DOC-1: H1 title present", () => {
-  assert.match(read(), /^# Harness i18n conventions/m);
+  assert.match(read(), /^# Orchestrator i18n conventions/m);
 });
 
 test("I18N-DOC-1: tagged with slice I18N-DOC-1", () => {

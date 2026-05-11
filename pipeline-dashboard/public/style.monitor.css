@@ -1170,15 +1170,15 @@ body.monitor-active {
   text-transform: uppercase;
 }
 
-/* ── Slice UI-H2: Harness Track panel ── */
+/* ── Slice UI-H2: Orchestrator Track panel ── */
 
-.monitor-shell .harness-track-region-mount {
+.monitor-shell .orchestrator-track-region-mount {
   display: block;
   background: linear-gradient(180deg, #0F1013 0%, #0A0B0D 75%, #07080A 100%);
   border-bottom: 1px solid var(--hsh-border, rgba(255, 255, 255, 0.06));
 }
 
-.monitor-shell .harness-track-region {
+.monitor-shell .orchestrator-track-region {
   position: relative;
   height: 92px;
   overflow: hidden;
@@ -2338,7 +2338,7 @@ body.monitor-active {
  * Pre-CSS-1, all three rendered with default browser styling
  * (no border, no spacing). Operators saw raw text + buttons,
  * which made the dashboard feel half-built. CSS-1 grounds them
- * in the existing harness shell design tokens (--hsh-bg-card,
+ * in the existing orchestrator shell design tokens (--hsh-bg-card,
  * --hsh-border, --hsh-radius-md, --hsh-fs-*) so they match the
  * 4-card grid below.
  *
@@ -2475,7 +2475,7 @@ body.monitor-active {
   white-space: nowrap;
 }
 
-/* Primary CTA — soft outline button matching the harness
+/* Primary CTA — soft outline button matching the orchestrator
  * shell button style. */
 .monitor-shell .rec-cta.is-primary {
   font-family: inherit;

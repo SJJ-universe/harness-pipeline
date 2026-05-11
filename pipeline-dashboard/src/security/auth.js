@@ -3,11 +3,11 @@ const fs = require("fs");
 const path = require("path");
 
 function ensureToken(repoRoot) {
-  if (process.env.HARNESS_TOKEN && process.env.HARNESS_TOKEN.trim()) {
-    return process.env.HARNESS_TOKEN.trim();
+  if (process.env.ORCHESTRATOR_TOKEN && process.env.ORCHESTRATOR_TOKEN.trim()) {
+    return process.env.ORCHESTRATOR_TOKEN.trim();
   }
 
-  const dir = path.join(repoRoot, ".harness");
+  const dir = path.join(repoRoot, ".orchestrator");
   const tokenPath = path.join(dir, "local-token");
   if (fs.existsSync(tokenPath)) {
     const token = fs.readFileSync(tokenPath, "utf-8").trim();
@@ -103,14 +103,14 @@ function createAuthMiddleware({ repoRoot, host = "127.0.0.1", allowRemote = fals
     // /api/runner/* routes have their own Bearer-token auth (single-use
     // bootstrap → 24h sliding-TTL runnerToken → per-run runJWT, see
     // MG1 §4 + §8.1). They MUST NOT also require the dashboard's
-    // x-harness-token because remote runner hosts will never have it
+    // x-orchestrator-token because remote runner hosts will never have it
     // (the dashboard token is operator-only). When mounted under
     // app.use("/api", mw), Express strips the mount prefix, so
     // req.path for /api/runner/handshake is "/runner/handshake".
     if (req.path && req.path.startsWith("/runner/")) return next();
-    const supplied = req.headers["x-harness-token"];
+    const supplied = req.headers["x-orchestrator-token"];
     if (!safeEqual(supplied, token)) {
-      return res.status(401).json({ error: "missing or invalid harness token" });
+      return res.status(401).json({ error: "missing or invalid orchestrator token" });
     }
     next();
   }

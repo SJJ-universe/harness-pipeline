@@ -3,7 +3,7 @@
 // Verifies that a booted server serves / with:
 //   - Per-request nonce in the CSP header AND in every <script> / <link>.
 //   - Content-Security-Policy-Report-Only by default (rollout mode).
-//   - Content-Security-Policy when HARNESS_CSP_MODE=enforce.
+//   - Content-Security-Policy when ORCHESTRATOR_CSP_MODE=enforce.
 //   - report-uri points at /api/csp-report so browsers can surface
 //     violations back to the dashboard.
 //   - express.static does NOT serve index.html directly — the indexRenderer
@@ -34,7 +34,7 @@ async function waitFor(pathname) {
 test("/ serves index.html with a per-request CSP nonce in Report-Only mode", async () => {
   // Slice P (v6): default is now enforce, so this test explicitly opts into
   // Report-Only mode to exercise that path.
-  process.env.HARNESS_CSP_MODE = "report-only";
+  process.env.ORCHESTRATOR_CSP_MODE = "report-only";
   const listener = start(PORT, "127.0.0.1");
   try {
     const res = await waitFor("/");
@@ -62,13 +62,13 @@ test("/ serves index.html with a per-request CSP nonce in Report-Only mode", asy
     assert.match(body, new RegExp(`<script nonce="${nonceInHeader.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&")}"`),
       "body's <script nonce=...> must match the header nonce");
   } finally {
-    delete process.env.HARNESS_CSP_MODE;
+    delete process.env.ORCHESTRATOR_CSP_MODE;
     await new Promise((r) => listener.close(r));
   }
 });
 
 test("consecutive / requests get different nonces (defense-in-depth)", async () => {
-  process.env.HARNESS_CSP_MODE = "report-only";
+  process.env.ORCHESTRATOR_CSP_MODE = "report-only";
   const listener = start(PORT + 1, "127.0.0.1");
   try {
     const u = `http://127.0.0.1:${PORT + 1}/`;
@@ -80,13 +80,13 @@ test("consecutive / requests get different nonces (defense-in-depth)", async () 
     const n2 = h2.match(/'nonce-([^']+)'/)[1];
     assert.notEqual(n1, n2, "nonce must regenerate per request");
   } finally {
-    delete process.env.HARNESS_CSP_MODE;
+    delete process.env.ORCHESTRATOR_CSP_MODE;
     await new Promise((r) => listener.close(r));
   }
 });
 
 test("default mode is enforce (Slice P flip)", async () => {
-  delete process.env.HARNESS_CSP_MODE;
+  delete process.env.ORCHESTRATOR_CSP_MODE;
   const listener = start(PORT + 2, "127.0.0.1");
   try {
     const res = await fetch(`http://127.0.0.1:${PORT + 2}/`);
@@ -118,7 +118,7 @@ test("/api/csp-report accepts a violation report without a CSRF token (browser-i
         },
       }),
     });
-    // Browser CSP reports don't send x-harness-token — endpoint must accept
+    // Browser CSP reports don't send x-orchestrator-token — endpoint must accept
     // them anyway (204 No Content is the CSP spec's prescribed response).
     assert.equal(res.status, 204);
   } finally {

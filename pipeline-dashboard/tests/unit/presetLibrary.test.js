@@ -7,8 +7,8 @@ const assert = require("node:assert/strict");
 
 const lib = require("../../src/runtime/presetLibrary");
 
-test("presetLibrary: SCHEMA constant is harness-review-preset/v1", () => {
-  assert.equal(lib.SCHEMA, "harness-review-preset/v1");
+test("presetLibrary: SCHEMA constant is orchestrator-review-preset/v1", () => {
+  assert.equal(lib.SCHEMA, "orchestrator-review-preset/v1");
 });
 
 test("presetLibrary: ships exactly 6 frozen presets", () => {

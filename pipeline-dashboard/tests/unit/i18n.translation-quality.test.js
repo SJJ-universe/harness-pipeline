@@ -45,7 +45,7 @@ const en = require("../../public/js/i18n/en");
 const HANGUL_RE = /[가-힣]/;
 
 // Latin letter detection: a-z + A-Z. We do NOT match Latin-1
-// punctuation or extended Latin (é, ü) — the harness's English
+// punctuation or extended Latin (é, ü) — the orchestrator's English
 // values are vanilla ASCII letters. If en[K] has zero ASCII
 // letters, it's either symbols-only (suspicious) or Korean (bug).
 const LATIN_RE = /[A-Za-z]/;
@@ -189,7 +189,7 @@ test("I18N-PARITY-2-a: no value contains TODO/FIXME/XXX placeholder markers", ()
 });
 
 test("I18N-PARITY-2-a: no value contains HTML tags (UI handles escaping)", () => {
-  // The harness UI escapes text content; raw HTML in values would
+  // The orchestrator UI escapes text content; raw HTML in values would
   // either render as literal "<script>" (harmless but ugly) or
   // be a security risk if any panel inadvertently uses innerHTML.
   // This test enforces "i18n values are plain text".
@@ -210,7 +210,7 @@ test("I18N-PARITY-2-a: no value contains HTML tags (UI handles escaping)", () =>
 test("I18N-PARITY-2-a: ko values without any letter at all are suspicious", () => {
   // A value with neither Hangul nor Latin letters is symbols-only
   // (e.g. just "→" or "▶"). These exist as shorthand in the
-  // harness but are rare. We don't outright fail — we count and
+  // orchestrator but are rare. We don't outright fail — we count and
   // report, with a sensible cap.
   let symbolOnly = 0;
   const examples = [];
@@ -259,7 +259,7 @@ test("I18N-PARITY-2-a: anchor — latinRatio computes correctly", () => {
 
 test("I18N-PARITY-2-a: anchor — HANGUL_RE matches everyday Korean text", () => {
   assert.match("안녕하세요", HANGUL_RE);
-  assert.match("하네스", HANGUL_RE);
+  assert.match("오케스트레이터", HANGUL_RE);
   assert.match("일반사용자", HANGUL_RE);
   // Mixed: should still match if ANY Hangul present
   assert.match("Codex 검증", HANGUL_RE);

@@ -9,9 +9,9 @@
 #
 # Prerequisites:
 #   Boot the harness with:
-#     $env:HARNESS_DEPLOYMENT_PROFILE = "finance-high-privacy"
-#     $env:HARNESS_HARD_GATES = "1"
-#     $env:HARNESS_TOKEN = "<test-token>"
+#     $env:ORCHESTRATOR_DEPLOYMENT_PROFILE = "finance-high-privacy"
+#     $env:ORCHESTRATOR_HARD_GATES = "1"
+#     $env:ORCHESTRATOR_TOKEN = "<test-token>"
 #     node start.js
 #
 # Examples:

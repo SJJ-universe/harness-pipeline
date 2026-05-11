@@ -171,7 +171,7 @@
         || (typeof location !== "undefined" ? location.host : "127.0.0.1:4201");
       const wsProto = protocol === "https:" ? "wss:" : "ws:";
       const token = apiToken
-        || (typeof globalThis !== "undefined" && globalThis.HARNESS_TOKEN)
+        || (typeof globalThis !== "undefined" && globalThis.ORCHESTRATOR_TOKEN)
         || "";
       const url = wsProto + "//" + host + "/terminal?token=" + encodeURIComponent(token);
 

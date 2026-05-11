@@ -2,7 +2,7 @@
 
 **Slice EXR-b (Phase 2 / EXTERNAL-REVIEW-0, 2026-05-05)**
 
-This matrix is the bridge between **what the harness claims to do** and
+This matrix is the bridge between **what the orchestrator claims to do** and
 **what we built + how it's verified**. An external reviewer reads it
 top-to-bottom, picks any row, and follows the breadcrumbs to the code,
 the test, the audit verb, the closeout report, and the operator-visible
@@ -15,7 +15,7 @@ matrix gives the reviewer **per-claim spot-check ammunition** so a
 "passed CI".
 
 This is the companion to `scripts/external-review-bundle.js`
-(`harness-external-review-bundle/v1`) — the bundle compiles the **list
+(`orchestrator-external-review-bundle/v1`) — the bundle compiles the **list
 of artifacts** with sha256 fingerprints; this matrix compiles the
 **claim → artifact map**.
 
@@ -58,7 +58,7 @@ of artifacts** with sha256 fingerprints; this matrix compiles the
 ## Claim categories (8)
 
 The matrix is organized by claim category. Each category is one
-operator-facing capability the harness markets; each row inside a
+operator-facing capability the orchestrator markets; each row inside a
 category is a more specific testable claim.
 
 | # | Category | Round of record | Cap movement target |
@@ -104,13 +104,13 @@ checked. Leave blank to mean "not sampled this review".
 | 3.1 | A 25-minute Codex critique with 30-second progress ticks survives idle watchdog | `src/runtime/activityWatchdog.js`, `executor/codex-runner.js` | `tests/integration/release-readiness-long-run.test.js` | `codex_idle_warning` (only on real silence) | RELEASE-READY-0 (RR0-b/e) | Probe `codex_killed_for_idle` count = 0 | |
 | 3.2 | After 60s of true silence, Codex is killed with `codex_killed_for_idle` audit | same | same | `codex_killed_for_idle` | RR0-b/e | Probe count > 0 → DEGRADED verdict | |
 | 3.3 | The 30-min total cap is enforced even if ticks keep arriving | `src/runtime/timeoutPolicy.js` | `tests/integration/release-readiness-long-run.test.js` | n/a (kill audit verb) | RR0-a/e | Total cap reached → kill | |
-| 3.4 | `HARNESS_TIMEOUT_PRESET=public_sector` selects 30/45/30/2 min preset at boot | `src/runtime/timeoutPolicy.js` | `tests/unit/timeoutPolicy.test.js` | n/a (resolved at boot, surfaced in /api/server/info) | RR0-a | Server-info shows `timeoutPolicy` block | |
+| 3.4 | `ORCHESTRATOR_TIMEOUT_PRESET=public_sector` selects 30/45/30/2 min preset at boot | `src/runtime/timeoutPolicy.js` | `tests/unit/timeoutPolicy.test.js` | n/a (resolved at boot, surfaced in /api/server/info) | RR0-a | Server-info shows `timeoutPolicy` block | |
 
 ### Category 4 — Account / profile management & safe guidance
 
 | # | Claim | Code | Test | Audit verb | Closeout | Operator signal | Reviewer verdict |
 |---|---|---|---|---|---|---|---|
-| 4.1 | The harness never accepts user passwords or OAuth tokens via any route | `server.js` (route inventory), `src/security/auth.js` | n/a (negative invariant — verified by grep + audit) | n/a | RR0-d (safe-guidance principle) | Safe-guidance footnote in setup wizard | |
+| 4.1 | The orchestrator never accepts user passwords or OAuth tokens via any route | `server.js` (route inventory), `src/security/auth.js` | n/a (negative invariant — verified by grep + audit) | n/a | RR0-d (safe-guidance principle) | Safe-guidance footnote in setup wizard | |
 | 4.2 | First-run guidance walks operator through `claude auth login` / `codex auth login` only | `src/runtime/firstRunClassifier.js` | `tests/unit/firstRunClassifier.test.js` | n/a (CTAs only) | RR0-d / D1 | Setup wizard shows COPY_LOGIN_COMMAND_* | |
 | 4.3 | Profile switch fails if any run is active (409 + audit) | `src/runtime/profileStore.js`, `src/routes/profileRoutes.js` | `tests/integration/profile-switch-blocked.test.js` | `profile_switch_blocked` | D1 | UI shows "wait for active run" toast | |
 | 4.4 | Credential plaintext fallback emits LOUD warning + audit verb | `src/security/credentialStore.js` | `tests/unit/credentialStore.test.js` | `credential_plaintext_fallback` | D1 | Probe + UI both surface fallback state | |
@@ -133,7 +133,7 @@ checked. Leave blank to mean "not sampled this review".
 | 6.2 | `runMemory` writes redact PII before persisting (raw email/secret never in ledger) | `src/runtime/runMemory.js` | `tests/integration/smart-arc-live-evidence.test.js` (P4) | `run_memory_recorded` | SMART-4 | Memory row has sourceHash, not raw text | |
 | 6.3 | `decisionContext` booleans drive recommendation engine output | `src/runtime/decisionContext.js`, `src/runtime/recommendationEngine.js` | `tests/integration/smart-arc-live-evidence.test.js` (P5) | n/a | SMART-0 / SMART-1 | Simple-shell shows recommendation card | |
 | 6.4 | Dispatch with `presetId` injects `[Preset: <Label>]` header + audit attribution | `src/runtime/reviewSpawnDispatcher.js`, `src/runtime/presetLibrary.js` | `tests/integration/smart-arc-live-evidence.test.js` (P6) | `review_session_dispatch_started` (with `presetId` field) | SMART-3 | dual-agent console shows preset name | |
-| 6.5 | `HARNESS_DEPLOYMENT_PROFILE=finance-high-privacy` automatically applies `hardGatesDefault=true` | `src/policy/policyGates.js` (resolveGateMode), `src/policy/policyPackRegistry.js` | `tests/unit/policyGates.resolve.test.js` | `deployment_profile_resolved` | SMART-5 / POLICY-UX-0 (POL-a) | `/api/policy-packs` shows `hardGatesEffectiveMode=hard` | |
+| 6.5 | `ORCHESTRATOR_DEPLOYMENT_PROFILE=finance-high-privacy` automatically applies `hardGatesDefault=true` | `src/policy/policyGates.js` (resolveGateMode), `src/policy/policyPackRegistry.js` | `tests/unit/policyGates.resolve.test.js` | `deployment_profile_resolved` | SMART-5 / POLICY-UX-0 (POL-a) | `/api/policy-packs` shows `hardGatesEffectiveMode=hard` | |
 | 6.6 | `GET /api/policy-packs` returns frozen catalog with `currentPack` + `metadata.hardGatesEffectiveMode` | `src/routes/policyPackRoutes.js` | `tests/integration/policy-packs.routes.test.js` | n/a (read-only) | POLICY-UX-0 (POL-b) | Operator can compare 5 pack rule sets | |
 | 6.7 | Live verification probe captures all 6 SMART properties end-to-end | `scripts/live-verify-smart-arc.js` | `tests/unit/live-verify-smart-arc.test.js` | n/a (compiles audit chain) | SMART-LV-0 (LV0-b) | `<date>-smart-arc-live-verify.json` verdict=PASS | |
 
@@ -141,7 +141,7 @@ checked. Leave blank to mean "not sampled this review".
 
 | # | Claim | Code | Test | Audit verb | Closeout | Operator signal | Reviewer verdict |
 |---|---|---|---|---|---|---|---|
-| 7.1 | Daily probe captures verdict in `harness-field-pilot-status/v1` JSON | `scripts/field-pilot-status.js` | `tests/unit/field-pilot-status.test.js` | n/a (consumes audit chain; doesn't append) | FIELD-PILOT-0 (FP-a) | `<date>-field-pilot-status.json` exit code 0/1/2/3 | |
+| 7.1 | Daily probe captures verdict in `orchestrator-field-pilot-status/v1` JSON | `scripts/field-pilot-status.js` | `tests/unit/field-pilot-status.test.js` | n/a (consumes audit chain; doesn't append) | FIELD-PILOT-0 (FP-a) | `<date>-field-pilot-status.json` exit code 0/1/2/3 | |
 | 7.2 | Probe canary fires on unknown audit verbs (drift detection) | `scripts/field-pilot-status.js` (`KNOWN_AUDIT_VERBS`) | `tests/unit/field-pilot-status.test.js` | n/a | FP-a | `audit.unknownVerbs` non-empty → DEGRADED | |
 | 7.3 | Operator-facing 4 runbook templates each have a "How to use" + privacy reminder | `docs/runbooks/field-pilot-*.md` | `tests/unit/field-pilot-runbooks.test.js` | n/a (documents) | FP-b | Operator can fill template without reading code | |
 | 7.4 | Critical audit verbs are documented in `incident-ledger.md` cross-ref | `docs/runbooks/field-pilot-incident-ledger.md` | `tests/unit/field-pilot-runbooks.test.js` (verb cross-ref) | 8 critical verbs | FP-b | Operator knows which verbs halt the pilot | |
@@ -161,7 +161,7 @@ checked. Leave blank to mean "not sampled this review".
 ## Entry template
 
 When a reviewer finds a claim that the baseline matrix does not cover —
-or when the harness ships a new round and adds a new claim — copy this
+or when the orchestrator ships a new round and adds a new claim — copy this
 template at the bottom of the matching category, or open a new
 category if needed:
 

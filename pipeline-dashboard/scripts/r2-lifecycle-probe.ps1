@@ -25,7 +25,7 @@ Get-Content $EnvFile | ForEach-Object {
 $Orch = 'harness-orchestrator-r2'
 $Runner = 'harness-runner-r2'
 $DashBase = 'http://127.0.0.1:4201'
-$DashToken = $env:HARNESS_TOKEN
+$DashToken = $env:ORCHESTRATOR_TOKEN
 
 $Pass = 0; $Fail = 0
 function Report {
@@ -82,9 +82,9 @@ switch ($inState) {
 Write-Host "[r2-lifecycle] running 3 sequential agent_started/agent_stopped cycles..."
 $cycleScript = @'
 const { WebSocket } = require("ws");
-const wsUrl = process.env.HARNESS_ORCHESTRATOR_URL.replace(/^http/, "ws")
-  + "/api/runner/events?runId=" + encodeURIComponent(process.env.HARNESS_RUN_ID)
-  + "&token=" + encodeURIComponent(process.env.HARNESS_RUN_JWT);
+const wsUrl = process.env.ORCHESTRATOR_ORCHESTRATOR_URL.replace(/^http/, "ws")
+  + "/api/runner/events?runId=" + encodeURIComponent(process.env.ORCHESTRATOR_RUN_ID)
+  + "&token=" + encodeURIComponent(process.env.ORCHESTRATOR_RUN_JWT);
 const ws = new WebSocket(wsUrl);
 let cycle = 0;
 ws.on("message", (m) => {

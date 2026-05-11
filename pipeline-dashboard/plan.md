@@ -1,11 +1,11 @@
-# Harness Pipeline Hardening Plan
+# Orchestrator Pipeline Hardening Plan
 
 > **For agentic workers:** 이 문서는 현재 구현 완료 상태와 다음 구현 작업을 함께 담는다. 새 작업을 실행할 때는 `npm test`를 기준 품질 게이트로 사용하고, 각 작업은 테스트 추가 또는 기존 테스트 갱신 후 구현한다.
 
 **작성일:** 2026-04-15  
-**대상 리포:** `C:/Users/SJ/harness-pipeline-analysis`  
+**대상 리포:** `C:/Users/SJ/orchestrator-pipeline-analysis`  
 **대상 앱:** `pipeline-dashboard`  
-**현재 목표:** 실험용 대시보드 수준의 하네스를 84점 이상 내부 운영 하네스로 강화한다.  
+**현재 목표:** 실험용 대시보드 수준의 오케스트레이터를 84점 이상 내부 운영 오케스트레이터로 강화한다.  
 **현재 상태:** 보안/이식성/테스트 보강 1차 구현 완료, `npm test` 통과.  
 
 ---
@@ -43,9 +43,9 @@ npm run test:smoke
 완료:
 
 - 기본 host를 `127.0.0.1`, 기본 port를 `4201`로 고정.
-- `HARNESS_ALLOW_REMOTE=1` 없이는 remote client 차단.
-- state-changing API에 `x-harness-token` 요구.
-- token은 `HARNESS_TOKEN` 또는 `.harness/local-token` 사용.
+- `ORCHESTRATOR_ALLOW_REMOTE=1` 없이는 remote client 차단.
+- state-changing API에 `x-orchestrator-token` 요구.
+- token은 `ORCHESTRATOR_TOKEN` 또는 `.harness/local-token` 사용.
 - `/api/auth/token`은 loopback 전용으로 제공.
 - `express.json({ limit: "256kb" })` 적용.
 - 보안 헤더 적용.
@@ -59,7 +59,7 @@ npm run test:smoke
 - `src/security/pathSandbox.js`
 - `src/security/requestSchemas.js`
 - `public/js/api-client.js`
-- `hooks/harness-hook.js`
+- `hooks/orchestrator-hook.js`
 
 검증:
 
@@ -123,7 +123,7 @@ npm run test:legacy
 - Claude/Codex runner에서 `shell: false` 사용.
 - Windows에서 `npx`, `codex`, `claude`는 `.cmd`로 resolution.
 - Claude runner에서 `--dangerously-skip-permissions` 기본 제거.
-- 위험 agent flag는 `HARNESS_ALLOW_DANGEROUS_AGENT=1`과 explicit confirmation 없이는 차단.
+- 위험 agent flag는 `ORCHESTRATOR_ALLOW_DANGEROUS_AGENT=1`과 explicit confirmation 없이는 차단.
 - runner 실행마다 `RunRegistry` manifest 기록.
 
 주요 파일:
@@ -149,7 +149,7 @@ npm run test:integration
 완료:
 
 - `HookRouter`에서 hook payload sampling 지원.
-- `HARNESS_SAMPLE_HOOKS=1`이면 `fixtures/hooks/*.json`에 sample 저장.
+- `ORCHESTRATOR_SAMPLE_HOOKS=1`이면 `fixtures/hooks/*.json`에 sample 저장.
 - `context_usage`, `contextUsage`, `usage.context`, `usage.context_usage` 기반 context usage 추출.
 - context alarm 기준:
   - 70% 이상: warning
@@ -179,7 +179,7 @@ npm run test:smoke
 완료:
 
 - `public/js/api-client.js` 추가.
-- 브라우저가 `/api/auth/token`에서 local token을 얻고 state-changing API에 자동으로 `x-harness-token` 부착.
+- 브라우저가 `/api/auth/token`에서 local token을 얻고 state-changing API에 자동으로 `x-orchestrator-token` 부착.
 - terminal WebSocket은 `?token=` 쿼리로 인증.
 - Codex trigger card rendering은 dynamic `innerHTML` 대신 DOM API로 변경.
 - `public/js/dom.js` 추가. 이후 renderer 분리 시 사용할 DOM helper 제공.
@@ -248,7 +248,7 @@ npm test
 주요 파일:
 
 - `README.md`
-- `docs/harness-architecture.md`
+- `docs/orchestrator-architecture.md`
 - `docs/security-model.md`
 - `docs/scorecard.md`
 - `.claude/settings.json`
@@ -303,13 +303,13 @@ npm test
 
 ---
 
-## 3. 다음 목표: 90점대 True Harness
+## 3. 다음 목표: 90점대 True Orchestrator
 
 다음 단계 목표 점수: **90~92/100**
 
 핵심 원칙:
 
-- 하네스는 실행을 돕는 UI가 아니라 실행을 통제하고 증거를 남기는 시스템이어야 한다.
+- 오케스트레이터는 실행을 돕는 UI가 아니라 실행을 통제하고 증거를 남기는 시스템이어야 한다.
 - policy, evidence, replay, agent contract가 같은 데이터 모델을 공유해야 한다.
 - 완료 선언은 evidence와 test result로 검증되어야 한다.
 
@@ -354,7 +354,7 @@ Acceptance:
 
 **Files:**
 
-- Create: `policies/harness-policy.schema.json`
+- Create: `policies/orchestrator-policy.schema.json`
 - Create: `policies/default-policy.json`
 - Modify: `src/policy/phasePolicy.js`
 - Modify: `src/policy/dangerGate.js`
@@ -585,7 +585,7 @@ Acceptance:
 
 - Create: `docs/remote-mode-design.md`
 - Create: `docs/container-sandbox.md`
-- Optional Create: `Dockerfile.harness-runner`
+- Optional Create: `Dockerfile.orchestrator-runner`
 - Optional Create: `src/security/rateLimit.js`
 
 **Steps:**
@@ -598,7 +598,7 @@ Acceptance:
 
 Acceptance:
 
-- `HARNESS_ALLOW_REMOTE=1` 없이 remote 접근이 계속 막힌다.
+- `ORCHESTRATOR_ALLOW_REMOTE=1` 없이 remote 접근이 계속 막힌다.
 - remote mode 문서가 구현 전 gate 역할을 한다.
 
 ---
@@ -636,7 +636,7 @@ Invoke-WebRequest -UseBasicParsing http://127.0.0.1:4201/api/version
 - 기본 운영 모드는 single-user local harness다.
 - remote/team mode는 아직 켜지 않는다.
 - `.harness/local-token`과 `runs/`는 git에 포함하지 않는다.
-- hook path는 repo-relative `node pipeline-dashboard/hooks/harness-hook.js <event>`를 사용한다.
+- hook path는 repo-relative `node pipeline-dashboard/hooks/orchestrator-hook.js <event>`를 사용한다.
 - `node --test tests/*.js`는 일부 샌드박스에서 child spawn `EPERM`을 낼 수 있으므로 `tests/run-tests.js`를 유지한다.
 - `node_modules` 설치는 `npm install`이 필요하다.
 
@@ -647,7 +647,7 @@ Invoke-WebRequest -UseBasicParsing http://127.0.0.1:4201/api/version
 - `server.js`가 아직 완전한 thin bootstrap은 아니다.
 - CDN xterm asset은 CSP상 허용되어 있으나 vendoring 또는 SRI 고정이 남아 있다.
 - Evidence ledger는 현재 manifest 중심이며, append-only/signing은 아직 아니다.
-- Agent contract와 self-verification loop가 없어 “진짜 하네스”의 자동 판정 능력은 다음 단계에서 완성된다.
+- Agent contract와 self-verification loop가 없어 “진짜 오케스트레이터”의 자동 판정 능력은 다음 단계에서 완성된다.
 - UI 전체 sanitizer 완료 전까지 `innerHTML` 사용 지점은 계속 추적해야 한다.
 
 ---
@@ -663,4 +663,4 @@ Invoke-WebRequest -UseBasicParsing http://127.0.0.1:4201/api/version
 7. UI Safety Completion
 8. Remote/Team Mode Readiness
 
-이 순서를 지키면 현재 84점대 하네스가 90점대 true harness로 자연스럽게 올라간다.
+이 순서를 지키면 현재 84점대 오케스트레이터가 90점대 true harness로 자연스럽게 올라간다.

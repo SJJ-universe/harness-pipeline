@@ -134,9 +134,9 @@ test("D3-a: /api/server/info ALWAYS exposes profile/deployment/bridge/remote (ba
 //  Slice UI-H1 — MONITOR BLOCK
 // ─────────────────────────────────────────────────────────────────
 
-test("UI-H1: monitor.envDefault defaults to 'simple' when HARNESS_MONITOR_MODE unset", async () => {
-  const saved = process.env.HARNESS_MONITOR_MODE;
-  delete process.env.HARNESS_MONITOR_MODE;
+test("UI-H1: monitor.envDefault defaults to 'simple' when ORCHESTRATOR_MONITOR_MODE unset", async () => {
+  const saved = process.env.ORCHESTRATOR_MONITOR_MODE;
+  delete process.env.ORCHESTRATOR_MONITOR_MODE;
   try {
     const { server, port } = await startApp({});
     try {
@@ -144,13 +144,13 @@ test("UI-H1: monitor.envDefault defaults to 'simple' when HARNESS_MONITOR_MODE u
       assert.equal(body.monitor.envDefault, "simple");
     } finally { server.close(); }
   } finally {
-    if (saved !== undefined) process.env.HARNESS_MONITOR_MODE = saved;
+    if (saved !== undefined) process.env.ORCHESTRATOR_MONITOR_MODE = saved;
   }
 });
 
-test("UI-H1: monitor.envDefault echoes HARNESS_MONITOR_MODE=advanced", async () => {
-  const saved = process.env.HARNESS_MONITOR_MODE;
-  process.env.HARNESS_MONITOR_MODE = "advanced";
+test("UI-H1: monitor.envDefault echoes ORCHESTRATOR_MONITOR_MODE=advanced", async () => {
+  const saved = process.env.ORCHESTRATOR_MONITOR_MODE;
+  process.env.ORCHESTRATOR_MONITOR_MODE = "advanced";
   try {
     const { server, port } = await startApp({});
     try {
@@ -158,14 +158,14 @@ test("UI-H1: monitor.envDefault echoes HARNESS_MONITOR_MODE=advanced", async () 
       assert.equal(body.monitor.envDefault, "advanced");
     } finally { server.close(); }
   } finally {
-    if (saved === undefined) delete process.env.HARNESS_MONITOR_MODE;
-    else process.env.HARNESS_MONITOR_MODE = saved;
+    if (saved === undefined) delete process.env.ORCHESTRATOR_MONITOR_MODE;
+    else process.env.ORCHESTRATOR_MONITOR_MODE = saved;
   }
 });
 
 test("UI-H1: monitor.envDefault accepts 'legacy' as a valid mode", async () => {
-  const saved = process.env.HARNESS_MONITOR_MODE;
-  process.env.HARNESS_MONITOR_MODE = "legacy";
+  const saved = process.env.ORCHESTRATOR_MONITOR_MODE;
+  process.env.ORCHESTRATOR_MONITOR_MODE = "legacy";
   try {
     const { server, port } = await startApp({});
     try {
@@ -173,14 +173,14 @@ test("UI-H1: monitor.envDefault accepts 'legacy' as a valid mode", async () => {
       assert.equal(body.monitor.envDefault, "legacy");
     } finally { server.close(); }
   } finally {
-    if (saved === undefined) delete process.env.HARNESS_MONITOR_MODE;
-    else process.env.HARNESS_MONITOR_MODE = saved;
+    if (saved === undefined) delete process.env.ORCHESTRATOR_MONITOR_MODE;
+    else process.env.ORCHESTRATOR_MONITOR_MODE = saved;
   }
 });
 
 test("UI-H1: monitor.envDefault falls back to 'simple' for garbage env values", async () => {
-  const saved = process.env.HARNESS_MONITOR_MODE;
-  process.env.HARNESS_MONITOR_MODE = "pro";  // not in valid set
+  const saved = process.env.ORCHESTRATOR_MONITOR_MODE;
+  process.env.ORCHESTRATOR_MONITOR_MODE = "pro";  // not in valid set
   try {
     const { server, port } = await startApp({});
     try {
@@ -188,14 +188,14 @@ test("UI-H1: monitor.envDefault falls back to 'simple' for garbage env values", 
       assert.equal(body.monitor.envDefault, "simple");
     } finally { server.close(); }
   } finally {
-    if (saved === undefined) delete process.env.HARNESS_MONITOR_MODE;
-    else process.env.HARNESS_MONITOR_MODE = saved;
+    if (saved === undefined) delete process.env.ORCHESTRATOR_MONITOR_MODE;
+    else process.env.ORCHESTRATOR_MONITOR_MODE = saved;
   }
 });
 
 test("UI-H1: monitor.envDefault is case-insensitive (trims + lowercases)", async () => {
-  const saved = process.env.HARNESS_MONITOR_MODE;
-  process.env.HARNESS_MONITOR_MODE = "  ADVANCED  ";
+  const saved = process.env.ORCHESTRATOR_MONITOR_MODE;
+  process.env.ORCHESTRATOR_MONITOR_MODE = "  ADVANCED  ";
   try {
     const { server, port } = await startApp({});
     try {
@@ -203,8 +203,8 @@ test("UI-H1: monitor.envDefault is case-insensitive (trims + lowercases)", async
       assert.equal(body.monitor.envDefault, "advanced");
     } finally { server.close(); }
   } finally {
-    if (saved === undefined) delete process.env.HARNESS_MONITOR_MODE;
-    else process.env.HARNESS_MONITOR_MODE = saved;
+    if (saved === undefined) delete process.env.ORCHESTRATOR_MONITOR_MODE;
+    else process.env.ORCHESTRATOR_MONITOR_MODE = saved;
   }
 });
 
@@ -270,7 +270,7 @@ test("D3-a: profile block — throwing list() / getActive() does NOT break /api/
 // ─────────────────────────────────────────────────────────────────
 
 test("D3-a: deployment block echoes a public-sector posture", async () => {
-  // Simulate the resolveDeploymentProfile() output for HARNESS_DEPLOYMENT_PROFILE=public-sector.
+  // Simulate the resolveDeploymentProfile() output for ORCHESTRATOR_DEPLOYMENT_PROFILE=public-sector.
   const deploymentProfile = Object.freeze({
     mode: "public-sector",
     publicSector: true,
@@ -309,7 +309,7 @@ test("D3-a: deployment block defaults to standard when dep is null", async () =>
 //  BRIDGE BLOCK
 // ─────────────────────────────────────────────────────────────────
 
-test("D3-a: bridge.mode reflects HARNESS_REMOTE_BRIDGE_MODE values", async () => {
+test("D3-a: bridge.mode reflects ORCHESTRATOR_REMOTE_BRIDGE_MODE values", async () => {
   for (const mode of ["off", "report", "dispatch"]) {
     const { server, port } = await startApp({ bridgeMode: mode });
     try {
@@ -334,7 +334,7 @@ test("D3-a: bridge.mode defaults to 'off' for unrecognized values (UI safety)", 
 //  REMOTE BLOCK
 // ─────────────────────────────────────────────────────────────────
 
-test("D3-a: remote.mode reflects HARNESS_REMOTE_MODE values", async () => {
+test("D3-a: remote.mode reflects ORCHESTRATOR_REMOTE_MODE values", async () => {
   for (const mode of ["off", "preview", "on"]) {
     const { server, port } = await startApp({ remoteMode: mode });
     try {

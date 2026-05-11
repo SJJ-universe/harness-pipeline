@@ -26,7 +26,7 @@
     root.OrchestratorRunHistory.RunHistoryStore = api.RunHistoryStore;
   }
 })(typeof window !== "undefined" ? window : globalThis, function () {
-  const STORAGE_KEY = "harness:runHistory:v1";
+  const STORAGE_KEY = "orchestrator:runHistory:v1";
   const DEFAULT_MAX_ENTRIES = 10;
   const MAX_ENTRY_BYTES = 250 * 1024; // 250KB cap per saved run
   const MAX_TOTAL_BYTES = 2 * 1024 * 1024; // 2MB total cap
@@ -121,7 +121,7 @@
   function install({ win, doc, storage, applyReplayEvent } = {}) {
     const store = new RunHistoryStore({ storage });
     if (!doc) {
-      // Headless (test harness) — state only, no DOM.
+      // Headless (test orchestrator) — state only, no DOM.
       return {
         store, save: () => {}, open: () => {}, close: () => {},
         loadEntry: () => {}, clear: () => store.clear(),

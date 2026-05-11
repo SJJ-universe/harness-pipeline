@@ -30,7 +30,7 @@ const { createCredentialStore } = require("../../src/security/credentialStore");
 // ── helpers ─────────────────────────────────────────────────
 
 function tmpFile(t) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "harness-routes-test-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-routes-test-"));
   t.after(() => {
     try { fs.rmSync(dir, { recursive: true, force: true }); } catch (_) {}
   });

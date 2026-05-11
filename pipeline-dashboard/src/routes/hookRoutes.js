@@ -16,7 +16,7 @@ function createHookRoutes({ hookRouter, validateHook }) {
       const decision = await hookRouter.route(event, payload || {});
       res.json(decision || {});
     } catch (err) {
-      // Never block Claude on harness routing errors
+      // Never block Claude on orchestrator routing errors
       console.error("[HookRouter] error:", err.message);
       res.json({});
     }

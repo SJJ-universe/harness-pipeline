@@ -11,11 +11,11 @@
 | # | Contract | npm 명령 | Manifest schema | PR gate? | 기본 동작 |
 |:---:|---|---|---|:---:|---|
 | 1 | **Structural snapshot** (UI-P9) | `npm run visual:check` | `tests/visual/baseline-product-shell.json` | ✅ **CI gate** | drift 발견 시 CI fail. baseline은 source-of-truth. |
-| 2 | **Live capture** (UI-P10) | `npm run visual:capture-live` | `harness-visual-live/v1` | ❌ manual | 4 routes × 4 viewports = 16 PNG evidence |
-| 3 | **Responsive + text-fit** (UI-P11) | `npm run visual:assert-live` | `harness-visual-assert/v1` | ❌ manual | 6 frozen rules × 16 cells, pass/fail |
-| 4 | **Accessibility** (UI-P12) | `npm run visual:a11y-live` | `harness-visual-a11y/v1` | ❌ manual | axe WCAG 2.0/2.1 A+AA + 2 custom × 16 cells |
-| 5 | **Button integrity** (UI-P13) | `npm run visual:button-live` | `harness-visual-button/v1` | ❌ manual | 13 buttons × 4 routes (1 viewport) |
-| 6 | **Fused live** (UI-Fuse) | `npm run visual:fused-live` | `harness-visual-fused/v1` (top-level summary) + per-tool subdirs | ❌ manual | 4개 contract 모두 단일 boot + 단일 chromium install 아래 순차 실행. 단일 artifact + 단일 summary.json. |
+| 2 | **Live capture** (UI-P10) | `npm run visual:capture-live` | `orchestrator-visual-live/v1` | ❌ manual | 4 routes × 4 viewports = 16 PNG evidence |
+| 3 | **Responsive + text-fit** (UI-P11) | `npm run visual:assert-live` | `orchestrator-visual-assert/v1` | ❌ manual | 6 frozen rules × 16 cells, pass/fail |
+| 4 | **Accessibility** (UI-P12) | `npm run visual:a11y-live` | `orchestrator-visual-a11y/v1` | ❌ manual | axe WCAG 2.0/2.1 A+AA + 2 custom × 16 cells |
+| 5 | **Button integrity** (UI-P13) | `npm run visual:button-live` | `orchestrator-visual-button/v1` | ❌ manual | 13 buttons × 4 routes (1 viewport) |
+| 6 | **Fused live** (UI-Fuse) | `npm run visual:fused-live` | `orchestrator-visual-fused/v1` (top-level summary) + per-tool subdirs | ❌ manual | 4개 contract 모두 단일 boot + 단일 chromium install 아래 순차 실행. 단일 artifact + 단일 summary.json. |
 
 **핵심 분기점**:
 - Contract 1 (UI-P9)은 **"structural baseline = the contract"**. 변경 시 의도적 baseline 갱신 + commit 알고 있어야 한다.
@@ -29,7 +29,7 @@
 ### 2.1 무엇을 보장하는가
 
 `tests/visual/baseline-product-shell.json` 안에 동결된 다음 구조:
-- HTML mount IDs (`#product-shell-root`, `#harness-legacy-banner`, ...)
+- HTML mount IDs (`#product-shell-root`, `#orchestrator-legacy-banner`, ...)
 - CSS class compile counts (`.prod-shell`, `.bd-tab`, etc.)
 - Design tokens (`--prod-*` custom properties from `style.product.css`)
 - Script load order (legacy의 `js/legacy-banner.js` 등)

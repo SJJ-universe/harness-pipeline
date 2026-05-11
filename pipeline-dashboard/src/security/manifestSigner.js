@@ -23,7 +23,7 @@
 //   {
 //     "version": "1.1.0",
 //     "publishedAt": "2026-04-30T00:00:00Z",
-//     "url": "https://.../harness-pipeline-1.1.0.zip",
+//     "url": "https://.../orchestrator-pipeline-1.1.0.zip",
 //     "sha256": "<hex>",
 //     "minNodeVersion": "24.0.0",
 //     "publicSectorOnly": false,
@@ -51,8 +51,8 @@
 
 const crypto = require("crypto");
 
-const SCHEMA_KEY_PAIR = "harness-release-keypair/v1";
-const SCHEMA_TRUST = "harness-release-trust/v1";
+const SCHEMA_KEY_PAIR = "orchestrator-release-keypair/v1";
+const SCHEMA_TRUST = "orchestrator-release-trust/v1";
 const ALG = "Ed25519";
 
 const COVERAGE_FIELDS = Object.freeze([

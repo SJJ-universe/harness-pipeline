@@ -14,7 +14,7 @@ const { HookRouter } = require("../../executor/hook-router");
 function mk() {
   const events = [];
   const broadcast = (e) => events.push(e);
-  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "harness-subrun-"));
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-subrun-"));
   const templates = {
     default: {
       id: "default",

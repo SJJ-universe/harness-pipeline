@@ -233,7 +233,7 @@ test("R1-h2: server.js wires runnerProvider into createMonitorRoutes", () => {
   // The mount must pass runnerProvider sourced from the remoteRunnerSetup
   // result. Without this line, /api/monitor/bootstrap.runners stays [] and
   // /api/monitor/runs/:runId.origin stays local-default in production
-  // even when HARNESS_REMOTE_MODE=preview is set. Keep this assertion in
+  // even when ORCHESTRATOR_REMOTE_MODE=preview is set. Keep this assertion in
   // sync with server.js — if you rename _remoteRunner, update both ends.
   assert.match(
     src,

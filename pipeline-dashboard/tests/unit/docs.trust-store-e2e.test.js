@@ -94,7 +94,7 @@ test("TRUST-STORE-E2E-RUNBOOK: §3 references trust-store schema + fixture", () 
   const text = read(RUNBOOK);
   const idx = text.indexOf("## §3");
   const seg = text.slice(idx, text.indexOf("## §4", idx));
-  assert.match(seg, /harness-release-trust\/v1/);
+  assert.match(seg, /orchestrator-release-trust\/v1/);
   assert.match(seg, /trust-store-example\.json/);
   // Anti-real-key guard reminded
   assert.match(seg, /REPLACE_ME|placeholder/i);
@@ -123,16 +123,16 @@ test("TRUST-STORE-E2E-RUNBOOK: §4 documents the production fail-closed env", ()
   const text = read(RUNBOOK);
   const idx = text.indexOf("## §4");
   const seg = text.slice(idx, text.indexOf("## §5", idx));
-  assert.match(seg, /HARNESS_REQUIRE_SIGNED_MANIFEST/);
-  assert.match(seg, /HARNESS_TRUST_STORE/);
+  assert.match(seg, /ORCHESTRATOR_REQUIRE_SIGNED_MANIFEST/);
+  assert.match(seg, /ORCHESTRATOR_TRUST_STORE/);
 });
 
 test("TRUST-STORE-E2E-RUNBOOK: §4.6 covers the public-sector escape-hatch carve-out", () => {
   const text = read(RUNBOOK);
   const idx = text.indexOf("### §4.6");
   const seg = text.slice(idx, text.indexOf("### §4.7", idx));
-  assert.match(seg, /HARNESS_DEPLOYMENT_PROFILE.*public-sector|public-sector.*HARNESS_DEPLOYMENT_PROFILE/i);
-  assert.match(seg, /HARNESS_ALLOW_UNSIGNED_MANIFEST/);
+  assert.match(seg, /ORCHESTRATOR_DEPLOYMENT_PROFILE.*public-sector|public-sector.*ORCHESTRATOR_DEPLOYMENT_PROFILE/i);
+  assert.match(seg, /ORCHESTRATOR_ALLOW_UNSIGNED_MANIFEST/);
   assert.match(seg, /IGNORED|ignored/);
   // The load-bearing safety property: dev escape never honored under public-sector
   assert.match(seg, /never honors|never.*honor|ignored/i);
@@ -178,8 +178,8 @@ test("TRUST-STORE-E2E-RUNBOOK: §7 risks table calls out the load-bearing risks"
     `§7 must have at least 5 risk rows (header + 5+), got ${rows.length}`);
   // Specific load-bearing risks
   assert.match(seg, /[Pp]rivate key leakage/);
-  assert.match(seg, /HARNESS_REQUIRE_SIGNED_MANIFEST/);
-  assert.match(seg, /HARNESS_ALLOW_UNSIGNED_MANIFEST/);
+  assert.match(seg, /ORCHESTRATOR_REQUIRE_SIGNED_MANIFEST/);
+  assert.match(seg, /ORCHESTRATOR_ALLOW_UNSIGNED_MANIFEST/);
   // Trust-store path resolver risk pointer
   assert.match(seg, /trust-store-path-precedence\.test\.js/);
   // TRUST-STORE-0 deferral pointer

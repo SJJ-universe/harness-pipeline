@@ -5,7 +5,7 @@ const { Router } = require("express");
 //
 // `app` distinguishes "OrchestratorPipeline is running here" from "some
 // unrelated service squatted port 4201 first" — without it, an unrelated
-// HTTP server returning {status:"ok"} would let harness-start.bat /
+// HTTP server returning {status:"ok"} would let orchestrator-start.bat /
 // .sh skip the startup ("already running, opening browser") and leave
 // the operator clicking through to a stranger's app.
 //

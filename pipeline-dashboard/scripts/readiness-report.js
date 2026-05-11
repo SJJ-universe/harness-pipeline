@@ -3,12 +3,12 @@
 // Slice MB5 (Phase D Round 2, 2026-04-27) — readiness-report.
 // Slice R1-i (Phase D R1, 2026-04-28) — extended to 18 stars.
 // Slice READINESS-BOOT-FAILURE-CONFIG (Phase 2 v2 follow-up,
-// 2026-05-05) — fail-fast with CONFIG-tier exit when the harness
+// 2026-05-05) — fail-fast with CONFIG-tier exit when the orchestrator
 // server cannot be spawned, instead of silently falling back to
 // static-only scoring (which made operators confuse environment
 // restrictions for real regressions).
 //
-// One-shot operator check that scores the harness against
+// One-shot operator check that scores the orchestrator against
 // docs/readiness-rubric.md. Exit code maps to release-readiness.
 // Thresholds scaled proportionally when remote-isolation joined the
 // rubric:
@@ -17,7 +17,7 @@
 //   1 — total ≥ 12 (preview-ready)        was ≥10/15
 //   2 — total ≥ 7  (internal-only)        was ≥6/15
 //   3 — total < 7  (blocking — do not ship)
-//   4 — CONFIG: harness boot failed       (NEW; sandboxed shell, EPERM, etc.)
+//   4 — CONFIG: orchestrator boot failed       (NEW; sandboxed shell, EPERM, etc.)
 //
 // Usage:
 //   node scripts/readiness-report.js                          # human-readable
@@ -30,15 +30,15 @@
 // intentional sandbox runs or --allow-static-fallback for the old
 // silent-fallback behavior.
 //
-// The server-spawning checks call out to the real harness on a
-// throw-away port (5099 by default). Set HARNESS_PORT override before
+// The server-spawning checks call out to the real orchestrator on a
+// throw-away port (5099 by default). Set ORCHESTRATOR_PORT override before
 // running if 5099 is taken.
 
 const path = require("node:path");
 const http = require("node:http");
 const { spawn } = require("node:child_process");
 
-const PORT = Number(process.env.HARNESS_READINESS_PORT) || 5099;
+const PORT = Number(process.env.ORCHESTRATOR_READINESS_PORT) || 5099;
 const HOST = "127.0.0.1";
 const SPAWN_TIMEOUT_MS = 4000;
 
@@ -284,7 +284,7 @@ async function scoreRemoteIsolation() {
       off.jwtKey === null &&
       off.ledgerKey === null
     ) {
-      stars.push("HARNESS_REMOTE_MODE default = off (fail-closed, behavior verified)");
+      stars.push("ORCHESTRATOR_REMOTE_MODE default = off (fail-closed, behavior verified)");
     }
   } catch (_) {}
 
@@ -295,7 +295,7 @@ async function scoreRemoteIsolation() {
   try {
     const { setupRemoteRunner } = require("../src/server/remoteRunnerSetup");
     const live = setupRemoteRunner({
-      env: { HARNESS_REMOTE_MODE: "preview", HARNESS_TOKEN: "readiness-probe-ikm" },
+      env: { ORCHESTRATOR_REMOTE_MODE: "preview", ORCHESTRATOR_TOKEN: "readiness-probe-ikm" },
     });
     const ok =
       live.runnerRegistry &&
@@ -343,7 +343,7 @@ async function scoreRemoteIsolation() {
     const jwtMod = require("../src/security/jwt");
 
     const setup = setupRemoteRunner({
-      env: { HARNESS_REMOTE_MODE: "preview", HARNESS_TOKEN: "readiness-probe-e2e" },
+      env: { ORCHESTRATOR_REMOTE_MODE: "preview", ORCHESTRATOR_TOKEN: "readiness-probe-e2e" },
     });
     setup.runnerRegistry._bootstrapTokenFor = (h) => h === "probe-host" ? "boot-aaa" : null;
 
@@ -380,7 +380,7 @@ async function scoreRemoteIsolation() {
         runId,
         key: setup.jwtKey,
         runDurationMs: 30_000,
-        harness: { runOrigin: "container-remote", sandboxClass: "container-strict", hostIdentity: "probe-host" },
+        orchestrator: { runOrigin: "container-remote", sandboxClass: "container-strict", hostIdentity: "probe-host" },
       });
 
       let agent = null;
@@ -452,16 +452,16 @@ function bootHarness() {
   return new Promise((resolve, reject) => {
     // Slice READINESS-BOOT-FAILURE-CONFIG: test hook so unit tests can
     // simulate a sandbox-style spawn rejection without an actual EPERM.
-    if (process.env.HARNESS_READINESS_FORCE_BOOT_ERROR) {
+    if (process.env.ORCHESTRATOR_READINESS_FORCE_BOOT_ERROR) {
       const err = new Error("forced boot failure for test: " +
-        process.env.HARNESS_READINESS_FORCE_BOOT_ERROR);
-      err.code = process.env.HARNESS_READINESS_FORCE_BOOT_ERROR;
+        process.env.ORCHESTRATOR_READINESS_FORCE_BOOT_ERROR);
+      err.code = process.env.ORCHESTRATOR_READINESS_FORCE_BOOT_ERROR;
       err.bootFailureKind = "spawn_error";
       return reject(err);
     }
     const env = Object.assign({}, process.env, {
-      HARNESS_PORT: String(PORT),
-      HARNESS_CSP_MODE: "enforce",
+      ORCHESTRATOR_PORT: String(PORT),
+      ORCHESTRATOR_CSP_MODE: "enforce",
     });
     const cwd = path.resolve(__dirname, "..");
     let proc;
@@ -534,11 +534,11 @@ function classifyBootFailure(err) {
     suggestionLines.push("Verify that 'node' is on PATH and executable.");
   } else if (cause === "boot_timeout") {
     suggestionLines.push("Server did not finish booting within the timeout window.");
-    suggestionLines.push("Check stderr for startup errors; raise HARNESS_READINESS_PORT if 5099 is in use.");
+    suggestionLines.push("Check stderr for startup errors; raise ORCHESTRATOR_READINESS_PORT if 5099 is in use.");
   } else if (cause === "premature_exit") {
     suggestionLines.push("Server exited before signaling boot. Re-run server.js manually to inspect the failure.");
   }
-  suggestionLines.push("If you've already started the harness yourself, re-run with --no-spawn.");
+  suggestionLines.push("If you've already started the orchestrator yourself, re-run with --no-spawn.");
   suggestionLines.push("If you intentionally accept static-only scoring, re-run with --allow-static-fallback.");
 
   return {
@@ -581,7 +581,7 @@ async function main() {
             }, null, 2) + "\n");
           } else {
             process.stderr.write("\n");
-            process.stderr.write("❌ CONFIG: harness server boot failed (" + bootFailure.cause + ").\n");
+            process.stderr.write("❌ CONFIG: orchestrator server boot failed (" + bootFailure.cause + ").\n");
             process.stderr.write("   해당 환경에서 자식 Node 프로세스를 띄우지 못했습니다.\n");
             process.stderr.write("   일반 로컬 터미널 또는 CI에서는 정상 동작합니다.\n");
             process.stderr.write("\n");
@@ -601,7 +601,7 @@ async function main() {
         }
         // --allow-static-fallback: legacy silent-fallback behavior
         if (!json) {
-          process.stdout.write("WARN: failed to boot harness for live checks: " + bootFailure.message + "\n");
+          process.stdout.write("WARN: failed to boot orchestrator for live checks: " + bootFailure.message + "\n");
           process.stdout.write("      falling back to static scoring (--allow-static-fallback active).\n");
         }
       }
@@ -632,7 +632,7 @@ async function main() {
         total, max, exit, categories,
       }, null, 2) + "\n");
     } else {
-      process.stdout.write("=== Harness Readiness Report ===\n");
+      process.stdout.write("=== Orchestrator Readiness Report ===\n");
       for (const c of categories) {
         const s = c.stars.length;
         const stars = "★".repeat(s) + "·".repeat(3 - s);

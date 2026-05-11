@@ -10,7 +10,7 @@ packets toward the v1.0.0 final-readiness gate (Blocker #1 in
 The probes ship today as:
 
 - [`scripts/live-verify-smart-arc.js`](../scripts/live-verify-smart-arc.js)
-  — emits `harness-smart-lv-evidence/v1`.
+  — emits `orchestrator-smart-lv-evidence/v1`.
 - [`scripts/live-verify-review-relay.js`](../scripts/live-verify-review-relay.js)
   — emits `live-verify-review-relay/v1`.
 
@@ -38,7 +38,7 @@ output remains valid under its `/v1` lock indefinitely.
 
 ---
 
-## §2 Schema 1 — `harness-smart-lv-evidence/v1`
+## §2 Schema 1 — `orchestrator-smart-lv-evidence/v1`
 
 Emitted by [`scripts/live-verify-smart-arc.js`](../scripts/live-verify-smart-arc.js)
 to evidence the six SMART arc properties (P1–P6: hard gates,
@@ -49,7 +49,7 @@ dispatch).
 
 | Field | Type | Notes |
 | --- | --- | --- |
-| `schema` | string | Must equal `"harness-smart-lv-evidence/v1"`. |
+| `schema` | string | Must equal `"orchestrator-smart-lv-evidence/v1"`. |
 | `runAt` | ISO-8601 string | Timestamp at which the probe began. UTC. |
 | `verdict` | enum | One of `"PASS"`, `"FAIL"`, `"CONFIG"`. See §2.4 below. |
 | `environment` | object | Snapshot of `/api/server/info` at probe time. May be empty `{}` on `CONFIG` exit. |
@@ -64,7 +64,7 @@ entry has at minimum `{ ok: boolean }`.
 
 | Key | Property | Required sub-fields |
 | --- | --- | --- |
-| `p1_hard_gates_env` | HARNESS_HARD_GATES propagation | `ok`, `mode` |
+| `p1_hard_gates_env` | ORCHESTRATOR_HARD_GATES propagation | `ok`, `mode` |
 | `p2_finance_high_privacy` | finance-high-privacy pack resolution | `ok`, `pack`, `hardGatesDefault` |
 | `p3_policy_gate_blocked` | PII policy gate fires | `ok`, `status`, `error`, `gate`, `reason` |
 | `p4_run_memory_redacted` | run memory redaction under public-sector | `ok`, `redacted`, `redactedTypes`, `sourceHashPresent` |
@@ -91,7 +91,7 @@ entry has at minimum `{ ok: boolean }`.
 
 ```json
 {
-  "schema": "harness-smart-lv-evidence/v1",
+  "schema": "orchestrator-smart-lv-evidence/v1",
   "runAt": "2026-05-05T02:49:37.801Z",
   "verdict": "CONFIG",
   "environment": {},
@@ -112,7 +112,7 @@ reviewer "the probe was attempted but could not run".
 
 ```json
 {
-  "schema": "harness-smart-lv-evidence/v1",
+  "schema": "orchestrator-smart-lv-evidence/v1",
   "runAt": "2026-05-06T15:32:11.244Z",
   "verdict": "PASS",
   "environment": {
@@ -258,7 +258,7 @@ can read the verdict alone and know which step broke.
 
 ---
 
-## §4 Schema 3 — `harness-live-evidence-bundle/v1` (aggregation)
+## §4 Schema 3 — `orchestrator-live-evidence-bundle/v1` (aggregation)
 
 Emitted by [`scripts/collect-live-evidence.js`](../scripts/collect-live-evidence.js)
 when an operator runs `npm run collect-live-evidence` after committing
@@ -270,7 +270,7 @@ single artifact suitable for the v1.0.0 release evidence packet.
 
 | Field | Type | Notes |
 | --- | --- | --- |
-| `schema` | string | Must equal `"harness-live-evidence-bundle/v1"`. |
+| `schema` | string | Must equal `"orchestrator-live-evidence-bundle/v1"`. |
 | `createdAt` | ISO-8601 string | Timestamp at which the bundle was assembled. UTC. |
 | `verdict` | enum | One of `"PASS"`, `"FAIL"`, `"INCOMPLETE"`. See §4.4 below. |
 | `summary` | object | Per-component summary. See §4.2. |
@@ -284,7 +284,7 @@ Each entry is `null` when that component was not found, otherwise:
 | Field | Type | Notes |
 | --- | --- | --- |
 | `sourceFile` | string | Relative path of the file the bundle was assembled from. |
-| `schema` | string | Re-stated for convenience (`harness-smart-lv-evidence/v1` or `live-verify-review-relay/v1`). |
+| `schema` | string | Re-stated for convenience (`orchestrator-smart-lv-evidence/v1` or `live-verify-review-relay/v1`). |
 | `verdict` | string | Component verdict (per §2.4 / §3.4). |
 | `timestamp` | ISO-8601 string | Component's `runAt` (smart-arc) or `startedAt` (review-relay). |
 
@@ -313,20 +313,20 @@ original per-probe files.
 
 ```json
 {
-  "schema": "harness-live-evidence-bundle/v1",
+  "schema": "orchestrator-live-evidence-bundle/v1",
   "createdAt": "2026-05-05T15:00:00.000Z",
   "verdict": "INCOMPLETE",
   "summary": {
     "smartArc": {
       "sourceFile": "docs/reports/2026-05-05-smart-arc-live-verify.json",
-      "schema": "harness-smart-lv-evidence/v1",
+      "schema": "orchestrator-smart-lv-evidence/v1",
       "verdict": "CONFIG",
       "timestamp": "2026-05-05T02:49:37.801Z"
     },
     "reviewRelay": null
   },
   "components": {
-    "smartArc": { "schema": "harness-smart-lv-evidence/v1", "...": "..." },
+    "smartArc": { "schema": "orchestrator-smart-lv-evidence/v1", "...": "..." },
     "reviewRelay": null
   },
   "missing": ["reviewRelay"]
@@ -337,13 +337,13 @@ original per-probe files.
 
 ```json
 {
-  "schema": "harness-live-evidence-bundle/v1",
+  "schema": "orchestrator-live-evidence-bundle/v1",
   "createdAt": "2026-05-06T15:35:00.000Z",
   "verdict": "PASS",
   "summary": {
     "smartArc": {
       "sourceFile": "docs/reports/2026-05-06-smart-arc-live-verify.json",
-      "schema": "harness-smart-lv-evidence/v1",
+      "schema": "orchestrator-smart-lv-evidence/v1",
       "verdict": "PASS",
       "timestamp": "2026-05-06T15:32:11.244Z"
     },
@@ -370,7 +370,7 @@ evidence anchor.
 
 ## §5 Audit-chain anchors (cross-cutting)
 
-Both schemas can reference the harness audit ledger. Three anchor
+Both schemas can reference the orchestrator audit ledger. Three anchor
 audit verbs MUST appear in the committed evidence for v1.0.0
 Blocker #1 closure (per
 [`runbooks/v1-blockers.md`](runbooks/v1-blockers.md) §2.3):
@@ -420,8 +420,8 @@ not normalized** in v1 to avoid silently breaking the existing
 committed template. The following inconsistencies are documented
 for resolution in a future v2:
 
-1. **`schema` prefix** — smart-arc uses `harness-smart-lv-evidence/v1`
-   (with `harness-` prefix); review-relay uses `live-verify-review-relay/v1`
+1. **`schema` prefix** — smart-arc uses `orchestrator-smart-lv-evidence/v1`
+   (with `orchestrator-` prefix); review-relay uses `live-verify-review-relay/v1`
    (no prefix). v2 should standardize on a single prefix convention.
 2. **Timestamp field name** — smart-arc uses `runAt`, review-relay
    uses `startedAt`. v2 should pick one (`startedAt` is more
@@ -445,7 +445,7 @@ These are tracked as v2 follow-up; not blocking v1.0.0.
 - [`runbooks/v1-blockers.md`](runbooks/v1-blockers.md) §2 — the
   blocker this schema doc unlocks (Real-binary live verification).
 - [`scripts/live-verify-smart-arc.js`](../scripts/live-verify-smart-arc.js)
-  — SMART arc probe (the source of `harness-smart-lv-evidence/v1`).
+  — SMART arc probe (the source of `orchestrator-smart-lv-evidence/v1`).
 - [`scripts/live-verify-review-relay.js`](../scripts/live-verify-review-relay.js)
   — review-relay probe (the source of `live-verify-review-relay/v1`).
 - [`runbooks/live-verify-review-relay.md`](runbooks/live-verify-review-relay.md)

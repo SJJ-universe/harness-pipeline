@@ -11,7 +11,7 @@
 // (centre) has something to react to.
 //
 // Update lane: warm. Re-renders on store publish, but the list is small
-// (typically 1–3 runs in single-active mode, up to HARNESS_MAX_RUNS) so a
+// (typically 1–3 runs in single-active mode, up to ORCHESTRATOR_MAX_RUNS) so a
 // full repaint stays cheap.
 
 (function (root, factory) {

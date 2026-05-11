@@ -8,7 +8,7 @@
 //
 // Why this exists (and why fail-closed):
 //
-//   The harness needs to launch Claude/Codex CLIs with their own API
+//   The orchestrator needs to launch Claude/Codex CLIs with their own API
 //   keys per profile. The pre-D1 model passed parent process env (P0
 //   stripped TOKEN/SECRET/KEY/PASSWORD/CREDENTIAL keys before spawn,
 //   which is the right baseline). D1 layers profile-scoped credentials
@@ -17,7 +17,7 @@
 //
 //   "Fail-closed by default" means: when the OS keychain isn't
 //   available AND the operator hasn't explicitly opted into plaintext
-//   storage via `HARNESS_ALLOW_PLAINTEXT_SECRETS=1`, `setSecret` throws
+//   storage via `ORCHESTRATOR_ALLOW_PLAINTEXT_SECRETS=1`, `setSecret` throws
 //   instead of silently writing to a JSON file. This protects operators
 //   who installed without keytar and would otherwise discover months
 //   later that their API keys are in cleartext on disk.
@@ -26,7 +26,7 @@
 //
 //   - Native module: needs `python` + `node-gyp` + a C++ compiler at
 //     install time. CI on minimal Ubuntu containers without build tools
-//     would fail — and the harness should still install in those
+//     would fail — and the orchestrator should still install in those
 //     environments (operators can either supply prebuilt keytar or use
 //     the explicit plaintext flag).
 //   - Lazy require with try/catch lets us run on systems that simply
@@ -38,7 +38,7 @@
 // Backend taxonomy:
 //
 //   "keychain"  — keytar loaded successfully; secrets go to OS keystore.
-//   "plaintext" — keytar unavailable + HARNESS_ALLOW_PLAINTEXT_SECRETS=1
+//   "plaintext" — keytar unavailable + ORCHESTRATOR_ALLOW_PLAINTEXT_SECRETS=1
 //                 + NODE_ENV != "production". Secrets land in
 //                 <configDir>/credentials.json with mode 0600.
 //                 Loud audit + console warning on every selection.
@@ -74,7 +74,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 // Slice D1-gov-3 (Phase E1, 2026-04-29): consult deployment profile so
 // public-sector mode hard-blocks plaintext fallback regardless of the
-// HARNESS_ALLOW_PLAINTEXT_SECRETS opt-in flag.
+// ORCHESTRATOR_ALLOW_PLAINTEXT_SECRETS opt-in flag.
 const { resolveDeploymentProfile } = require("../policy/deploymentProfile");
 
 const APP_NAME = "OrchestratorPipeline";
@@ -210,7 +210,7 @@ function createCredentialStore(opts = {}) {
   // Slice D1-gov-3 (Phase E1, 2026-04-29): public-sector deployment
   // mode hard-blocks plaintext fallback. The deploymentProfile.allow
   // PlaintextSecrets flag is the authoritative gate here — the env-
-  // var-only check we used to do (`HARNESS_ALLOW_PLAINTEXT_SECRETS=1`)
+  // var-only check we used to do (`ORCHESTRATOR_ALLOW_PLAINTEXT_SECRETS=1`)
   // would not catch a public-sector orchestrator that ALSO had the
   // flag set (e.g. operator config drift). The deploymentProfile
   // resolver already knows to ignore the opt-in flag in public-
@@ -237,9 +237,9 @@ function createCredentialStore(opts = {}) {
     // attempted opt-in.
     if (deploymentProfile.publicSector) {
       warn(
-        "[credentialStore] HARNESS_DEPLOYMENT_PROFILE=public-sector " +
+        "[credentialStore] ORCHESTRATOR_DEPLOYMENT_PROFILE=public-sector " +
         "blocks plaintext credential backend regardless of " +
-        "HARNESS_ALLOW_PLAINTEXT_SECRETS. Install keytar (OS-keychain) " +
+        "ORCHESTRATOR_ALLOW_PLAINTEXT_SECRETS. Install keytar (OS-keychain) " +
         "or use a future Vault/KMS backend.",
       );
       backend = "none";
@@ -285,7 +285,7 @@ function createCredentialStore(opts = {}) {
       // Production refuses the flag entirely — explicit "no, this is
       // not safe even if you ask" is part of fail-closed.
       warn(
-        "[credentialStore] HARNESS_ALLOW_PLAINTEXT_SECRETS=1 IGNORED — " +
+        "[credentialStore] ORCHESTRATOR_ALLOW_PLAINTEXT_SECRETS=1 IGNORED — " +
         "NODE_ENV=production blocks plaintext fallback. Install keytar.",
       );
       backend = "none";
@@ -306,7 +306,7 @@ function createCredentialStore(opts = {}) {
             type: "credential_backend_unavailable",
             data: {
               reason: "keytar_missing",
-              hint: "install keytar for OS-keychain or set HARNESS_ALLOW_PLAINTEXT_SECRETS=1 outside production",
+              hint: "install keytar for OS-keychain or set ORCHESTRATOR_ALLOW_PLAINTEXT_SECRETS=1 outside production",
             },
           });
         } catch (_) {}
@@ -335,7 +335,7 @@ function createCredentialStore(opts = {}) {
       throw new Error(
         "credentialStore: no credential backend available. " +
         "Install keytar for OS-keychain storage, or set " +
-        "HARNESS_ALLOW_PLAINTEXT_SECRETS=1 (dev only) to enable the " +
+        "ORCHESTRATOR_ALLOW_PLAINTEXT_SECRETS=1 (dev only) to enable the " +
         "plaintext fallback.",
       );
     }

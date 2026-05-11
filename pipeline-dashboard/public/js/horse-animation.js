@@ -1,4 +1,4 @@
-// Slice AC (Phase 2.5) — Harness horse animation, extracted from app.js.
+// Slice AC (Phase 2.5) — Orchestrator horse animation, extracted from app.js.
 //
 // The pixel-art horse SVG generator, its gallop frame loop, and the idle/
 // running/reining state machine used to live inline in app.js (~215 lines).
@@ -13,7 +13,7 @@
 //
 // DOM dependencies (must exist when setState() first runs):
 //   #horse-rider      — the svg canvas the pixel art is written into
-//   #harness-status   — optional secondary label updated by setState/
+//   #orchestrator-status   — optional secondary label updated by setState/
 //                       setStatusText
 //
 // This module ships as UMD — browser loads it as window.OrchestratorHorseAnimation,
@@ -179,7 +179,7 @@
     const doc = _getDoc();
     if (!doc) return;
     const rider = doc.getElementById("horse-rider");
-    const status = doc.getElementById("harness-status");
+    const status = doc.getElementById("orchestrator-status");
     if (!rider) return;
 
     rider.classList.remove("galloping", "reining");
@@ -187,14 +187,14 @@
     if (state === "galloping") {
       _renderHorseSvg("galloping");
       rider.classList.add("galloping");
-      if (status) { status.textContent = statusText || ""; status.className = "harness-status active"; }
+      if (status) { status.textContent = statusText || ""; status.className = "orchestrator-status active"; }
     } else if (state === "reining") {
       _renderHorseSvg("reining");
       rider.classList.add("reining");
-      if (status) { status.textContent = statusText || ""; status.className = "harness-status blocked"; }
+      if (status) { status.textContent = statusText || ""; status.className = "orchestrator-status blocked"; }
     } else {
       _renderHorseSvg("idle");
-      if (status) { status.textContent = ""; status.className = "harness-status"; }
+      if (status) { status.textContent = ""; status.className = "orchestrator-status"; }
     }
   }
 
@@ -209,7 +209,7 @@
   function setStatusText(text) {
     const doc = _getDoc();
     if (!doc) return;
-    const status = doc.getElementById("harness-status");
+    const status = doc.getElementById("orchestrator-status");
     if (status) status.textContent = text || "";
   }
 

@@ -11,7 +11,7 @@
 //   - Entry shape extends with `sig` (HMAC-SHA256 hex) + `sigVer: 1`.
 //   - sig signs canonical concat of: eventId|runId|type|at|dataHash|previousHash
 //   - The signing key is a separate HKDF derivative (info="audit-ledger")
-//     from the JWT key (info="runner-jwt"). Same `HARNESS_TOKEN`, two
+//     from the JWT key (info="runner-jwt"). Same `ORCHESTRATOR_TOKEN`, two
 //     keyspaces, no overlap.
 //
 // Backwards compat:

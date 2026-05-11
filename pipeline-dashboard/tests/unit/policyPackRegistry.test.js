@@ -22,7 +22,7 @@ const reg = require("../../src/policy/policyPackRegistry");
 // ── Frozen vocabulary ────────────────────────────────────────────
 
 test("policyPackRegistry: SCHEMA constant", () => {
-  assert.equal(reg.SCHEMA, "harness-policy-pack/v1");
+  assert.equal(reg.SCHEMA, "orchestrator-policy-pack/v1");
 });
 
 test("policyPackRegistry: ships exactly 5 frozen packs", () => {

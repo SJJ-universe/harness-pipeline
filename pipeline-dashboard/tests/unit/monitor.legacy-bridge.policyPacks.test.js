@@ -41,7 +41,7 @@ function manualInterval() {
 }
 
 const samplePolicyPacksPayload = {
-  schema: "harness-policy-pack/v1",
+  schema: "orchestrator-policy-pack/v1",
   currentPack: "finance-high-privacy",
   packs: [
     { modeId: "finance-high-privacy", label: "Finance High-Privacy",

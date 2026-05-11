@@ -9,7 +9,7 @@
 //
 // Safety posture:
 //   - Single-file footprint: all uploads target ONE path inside the repo's
-//     .harness directory. No template path or filename is derived from user
+//     .orchestrator directory. No template path or filename is derived from user
 //     input, so path traversal attacks have no surface.
 //   - Atomic write: we write to `<path>.tmp-<pid>-<ts>` and then rename, so
 //     a crash mid-write never leaves a corrupt manifest.
@@ -27,7 +27,7 @@ function createTemplateStore({ repoRoot, builtins } = {}) {
   if (!repoRoot || typeof repoRoot !== "string") {
     throw new Error("templateStore: repoRoot is required");
   }
-  const harnessDir = path.join(repoRoot, ".harness");
+  const harnessDir = path.join(repoRoot, ".orchestrator");
   const filePath = path.join(harnessDir, "templates.json");
   const backupDir = path.join(harnessDir, "templates-backup");
   const builtInIds = new Set(Object.keys(builtins || {}));

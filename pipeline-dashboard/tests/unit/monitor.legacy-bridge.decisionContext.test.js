@@ -60,7 +60,7 @@ function manualInterval() {
 
 function _validDecisionContext() {
   return {
-    schema: "harness-decision-context/v1",
+    schema: "orchestrator-decision-context/v1",
     timestamp: "2026-05-04T00:00:00.000Z",
     booleans: {
       hasPii: false, approvalPending: true, codexReviewMissing: false,
@@ -113,7 +113,7 @@ test("SMART-0-c bridge: refreshDecisionContext populates store.decisionContext",
   await handle.refreshDecisionContext();
   const dc = store.snapshot().decisionContext;
   assert.ok(dc, "after refresh: slice populated");
-  assert.equal(dc.schema, "harness-decision-context/v1");
+  assert.equal(dc.schema, "orchestrator-decision-context/v1");
   assert.equal(dc.booleans.approvalPending, true);
   assert.equal(dc.counts.evidenceLedgerEntries, 12);
 });

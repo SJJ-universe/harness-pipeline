@@ -80,7 +80,7 @@
     ]),
     bash: Object.freeze([
       { t: "16:42:14", prompt: "$", text: "npm test -- auth.spec.ts" },
-      { t: "16:42:15", text: "> sj-harness@2.5.0 test", color: "var(--prod-text-dim-60)" },
+      { t: "16:42:15", text: "> sj-orchestrator@2.5.0 test", color: "var(--prod-text-dim-60)" },
       { t: "16:42:15", text: "> jest auth.spec.ts", color: "var(--prod-text-dim-60)" },
       { t: "16:42:16", text: " PASS  src/auth/__tests__/auth.spec.ts", color: "var(--prod-green)" },
       { t: "16:42:16", text: "  ✓ rejects request without token (12 ms)", color: "var(--prod-text-dim-65)" },

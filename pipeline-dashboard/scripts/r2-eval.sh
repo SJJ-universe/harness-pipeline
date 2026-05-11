@@ -80,7 +80,7 @@ fi
 # /app/runs/<runId>/ledger.jsonl (see server.js: rootDir = REPO_ROOT/runs).
 # runner_handshake_ok lands under runId="system" because the route
 # handler doesn't have a JWT-verdict-runId yet at handshake time.
-# runner_ws_connected lands under the actual HARNESS_RUN_ID because by
+# runner_ws_connected lands under the actual ORCHESTRATOR_RUN_ID because by
 # then the WS upgrade has the verified runJWT.
 # Allow a brief settle window because the WS hello frame fires after
 # the orchestrator marks the connection accepted, and the ledger flushes
@@ -88,7 +88,7 @@ fi
 echo "[r2-eval] waiting up to 30s for runner_handshake_ok + runner_ws_connected ledger entries…"
 deadline=$(( $(date +%s) + 30 ))
 handshake_ledger="/app/runs/system/ledger.jsonl"
-ws_ledger="/app/runs/${HARNESS_RUN_ID}/ledger.jsonl"
+ws_ledger="/app/runs/${ORCHESTRATOR_RUN_ID}/ledger.jsonl"
 saw_handshake=false
 saw_ws=false
 while [[ $(date +%s) -lt $deadline ]]; do
@@ -106,11 +106,11 @@ while [[ $(date +%s) -lt $deadline ]]; do
   sleep 2
 done
 $saw_handshake \
-  && report PASS "evidence chain has runner_handshake_ok for $HARNESS_RUN_ID" \
-  || report FAIL "evidence chain MISSING runner_handshake_ok for $HARNESS_RUN_ID"
+  && report PASS "evidence chain has runner_handshake_ok for $ORCHESTRATOR_RUN_ID" \
+  || report FAIL "evidence chain MISSING runner_handshake_ok for $ORCHESTRATOR_RUN_ID"
 $saw_ws \
-  && report PASS "evidence chain has runner_ws_connected for $HARNESS_RUN_ID" \
-  || report FAIL "evidence chain MISSING runner_ws_connected for $HARNESS_RUN_ID"
+  && report PASS "evidence chain has runner_ws_connected for $ORCHESTRATOR_RUN_ID" \
+  || report FAIL "evidence chain MISSING runner_ws_connected for $ORCHESTRATOR_RUN_ID"
 
 echo
 echo "[r2-eval] summary: $pass pass / $fail fail"

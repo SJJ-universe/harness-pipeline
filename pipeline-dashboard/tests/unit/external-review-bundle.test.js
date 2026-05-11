@@ -43,7 +43,7 @@ test("EXR-a CLI: --help prints usage with exit-code legend", () => {
   assert.match(r.stdout, /1\s+DEGRADED/);
   assert.match(r.stdout, /2\s+INCIDENT/);
   assert.match(r.stdout, /3\s+CONFIG/);
-  assert.match(r.stdout, /harness-external-review-bundle\/v1/);
+  assert.match(r.stdout, /orchestrator-external-review-bundle\/v1/);
 });
 
 test("EXR-a CLI: -h alias also prints help", () => {
@@ -63,8 +63,8 @@ test("EXR-a CLI: --skip-live --json emits frozen schema with all top-level keys"
   catch (e) {
     assert.fail(`stdout not JSON: ${r.stdout.slice(0, 400)} / stderr: ${r.stderr}`);
   }
-  assert.equal(parsed.schema, "harness-external-review-bundle/v1",
-    "schema must match harness-external-review-bundle/v1");
+  assert.equal(parsed.schema, "orchestrator-external-review-bundle/v1",
+    "schema must match orchestrator-external-review-bundle/v1");
   // 11 frozen top-level keys in order.
   for (const key of [
     "schema", "capturedAt", "verdict", "label",
@@ -201,7 +201,7 @@ test("EXR-a CLI: --label shapes the output file name (file mode)", () => {
     `expected file ${expectFile} to exist`);
   const parsed = JSON.parse(fs.readFileSync(expectFile, "utf-8"));
   assert.equal(parsed.label, "exr-a-test");
-  assert.equal(parsed.schema, "harness-external-review-bundle/v1");
+  assert.equal(parsed.schema, "orchestrator-external-review-bundle/v1");
   // Cleanup.
   try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {}
 });
@@ -222,7 +222,7 @@ test("EXR-a CLI: anomalies is always an array", () => {
 
 test("EXR-a library: SCHEMA constant export matches CLI output", () => {
   const lib = require("../../scripts/external-review-bundle");
-  assert.equal(lib.SCHEMA, "harness-external-review-bundle/v1");
+  assert.equal(lib.SCHEMA, "orchestrator-external-review-bundle/v1");
 });
 
 test("EXR-a library: parseArgs default values are stable", () => {

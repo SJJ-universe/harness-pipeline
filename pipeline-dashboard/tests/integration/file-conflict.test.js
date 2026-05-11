@@ -13,7 +13,7 @@ const { HookRouter } = require("../../executor/hook-router");
 const { createFileConflictDetector } = require("../../src/runtime/fileConflictDetector");
 
 function mkTempRepo() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), "harness-fileconflict-"));
+  return fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-fileconflict-"));
 }
 
 function mkTemplates() {

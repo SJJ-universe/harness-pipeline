@@ -27,7 +27,7 @@ Get-Content $EnvFile | ForEach-Object {
 $Orch = 'harness-orchestrator-r2'
 $Runner = 'harness-runner-r2'
 $DashBase = 'http://127.0.0.1:4201'
-$DashToken = $env:HARNESS_TOKEN
+$DashToken = $env:ORCHESTRATOR_TOKEN
 
 $Pass = 0; $Fail = 0
 function Report {
@@ -56,12 +56,12 @@ if (-not $boot) {
     $j = $boot | ConvertFrom-Json
     $found = $false
     foreach ($r in @($j.runners)) {
-        if ($r.hostIdentity -eq $env:HARNESS_HOST_IDENTITY) { $found = $true; break }
+        if ($r.hostIdentity -eq $env:ORCHESTRATOR_HOST_IDENTITY) { $found = $true; break }
     }
     if ($found) {
-        Report 'PASS' "/api/monitor/bootstrap.runners[] contains $($env:HARNESS_HOST_IDENTITY)"
+        Report 'PASS' "/api/monitor/bootstrap.runners[] contains $($env:ORCHESTRATOR_HOST_IDENTITY)"
     } else {
-        Report 'FAIL' "/api/monitor/bootstrap.runners[] missing $($env:HARNESS_HOST_IDENTITY)"
+        Report 'FAIL' "/api/monitor/bootstrap.runners[] missing $($env:ORCHESTRATOR_HOST_IDENTITY)"
     }
 }
 
@@ -69,9 +69,9 @@ if (-not $boot) {
 Write-Host "[r2-monitor-probe] launching in-runner WS probe (15s lifetime)..."
 $probeScript = @'
 const { WebSocket } = require("ws");
-const wsUrl = process.env.HARNESS_ORCHESTRATOR_URL.replace(/^http/, "ws")
-  + "/api/runner/events?runId=" + encodeURIComponent(process.env.HARNESS_RUN_ID)
-  + "&token=" + encodeURIComponent(process.env.HARNESS_RUN_JWT);
+const wsUrl = process.env.ORCHESTRATOR_ORCHESTRATOR_URL.replace(/^http/, "ws")
+  + "/api/runner/events?runId=" + encodeURIComponent(process.env.ORCHESTRATOR_RUN_ID)
+  + "&token=" + encodeURIComponent(process.env.ORCHESTRATOR_RUN_JWT);
 const ws = new WebSocket(wsUrl);
 ws.on("message", (m) => {
   try { const f = JSON.parse(m); if (f.type === "hello") {
@@ -92,13 +92,13 @@ $remoteChildFound = $false
 if ($boot2) {
     $j2 = $boot2 | ConvertFrom-Json
     foreach ($c in @($j2.activeChildren)) {
-        if ($c.remote -eq $true -and $c.runId -eq $env:HARNESS_RUN_ID) { $remoteChildFound = $true; break }
+        if ($c.remote -eq $true -and $c.runId -eq $env:ORCHESTRATOR_RUN_ID) { $remoteChildFound = $true; break }
     }
 }
 if ($remoteChildFound) {
-    Report 'PASS' "/api/monitor/bootstrap.activeChildren[] has remote child for $($env:HARNESS_RUN_ID)"
+    Report 'PASS' "/api/monitor/bootstrap.activeChildren[] has remote child for $($env:ORCHESTRATOR_RUN_ID)"
 } else {
-    Report 'FAIL' "/api/monitor/bootstrap.activeChildren[] missing remote=true entry for $($env:HARNESS_RUN_ID)"
+    Report 'FAIL' "/api/monitor/bootstrap.activeChildren[] missing remote=true entry for $($env:ORCHESTRATOR_RUN_ID)"
 }
 
 # Anchor 3: per-run origin shape

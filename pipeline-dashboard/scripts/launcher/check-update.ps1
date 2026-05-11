@@ -62,8 +62,8 @@ if (-not (Test-Path $LauncherCli)) {
 # versions/<v>/ directory; the leaf is the version string.
 if ([string]::IsNullOrEmpty($CurrentVersion)) {
     if ([string]::IsNullOrEmpty($DataDir)) {
-        if ($env:HARNESS_DATA_DIR) {
-            $DataDir = $env:HARNESS_DATA_DIR
+        if ($env:ORCHESTRATOR_DATA_DIR) {
+            $DataDir = $env:ORCHESTRATOR_DATA_DIR
         } else {
             $DataDir = Join-Path $env:LOCALAPPDATA 'HarnessPipeline'
         }

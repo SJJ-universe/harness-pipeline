@@ -28,7 +28,7 @@ slices. **No code lands until then.**
 |---|---|---|
 | Runtime | "docker, podman, kata, firecracker — pick one" | **two-tier**: Tier 1 (R1 preview) docker rootless allowed; Tier 2 (R2+ strict) docker daemon required. See §1.2 |
 | Hook ingress channel | "WS-only or HTTPS POST + WS" | **WS primary + HTTPS POST one-shot fallback** |
-| JWT issuer | "orchestrator-self-signed vs. external IdP" | **orchestrator-self-signed (HS256, HARNESS_TOKEN-derived)** |
+| JWT issuer | "orchestrator-self-signed vs. external IdP" | **orchestrator-self-signed (HS256, ORCHESTRATOR_TOKEN-derived)** |
 | Audit ledger storage | "append-only file vs. SQLite" | **extend existing `evidenceLedger` JSONL + HMAC signature**; `kid` retained-verify-key model deferred to R2 (§5.5.1) |
 | Runner-host control plane | (not specified) | **env-only initial; handshake (bootstrap one-shot) + heartbeat (runnerToken recurring)** |
 | Network egress | "default = orchestrator only" | **3-layer (Tier 2): Docker `--internal` + nftables on bridge + dnsmasq allowlist**. Tier 1 (R1 preview) uses L1 only |
@@ -44,7 +44,7 @@ slices. **No code lands until then.**
   - Phase D ME Node 24 forward-compat (actions @v6, FORCE_JS_NODE24 env)
   - Phase 3-S security (`verifyWsConnection`, `pathSandbox`, `childRegistry`)
   - Existing `evidenceLedger` (JSONL hash chain)
-  - Existing JWT-capable token infrastructure (`HARNESS_TOKEN`, `safeEqual`)
+  - Existing JWT-capable token infrastructure (`ORCHESTRATOR_TOKEN`, `safeEqual`)
 
 - **STILL OPEN**:
   - MF1 §4 gates G1-G9 — these require implementation slices that
@@ -55,7 +55,7 @@ slices. **No code lands until then.**
 ### Non-goals (deliberately out of scope)
 
 - **Multi-tenant orchestration** — Phase 3 (D platformization).
-- **GPU passthrough** — rare for harness workloads; covered in a
+- **GPU passthrough** — rare for orchestrator workloads; covered in a
   follow-up RFC if a use case emerges.
 - **Cross-region replication** — orchestrator stays single-instance.
 - **HA orchestrator** — manual restart is the today path; HA is Phase 3.
@@ -105,13 +105,13 @@ Why not "rootless everywhere":
   to ENFORCE the egress, not rely on lack-of-route.
 
 Tier 1 → Tier 2 migration path:
-- The runner host's startup script (`harness-runner --probe`) detects
-  the active tier from `HARNESS_REMOTE_MODE`. `preview` accepts
+- The runner host's startup script (`orchestrator-runner --probe`) detects
+  the active tier from `ORCHESTRATOR_REMOTE_MODE`. `preview` accepts
   rootless; `on` requires daemon (else exits non-zero with a
   remediation hint).
 - An operator can run `docker context create rootless-runner` for R1
   experiments and switch to daemon for R2 without changing the
-  Dockerfile or harness-runner code — only the runtime context
+  Dockerfile or orchestrator-runner code — only the runtime context
   changes.
 
 Migration to podman is trivial in either tier — the `docker` binary
@@ -123,13 +123,13 @@ same CLI surface for our use cases.
 - **Minimum**: docker ≥ 24.0 (rootless GA, BuildKit default).
 - **Tested against**: 24.x and 25.x.
 - **Older versions**: explicitly rejected at runner-host startup
-  (`harness-runner --probe` exits non-zero with a remediation hint).
+  (`orchestrator-runner --probe` exits non-zero with a remediation hint).
 
 ### 1.4 Why not VM-grade today
 
 `sandbox_class: vm-strict` is reserved for R4. The reasons it's
 deferred:
-1. Startup latency (kata 2s vs. docker 500ms) hurts the harness's
+1. Startup latency (kata 2s vs. docker 500ms) hurts the orchestrator's
    low-latency feedback loop.
 2. Kata + firecracker require kernel features (KVM, /dev/kvm
    permissions) that are absent on many CI runners and laptops.
@@ -146,7 +146,7 @@ without changing this RFC.
 
 ### 2.1 Base image: `node:24-bookworm-slim`
 
-- Matches the harness's Node 24 runtime (Phase 3-S Node 24 alignment).
+- Matches the orchestrator's Node 24 runtime (Phase 3-S Node 24 alignment).
 - `slim` variant is ~70 MiB vs. the full image's ~1 GiB. Workload
   doesn't need the full toolchain.
 - `bookworm` (Debian 12) gets backported security fixes through the
@@ -173,21 +173,21 @@ RUN --mount=type=cache,target=/root/.npm \
 
 # Stage 2 — runtime
 FROM node:24-bookworm-slim AS runtime
-RUN groupadd -g 10001 harness && useradd -u 10001 -g 10001 -m -s /usr/sbin/nologin harness
+RUN groupadd -g 10001 orchestrator && useradd -u 10001 -g 10001 -m -s /usr/sbin/nologin orchestrator
 WORKDIR /opt/runner
 COPY --from=deps /opt/runner/node_modules ./node_modules
 COPY runner/ ./
 
 # Workload mount points (read-only inputs, writable outputs)
-RUN mkdir -p /work/in /work/out && chown harness:harness /work/in /work/out
+RUN mkdir -p /work/in /work/out && chown orchestrator:orchestrator /work/in /work/out
 VOLUME ["/work/in", "/work/out"]
 
 # Runtime hardening
-USER harness:harness
+USER orchestrator:orchestrator
 ENV NODE_ENV=production NODE_OPTIONS="--unhandled-rejections=strict"
 
 # Single entrypoint
-ENTRYPOINT ["node", "/opt/runner/harness-runner.js"]
+ENTRYPOINT ["node", "/opt/runner/orchestrator-runner.js"]
 ```
 
 Notes:
@@ -209,8 +209,8 @@ Notes:
 
 ### 2.4 Registry
 
-- Suggested: `ghcr.io/SJJ-universe/harness-runner:<commit-sha>`.
-- Operator can override via `HARNESS_RUNNER_IMAGE` env.
+- Suggested: `ghcr.io/SJJ-universe/orchestrator-runner:<commit-sha>`.
+- Operator can override via `ORCHESTRATOR_RUNNER_IMAGE` env.
 - Tag policy: every commit on master gets a `:<sha>` tag; only
   hand-picked commits get `:stable`. No `:latest` — operators must
   pin.
@@ -236,7 +236,7 @@ Two endpoints:
 
 ### 3.2 Why both
 
-- **WS is primary** because the harness's existing `verifyWsConnection`
+- **WS is primary** because the orchestrator's existing `verifyWsConnection`
   + replay buffer + hook router are WS-based. Reusing this code path
   keeps remote and local hooks indistinguishable upstream.
 - **HTTPS POST exists** for the failure case where the WS dropped and
@@ -249,7 +249,7 @@ Two endpoints:
 - Local-mode runs continue to use the existing `/api/hook` route
   (loopback-only). No changes there.
 - The new `/api/runner/*` routes are gated behind
-  `HARNESS_REMOTE_MODE !== "off"`. When off, the routes 404 — runner
+  `ORCHESTRATOR_REMOTE_MODE !== "off"`. When off, the routes 404 — runner
   hosts can't accidentally connect to a non-remote orchestrator.
 
 ---
@@ -268,20 +268,20 @@ Why not RS256 (asymmetric):
   this scheme entirely — symmetric vs. asymmetric is no longer the
   trade-off.
 
-### 4.2 Secret derivation: HKDF from `HARNESS_TOKEN`
+### 4.2 Secret derivation: HKDF from `ORCHESTRATOR_TOKEN`
 
 ```js
 // Pseudo-code; actual implementation in src/security/jwt.js (future)
-const ikm = Buffer.from(process.env.HARNESS_TOKEN, "utf-8");
-const salt = Buffer.from("harness-jwt-v1", "utf-8");
+const ikm = Buffer.from(process.env.ORCHESTRATOR_TOKEN, "utf-8");
+const salt = Buffer.from("orchestrator-jwt-v1", "utf-8");
 const info = Buffer.from("runner-jwt", "utf-8");
 const jwtKey = hkdf("sha256", ikm, salt, info, 32);
 ```
 
 Properties:
-- Deterministic (same `HARNESS_TOKEN` → same key on every restart).
+- Deterministic (same `ORCHESTRATOR_TOKEN` → same key on every restart).
 - Domain-separated from the main token (`info=runner-jwt` ensures the
-  HKDF output cannot be confused with another use of `HARNESS_TOKEN`).
+  HKDF output cannot be confused with another use of `ORCHESTRATOR_TOKEN`).
 - Future-proof: a v2 derivation just changes the `info` label.
 
 A SECOND HKDF derivation (info = `"audit-ledger"`) produces the
@@ -295,7 +295,7 @@ HMAC-signing key for §5. Keys never overlap.
   "aud": "runner-<runId>",
   "iat": 1735689600,
   "exp": 1735693200,
-  "harness": {
+  "orchestrator": {
     "runOrigin": "container-remote",
     "sandboxClass": "container-strict",
     "hostIdentity": "runner-pool-a/3"
@@ -306,7 +306,7 @@ HMAC-signing key for §5. Keys never overlap.
 - `sub` = runId. A stolen JWT can only act on its own run.
 - `aud` includes runId again. Short defence-in-depth.
 - `exp` = `iat` + run-declared timeout + 60s grace.
-- `harness.*` mirrors the monitor envelope `origin` field (MF1 §3.1)
+- `orchestrator.*` mirrors the monitor envelope `origin` field (MF1 §3.1)
   so the runner agent can see what class it's in without a separate
   endpoint.
 
@@ -407,9 +407,9 @@ This is added to readiness gate G8 (MF1 §4):
 
 ### 5.5 Key management
 
-- Signing key: HKDF derivative of `HARNESS_TOKEN` (info =
+- Signing key: HKDF derivative of `ORCHESTRATOR_TOKEN` (info =
   `"audit-ledger"`). Same machinery as JWT key but different label.
-- **R1 model — single live key**: Rotating `HARNESS_TOKEN` invalidates
+- **R1 model — single live key**: Rotating `ORCHESTRATOR_TOKEN` invalidates
   ALL old signatures. This is acceptable for R1 because the ledger is
   read-only history, tamper-detection is still per-chain (the hash
   chain works without the signature), and the signature is an EXTRA
@@ -418,7 +418,7 @@ This is added to readiness gate G8 (MF1 §4):
 #### 5.5.1 Forensic limitation + R2 backlog (kid + retained verify keys)
 
 The R1 single-live-key model has a known forensic weakness: once
-`HARNESS_TOKEN` rotates, **historical entries can no longer be
+`ORCHESTRATOR_TOKEN` rotates, **historical entries can no longer be
 verified by signature** — only their hash chain is left to detect
 tampering. For audit / compliance use cases that need durable
 verifiability of past entries, R2 introduces:
@@ -435,7 +435,7 @@ verifiability of past entries, R2 introduces:
   signature column reads `kid:expired` (intentionally — purging
   past keys is the operator's compliance choice).
 - **Key rotation procedure**:
-  1. Operator runs `harness-keys rotate` (new R2 utility).
+  1. Operator runs `orchestrator-keys rotate` (new R2 utility).
   2. Old key moves to retained map under its `kid`.
   3. New key is derived (HKDF with bumped `info` salt or new IKM).
   4. New entries sign with new `kid`.
@@ -446,7 +446,7 @@ verifiability of past entries, R2 introduces:
 Why defer to R2:
 - R1's purpose is "validate the isolation model on the operator's
   own machine". Rotation is rare during R1 because there's only one
-  operator and `HARNESS_TOKEN` lifetime ≈ install lifetime.
+  operator and `ORCHESTRATOR_TOKEN` lifetime ≈ install lifetime.
 - The forensic gap matters in shared / multi-operator / compliance
   contexts — those are R2+ scenarios.
 - Adding `kid` to the entry shape now (sigVer:1 with empty kid =
@@ -468,14 +468,14 @@ Operator sets these env vars on the orchestrator:
 
 ```bash
 # Comma-separated list of runner endpoints
-HARNESS_REMOTE_RUNNERS=runner-a.local:8443,runner-b.local:8443
+ORCHESTRATOR_REMOTE_RUNNERS=runner-a.local:8443,runner-b.local:8443
 
 # Per-runner bootstrap token (used for the first handshake before JWT)
-HARNESS_REMOTE_RUNNER_TOKEN_runner-a_local=<32-char-hex>
-HARNESS_REMOTE_RUNNER_TOKEN_runner-b_local=<32-char-hex>
+ORCHESTRATOR_REMOTE_RUNNER_TOKEN_runner-a_local=<32-char-hex>
+ORCHESTRATOR_REMOTE_RUNNER_TOKEN_runner-b_local=<32-char-hex>
 
 # Optional override — image to deploy on each runner
-HARNESS_RUNNER_IMAGE=ghcr.io/SJJ-universe/harness-runner:<sha>
+ORCHESTRATOR_RUNNER_IMAGE=ghcr.io/SJJ-universe/orchestrator-runner:<sha>
 ```
 
 ### 6.3 Heartbeat-driven discovery
@@ -483,10 +483,10 @@ HARNESS_RUNNER_IMAGE=ghcr.io/SJJ-universe/harness-runner:<sha>
 The flow is **handshake (one-time) + heartbeat (recurring)**, with the
 auth token swapping after step 1:
 
-1. **Handshake (one-time)**. The runner host's `harness-runner-control`
+1. **Handshake (one-time)**. The runner host's `orchestrator-runner-control`
    process POSTs once to `/api/runner/handshake` with the **bootstrap
    token** in `Authorization: Bearer`. Orchestrator validates the
-   bootstrap (must match `HARNESS_REMOTE_RUNNER_TOKEN_<host>` env),
+   bootstrap (must match `ORCHESTRATOR_REMOTE_RUNNER_TOKEN_<host>` env),
    records `{ hostIdentity, capabilities }`, and returns a freshly-
    issued **runnerToken**. The bootstrap is now consumed — re-presenting
    it after this point is rejected with 401 + audit log entry.
@@ -511,7 +511,7 @@ every heartbeat. See §8 for the full token taxonomy.
 
 ### 6.4 Why no UI in this round
 
-- Operators today configure the harness via env. Adding a UI for
+- Operators today configure the orchestrator via env. Adding a UI for
   runners alone makes the env-vs-UI inconsistency worse before the
   full Phase 3 platform UI lands.
 - The dashboard's existing run-tree shows runners via the monitor
@@ -535,13 +535,13 @@ to the orchestrator by routing.
 
 | Layer | Tier 1 (R1 preview) | Tier 2 (R2+ strict) |
 |---|:---:|:---:|
-| L1 — `--network=harness-egress-only --internal` | ✅ enforced | ✅ enforced |
+| L1 — `--network=orchestrator-egress-only --internal` | ✅ enforced | ✅ enforced |
 | L2 — nftables on bridge interface | ❌ skipped (rootless can't) | ✅ enforced |
 | L3 — dnsmasq allowlist on controlled resolver | ❌ skipped (no separate resolver in R1) | ✅ enforced |
 
 R1 verification (G3) tests against L1 only. R2's G3-strict adds L2/L3
-verification. The `harness-runner --probe` script refuses to start in
-`HARNESS_REMOTE_MODE=on` (Tier 2) if it cannot create the host bridge
+verification. The `orchestrator-runner --probe` script refuses to start in
+`ORCHESTRATOR_REMOTE_MODE=on` (Tier 2) if it cannot create the host bridge
 or load the nftables ruleset — operators see the failure at runner
 startup, not at first egress test.
 
@@ -549,10 +549,10 @@ startup, not at first egress test.
 
 Each container starts with:
 ```bash
-docker run --network=harness-egress-only ...
+docker run --network=orchestrator-egress-only ...
 ```
 
-Where `harness-egress-only` is a Docker network created at runner-host
+Where `orchestrator-egress-only` is a Docker network created at runner-host
 startup with:
 - `--internal` (no implicit gateway to host network).
 - A custom bridge with iptables rules attached to the bridge interface
@@ -561,25 +561,25 @@ startup with:
 
 ### 7.2 Layer 2: iptables/nftables on runner host
 
-For the `harness-egress-only` bridge interface (e.g. `br-harness`):
+For the `orchestrator-egress-only` bridge interface (e.g. `br-orchestrator`):
 
 ```
 # Allow DNS to controlled resolver
-nft add rule inet harness output oifname "br-harness" udp dport 53 ip daddr 10.99.99.1 accept
+nft add rule inet orchestrator output oifname "br-orchestrator" udp dport 53 ip daddr 10.99.99.1 accept
 
 # Allow traffic to orchestrator host only (port 8443 over TLS)
-nft add rule inet harness output oifname "br-harness" tcp dport 8443 ip daddr <orchestrator-ip> accept
+nft add rule inet orchestrator output oifname "br-orchestrator" tcp dport 8443 ip daddr <orchestrator-ip> accept
 
 # Block cloud metadata (defence-in-depth; should never be reachable)
-nft add rule inet harness output oifname "br-harness" ip daddr 169.254.169.254 drop
+nft add rule inet orchestrator output oifname "br-orchestrator" ip daddr 169.254.169.254 drop
 
 # Block RFC1918 peers
-nft add rule inet harness output oifname "br-harness" ip daddr 10.0.0.0/8 drop
-nft add rule inet harness output oifname "br-harness" ip daddr 172.16.0.0/12 drop
-nft add rule inet harness output oifname "br-harness" ip daddr 192.168.0.0/16 drop
+nft add rule inet orchestrator output oifname "br-orchestrator" ip daddr 10.0.0.0/8 drop
+nft add rule inet orchestrator output oifname "br-orchestrator" ip daddr 172.16.0.0/12 drop
+nft add rule inet orchestrator output oifname "br-orchestrator" ip daddr 192.168.0.0/16 drop
 
 # Default deny
-nft add rule inet harness output oifname "br-harness" drop
+nft add rule inet orchestrator output oifname "br-orchestrator" drop
 ```
 
 ### 7.3 Layer 3: DNS allowlist via dnsmasq
@@ -600,15 +600,15 @@ The MF1 §2.5 row "Network egress allowlist enforced" is satisfied:
 - Cloud metadata blocked at L1 + L2.
 - RFC1918 peers blocked at L2.
 - Loopback blocked because the container has no host-network namespace.
-- Arbitrary external hosts blocked at L1 (only `--network=harness-egress-only` is mounted) + L3 (DNS resolves nothing else).
+- Arbitrary external hosts blocked at L1 (only `--network=orchestrator-egress-only` is mounted) + L3 (DNS resolves nothing else).
 
 ### 7.5 Operator escape hatches (intentional)
 
 When debugging:
-- `HARNESS_RUNNER_EGRESS_DEBUG=1` swaps the network policy to
+- `ORCHESTRATOR_RUNNER_EGRESS_DEBUG=1` swaps the network policy to
   log-only (still default-deny but every dropped packet is logged at
   warn level for 10 minutes, then auto-resets).
-- `HARNESS_RUNNER_BYPASS=1` is intentionally NOT supported. To
+- `ORCHESTRATOR_RUNNER_BYPASS=1` is intentionally NOT supported. To
   bypass, the operator must edit nft rules directly — making the
   bypass a deliberate, observable action.
 
@@ -642,7 +642,7 @@ runner-host                              orchestrator
 
 | Token | Scope | Lifetime | Source |
 |---|---|---|---|
-| `bootstrap` | One-shot, runner registration | Until first handshake | `HARNESS_REMOTE_RUNNER_TOKEN_<host>` env |
+| `bootstrap` | One-shot, runner registration | Until first handshake | `ORCHESTRATOR_REMOTE_RUNNER_TOKEN_<host>` env |
 | `runnerToken` | Heartbeat + run claim | 24h, refreshed on heartbeat | Issued by orchestrator on handshake |
 | `runJWT` | Per-run hook ingress | Run duration + 60s grace | Issued by orchestrator on run start |
 
@@ -661,7 +661,7 @@ runner-host                              orchestrator
 
 | Failure | Detection | Time to detect | Remediation |
 |---|---|:---:|---|
-| Runner host crashed | No heartbeat for 30s | 30s | Orchestrator marks all runs on host as failed; replays locally if `HARNESS_REMOTE_FALLBACK=1` |
+| Runner host crashed | No heartbeat for 30s | 30s | Orchestrator marks all runs on host as failed; replays locally if `ORCHESTRATOR_REMOTE_FALLBACK=1` |
 | Network partition between orch ↔ runner | Heartbeat OK but WS drops | 10s (reconnect timeout) | Runner buffers hooks (max 100 events); replays via HTTPS POST `/api/runner/hook` |
 | Workload OOM | Container exits with 137 | Immediate | Orchestrator logs + marks run as failed + appends `oom` event to ledger |
 | Workload timeout | Container runs past declared timeout | At timeout | Orchestrator sends container kill (SIGTERM via Docker API) → 30s grace → SIGKILL |
@@ -682,7 +682,7 @@ R1's purpose: validate the isolation model on `container-local`
 ### 10.1 What R1 must ship
 
 **Code + image:**
-- `harness-runner` Node entrypoint (small; ~300 LOC).
+- `orchestrator-runner` Node entrypoint (small; ~300 LOC).
 - Dockerfile + multi-stage build script (`scripts/build-runner.sh`).
 - Updated `docker-compose.dev.yml` for local-only testing.
 - New routes: `/api/runner/handshake`, `/api/runner/heartbeat`,
@@ -715,7 +715,7 @@ R1's purpose: validate the isolation model on `container-local`
 - `.github/workflows/ci.yml` audit: confirm the existing readiness gate
   (≥ 14/15) still applies after the rubric grows to 18; if the gate
   threshold needs to scale, this round bumps it (e.g. ≥ 16/18).
-- Cross-link from `docs/harness-architecture.md` "Future trust
+- Cross-link from `docs/orchestrator-architecture.md` "Future trust
   boundary" section to the R1 implementation status (no longer
   design-only).
 
@@ -739,17 +739,17 @@ silently lands).
 - **Audit `kid` + retained verify-key store** — R1 ships single-live-
   key model. The `kid` field is reserved on the entry shape so the
   R1 → R2 migration is zero-schema-change (§5.5.1).
-- **`HARNESS_RUNNER_BYPASS=1`** — intentionally never supported; egress
+- **`ORCHESTRATOR_RUNNER_BYPASS=1`** — intentionally never supported; egress
   bypass is a deliberate, observable nft-rule edit by ops.
 
 ### 10.3 Required env
 
 ```bash
-HARNESS_REMOTE_MODE=preview
-HARNESS_REMOTE_RUNNERS=localhost:8443
-HARNESS_REMOTE_RUNNER_TOKEN_localhost=<32-char-hex>
-HARNESS_RUNNER_IMAGE=ghcr.io/SJJ-universe/harness-runner:<sha>
-HARNESS_REMOTE_FALLBACK=1   # dev-only — re-runs failed remote attempts locally
+ORCHESTRATOR_REMOTE_MODE=preview
+ORCHESTRATOR_REMOTE_RUNNERS=localhost:8443
+ORCHESTRATOR_REMOTE_RUNNER_TOKEN_localhost=<32-char-hex>
+ORCHESTRATOR_RUNNER_IMAGE=ghcr.io/SJJ-universe/orchestrator-runner:<sha>
+ORCHESTRATOR_REMOTE_FALLBACK=1   # dev-only — re-runs failed remote attempts locally
 ```
 
 ### 10.4 Required readiness rubric extension
@@ -758,7 +758,7 @@ A new category gets added to `docs/readiness-rubric.md` (closing G6):
 
 ```
 2.6 Remote isolation
-  ★ — `harness-runner` image builds + scans clean.
+  ★ — `orchestrator-runner` image builds + scans clean.
   ★★ — A `container-local` workload completes a 3-phase pipeline + emits the expected hooks.
   ★★★ — All G1-G9 integration tests green.
 ```
@@ -790,7 +790,7 @@ These are NOT decided in this RFC but flagged for future consideration:
    Defer documentation until first compliance use case.
 7. **Audit `kid` + retained verify-key store (R2)**: §5.5.1 spells
    out the design; the implementation is part of the R2 work that
-   adds Tier 2 strict egress. Without this, rotating `HARNESS_TOKEN`
+   adds Tier 2 strict egress. Without this, rotating `ORCHESTRATOR_TOKEN`
    wipes signature-verifiability of historical entries — acceptable
    for R1, blocking for compliance use cases in R2+.
 
@@ -820,7 +820,7 @@ outstanding questions in §11 marked "blocking".
 - [`remote-sandbox-rfc.md`](./remote-sandbox-rfc.md) (MF1) — design contract.
 - [`remote-mode-design.md`](./remote-mode-design.md) — current threat model.
 - [`container-sandbox.md`](./container-sandbox.md) — Docker-specific reference.
-- [`harness-architecture.md`](./harness-architecture.md) — current architecture.
+- [`orchestrator-architecture.md`](./orchestrator-architecture.md) — current architecture.
 - [`security-model.md`](./security-model.md) — Phase 3-S security boundary.
 - `src/runtime/evidenceLedger.js` — existing hash-chain ledger.
 - `docs/superpowers/specs/2026-04-27-five-priority-roadmap.md` §7 — original P4 brief.

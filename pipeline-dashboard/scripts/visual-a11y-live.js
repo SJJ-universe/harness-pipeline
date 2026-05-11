@@ -50,12 +50,12 @@ function parseArgs(argv) {
 function printHelp() {
   process.stdout.write(`Usage: node scripts/visual-a11y-live.js [options]
 
-Runs axe-core (WCAG 2.0/2.1 A+AA) + 2 custom harness rules against
+Runs axe-core (WCAG 2.0/2.1 A+AA) + 2 custom orchestrator rules against
 the live product shell at every cell of the 4×4 (route × viewport)
 matrix. Reports pass/fail manifest + exit code 0/1/2.
 
 Options:
-  --port <n>                Server port (default 4799 or HARNESS_VISUAL_LIVE_PORT)
+  --port <n>                Server port (default 4799 or ORCHESTRATOR_VISUAL_LIVE_PORT)
   --out-dir <path>          Output directory for manifest.json
                             (default docs/reports/<YYYY-MM-DD>-ui-p12-a11y/)
   --label <text>            Optional label suffix for the directory name

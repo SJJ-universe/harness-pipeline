@@ -7,7 +7,7 @@
 //     policy_gate / runner_handshake boot events)
 //   - Carries the resolved pack id + every rule field a forensic
 //     auditor needs to reconstruct posture without re-reading env
-//   - When dev-escape fired (HARNESS_POLICY_FAIL_OPEN=1 + typo'd env),
+//   - When dev-escape fired (ORCHESTRATOR_POLICY_FAIL_OPEN=1 + typo'd env),
 //     the row also carries resolvedFromFallback:true + unknownRequested:<typo>
 //
 // This test mimics what server.js boot does (audit emit pattern) so
@@ -27,7 +27,7 @@ const { EvidenceLedger } = require("../../src/runtime/evidenceLedger");
 const { resolveDeploymentProfile } = require("../../src/policy/deploymentProfile");
 
 function makeLedgerDir() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), "harness-pack-audit-test-"));
+  return fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-pack-audit-test-"));
 }
 
 // Mimics server.js boot audit emit (S5-c) so we can lock the verb shape.
@@ -72,7 +72,7 @@ function withTempLedger(fn) {
 test("S5-c boot audit: standard pack lands deployment_profile_resolved with all rule fields", () => {
   withTempLedger((ledger) => {
     const profile = resolveDeploymentProfile({
-      env: { HARNESS_DEPLOYMENT_PROFILE: "standard" },
+      env: { ORCHESTRATOR_DEPLOYMENT_PROFILE: "standard" },
     });
     emitBootAuditRow(ledger, profile);
     const row = findResolvedRow(readSystemRows(ledger));
@@ -95,7 +95,7 @@ test("S5-c boot audit: standard pack lands deployment_profile_resolved with all 
 test("S5-c boot audit: public-sector pack carries 공공기관 rule snapshot", () => {
   withTempLedger((ledger) => {
     const profile = resolveDeploymentProfile({
-      env: { HARNESS_DEPLOYMENT_PROFILE: "public-sector" },
+      env: { ORCHESTRATOR_DEPLOYMENT_PROFILE: "public-sector" },
     });
     emitBootAuditRow(ledger, profile);
     const row = findResolvedRow(readSystemRows(ledger));
@@ -113,7 +113,7 @@ test("S5-c boot audit: public-sector pack carries 공공기관 rule snapshot", (
 test("S5-c boot audit: finance-high-privacy carries hardGatesDefault=true", () => {
   withTempLedger((ledger) => {
     const profile = resolveDeploymentProfile({
-      env: { HARNESS_DEPLOYMENT_PROFILE: "finance-high-privacy" },
+      env: { ORCHESTRATOR_DEPLOYMENT_PROFILE: "finance-high-privacy" },
     });
     emitBootAuditRow(ledger, profile);
     const row = findResolvedRow(readSystemRows(ledger));
@@ -129,8 +129,8 @@ test("S5-c boot audit: dev escape lands resolvedFromFallback:true + unknownReque
   withTempLedger((ledger) => {
     const profile = resolveDeploymentProfile({
       env: {
-        HARNESS_DEPLOYMENT_PROFILE: "publicsector",  // typo
-        HARNESS_POLICY_FAIL_OPEN: "1",
+        ORCHESTRATOR_DEPLOYMENT_PROFILE: "publicsector",  // typo
+        ORCHESTRATOR_POLICY_FAIL_OPEN: "1",
       },
     });
     emitBootAuditRow(ledger, profile);
@@ -144,7 +144,7 @@ test("S5-c boot audit: dev escape lands resolvedFromFallback:true + unknownReque
 test("S5-c boot audit: chain integrity — boot row participates in hash chain", () => {
   withTempLedger((ledger) => {
     const profile = resolveDeploymentProfile({
-      env: { HARNESS_DEPLOYMENT_PROFILE: "developer-lab" },
+      env: { ORCHESTRATOR_DEPLOYMENT_PROFILE: "developer-lab" },
     });
     emitBootAuditRow(ledger, profile);
     // Append another event so we have a 2-entry chain
@@ -165,7 +165,7 @@ test("S5-c boot audit: every recognized pack appears in audit chain identical to
                          "offline-internal-network", "developer-lab"]) {
     withTempLedger((ledger) => {
       const profile = resolveDeploymentProfile({
-        env: { HARNESS_DEPLOYMENT_PROFILE: modeId },
+        env: { ORCHESTRATOR_DEPLOYMENT_PROFILE: modeId },
       });
       emitBootAuditRow(ledger, profile);
       const row = findResolvedRow(readSystemRows(ledger));
@@ -174,7 +174,7 @@ test("S5-c boot audit: every recognized pack appears in audit chain identical to
       // The audit row must agree with what resolveDeploymentProfile
       // returned. Spot-check by re-reading profile:
       const refresh = resolveDeploymentProfile({
-        env: { HARNESS_DEPLOYMENT_PROFILE: modeId },
+        env: { ORCHESTRATOR_DEPLOYMENT_PROFILE: modeId },
       });
       assert.equal(row.data.publicSector, refresh.publicSector);
       assert.equal(row.data.requireSandboxWorkspace, refresh.requireSandboxWorkspace);
@@ -189,8 +189,8 @@ test("S5-c boot audit: row data carries plaintext-aware allowPlaintextSecrets bi
     // developer-lab + opt-in env → allowPlaintextSecrets = true
     const profile = resolveDeploymentProfile({
       env: {
-        HARNESS_DEPLOYMENT_PROFILE: "developer-lab",
-        HARNESS_ALLOW_PLAINTEXT_SECRETS: "1",
+        ORCHESTRATOR_DEPLOYMENT_PROFILE: "developer-lab",
+        ORCHESTRATOR_ALLOW_PLAINTEXT_SECRETS: "1",
       },
     });
     emitBootAuditRow(ledger, profile);
@@ -204,8 +204,8 @@ test("S5-c boot audit: public-sector + plaintext opt-in is IGNORED in row", () =
     // public-sector pack ALWAYS overrides plaintext opt-in
     const profile = resolveDeploymentProfile({
       env: {
-        HARNESS_DEPLOYMENT_PROFILE: "public-sector",
-        HARNESS_ALLOW_PLAINTEXT_SECRETS: "1",
+        ORCHESTRATOR_DEPLOYMENT_PROFILE: "public-sector",
+        ORCHESTRATOR_ALLOW_PLAINTEXT_SECRETS: "1",
       },
     });
     emitBootAuditRow(ledger, profile);

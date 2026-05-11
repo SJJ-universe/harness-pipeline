@@ -1,6 +1,6 @@
 // Slice R2-1 (Phase D R2 deployment evaluation, 2026-04-28)
 //
-// Static lint for the R2 single-runner eval harness. We can't actually
+// Static lint for the R2 single-runner eval orchestrator. We can't actually
 // `docker compose up` from a unit test (no Docker daemon in the test
 // runner) but we CAN keep these guarantees stable:
 //
@@ -77,11 +77,11 @@ test("R2-1: .env.r2.example values are all placeholders, never real secrets", ()
     const [, name, value] = m;
     // Allowed: empty, placeholder, or a known-default literal.
     const knownNonSecret = new Set([
-      "HARNESS_REMOTE_MODE",          // "preview"
-      "HARNESS_REMOTE_BRIDGE_MODE",   // R2.5-c: "off" / "report" / "dispatch"
-      "HARNESS_HOST_IDENTITY",        // "runner-r2-001"
-      "HARNESS_RUN_ID",               // "rr-r2-eval-001"
-      "HARNESS_RUN_JWT",              // "" (script fills)
+      "ORCHESTRATOR_REMOTE_MODE",          // "preview"
+      "ORCHESTRATOR_REMOTE_BRIDGE_MODE",   // R2.5-c: "off" / "report" / "dispatch"
+      "ORCHESTRATOR_HOST_IDENTITY",        // "runner-r2-001"
+      "ORCHESTRATOR_RUN_ID",               // "rr-r2-eval-001"
+      "ORCHESTRATOR_RUN_JWT",              // "" (script fills)
     ]);
     if (knownNonSecret.has(name)) continue;
     assert.ok(
@@ -91,11 +91,11 @@ test("R2-1: .env.r2.example values are all placeholders, never real secrets", ()
   }
 });
 
-test("R2-1: HARNESS_RUN_JWT in the template is empty (the up script fills it)", () => {
+test("R2-1: ORCHESTRATOR_RUN_JWT in the template is empty (the up script fills it)", () => {
   const env = readFile(ENV_EXAMPLE);
-  const m = env.match(/^HARNESS_RUN_JWT=(.*)$/m);
-  assert.ok(m, "expected HARNESS_RUN_JWT key in template");
-  assert.equal(m[1].trim(), "", "HARNESS_RUN_JWT must be blank in the template");
+  const m = env.match(/^ORCHESTRATOR_RUN_JWT=(.*)$/m);
+  assert.ok(m, "expected ORCHESTRATOR_RUN_JWT key in template");
+  assert.equal(m[1].trim(), "", "ORCHESTRATOR_RUN_JWT must be blank in the template");
 });
 
 // ── docker-compose ────────────────────────────────────────────────
@@ -155,21 +155,21 @@ test("R2-1: probe service is gated behind the 'probe' profile", () => {
 
 test("R2-1: Dockerfile.orchestrator runs as non-root", () => {
   const text = readFile(DOCKERFILE_ORCH);
-  assert.match(text, /USER\s+harness/, "expected `USER harness` in Dockerfile.orchestrator");
+  assert.match(text, /USER\s+orchestrator/, "expected `USER orchestrator` in Dockerfile.orchestrator");
   // Check the user is created with a stable system UID, not root.
   assert.match(text, /useradd\s+--system\s+--uid\s+10100/,
     "Dockerfile.orchestrator should create UID 10100 for the non-root user");
 });
 
-test("R2-1: Dockerfile.orchestrator creates writable /app/runs + /app/.harness", () => {
+test("R2-1: Dockerfile.orchestrator creates writable /app/runs + /app/.orchestrator", () => {
   // Both directories must exist + be chowned BEFORE USER drops privs;
-  // mkdirSync inside the Node runtime runs as the harness user and
+  // mkdirSync inside the Node runtime runs as the orchestrator user and
   // would fail on root-owned /app.
   const text = readFile(DOCKERFILE_ORCH);
-  assert.match(text, /mkdir\s+-p\s+\/app\/\.harness\s+\/app\/runs/);
+  assert.match(text, /mkdir\s+-p\s+\/app\/\.orchestrator\s+\/app\/runs/);
   // chown covers the writable workspaces. /app/dashboard is included so
   // any boot-time tooling can write its own scratch state too.
-  assert.match(text, /chown\s+-R\s+harness:harness\s+\/app\/\.harness\s+\/app\/runs/);
+  assert.match(text, /chown\s+-R\s+orchestrator:orchestrator\s+\/app\/\.orchestrator\s+\/app\/runs/);
 });
 
 test("R2-1: Dockerfile.orchestrator places server.js under /app/dashboard (REPO_ROOT = /app)", () => {
@@ -185,41 +185,41 @@ test("R2-1: Dockerfile.orchestrator places server.js under /app/dashboard (REPO_
     "ENTRYPOINT must point at /app/dashboard/server.js");
 });
 
-test("R2-1: Dockerfile.orchestrator uses HARNESS_ALLOW_REMOTE=1 (binds 0.0.0.0)", () => {
+test("R2-1: Dockerfile.orchestrator uses ORCHESTRATOR_ALLOW_REMOTE=1 (binds 0.0.0.0)", () => {
   // The container can only be reached via the docker port mapping. The
   // mapping is loopback-pinned (verified above), so 0.0.0.0 inside the
   // container is safe.
-  // server.js does `ALLOW_REMOTE = process.env.HARNESS_ALLOW_REMOTE === "1"`
+  // server.js does `ALLOW_REMOTE = process.env.ORCHESTRATOR_ALLOW_REMOTE === "1"`
   // exactly — the literal string "1" is required (not "true" / on / yes).
   const text = readFile(DOCKERFILE_ORCH);
-  assert.match(text, /ENV\s+HARNESS_ALLOW_REMOTE=1\b/);
+  assert.match(text, /ENV\s+ORCHESTRATOR_ALLOW_REMOTE=1\b/);
 });
 
-test("R2-1: compose passes HARNESS_ALLOW_REMOTE=\"1\" to orchestrator", () => {
+test("R2-1: compose passes ORCHESTRATOR_ALLOW_REMOTE=\"1\" to orchestrator", () => {
   // Same rationale as the Dockerfile assertion. Compose env values
   // override Dockerfile ENV, so this is the value the running process
   // actually sees.
   const text = readFile(COMPOSE);
-  assert.match(text, /HARNESS_ALLOW_REMOTE:\s*"1"/);
+  assert.match(text, /ORCHESTRATOR_ALLOW_REMOTE:\s*"1"/);
 });
 
 // ── R2-4 strict override + probe scripts (rebased on R3-a topology) ─
 
-test("R2-4 / R3-a: strict override exists and flips harness-r2-runner to internal:true", () => {
+test("R2-4 / R3-a: strict override exists and flips orchestrator-r2-runner to internal:true", () => {
   assert.ok(fs.existsSync(COMPOSE_STRICT),
     "expected docker-compose.r2-strict.override.yml");
   const text = readFile(COMPOSE_STRICT);
-  // R3-a renamed the single bridge `harness-r2` to two bridges: the
+  // R3-a renamed the single bridge `orchestrator-r2` to two bridges: the
   // operator-facing one (NOT internal) and the runner-internal one
   // (which becomes internal:true here). The single behavioural change
-  // vs. the base file is internal:true on harness-r2-runner ONLY.
-  assert.match(text, /networks:[\s\S]*?harness-r2-runner:[\s\S]*?internal:\s*true/m,
-    "strict override must set internal: true on harness-r2-runner");
-  // Negative regression: the OLD single-network name `harness-r2:` (without
+  // vs. the base file is internal:true on orchestrator-r2-runner ONLY.
+  assert.match(text, /networks:[\s\S]*?orchestrator-r2-runner:[\s\S]*?internal:\s*true/m,
+    "strict override must set internal: true on orchestrator-r2-runner");
+  // Negative regression: the OLD single-network name `orchestrator-r2:` (without
   // the `-runner` suffix) must not appear with internal:true — that was
   // the R2-4 topology that broke the dashboard host port.
-  assert.doesNotMatch(text, /^\s{2}harness-r2:\s*\n[\s\S]{0,200}internal:\s*true/m,
-    "old single-bridge name harness-r2 should not be the internal target — use harness-r2-runner");
+  assert.doesNotMatch(text, /^\s{2}orchestrator-r2:\s*\n[\s\S]{0,200}internal:\s*true/m,
+    "old single-bridge name orchestrator-r2 should not be the internal target — use orchestrator-r2-runner");
 });
 
 test("R2-4: strict override forces probe profile to active", () => {
@@ -301,7 +301,7 @@ test("R2-5: lifecycle probe checks /work/out tmpfs+noexec, sequential cycles, bo
 });
 
 test("R2-5: Dockerfile.runner does NOT pre-create /work/in (operator mounts it ro)", () => {
-  // Pre-fix, /work/in was created in the image and chowned to harness,
+  // Pre-fix, /work/in was created in the image and chowned to orchestrator,
   // making it a writable scratch directory by default. R2-5 evidence
   // requires the path to be either absent (no operator mount yet) or
   // read-only (operator mount), never writable. We assert /work/in is
@@ -330,7 +330,7 @@ test("R2.5-e: bridge probe verifies the four R2.5 audit verbs + monitor 200", ()
     "runner_hook_rejected",
     "runner_hook_sanitized",
     "/api/monitor/runs/",
-    "HARNESS_REMOTE_BRIDGE_MODE",
+    "ORCHESTRATOR_REMOTE_BRIDGE_MODE",
     "remoteHookDispatched",
   ];
   const sh = readFile(BRIDGE_SH);
@@ -341,21 +341,21 @@ test("R2.5-e: bridge probe verifies the four R2.5 audit verbs + monitor 200", ()
   }
 });
 
-test("R2.5-e: compose passes HARNESS_REMOTE_BRIDGE_MODE through to orchestrator env", () => {
+test("R2.5-e: compose passes ORCHESTRATOR_REMOTE_BRIDGE_MODE through to orchestrator env", () => {
   // The bridge mode is operator-controlled via env; compose must
   // forward it to the container and default to "off" when unset.
   const text = readFile(COMPOSE);
-  assert.match(text, /HARNESS_REMOTE_BRIDGE_MODE:\s*"\$\{HARNESS_REMOTE_BRIDGE_MODE:-off\}"/,
-    "compose must forward HARNESS_REMOTE_BRIDGE_MODE with default :-off");
+  assert.match(text, /ORCHESTRATOR_REMOTE_BRIDGE_MODE:\s*"\$\{ORCHESTRATOR_REMOTE_BRIDGE_MODE:-off\}"/,
+    "compose must forward ORCHESTRATOR_REMOTE_BRIDGE_MODE with default :-off");
 });
 
-test("R2.5-e: .env.r2.example documents HARNESS_REMOTE_BRIDGE_MODE", () => {
+test("R2.5-e: .env.r2.example documents ORCHESTRATOR_REMOTE_BRIDGE_MODE", () => {
   const env = readFile(ENV_EXAMPLE);
-  assert.match(env, /^HARNESS_REMOTE_BRIDGE_MODE=/m,
+  assert.match(env, /^ORCHESTRATOR_REMOTE_BRIDGE_MODE=/m,
     ".env.r2.example must document the bridge-mode knob for operators");
   // The default suggested value should be "off" — operators upgrade
   // to report → dispatch deliberately.
-  assert.match(env, /HARNESS_REMOTE_BRIDGE_MODE=off\b/,
+  assert.match(env, /ORCHESTRATOR_REMOTE_BRIDGE_MODE=off\b/,
     "default suggested value should be off (safest upgrade path)");
 });
 
@@ -364,26 +364,26 @@ test("R2.5-e: .env.r2.example documents HARNESS_REMOTE_BRIDGE_MODE", () => {
 test("R3-a: base compose declares two networks (operator + runner) with explicit names", () => {
   const text = readFile(COMPOSE);
   // Operator-facing bridge — host port mapping path. Non-internal.
-  assert.match(text, /^\s{2}harness-r2-operator:/m,
-    "expected harness-r2-operator network in base compose");
+  assert.match(text, /^\s{2}orchestrator-r2-operator:/m,
+    "expected orchestrator-r2-operator network in base compose");
   assert.match(
     text,
-    /harness-r2-operator:[\s\S]*?name:\s*harness-r2-operator-network/,
-    "harness-r2-operator must have explicit name harness-r2-operator-network",
+    /orchestrator-r2-operator:[\s\S]*?name:\s*orchestrator-r2-operator-network/,
+    "orchestrator-r2-operator must have explicit name orchestrator-r2-operator-network",
   );
   // Runner-internal bridge — internal-eligible (strict override flips it).
-  assert.match(text, /^\s{2}harness-r2-runner:/m,
-    "expected harness-r2-runner network in base compose");
+  assert.match(text, /^\s{2}orchestrator-r2-runner:/m,
+    "expected orchestrator-r2-runner network in base compose");
   assert.match(
     text,
-    /harness-r2-runner:[\s\S]*?name:\s*harness-r2-runner-network/,
-    "harness-r2-runner must have explicit name harness-r2-runner-network",
+    /orchestrator-r2-runner:[\s\S]*?name:\s*orchestrator-r2-runner-network/,
+    "orchestrator-r2-runner must have explicit name orchestrator-r2-runner-network",
   );
-  // Negative regression: the old single-bridge declaration `harness-r2:`
+  // Negative regression: the old single-bridge declaration `orchestrator-r2:`
   // (no -operator / -runner suffix) must no longer appear at the top
   // level networks block.
-  assert.doesNotMatch(text, /\nnetworks:\s*\n\s{2}harness-r2:\s*\n/,
-    "old single-bridge name harness-r2 should be removed from base compose");
+  assert.doesNotMatch(text, /\nnetworks:\s*\n\s{2}orchestrator-r2:\s*\n/,
+    "old single-bridge name orchestrator-r2 should be removed from base compose");
 });
 
 test("R3-a: orchestrator dual-homed on operator + runner networks", () => {
@@ -393,37 +393,37 @@ test("R3-a: orchestrator dual-homed on operator + runner networks", () => {
     /^\s{2}orchestrator:[\s\S]*?(?=\n\s{2}[a-z][a-z0-9_-]*:\s*\n|\nnetworks:|\nvolumes:|\Z)/m,
   );
   assert.ok(orchBlock, "expected orchestrator service block");
-  assert.match(orchBlock[0], /networks:[\s\S]*?-\s*harness-r2-operator/,
-    "orchestrator must attach to harness-r2-operator (host port path)");
-  assert.match(orchBlock[0], /networks:[\s\S]*?-\s*harness-r2-runner/,
-    "orchestrator must attach to harness-r2-runner (intra-bridge with runner)");
+  assert.match(orchBlock[0], /networks:[\s\S]*?-\s*orchestrator-r2-operator/,
+    "orchestrator must attach to orchestrator-r2-operator (host port path)");
+  assert.match(orchBlock[0], /networks:[\s\S]*?-\s*orchestrator-r2-runner/,
+    "orchestrator must attach to orchestrator-r2-runner (intra-bridge with runner)");
 });
 
-test("R3-a: runner attached ONLY to harness-r2-runner (not operator)", () => {
+test("R3-a: runner attached ONLY to orchestrator-r2-runner (not operator)", () => {
   const text = readFile(COMPOSE);
   const runnerBlock = text.match(
     /^\s{2}runner:[\s\S]*?(?=\n\s{2}[a-z][a-z0-9_-]*:\s*\n|\nnetworks:|\nvolumes:|\Z)/m,
   );
   assert.ok(runnerBlock, "expected runner service block");
-  assert.match(runnerBlock[0], /networks:[\s\S]*?-\s*harness-r2-runner/,
-    "runner must attach to harness-r2-runner");
-  assert.doesNotMatch(runnerBlock[0], /networks:[\s\S]*?-\s*harness-r2-operator/,
+  assert.match(runnerBlock[0], /networks:[\s\S]*?-\s*orchestrator-r2-runner/,
+    "runner must attach to orchestrator-r2-runner");
+  assert.doesNotMatch(runnerBlock[0], /networks:[\s\S]*?-\s*orchestrator-r2-operator/,
     "runner must NOT attach to operator bridge — egress isolation gone if it does");
 });
 
-test("R3-a: probe attached ONLY to harness-r2-runner (probe tests runner-bridge isolation)", () => {
+test("R3-a: probe attached ONLY to orchestrator-r2-runner (probe tests runner-bridge isolation)", () => {
   const text = readFile(COMPOSE);
   const probeBlock = text.match(
     /^\s{2}probe:[\s\S]*?(?=\n\s{2}[a-z][a-z0-9_-]*:\s*\n|\nnetworks:|\nvolumes:|\Z)/m,
   );
   assert.ok(probeBlock, "expected probe service block");
-  assert.match(probeBlock[0], /networks:[\s\S]*?-\s*harness-r2-runner/,
-    "probe must attach to harness-r2-runner (where the runner sits)");
-  assert.doesNotMatch(probeBlock[0], /networks:[\s\S]*?-\s*harness-r2-operator/,
+  assert.match(probeBlock[0], /networks:[\s\S]*?-\s*orchestrator-r2-runner/,
+    "probe must attach to orchestrator-r2-runner (where the runner sits)");
+  assert.doesNotMatch(probeBlock[0], /networks:[\s\S]*?-\s*orchestrator-r2-operator/,
     "probe must NOT attach to operator bridge — probe is supposed to test what the runner sees");
 });
 
-test("R3-a: strict override does NOT mark harness-r2-operator as internal", () => {
+test("R3-a: strict override does NOT mark orchestrator-r2-operator as internal", () => {
   // The whole point of R3-a: operator bridge stays open so the host port
   // mapping survives strict mode. If the override accidentally flips
   // operator to internal:true, the dashboard becomes unreachable from
@@ -434,9 +434,9 @@ test("R3-a: strict override does NOT mark harness-r2-operator as internal", () =
   // declare the operator network at top level — but if a future
   // refactor adds a declaration (e.g. labels, custom IPAM), this guard
   // still holds.
-  if (/^\s{2}harness-r2-operator:/m.test(text)) {
+  if (/^\s{2}orchestrator-r2-operator:/m.test(text)) {
     const operBlock = text.match(
-      /^\s{2}harness-r2-operator:[\s\S]*?(?=\n\s{2}[a-z][a-z0-9_-]*:\s*\n|\Z)/m,
+      /^\s{2}orchestrator-r2-operator:[\s\S]*?(?=\n\s{2}[a-z][a-z0-9_-]*:\s*\n|\Z)/m,
     );
     if (operBlock) {
       assert.doesNotMatch(operBlock[0], /internal:\s*true/,

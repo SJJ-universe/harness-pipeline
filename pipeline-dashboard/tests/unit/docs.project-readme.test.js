@@ -34,7 +34,7 @@ test("README-PROJECT-LINKS-1: README.md exists + non-empty", () => {
 });
 
 test("README-PROJECT-LINKS-1: H1 title present", () => {
-  assert.match(read(), /^# Harness Pipeline Dashboard/m);
+  assert.match(read(), /^# Orchestrator Pipeline Dashboard/m);
 });
 
 // ── Required top-level sections (existing + new) ──────────────
@@ -107,10 +107,10 @@ test("README-PROJECT-LINKS-1: Quick Start still mentions npm install + npm start
 // ── Environment section anchor checks ─────────────────────────
 
 const ENV_VARS = [
-  "HARNESS_PORT",
-  "HARNESS_HOST",
-  "HARNESS_TOKEN",
-  "HARNESS_ALLOW_REMOTE",
+  "ORCHESTRATOR_PORT",
+  "ORCHESTRATOR_HOST",
+  "ORCHESTRATOR_TOKEN",
+  "ORCHESTRATOR_ALLOW_REMOTE",
 ];
 
 for (const v of ENV_VARS) {

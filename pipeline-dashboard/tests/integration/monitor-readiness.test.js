@@ -323,7 +323,7 @@ test("MC4 + R1-i: readiness-report stars are BEHAVIOR-verified, not export-check
   assert.match(src, /layout panels override invokes stub panel\.create \(behavior verified\)/);
   assert.match(src, /normalize\(\) yields canonical envelope shape/);
   // R1-i remote-isolation: all three stars are in-process behavior checks.
-  assert.match(src, /HARNESS_REMOTE_MODE default = off \(fail-closed, behavior verified\)/);
+  assert.match(src, /ORCHESTRATOR_REMOTE_MODE default = off \(fail-closed, behavior verified\)/);
   assert.match(src, /HKDF JWT \+ ledger keys derive with domain separation \(behavior verified\)/);
   assert.match(src, /live runner agent → orchestrator round-trip projects remote child \+ ledger chain verifies \(behavior verified\)/);
   // Sanity: the old typeof-only string is gone.

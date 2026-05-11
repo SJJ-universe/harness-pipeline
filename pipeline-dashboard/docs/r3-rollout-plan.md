@@ -88,16 +88,16 @@ intentional evidence; R3-a fixes it without losing isolation.
 
 **Approach**: Connect the orchestrator container to TWO Docker
 networks:
-- `harness-r2-operator` — non-internal bridge with the host port
+- `orchestrator-r2-operator` — non-internal bridge with the host port
   mapping. Operator-side traffic only. The runner is NOT attached.
-- `harness-r2-runner` — internal bridge (current `harness-r2`).
+- `orchestrator-r2-runner` — internal bridge (current `orchestrator-r2`).
   Runner attaches; orchestrator dual-homes; no host gateway.
 
 **Touched files**:
 - `docker-compose.r2-single-runner.yml` — operator-facing network
   added.
 - `docker-compose.r2-strict.override.yml` — strict applies only to
-  `harness-r2-runner`, not `harness-r2-operator`.
+  `orchestrator-r2-runner`, not `orchestrator-r2-operator`.
 - `scripts/r2-up.{sh,ps1}` — no change (compose handles topology).
 - `scripts/r2-eval.{sh,ps1}` — no change (still curls 127.0.0.1:4201
   through the operator bridge).
@@ -154,7 +154,7 @@ Docker Desktop output.
 ### 1.3 R3-c — Multi-runner pool
 
 **Problem**: MG1 §6 designed a multi-runner control plane via the
-`HARNESS_REMOTE_RUNNERS=hostA:port,hostB:port` env. The R1-d
+`ORCHESTRATOR_REMOTE_RUNNERS=hostA:port,hostB:port` env. The R1-d
 RunnerRegistry already supports multiple host registrations and
 single-use bootstrap tokens (R1-d boost added sliding-TTL +
 idempotent claim). What's missing: scheduling fairness, stale
@@ -251,7 +251,7 @@ The dispatch path becomes:
 runner WS → routeRemote → sanitize → bridgeMode != off
   → if hook+tool in WRITE_TOOLS_REQUIRING_APPROVAL:
       → emit approval_requested (broadcast to dashboard)
-      → wait for approval (with HARNESS_REMOTE_APPROVAL_TIMEOUT_MS,
+      → wait for approval (with ORCHESTRATOR_REMOTE_APPROVAL_TIMEOUT_MS,
         default 30000ms)
       → if granted: dispatch to executor + emit approval_granted
       → if denied: emit approval_denied + dispatch_error rejected
@@ -306,7 +306,7 @@ documented in the round's eval report, not silently passed.
 | **R3-G02** | R3-a | Strict bridge isolation preserved with two-network topology | `r2-probe-egress.sh` still 6/6 PASS (RFC1918 + cloud-metadata + DNS public still BLOCK; intra-runner bridge still ALLOW) | Docker Desktop |
 | **R3-G03** | R3-b | L2 nftables enforces TCP 8443 to orchestrator only | `r3-b-probe-l2-l3.sh`: workload curls non-orchestrator IP:8443 → DROP with audit entry | **Linux host** |
 | **R3-G04** | R3-b | L3 dnsmasq enforces DNS allowlist | `r3-b-probe-l2-l3.sh`: workload `dig www.google.com @10.99.99.1` → NXDOMAIN; `dig orchestrator @10.99.99.1` → ALLOW | **Linux host** |
-| **R3-G05** | R3-b | L2 + L3 escape hatch (`HARNESS_RUNNER_EGRESS_DEBUG=1`) auto-resets after 10 min | Linux host probe + integration test on countdown timer; ruleset reverts when timer expires | **Linux host** + in-process |
+| **R3-G05** | R3-b | L2 + L3 escape hatch (`ORCHESTRATOR_RUNNER_EGRESS_DEBUG=1`) auto-resets after 10 min | Linux host probe + integration test on countdown timer; ruleset reverts when timer expires | **Linux host** + in-process |
 | **R3-G06** | R3-c | Multi-runner registration without host-id collision | 3 runner hosts handshake simultaneously; registry shows 3 distinct rows; `runner_handshake_collision` emitted on conflicting bootstrap reuse | Either |
 | **R3-G07** | R3-c | Stale runner cleanup (lastSeen > 30s drop) | Stop runner-a, verify drop within 35s; `runner_host_lost` audit entry; re-handshake required to rejoin | Either |
 | **R3-G08** | R3-c | Run assignment fairness (least-loaded) | 6 runs distributed across 3 idle runners → ≤2 per runner; no starvation under steady-state | Either |
@@ -402,7 +402,7 @@ are not the ones a real deployment uses.
 | 4 | Multi-runner host identity collision (two operators pick same hostIdentity) | low | medium | RunnerRegistry already supports it (R1-d). R3-c adds collision detection at handshake: same `hostIdentity` + different bootstrap token → 401 + `runner_handshake_collision` audit entry. The second handshake is rejected, not silently merged. |
 | 5 | Run assignment unfairness (sticky to first runner) | medium | low | R3-G08 fairness test asserts distribution. Implementation: LEAST_LOADED with FIFO tie-break by `lastSeen`. |
 | 6 | WS close 1000 vs 1006 distinguishability — runner false-positive on flaky network | low | medium | Test R3-G12 isolates the two paths. Documented runner behavior: 1000 → exit 0; 1006 → reconnect backoff. Only the orchestrator emits 1000; any 1000 on the wire IS authoritative. |
-| 7 | Per-call approval UX latency makes the harness unusable | high | medium | Approval timeout default 30s; configurable via `HARNESS_REMOTE_APPROVAL_TIMEOUT_MS`. Hook is `dispatch_error`'d with reason `approval_timeout` rather than blocking the runner. |
+| 7 | Per-call approval UX latency makes the orchestrator unusable | high | medium | Approval timeout default 30s; configurable via `ORCHESTRATOR_REMOTE_APPROVAL_TIMEOUT_MS`. Hook is `dispatch_error`'d with reason `approval_timeout` rather than blocking the runner. |
 | 8 | Per-call approval scope leakage (approve "Bash echo hi" → workload uses approval to run "Bash rm -rf") | low | critical | Approval scoped to exact `(tool, args-hash)` tuple. The `args-hash` is `sha256(JSON.stringify(args))`. Workload sending the same tool with different args MUST request a new approval. Hash is in the audit chain. |
 | 9 | Approval channel UI complexity (pending list, history, approval audit) | medium | low | Reuse existing dashboard panel patterns (run-summary card style + bottom-dock new tab). Don't expand UI shell beyond the current Mendel layout. |
 | 10 | R3-e (per-call approval) opens write-tool surface — escapes container? | low | critical | Defense in depth: approval is FIRST line; existing `dangerGate.js` is SECOND line. Approved Bash with `rm -rf /` still blocks at danger gate. Approved Write to `/etc/shadow` still blocks at path sandbox. Operators approve the bridge crossing, not the file path. |
@@ -542,7 +542,7 @@ addresses the relevant question(s) at implementation time.
 ### 9.1 R3-a
 
 **Q1**: Should the operator-facing network be a custom name
-(`harness-r2-operator`) or the default Docker bridge (no `internal`)?
+(`orchestrator-r2-operator`) or the default Docker bridge (no `internal`)?
 - Custom name is more explicit, easier to lint.
 - Default bridge is one fewer config knob.
 - **Tentative**: custom name. Lock in R3-a PR.
@@ -564,11 +564,11 @@ only, or both? (i.e., does the operator network ALSO need
 **Q4**: How is the orchestrator IP resolved on the Linux host
 (needed for nftables `tcp dport 8443 ip daddr <orchestrator-ip>`)?
 - Via DNS lookup at startup → IP cached.
-- Via explicit env `HARNESS_ORCHESTRATOR_IP`.
+- Via explicit env `ORCHESTRATOR_ORCHESTRATOR_IP`.
 - **Tentative**: explicit env. Avoids DNS-cache invalidation if
   the orchestrator IP changes mid-run. Lock in R3-b PR.
 
-**Q5**: Does the escape-hatch timer (`HARNESS_RUNNER_EGRESS_DEBUG=1`,
+**Q5**: Does the escape-hatch timer (`ORCHESTRATOR_RUNNER_EGRESS_DEBUG=1`,
 10-minute auto-reset) reset to the FULL ruleset or to "default
 deny"?
 - Full ruleset: previous L2 + L3 rules restored exactly.
@@ -593,9 +593,9 @@ does the second handshake ALSO emit a warning to the first runner?
 **Q7**: Run reassignment policy on host loss — fail or reassign?
 - **Plan §1.3 says fail** because workspace state on the lost host
   doesn't migrate. R3-G09 verifies.
-- **Open**: should `HARNESS_REMOTE_FALLBACK=1` (MG1 §9 "Runner
+- **Open**: should `ORCHESTRATOR_REMOTE_FALLBACK=1` (MG1 §9 "Runner
   host crashed" remediation) override this behavior?
-- **Tentative**: fail by default; `HARNESS_REMOTE_FALLBACK=1`
+- **Tentative**: fail by default; `ORCHESTRATOR_REMOTE_FALLBACK=1`
   re-runs locally with restart-from-`/work/in`. Lock in R3-c PR.
 
 ### 9.4 R3-d ✅ RESOLVED (2026-04-29)
@@ -624,7 +624,7 @@ exiting, or fire-and-forget?
 - 60s — more forgiving but runs the risk of accumulating
   pending approvals.
 - **Tentative**: 30s. Configurable via
-  `HARNESS_REMOTE_APPROVAL_TIMEOUT_MS`. Lock in R3-e PR.
+  `ORCHESTRATOR_REMOTE_APPROVAL_TIMEOUT_MS`. Lock in R3-e PR.
 
 **Q11**: Approval scope granularity — exact args-hash, or
 fuzzy-match patterns?

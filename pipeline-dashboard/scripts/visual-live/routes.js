@@ -49,7 +49,7 @@ const ROUTES = Object.freeze([
     pathname: "/?mode=legacy",
     mode: "legacy",
     label: "Legacy view + UI-P8 banner",
-    waitForSelector: "#harness-legacy-banner",
+    waitForSelector: "#orchestrator-legacy-banner",
   }),
 ]);
 

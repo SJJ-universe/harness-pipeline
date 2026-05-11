@@ -1,26 +1,26 @@
 # UI-H Hybrid Redesign Plan
 
-**SJ Harness Dashboard mockup integration — design extraction +
-shell-mode foundation + Harness Track + Dual Agent Console +
+**SJ Orchestrator Dashboard mockup integration — design extraction +
+shell-mode foundation + Orchestrator Track + Dual Agent Console +
 Claude↔Codex review relay + public-sector integration + Simple
 dashboard polish**
 
 > Status: **UI-H plan — design only**. Execution starts tomorrow
 > (post 2026-04-29 GOV-APPROVAL-0 closeout).
 > Source: `C:\Users\SJ\Downloads\web page\UI Plan.txt` (operator
-> directive) + `sj-harness-dashboard/` mockup
+> directive) + `sj-orchestrator-dashboard/` mockup
 > (React/Babel reference, NOT the production stack).
 > Cross-refs:
 > - [Plan file Part O (Phase E)](../../../.claude/plans/swift-waddling-hanrahan.md)
 >   for the broader Phase E productization context.
-> - [GOV-APPROVAL-0 + UX-2 closeout commit `a6e1d84`](https://github.com/SJJ-universe/harness-pipeline)
+> - [GOV-APPROVAL-0 + UX-2 closeout commit `a6e1d84`](https://github.com/SJJ-universe/orchestrator-pipeline)
 >   for the approval flow this plan integrates.
 > - [Scorecard](./scorecard.md) for the rubric the plan moves.
 
 The UI-H round captures the qualitative shift from "monitor shell
 overlays the legacy app" to "monitor shell IS the operator
 workspace, with simple/advanced/legacy modes". The mockup at
-`Downloads/web page/sj-harness-dashboard/` is reference-only — we
+`Downloads/web page/sj-orchestrator-dashboard/` is reference-only — we
 adopt design tokens + UX patterns, NOT the React/Babel/CDN/Google-
 Fonts stack the mockup uses for rapid prototyping.
 
@@ -45,7 +45,7 @@ the new shell at once.
 2. Foundation for **simple / advanced / legacy** shell modes,
    selected via URL `?mode=` → localStorage → env default →
    `simple` fallback.
-3. **Harness Track** panel — the running-horse animation tied
+3. **Orchestrator Track** panel — the running-horse animation tied
    to ACTUAL run state (no fake progress; unknown → "대기 중").
 4. **Dual Agent Console** — Claude on the left, Codex on the
    right, structured-action input below. **Read-only stream
@@ -122,7 +122,7 @@ Per Phase E architecture invariants:
   accounts / approval-card).
 - ✅ horse-animation.js (legacy app.js companion) — UI-H2 lifts
   the running-horse semantics into the monitor shell.
-- ✅ HARNESS_DEPLOYMENT_PROFILE env + publicSectorPolicy module —
+- ✅ ORCHESTRATOR_DEPLOYMENT_PROFILE env + publicSectorPolicy module —
   UI-H5 reads posture flags to swap to reduced-motion / policy-
   gate-timeline visuals.
 - ✅ /api/server/info AccountStatus block (D3-a) — UI-H3 reads
@@ -138,7 +138,7 @@ Per Phase E architecture invariants:
 |---|---|:---:|---|
 | **UI-H0** | Design token extraction + asset preparation | low | foundational |
 | **UI-H1** | Shell mode foundation (simple/advanced/legacy) | low | UI Plan §UX-H1 |
-| **UI-H2** | Harness Track panel (real run state binding) | medium | UI Plan §UX-H2 |
+| **UI-H2** | Orchestrator Track panel (real run state binding) | medium | UI Plan §UX-H2 |
 | **UI-H3** | Dual Agent Console (read-only stream) | medium | UI Plan §UX-H3 |
 | **UI-H4** | Review relay backend (WS + HTTP) | high | UI Plan §UX-H4 (the defining feature) |
 | **UI-H5** | Public-sector integration | medium | UI Plan §UX-H5 |
@@ -156,12 +156,12 @@ review-relay flow (no policy bypass through the relay).
 ### 2.1. UI-H0 — Design extraction
 
 **Goal**: extract design tokens from the mockup into a single CSS
-file (`public/css/harness-shell.css`) the existing panels can
+file (`public/css/orchestrator-shell.css`) the existing panels can
 consume without breaking their current styles.
 
 **Work**:
 
-- New `public/css/harness-shell.css` — CSS custom properties for:
+- New `public/css/orchestrator-shell.css` — CSS custom properties for:
   - color: `--bg-base: #08090B`, `--bg-card: #101115`,
     `--bronze: #C9A66B` (primary accent), `--codex-blue: #7FA9CB`,
     `--green-pass: #9BD8A6`, `--red-danger: #E55B5B`,
@@ -185,10 +185,10 @@ consume without breaking their current styles.
   sector visual policy (UI-H5 enforces).
 
 **Files**:
-- New: `public/css/harness-shell.css` (≤300 lines)
+- New: `public/css/orchestrator-shell.css` (≤300 lines)
 - New: `docs/ui-dashboard-design-notes.md` (≤150 lines)
 - Modify: `public/index.html` (add `<link rel="stylesheet"
-  href="css/harness-shell.css">` BEFORE style.monitor.css so
+  href="css/orchestrator-shell.css">` BEFORE style.monitor.css so
   variables are defined first)
 - Modify: `public/style.monitor.css` (replace hardcoded color
   hex with `var(--*)` references; behavior preserved).
@@ -201,7 +201,7 @@ consume without breaking their current styles.
 - Existing CSP nonce + monitor-shell tests must stay green.
 
 **DoD**:
-- `public/css/harness-shell.css` exists + every token defined.
+- `public/css/orchestrator-shell.css` exists + every token defined.
 - Existing panels render with same visual output (no regression).
 - design-notes.md describes the policy contract for UI-H5
   (reduced-motion + public-sector visual mode).
@@ -223,7 +223,7 @@ URL.
 
 - New `public/js/monitor/mode.js` — single-source-of-truth for
   mode resolution. Priority: URL `?mode=` > localStorage
-  `harness.monitor.mode` > env default (`HARNESS_MONITOR_MODE`
+  `orchestrator.monitor.mode` > env default (`ORCHESTRATOR_MONITOR_MODE`
   read at boot via `/api/server/info`) > `simple`.
 - New layout switch in `public/js/monitor/layout.js`:
   - `mode === "simple"` → mount only the new Simple shell
@@ -249,7 +249,7 @@ URL.
   before layout.js.
 - Modify: `src/routes/serverControlRoutes.js` — extend
   `accountStatus` block with `mode.envDefault` (read from
-  `process.env.HARNESS_MONITOR_MODE`; defaults to `"simple"`).
+  `process.env.ORCHESTRATOR_MONITOR_MODE`; defaults to `"simple"`).
 
 **Tests**:
 - New: `tests/unit/monitor.mode.test.js` — resolveMode priority
@@ -263,7 +263,7 @@ URL.
   `mode: "advanced"` mounts the existing panels; `mode: "legacy"`
   exits early with an unmodified DOM.
 - Modify: `tests/integration/monitor-shell-html.test.js` —
-  asserts the new `<link rel="stylesheet" href="css/harness-shell.css">`
+  asserts the new `<link rel="stylesheet" href="css/orchestrator-shell.css">`
   + ensures the mode-toggle script tag is loaded.
 
 **DoD**:
@@ -280,12 +280,12 @@ when Simple cards actually work).
 
 ---
 
-### 2.3. UI-H2 — Harness Track panel
+### 2.3. UI-H2 — Orchestrator Track panel
 
 **Goal**: replace the legacy `horse-animation.js` static animation
 with an operator-meaningful "horse running through pipeline gates"
 visual tied to ACTUAL run state. Per UI Plan §"가져올 요소
-§Harness Track Animation":
+§Orchestrator Track Animation":
 
 > 매핑:
 >   Plan: Claude 계획 생성
@@ -298,7 +298,7 @@ visual tied to ACTUAL run state. Per UI Plan §"가져올 요소
 
 **Work**:
 
-- New `public/js/monitor/panels/harness-track.js` — UMD panel
+- New `public/js/monitor/panels/orchestrator-track.js` — UMD panel
   that mounts a horizontal lane strip with 7 stages mapped to
   pipeline phases. Reads:
   - `snapshot.runs[selectedRunId].phase` → current lane index
@@ -314,17 +314,17 @@ visual tied to ACTUAL run state. Per UI Plan §"가져올 요소
   (the legacy view keeps its current horse).
 
 **Files**:
-- New: `public/js/monitor/panels/harness-track.js` (≤350 lines)
+- New: `public/js/monitor/panels/orchestrator-track.js` (≤350 lines)
 - New: `public/js/monitor/horse-state-machine.js` (≤200 lines)
   — pure state machine that takes `(phase, approvalPending,
   verifyResult) → {laneIdx, displayState}` where displayState
   is `"running" | "rearing" | "idle"`.
-- Modify: `public/js/monitor/layout.js` — mount harness-track
+- Modify: `public/js/monitor/layout.js` — mount orchestrator-track
   in advanced mode below global-bar (replacing the gap where
   approval-card-region sits; or adjacent to it).
-- Modify: `public/style.monitor.css` — `.harness-track-region`,
+- Modify: `public/style.monitor.css` — `.orchestrator-track-region`,
   `.ht-lane`, `.ht-horse`, `.ht-rearing-callout` styles.
-- Existing horse-frames.png (`Downloads/web page/sj-harness-dashboard/
+- Existing horse-frames.png (`Downloads/web page/sj-orchestrator-dashboard/
   dashboard/horse-frames.png`, 12-frame sprite) — copy into
   `public/images/horse-frames.png` if not already present.
 
@@ -332,8 +332,8 @@ visual tied to ACTUAL run state. Per UI Plan §"가져올 요소
 - New: `tests/unit/monitor.horse-state-machine.test.js` —
   transition pinning: every (phase, approvalPending, verify)
   combo → expected (laneIdx, displayState). 30+ cases.
-- New: `tests/unit/monitor.harness-track.test.js` — DOM stub
-  test: harness-track renders 7 lanes; selectedRun phase
+- New: `tests/unit/monitor.orchestrator-track.test.js` — DOM stub
+  test: orchestrator-track renders 7 lanes; selectedRun phase
   updates the active lane class; approval-pending makes the
   horse "rear" at the Approval lane; reduced-motion mode
   freezes the animation.
@@ -388,7 +388,7 @@ UI-H4's review relay (NOT raw stdin).
   `.dual-console__panel`, `.dual-console__tabs`,
   `.dual-console__line`, `.dual-console__caret` styles.
 - Modify: `public/js/monitor/layout.js` — mount dual-agent-console
-  in advanced mode (below the harness-track + center workspace,
+  in advanced mode (below the orchestrator-track + center workspace,
   or in the bottom-dock as a new tab).
 
 **Tests**:
@@ -398,7 +398,7 @@ UI-H4's review relay (NOT raw stdin).
   switching, line rendering, auto-scroll, empty state.
 
 **DoD**:
-- Advanced mode shows the dual console below harness-track.
+- Advanced mode shows the dual console below orchestrator-track.
 - Claude / Codex streams render lines correctly when events
   arrive.
 - Tab switching preserves auto-scroll state per tab.
@@ -535,7 +535,7 @@ visibility + reduced motion + policy gate timeline.
 **Work**:
 
 - Per UI Plan §UX-H5:
-  - Public-sector mode → reduced-motion harness-track (locks
+  - Public-sector mode → reduced-motion orchestrator-track (locks
     horse to current lane; renders gate icons as static markers).
   - Local Bash forbidden for review-relay follow-ups (returns
     409 with `{ error: "public_sector_local_executor_disabled" }`).
@@ -548,17 +548,17 @@ visibility + reduced motion + policy gate timeline.
   Simple-mode card that summarizes: posture badge / sandbox
   status / PII scan summary / approval pending count. Reads
   `snapshot.accountStatus.deployment` + `snapshot.pendingApprovals`.
-- Modify harness-track to consume `snapshot.accountStatus.deployment.publicSector`
+- Modify orchestrator-track to consume `snapshot.accountStatus.deployment.publicSector`
   → visual mode swap.
 
 **Files**:
 - New: `public/js/monitor/panels/security-status-card.js` (~250 lines)
-- Modify: `public/js/monitor/panels/harness-track.js` — reduced-
+- Modify: `public/js/monitor/panels/orchestrator-track.js` — reduced-
   motion variant.
 - Modify: `src/routes/reviewSessionRoutes.js` — public-sector
   refusal of local Bash for follow-ups.
 - Modify: `public/style.monitor.css` — security-status-card +
-  reduced-motion harness-track styles.
+  reduced-motion orchestrator-track styles.
 
 **Tests**:
 - New: `tests/unit/monitor.security-status-card.test.js` —
@@ -566,13 +566,13 @@ visibility + reduced motion + policy gate timeline.
 - New: `tests/integration/review-session-public-sector.test.js`
   — public-sector posture rejects local Bash follow-ups with
   409 + structured error.
-- Modify: harness-track tests to cover reduced-motion mode.
+- Modify: orchestrator-track tests to cover reduced-motion mode.
 
 **DoD**:
 - Public-sector operator opening simple mode sees the security-
   status card on first paint.
-- Reduced-motion harness-track works with both
-  `HARNESS_DEPLOYMENT_PROFILE=public-sector` and OS-level
+- Reduced-motion orchestrator-track works with both
+  `ORCHESTRATOR_DEPLOYMENT_PROFILE=public-sector` and OS-level
   `prefers-reduced-motion`.
 - Local Bash in review-relay follow-ups: refused under public-
   sector; allowed (with approval) under standard.
@@ -591,7 +591,7 @@ read on the existing layers).
 **Cards** (4 only — token usage card explicitly excluded):
 
 1. **지금 AI가 하는 일** — current run phase + pulse animation
-   (mirrors the harness-track current lane name in plain Korean).
+   (mirrors the orchestrator-track current lane name in plain Korean).
 2. **승인 필요** — pending approvals count + click-through to
    the approval-card panel (already mounted; just deep-link).
 3. **보안 / 개인정보 상태** — reuses UI-H5's security-status-card.
@@ -607,7 +607,7 @@ read on the existing layers).
 **Work**:
 - New `public/js/monitor/shells/simple-shell.js` — the simple
   shell mount function (called by layout.js when mode === "simple").
-  Renders harness-track + the 4-5 cards in a 2×3 grid.
+  Renders orchestrator-track + the 4-5 cards in a 2×3 grid.
 - New `public/js/monitor/panels/now-doing-card.js`
 - New `public/js/monitor/panels/pending-approvals-card.js`
   (deep-links to the approval-card panel)
@@ -627,7 +627,7 @@ read on the existing layers).
 
 **DoD**:
 - An operator opening `?mode=simple` (or default after env flip)
-  sees harness-track + 5 cards + nothing else (no run-tree, no
+  sees orchestrator-track + 5 cards + nothing else (no run-tree, no
   timeline, no inspector).
 - Each card reads from store; unknown state → friendly placeholder.
 - Click-through to approval card works without leaving the page.
@@ -644,13 +644,13 @@ not power-user-only).
 
 | Gate | Description | Evidence |
 |---|---|---|
-| **UI-H-G01** | All design tokens declared in harness-shell.css; no hardcoded color hex in panel CSS | css-tokens-present.test.js |
+| **UI-H-G01** | All design tokens declared in orchestrator-shell.css; no hardcoded color hex in panel CSS | css-tokens-present.test.js |
 | **UI-H-G02** | Mode resolution priority correct (URL > localStorage > envDefault > "simple") | monitor.mode.test.js |
-| **UI-H-G03** | Simple mode renders 5 cards + harness-track only | simple-shell-html.test.js |
+| **UI-H-G03** | Simple mode renders 5 cards + orchestrator-track only | simple-shell-html.test.js |
 | **UI-H-G04** | Advanced mode preserves existing 9-panel layout | monitor-shell-html.test.js (existing) |
 | **UI-H-G05** | Legacy mode bypasses monitor shell entirely | monitor.layout.test.js (mode: "legacy") |
-| **UI-H-G06** | Harness-track lane reflects actual run phase; no fake progress | monitor.horse-state-machine.test.js + harness-track.test.js |
-| **UI-H-G07** | Reduced-motion (public-sector / prefers-reduced-motion) freezes animation | harness-track.test.js |
+| **UI-H-G06** | Orchestrator-track lane reflects actual run phase; no fake progress | monitor.horse-state-machine.test.js + orchestrator-track.test.js |
+| **UI-H-G07** | Reduced-motion (public-sector / prefers-reduced-motion) freezes animation | orchestrator-track.test.js |
 | **UI-H-G08** | Dual console: read-only, no PTY, no stdin | dual-agent-console.test.js (negative pin) |
 | **UI-H-G09** | Review relay 5-endpoint contract | review-session-routes.test.js |
 | **UI-H-G10** | Review relay → approval card chain: Claude hand-back with Bash → approval card entry | integration test |
@@ -672,7 +672,7 @@ UI-H0 (design tokens) ───────────────────�
        ↓
 UI-H1 (shell mode foundation) ──────────────────────────
        │
-       ├─→ UI-H2 (Harness Track) ───────────────────────
+       ├─→ UI-H2 (Orchestrator Track) ───────────────────────
        │         │
        │         └─→ UI-H6 (Simple dashboard polish) ──→ END
        │
@@ -706,7 +706,7 @@ Sequentially required:
 | Entry (post GOV-APPROVAL-0 closeout) | — | **111/119** |
 | +UI-H0 design tokens | — | 111 (foundational) |
 | +UI-H1 shell mode foundation | UI feedback loop +0.5 | 111.5 |
-| +UI-H2 harness-track | UI feedback loop +0.5 | 112 |
+| +UI-H2 orchestrator-track | UI feedback loop +0.5 | 112 |
 | +UI-H3 dual console (read-only) | — (UI cap stays) | 112 |
 | +UI-H4 review relay backend | Pipeline orchestration +1 | 113 |
 | +UI-H5 public-sector integration | Public-sector readiness +0.5 (within existing 3-cap) | 113.5 |
@@ -730,7 +730,7 @@ Final score determined at round closeout.
 | Review relay's structured-action input becomes a back-door for shell access | Audit the entire input flow: every action is a typed enum + structured payload, NEVER raw stdin. Test pins this. |
 | Dual console event filter regression (someone changes scope semantics in normalizer) | event-filters.js test pins normalizer integration |
 | Self-hosted system fonts look different on Mac vs Windows | Document this in design-notes.md; first-cut accepts platform variance |
-| Harness-track animation eats CPU on long-running runs | RAF-based animation, freezes when tab hidden via Page Visibility API |
+| Orchestrator-track animation eats CPU on long-running runs | RAF-based animation, freezes when tab hidden via Page Visibility API |
 | Review relay leaks tokens (Claude/Codex API keys via WS chunks) | profileSpawn already filters via envFilter (P0); WS chunks are stdout-only |
 | Public-sector posture not applied uniformly in review relay | review-session-public-sector.test.js + assertLocalExecutorAllowed at every spawn site |
 | Operator confusion: "what's happening" when stream chunks arrive out of order | Each chunk has `sessionId` + `chunkIdx`; UI sorts |
@@ -762,7 +762,7 @@ Final score determined at round closeout.
 
 - `C:\Users\SJ\Downloads\web page\UI Plan.txt` — operator
   directive (the round's "what")
-- `C:\Users\SJ\Downloads\web page\sj-harness-dashboard\` —
+- `C:\Users\SJ\Downloads\web page\sj-orchestrator-dashboard\` —
   React/Babel mockup (reference only — design tokens + UX
   patterns extracted, NOT the stack)
 - `docs/scorecard.md` — current 111/119 baseline

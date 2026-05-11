@@ -30,8 +30,8 @@ test("resolver: CLI flag wins over every other source", () => {
   const r = resolveTrustStorePath({
     cliFlag: flagPath,
     env: {
-      HARNESS_TRUST_STORE: path.join(dir, "env.json"),
-      HARNESS_CONFIG_DIR: dir,
+      ORCHESTRATOR_TRUST_STORE: path.join(dir, "env.json"),
+      ORCHESTRATOR_CONFIG_DIR: dir,
     },
     platform: "linux",
     homedir: dir,
@@ -44,14 +44,14 @@ test("resolver: CLI flag wins over every other source", () => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test("resolver: HARNESS_TRUST_STORE wins over CONFIG_DIR + OS default", () => {
+test("resolver: ORCHESTRATOR_TRUST_STORE wins over CONFIG_DIR + OS default", () => {
   const dir = tmpDir();
   const envPath = path.join(dir, "env-direct.json");
   fs.writeFileSync(envPath, "{}");
   const r = resolveTrustStorePath({
     env: {
-      HARNESS_TRUST_STORE: envPath,
-      HARNESS_CONFIG_DIR: dir,
+      ORCHESTRATOR_TRUST_STORE: envPath,
+      ORCHESTRATOR_CONFIG_DIR: dir,
     },
     platform: "linux",
     homedir: dir,
@@ -62,11 +62,11 @@ test("resolver: HARNESS_TRUST_STORE wins over CONFIG_DIR + OS default", () => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test("resolver: HARNESS_CONFIG_DIR appends FILENAME", () => {
+test("resolver: ORCHESTRATOR_CONFIG_DIR appends FILENAME", () => {
   const dir = tmpDir();
   // No file yet — exists must be false but path must be deterministic.
   const r = resolveTrustStorePath({
-    env: { HARNESS_CONFIG_DIR: dir },
+    env: { ORCHESTRATOR_CONFIG_DIR: dir },
     platform: "linux",
     homedir: dir,
   });
@@ -168,8 +168,8 @@ test("resolver: priority order documented in source matches behavior", () => {
   let r = resolveTrustStorePath({
     cliFlag: "/cli-flag-path",
     env: {
-      HARNESS_TRUST_STORE: "/env-direct-path",
-      HARNESS_CONFIG_DIR: "/config-dir",
+      ORCHESTRATOR_TRUST_STORE: "/env-direct-path",
+      ORCHESTRATOR_CONFIG_DIR: "/config-dir",
       APPDATA: path.join(dir, "AppData", "Roaming"),
     },
     platform: "win32",
@@ -180,8 +180,8 @@ test("resolver: priority order documented in source matches behavior", () => {
   // 2. Drop cliFlag: env direct wins.
   r = resolveTrustStorePath({
     env: {
-      HARNESS_TRUST_STORE: "/env-direct-path",
-      HARNESS_CONFIG_DIR: "/config-dir",
+      ORCHESTRATOR_TRUST_STORE: "/env-direct-path",
+      ORCHESTRATOR_CONFIG_DIR: "/config-dir",
       APPDATA: path.join(dir, "AppData", "Roaming"),
     },
     platform: "win32",
@@ -192,7 +192,7 @@ test("resolver: priority order documented in source matches behavior", () => {
   // 3. Drop env direct: config-dir wins.
   r = resolveTrustStorePath({
     env: {
-      HARNESS_CONFIG_DIR: "/config-dir",
+      ORCHESTRATOR_CONFIG_DIR: "/config-dir",
       APPDATA: path.join(dir, "AppData", "Roaming"),
     },
     platform: "win32",
@@ -218,7 +218,7 @@ test("resolver: empty/whitespace cliFlag is ignored", () => {
   // Empty string is treated as "no flag" — falls through to env.
   const r = resolveTrustStorePath({
     cliFlag: "",
-    env: { HARNESS_TRUST_STORE: envPath },
+    env: { ORCHESTRATOR_TRUST_STORE: envPath },
     platform: "linux",
     homedir: dir,
   });
@@ -229,7 +229,7 @@ test("resolver: empty/whitespace cliFlag is ignored", () => {
 
 test("resolver: result object is frozen (immutable across callers)", () => {
   const r = resolveTrustStorePath({
-    env: { HARNESS_TRUST_STORE: "/some/path" },
+    env: { ORCHESTRATOR_TRUST_STORE: "/some/path" },
     platform: "linux",
     homedir: os.tmpdir(),
   });

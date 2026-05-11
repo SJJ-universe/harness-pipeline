@@ -3,7 +3,7 @@
 // the policyPackRegistry. The resolver now supports 5 packs (standard
 // / public-sector / finance-high-privacy / offline-internal-network
 // / developer-lab) and FAILS CLOSED on unknown env values in production
-// (escape hatch: HARNESS_POLICY_FAIL_OPEN=1 → standard fallback + warn).
+// (escape hatch: ORCHESTRATOR_POLICY_FAIL_OPEN=1 → standard fallback + warn).
 //
 // Why a separate module from src/security/auth.js:
 //
@@ -17,7 +17,7 @@
 //
 // SMART-5 v2 fail-closed-on-unknown rationale
 // ───────────────────────────────────────────
-// Pre-SMART-5 behavior: a typo'd HARNESS_DEPLOYMENT_PROFILE silently
+// Pre-SMART-5 behavior: a typo'd ORCHESTRATOR_DEPLOYMENT_PROFILE silently
 // fell back to "standard". An operator who meant to set
 // "public-sector" but typed "publicsector" would silently land in a
 // permissive posture — exactly the failure mode public-sector
@@ -29,14 +29,14 @@
 // typo before any pipeline runs.
 //
 // Operators in development / sandbox / migration windows can opt into
-// the legacy fall-back-to-standard behavior with HARNESS_POLICY_FAIL_OPEN=1.
+// the legacy fall-back-to-standard behavior with ORCHESTRATOR_POLICY_FAIL_OPEN=1.
 // The fallback path emits a `policy_pack_fallback` audit signal in the
 // returned profile object so server.js boot can land an audit row
 // covering the dev-escape decision.
 //
 // Backward compat
 // ───────────────
-//   - Empty / unset HARNESS_DEPLOYMENT_PROFILE → standard pack (no
+//   - Empty / unset ORCHESTRATOR_DEPLOYMENT_PROFILE → standard pack (no
 //     change from pre-SMART-5; the explicit absence of env is NOT a typo)
 //   - "standard" / "public-sector" → resolve from registry (same
 //     posture rules as pre-SMART-5)
@@ -48,8 +48,8 @@
 // ─────────────────────────────────────────
 //   - pack: string  — modeId of the resolved pack
 //   - packLabel: string — operator-facing label
-//   - hardGatesDefault: boolean — SMART-2 default for HARNESS_HARD_GATES
-//   - runMemoryEnabled: boolean — SMART-4 default for !HARNESS_RUN_MEMORY_DISABLE
+//   - hardGatesDefault: boolean — SMART-2 default for ORCHESTRATOR_HARD_GATES
+//   - runMemoryEnabled: boolean — SMART-4 default for !ORCHESTRATOR_RUN_MEMORY_DISABLE
 //   - resolvedFromFallback: boolean — true when dev-escape fell back
 //   - unknownRequested: string|null — the typo'd value when fallback fired
 
@@ -65,7 +65,7 @@ const RECOGNIZED_MODES = Object.freeze(new Set(packRegistry.PACK_IDS));
 const POLICY_PACK_UNKNOWN_CODE = "POLICY_PACK_UNKNOWN";
 
 function _isFailOpen(env) {
-  const v = String(env.HARNESS_POLICY_FAIL_OPEN || "").trim().toLowerCase();
+  const v = String(env.ORCHESTRATOR_POLICY_FAIL_OPEN || "").trim().toLowerCase();
   return v === "1" || v === "true" || v === "yes";
 }
 
@@ -94,12 +94,12 @@ function _isFailOpen(env) {
  * }>}
  *
  * @throws {Error} with `code: POLICY_PACK_UNKNOWN` when env mode is
- *   unknown AND `HARNESS_POLICY_FAIL_OPEN` is not set (production
+ *   unknown AND `ORCHESTRATOR_POLICY_FAIL_OPEN` is not set (production
  *   fail-closed). server.js catches at boot.
  */
 function resolveDeploymentProfile(opts = {}) {
   const env = opts.env || process.env;
-  const requested = env.HARNESS_DEPLOYMENT_PROFILE;
+  const requested = env.ORCHESTRATOR_DEPLOYMENT_PROFILE;
   const failOpen = _isFailOpen(env);
 
   let modeId;
@@ -115,7 +115,7 @@ function resolveDeploymentProfile(opts = {}) {
     modeId = requested;
   } else {
     // Unknown mode requested. SMART-5 v2 decision matrix:
-    //   - HARNESS_POLICY_FAIL_OPEN=1 → fall back to standard + signal
+    //   - ORCHESTRATOR_POLICY_FAIL_OPEN=1 → fall back to standard + signal
     //     in profile.resolvedFromFallback so server.js can audit
     //   - default (production) → throw POLICY_PACK_UNKNOWN
     if (failOpen) {
@@ -124,9 +124,9 @@ function resolveDeploymentProfile(opts = {}) {
       unknownRequested = String(requested);
     } else {
       const err = new Error(
-        `Unknown HARNESS_DEPLOYMENT_PROFILE="${requested}". ` +
+        `Unknown ORCHESTRATOR_DEPLOYMENT_PROFILE="${requested}". ` +
         `Recognized: ${packRegistry.PACK_IDS.join(", ")}. ` +
-        `Set HARNESS_POLICY_FAIL_OPEN=1 to fall back to standard with a warning.`,
+        `Set ORCHESTRATOR_POLICY_FAIL_OPEN=1 to fall back to standard with a warning.`,
       );
       err.code = POLICY_PACK_UNKNOWN_CODE;
       err.requested = String(requested);
@@ -146,11 +146,11 @@ function resolveDeploymentProfile(opts = {}) {
   // Plaintext secrets behaviour:
   //   - pack-level: pack.allowPlaintextSecrets gates whether the
   //     env opt-in even matters
-  //   - env-level: HARNESS_ALLOW_PLAINTEXT_SECRETS=1 must ALSO be set
+  //   - env-level: ORCHESTRATOR_ALLOW_PLAINTEXT_SECRETS=1 must ALSO be set
   //   Both together → allowed; either off → blocked.
   // Pre-SMART-5 (binary mode) had this same behavior; SMART-5
   // generalizes it via pack rule.
-  const plaintextOptIn = env.HARNESS_ALLOW_PLAINTEXT_SECRETS === "1";
+  const plaintextOptIn = env.ORCHESTRATOR_ALLOW_PLAINTEXT_SECRETS === "1";
 
   return Object.freeze({
     mode: pack.modeId,

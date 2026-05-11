@@ -30,7 +30,7 @@
 //   node launcher-cli.js resolve-paths
 //        → exit 0
 //        → stdout: JSON {appdataConfig, localAppdataData, versionsDir, ...}
-//        → reads HARNESS_CONFIG_DIR / HARNESS_DATA_DIR env overrides
+//        → reads ORCHESTRATOR_CONFIG_DIR / ORCHESTRATOR_DATA_DIR env overrides
 //
 //   node launcher-cli.js version-install-dir <version>
 //        → exit 0 + prints absolute path
@@ -39,7 +39,7 @@
 //   node launcher-cli.js manifest-field <path> <field>
 //        → exit 0 + prints the field value (no JSON quoting)
 //        → exit 1 if file unreadable or field missing
-//        Used by harness-start.bat / .sh to pull a single field out of
+//        Used by orchestrator-start.bat / .sh to pull a single field out of
 //        a manifest without forking a separate `node -e "..."` (which
 //        has cmd.exe quoting hell when the manifest path contains spaces).
 //
@@ -47,7 +47,7 @@
 //        → exit 0 if the URL is acceptable for fetching a manifest
 //        → exit 1 if the URL violates trust scope (non-https, blank, etc.)
 //        Centralizes the scheme check so PowerShell + bash can share one
-//        source of truth. Set HARNESS_ALLOW_INSECURE_MANIFEST_URL=1 to
+//        source of truth. Set ORCHESTRATOR_ALLOW_INSECURE_MANIFEST_URL=1 to
 //        permit http://, file://, or other schemes for dev/test only.
 //        D0-e (Phase E1, 2026-04-29): closes the gap where the manifest
 //        fetch URL itself was unverified — we used to validate the *zip*
@@ -57,7 +57,7 @@
 //   node launcher-cli.js verify-health <url>
 //        → exit 0 if the URL serves a OrchestratorPipeline /api/health response
 //        → exit 1 if the response is missing, non-JSON, or app != "OrchestratorPipeline"
-//        Used by harness-start.bat / .sh to confirm "already running"
+//        Used by orchestrator-start.bat / .sh to confirm "already running"
 //        is actually OUR server — without this discriminator, an
 //        unrelated service squatting on port 4201 would let the
 //        launcher skip startup and open the browser into someone
@@ -273,7 +273,7 @@ function cmdValidateManifestUrl(args) {
   // we have at that step is "trust the channel" — and that means the
   // channel must be HTTPS.
   //
-  // The HARNESS_ALLOW_INSECURE_MANIFEST_URL escape hatch exists for
+  // The ORCHESTRATOR_ALLOW_INSECURE_MANIFEST_URL escape hatch exists for
   // local dev (file:// fixtures, http://localhost test servers). It is
   // off by default and the launcher prints a loud banner whenever a
   // run uses it, so an operator can never quietly drift from the safe
@@ -291,7 +291,7 @@ function cmdValidateManifestUrl(args) {
     fail(`validate-manifest-url: URL has leading/trailing whitespace`);
   }
 
-  const allowInsecure = process.env.HARNESS_ALLOW_INSECURE_MANIFEST_URL === "1";
+  const allowInsecure = process.env.ORCHESTRATOR_ALLOW_INSECURE_MANIFEST_URL === "1";
 
   // Strict accept: https:// only. Anything else falls through to either
   // the dev-only escape hatch or hard reject. Using URL parsing (not a
@@ -314,7 +314,7 @@ function cmdValidateManifestUrl(args) {
     // in, but we want the audit trail.
     process.stderr.write(
       `[validate-manifest-url] WARNING: accepting non-https URL ` +
-      `"${trimmed}" because HARNESS_ALLOW_INSECURE_MANIFEST_URL=1. ` +
+      `"${trimmed}" because ORCHESTRATOR_ALLOW_INSECURE_MANIFEST_URL=1. ` +
       `This is dev-only — never enable in production.\n`,
     );
     process.stdout.write(`ok insecure ${parsed.protocol}\n`);
@@ -324,7 +324,7 @@ function cmdValidateManifestUrl(args) {
   process.stderr.write(
     `[validate-manifest-url] rejected: "${trimmed}" uses scheme ` +
     `"${parsed.protocol}" (https:// required). Set ` +
-    `HARNESS_ALLOW_INSECURE_MANIFEST_URL=1 to override for dev only.\n`,
+    `ORCHESTRATOR_ALLOW_INSECURE_MANIFEST_URL=1 to override for dev only.\n`,
   );
   process.exit(1);
 }
@@ -361,10 +361,10 @@ function cmdManifestField(args) {
 }
 
 // Slice GOV-RELEASE-0 (2026-04-30): manifest signature verification.
-// Used by the launcher when HARNESS_REQUIRE_SIGNED_MANIFEST=1 OR the
+// Used by the launcher when ORCHESTRATOR_REQUIRE_SIGNED_MANIFEST=1 OR the
 // manifest contains a `signature` field (auto-detect). The trust
 // store path is resolved via `trust-store-path.js` (Slice E3-F1-a)
-// from --trust-store flag, HARNESS_TRUST_STORE env, HARNESS_CONFIG_DIR,
+// from --trust-store flag, ORCHESTRATOR_TRUST_STORE env, ORCHESTRATOR_CONFIG_DIR,
 // OS default, or portable install (in priority order). Sharing the
 // resolver with the future TRUST-STORE-0 management UI keeps "where
 // the trust file lives" answer the same on both sides.
@@ -469,7 +469,7 @@ function main() {
   const [, , cmd, ...rest] = process.argv;
   if (!cmd || cmd === "--help" || cmd === "-h") {
     process.stdout.write([
-      "launcher-cli: bridge for harness-start launcher scripts",
+      "launcher-cli: bridge for orchestrator-start launcher scripts",
       "",
       "Commands:",
       "  validate-manifest <path>",

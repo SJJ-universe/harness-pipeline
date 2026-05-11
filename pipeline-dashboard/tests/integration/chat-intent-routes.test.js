@@ -1,7 +1,7 @@
 // Slice AGENT-DESKTOP-0-a (Phase 2 chat-first UX, 2026-05-06)
 // — integration tests for POST /api/chat/intent.
 //
-// Mirrors the test harness used for /api/decision-context. Mounts the
+// Mirrors the test orchestrator used for /api/decision-context. Mounts the
 // route on a fresh express app with stub piiScanner + stub evidenceLedger
 // so each test is fast, deterministic, and zero-side-effect.
 
@@ -14,7 +14,7 @@ const http = require("node:http");
 
 const { createChatIntentRoutes } = require("../../src/routes/chatIntentRoutes");
 
-// ── Test harness ───────────────────────────────────────────────────
+// ── Test orchestrator ───────────────────────────────────────────────────
 
 function _bootApp(deps) {
   const app = express();
@@ -232,7 +232,7 @@ test("POST /api/chat/intent — every successful proposal appends an audit entry
     assert.equal(ledger.entries.length, 3);
     for (const entry of ledger.entries) {
       assert.equal(entry.type, "chat_intent_proposed");
-      assert.equal(entry.runId, "harness-chat-intents");
+      assert.equal(entry.runId, "orchestrator-chat-intents");
       assert.ok(entry.data.intent);
       assert.ok(entry.data.classifierTrace);
       assert.equal(typeof entry.data.confidence, "number");

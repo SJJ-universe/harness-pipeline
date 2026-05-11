@@ -1,23 +1,23 @@
 #!/usr/bin/env node
-// Slice R1-e-3 (Phase D R1, 2026-04-28) — harness-runner entrypoint.
+// Slice R1-e-3 (Phase D R1, 2026-04-28) — orchestrator-runner entrypoint.
 //
 // Replaces the R1-f stub. Reads env, constructs RunnerAgent with the
 // real `ws` + global fetch, runs until SIGTERM/SIGINT.
 //
 // Required env:
 //
-//   HARNESS_BOOTSTRAP_TOKEN     bootstrap token from operator
-//   HARNESS_HOST_IDENTITY       host id (e.g., "runner-a/3")
-//   HARNESS_ORCHESTRATOR_URL    e.g., "http://orchestrator:4201"
-//   HARNESS_RUN_ID              pre-assigned run id
-//   HARNESS_RUN_JWT             per-run JWT issued by orchestrator
+//   ORCHESTRATOR_BOOTSTRAP_TOKEN     bootstrap token from operator
+//   ORCHESTRATOR_HOST_IDENTITY       host id (e.g., "runner-a/3")
+//   ORCHESTRATOR_ORCHESTRATOR_URL    e.g., "http://orchestrator:4201"
+//   ORCHESTRATOR_RUN_ID              pre-assigned run id
+//   ORCHESTRATOR_RUN_JWT             per-run JWT issued by orchestrator
 //
 // Optional env:
 //
-//   HARNESS_SANDBOX_CLASS       default "container-strict"
-//   HARNESS_HEARTBEAT_INTERVAL_MS  default 5000
-//   HARNESS_RECONNECT_BASE_MS      default 1000
-//   HARNESS_RECONNECT_MAX_MS       default 30000
+//   ORCHESTRATOR_SANDBOX_CLASS       default "container-strict"
+//   ORCHESTRATOR_HEARTBEAT_INTERVAL_MS  default 5000
+//   ORCHESTRATOR_RECONNECT_BASE_MS      default 1000
+//   ORCHESTRATOR_RECONNECT_MAX_MS       default 30000
 //
 // Exit codes:
 //
@@ -36,7 +36,7 @@ async function main() {
   try {
     config = configFromEnv();
   } catch (err) {
-    process.stderr.write("[harness-runner] " + err.message + "\n");
+    process.stderr.write("[orchestrator-runner] " + err.message + "\n");
     process.exit(2);
   }
 
@@ -76,7 +76,7 @@ async function main() {
   const shutdown = async (signal) => {
     if (signalReceived) return;
     signalReceived = signal;
-    console.log(`[harness-runner] ${signal} — shutting down`);
+    console.log(`[orchestrator-runner] ${signal} — shutting down`);
     try { await agent.stop(); } catch (_) {}
   };
   process.on("SIGTERM", () => shutdown("SIGTERM"));
@@ -84,9 +84,9 @@ async function main() {
 
   try {
     await agent.start();
-    console.log(`[harness-runner] started (host=${config.hostIdentity}, run=${config.runId})`);
+    console.log(`[orchestrator-runner] started (host=${config.hostIdentity}, run=${config.runId})`);
   } catch (err) {
-    console.error("[harness-runner] start failed:", err.message);
+    console.error("[orchestrator-runner] start failed:", err.message);
     process.exit(1);
   }
 
@@ -108,6 +108,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  process.stderr.write("[harness-runner] unhandled: " + err.message + "\n");
+  process.stderr.write("[orchestrator-runner] unhandled: " + err.message + "\n");
   process.exit(1);
 });

@@ -354,13 +354,13 @@ test("R1-e-3: stop() cancels timers + closes ws + state STOPPED", async () => {
 
 test("R1-e-3: configFromEnv reads required + optional env keys", () => {
   const env = {
-    HARNESS_BOOTSTRAP_TOKEN: "boot",
-    HARNESS_HOST_IDENTITY: "host-a",
-    HARNESS_ORCHESTRATOR_URL: "http://x",
-    HARNESS_RUN_ID: "rr-1",
-    HARNESS_RUN_JWT: "j.w.t",
-    HARNESS_SANDBOX_CLASS: "vm-strict",
-    HARNESS_HEARTBEAT_INTERVAL_MS: "10000",
+    ORCHESTRATOR_BOOTSTRAP_TOKEN: "boot",
+    ORCHESTRATOR_HOST_IDENTITY: "host-a",
+    ORCHESTRATOR_ORCHESTRATOR_URL: "http://x",
+    ORCHESTRATOR_RUN_ID: "rr-1",
+    ORCHESTRATOR_RUN_JWT: "j.w.t",
+    ORCHESTRATOR_SANDBOX_CLASS: "vm-strict",
+    ORCHESTRATOR_HEARTBEAT_INTERVAL_MS: "10000",
   };
   const cfg = configFromEnv(env);
   assert.equal(cfg.bootstrapToken, "boot");
@@ -380,11 +380,11 @@ test("R1-e-3: configFromEnv lists all missing required env in one error", () => 
     assert.match(err.message, /missing required env/);
     // Original config field names get re-rendered into env names.
     for (const expected of [
-      "HARNESS_BOOTSTRAP_TOKEN",
-      "HARNESS_HOST_IDENTITY",
-      "HARNESS_ORCHESTRATOR_URL",
-      "HARNESS_RUN_ID",
-      "HARNESS_RUN_JWT",
+      "ORCHESTRATOR_BOOTSTRAP_TOKEN",
+      "ORCHESTRATOR_HOST_IDENTITY",
+      "ORCHESTRATOR_ORCHESTRATOR_URL",
+      "ORCHESTRATOR_RUN_ID",
+      "ORCHESTRATOR_RUN_JWT",
     ]) {
       assert.match(err.message, new RegExp(expected));
     }
@@ -394,11 +394,11 @@ test("R1-e-3: configFromEnv lists all missing required env in one error", () => 
 // ── R1-k3: numeric env validation ──────────────────────────────────
 
 const MIN_REQUIRED_ENV = Object.freeze({
-  HARNESS_BOOTSTRAP_TOKEN: "boot",
-  HARNESS_HOST_IDENTITY: "host-a",
-  HARNESS_ORCHESTRATOR_URL: "http://x",
-  HARNESS_RUN_ID: "rr-1",
-  HARNESS_RUN_JWT: "j.w.t",
+  ORCHESTRATOR_BOOTSTRAP_TOKEN: "boot",
+  ORCHESTRATOR_HOST_IDENTITY: "host-a",
+  ORCHESTRATOR_ORCHESTRATOR_URL: "http://x",
+  ORCHESTRATOR_RUN_ID: "rr-1",
+  ORCHESTRATOR_RUN_JWT: "j.w.t",
 });
 
 function expectInvalidEnv(env, /** @type {RegExp} */ pattern) {
@@ -412,22 +412,22 @@ function expectInvalidEnv(env, /** @type {RegExp} */ pattern) {
 
 test("R1-k3: configFromEnv throws on non-numeric heartbeat interval ('abc')", () => {
   expectInvalidEnv(
-    { ...MIN_REQUIRED_ENV, HARNESS_HEARTBEAT_INTERVAL_MS: "abc" },
-    /invalid HARNESS_HEARTBEAT_INTERVAL_MS/,
+    { ...MIN_REQUIRED_ENV, ORCHESTRATOR_HEARTBEAT_INTERVAL_MS: "abc" },
+    /invalid ORCHESTRATOR_HEARTBEAT_INTERVAL_MS/,
   );
 });
 
 test("R1-k3: configFromEnv throws on zero heartbeat interval ('0')", () => {
   expectInvalidEnv(
-    { ...MIN_REQUIRED_ENV, HARNESS_HEARTBEAT_INTERVAL_MS: "0" },
-    /invalid HARNESS_HEARTBEAT_INTERVAL_MS/,
+    { ...MIN_REQUIRED_ENV, ORCHESTRATOR_HEARTBEAT_INTERVAL_MS: "0" },
+    /invalid ORCHESTRATOR_HEARTBEAT_INTERVAL_MS/,
   );
 });
 
 test("R1-k3: configFromEnv throws on negative heartbeat interval ('-100')", () => {
   expectInvalidEnv(
-    { ...MIN_REQUIRED_ENV, HARNESS_HEARTBEAT_INTERVAL_MS: "-100" },
-    /invalid HARNESS_HEARTBEAT_INTERVAL_MS/,
+    { ...MIN_REQUIRED_ENV, ORCHESTRATOR_HEARTBEAT_INTERVAL_MS: "-100" },
+    /invalid ORCHESTRATOR_HEARTBEAT_INTERVAL_MS/,
   );
 });
 
@@ -435,47 +435,47 @@ test("R1-k3: configFromEnv throws on fractional heartbeat interval ('1.5')", () 
   // Even if the value is positive and finite, the timer logic is
   // integer-aligned. Reject fractional values to keep the contract clean.
   expectInvalidEnv(
-    { ...MIN_REQUIRED_ENV, HARNESS_HEARTBEAT_INTERVAL_MS: "1.5" },
-    /invalid HARNESS_HEARTBEAT_INTERVAL_MS/,
+    { ...MIN_REQUIRED_ENV, ORCHESTRATOR_HEARTBEAT_INTERVAL_MS: "1.5" },
+    /invalid ORCHESTRATOR_HEARTBEAT_INTERVAL_MS/,
   );
 });
 
 test("R1-k3: configFromEnv throws on heartbeat below minimum (sub-second is wasteful)", () => {
   expectInvalidEnv(
-    { ...MIN_REQUIRED_ENV, HARNESS_HEARTBEAT_INTERVAL_MS: "100" },
-    /HARNESS_HEARTBEAT_INTERVAL_MS.*≥ 1000ms/,
+    { ...MIN_REQUIRED_ENV, ORCHESTRATOR_HEARTBEAT_INTERVAL_MS: "100" },
+    /ORCHESTRATOR_HEARTBEAT_INTERVAL_MS.*≥ 1000ms/,
   );
 });
 
 test("R1-k3: configFromEnv accepts heartbeat at exactly the minimum (1000ms)", () => {
   const cfg = configFromEnv({
-    ...MIN_REQUIRED_ENV, HARNESS_HEARTBEAT_INTERVAL_MS: "1000",
+    ...MIN_REQUIRED_ENV, ORCHESTRATOR_HEARTBEAT_INTERVAL_MS: "1000",
   });
   assert.equal(cfg.heartbeatIntervalMs, 1000);
 });
 
-test("R1-k3: configFromEnv throws on bad HARNESS_RECONNECT_BASE_MS", () => {
+test("R1-k3: configFromEnv throws on bad ORCHESTRATOR_RECONNECT_BASE_MS", () => {
   expectInvalidEnv(
-    { ...MIN_REQUIRED_ENV, HARNESS_RECONNECT_BASE_MS: "NaN" },
-    /invalid HARNESS_RECONNECT_BASE_MS/,
+    { ...MIN_REQUIRED_ENV, ORCHESTRATOR_RECONNECT_BASE_MS: "NaN" },
+    /invalid ORCHESTRATOR_RECONNECT_BASE_MS/,
   );
 });
 
-test("R1-k3: configFromEnv throws on bad HARNESS_RECONNECT_MAX_MS", () => {
+test("R1-k3: configFromEnv throws on bad ORCHESTRATOR_RECONNECT_MAX_MS", () => {
   expectInvalidEnv(
-    { ...MIN_REQUIRED_ENV, HARNESS_RECONNECT_MAX_MS: "0" },
-    /invalid HARNESS_RECONNECT_MAX_MS/,
+    { ...MIN_REQUIRED_ENV, ORCHESTRATOR_RECONNECT_MAX_MS: "0" },
+    /invalid ORCHESTRATOR_RECONNECT_MAX_MS/,
   );
 });
 
 test("R1-k3: configFromEnv error message names the offending env var + got value", () => {
   try {
-    configFromEnv({ ...MIN_REQUIRED_ENV, HARNESS_RECONNECT_BASE_MS: "bogus" });
+    configFromEnv({ ...MIN_REQUIRED_ENV, ORCHESTRATOR_RECONNECT_BASE_MS: "bogus" });
     assert.fail("should have thrown");
   } catch (err) {
     // Operator should be able to grep the error and find both the var
     // name and what they typed wrong.
-    assert.match(err.message, /HARNESS_RECONNECT_BASE_MS/);
+    assert.match(err.message, /ORCHESTRATOR_RECONNECT_BASE_MS/);
     assert.match(err.message, /bogus/);
   }
 });

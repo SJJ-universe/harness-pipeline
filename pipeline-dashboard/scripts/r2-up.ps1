@@ -45,25 +45,25 @@ function Require-RealValue {
         exit 78
     }
 }
-Require-RealValue 'HARNESS_TOKEN'
+Require-RealValue 'ORCHESTRATOR_TOKEN'
 Require-RealValue 'RUNNER_BOOTSTRAP_TOKEN'
-Require-RealValue 'HARNESS_HOST_IDENTITY'
-Require-RealValue 'HARNESS_RUN_ID'
+Require-RealValue 'ORCHESTRATOR_HOST_IDENTITY'
+Require-RealValue 'ORCHESTRATOR_RUN_ID'
 
-Write-Host "[r2-up] minting HARNESS_RUN_JWT for runId=$($env:HARNESS_RUN_ID) hostIdentity=$($env:HARNESS_HOST_IDENTITY)"
+Write-Host "[r2-up] minting ORCHESTRATOR_RUN_JWT for runId=$($env:ORCHESTRATOR_RUN_ID) hostIdentity=$($env:ORCHESTRATOR_HOST_IDENTITY)"
 
 # Mint the per-run JWT using src/security/jwt.js. Pass values via env to
 # avoid shell-injection through node -e.
 $jwtScript = @'
 const { issue, deriveJwtKey } = require("./src/security/jwt");
-const key = deriveJwtKey(process.env.HARNESS_TOKEN);
+const key = deriveJwtKey(process.env.ORCHESTRATOR_TOKEN);
 const token = issue({
-  runId: process.env.HARNESS_RUN_ID,
+  runId: process.env.ORCHESTRATOR_RUN_ID,
   key,
   runDurationMs: 3600000,
   harness: {
-    hostIdentity: process.env.HARNESS_HOST_IDENTITY,
-    sandboxClass: process.env.HARNESS_SANDBOX_CLASS || "container-strict",
+    hostIdentity: process.env.ORCHESTRATOR_HOST_IDENTITY,
+    sandboxClass: process.env.ORCHESTRATOR_SANDBOX_CLASS || "container-strict",
     runOrigin: "container-remote",
   },
 });
@@ -80,7 +80,7 @@ try {
 } finally {
     Pop-Location
 }
-$env:HARNESS_RUN_JWT = $RunJwt
+$env:ORCHESTRATOR_RUN_JWT = $RunJwt
 Write-Host "[r2-up] runJWT minted (length: $($RunJwt.Length))"
 
 Write-Host "[r2-up] building orchestrator + runner images..."

@@ -13,7 +13,7 @@
 //       this endpoint is a pure read.
 //
 // Auth contract (state-machine identical to /api/audit/runs/:runId):
-//   - Loopback only (covered by global X-Harness-Token middleware
+//   - Loopback only (covered by global X-Orchestrator-Token middleware
 //     in server.js — same gate every other state-altering endpoint
 //     uses; we don't re-check here)
 //   - run_memory_accessed audit verb fires on every successful read
@@ -22,7 +22,7 @@
 //     there). Does NOT fire on 400 (malformed input — operator UI
 //     bug, not a forensic event).
 //   - Public-sector posture is the operator's responsibility to
-//     enforce via deployment env (HARNESS_DEPLOYMENT_PROFILE=
+//     enforce via deployment env (ORCHESTRATOR_DEPLOYMENT_PROFILE=
 //     public-sector + their loopback proxy). The route doesn't
 //     re-check posture because the ROUTE itself is loopback-only.
 //

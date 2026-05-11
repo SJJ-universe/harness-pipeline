@@ -115,7 +115,7 @@ jobs:
             const fs = require('fs'); const path = require('path');
             const baseDir = process.env.FUSED_OUT_DIR;
             const summary = {
-              schema: 'harness-visual-fused/v1',
+              schema: 'orchestrator-visual-fused/v1',
               fusedAt: new Date().toISOString(),
               runId: process.env.GITHUB_RUN_ID,
               tools: {},

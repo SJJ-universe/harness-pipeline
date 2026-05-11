@@ -10,7 +10,7 @@
 //   ┌────────────────────────────────────────┐
 //   │ Header (52px)                          │  ← product-header.js
 //   ├────────────────────────────────────────┤
-//   │ Harness Track (92px)                   │  ← product-harness-track.js
+//   │ Orchestrator Track (92px)                   │  ← product-orchestrator-track.js
 //   ├──────────────┬─────────────────────────┤
 //   │ Pipeline     │ Monitor Grid (flex)     │  ← product-pipeline-rail.js +
 //   │ Rail         ├─────────────────────────┤    product-monitor-grid.js
@@ -140,7 +140,7 @@
     headerMount.setAttribute("data-region-mount", "header");
     const trackMount = _doc.createElement("div");
     trackMount.className = "prod-track-mount";
-    trackMount.setAttribute("data-region-mount", "harness-track");
+    trackMount.setAttribute("data-region-mount", "orchestrator-track");
 
     const workspace = _doc.createElement("div");
     workspace.className = "prod-workspace";
@@ -260,7 +260,7 @@
       // history, codex-verify, shutdown) through _dispatch.
       onActionClick: _dispatch,
     });
-    handles.track = _mountPanel(trackFactory, trackMount, "harness-track");
+    handles.track = _mountPanel(trackFactory, trackMount, "orchestrator-track");
     handles.rail = _mountPanel(railFactory, railMount, "pipeline-rail", {
       // PRODUCT-SHELL-WIRING: route rail action buttons (pipeline-start,
       // pipeline-compact, pipeline-template) through _dispatch.
@@ -318,8 +318,8 @@
     //      dual-terminals — others ignore until they need translatable
     //      strings)
     //   3. fires opts.onLocaleChange so the init script can persist
-    //      the choice via OrchestratorI18n.setLang (writes harness:lang
-    //      localStorage key + dispatches harness:lang-changed)
+    //      the choice via OrchestratorI18n.setLang (writes orchestrator:lang
+    //      localStorage key + dispatches orchestrator:lang-changed)
     function setLocale(next) {
       const coerced = (next === "en") ? "en" : "ko";
       if (coerced === locale) return;

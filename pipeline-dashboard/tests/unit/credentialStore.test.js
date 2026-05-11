@@ -7,7 +7,7 @@
 //      operators silently get plaintext storage they didn't ask for.
 //
 //   2. Production blocks plaintext flag entirely (NODE_ENV=production
-//      ignores HARNESS_ALLOW_PLAINTEXT_SECRETS=1).
+//      ignores ORCHESTRATOR_ALLOW_PLAINTEXT_SECRETS=1).
 //
 //   3. listSecretIds returns ONLY keys, never values. Misuse here would
 //      leak credentials into UI / audit responses.
@@ -68,7 +68,7 @@ function makeLedger() {
 }
 
 function tmpConfigPaths(t) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "harness-cred-test-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-cred-test-"));
   t.after(() => {
     try { fs.rmSync(dir, { recursive: true, force: true }); } catch (_) {}
   });
@@ -86,7 +86,7 @@ function tmpConfigPaths(t) {
 test("D1-a: backend=none when keytar absent + plaintext flag NOT set", () => {
   const store = createCredentialStore({
     keytar: null, // force unavailable
-    env: {}, // no HARNESS_ALLOW_PLAINTEXT_SECRETS
+    env: {}, // no ORCHESTRATOR_ALLOW_PLAINTEXT_SECRETS
     fsPaths: { appdataConfig: "/tmp/never-used" },
   });
   assert.equal(store.backend, "none");
@@ -123,13 +123,13 @@ test("D1-a: deleteSecret is a no-op when backend=none", async () => {
 //  PRODUCTION GUARD
 // ─────────────────────────────────────────────────────────────────
 
-test("D1-a: NODE_ENV=production blocks HARNESS_ALLOW_PLAINTEXT_SECRETS=1", (t) => {
+test("D1-a: NODE_ENV=production blocks ORCHESTRATOR_ALLOW_PLAINTEXT_SECRETS=1", (t) => {
   const fsPaths = tmpConfigPaths(t);
   const warned = [];
   const store = createCredentialStore({
     keytar: null,
     env: {
-      HARNESS_ALLOW_PLAINTEXT_SECRETS: "1",
+      ORCHESTRATOR_ALLOW_PLAINTEXT_SECRETS: "1",
       NODE_ENV: "production",
     },
     fsPaths,
@@ -145,7 +145,7 @@ test("D1-a: production guard emits credential_backend_unavailable audit", (t) =>
   const ledger = makeLedger();
   createCredentialStore({
     keytar: null,
-    env: { HARNESS_ALLOW_PLAINTEXT_SECRETS: "1", NODE_ENV: "production" },
+    env: { ORCHESTRATOR_ALLOW_PLAINTEXT_SECRETS: "1", NODE_ENV: "production" },
     fsPaths,
     ledger,
     warn: () => {},
@@ -228,7 +228,7 @@ test("D1-a: plaintext backend selected when keytar absent + flag=1 + non-prod", 
   const warned = [];
   const store = createCredentialStore({
     keytar: null,
-    env: { HARNESS_ALLOW_PLAINTEXT_SECRETS: "1" }, // NODE_ENV unset → not "production"
+    env: { ORCHESTRATOR_ALLOW_PLAINTEXT_SECRETS: "1" }, // NODE_ENV unset → not "production"
     fsPaths,
     warn: (msg) => warned.push(msg),
   });
@@ -242,7 +242,7 @@ test("D1-a: plaintext backend round-trip set/get/list/delete", async (t) => {
   const fsPaths = tmpConfigPaths(t);
   const store = createCredentialStore({
     keytar: null,
-    env: { HARNESS_ALLOW_PLAINTEXT_SECRETS: "1" },
+    env: { ORCHESTRATOR_ALLOW_PLAINTEXT_SECRETS: "1" },
     fsPaths,
     warn: () => {},
   });
@@ -281,7 +281,7 @@ test("D1-a: plaintext backend creates credentials.json with mode 0600 on POSIX",
   const fsPaths = tmpConfigPaths(t);
   const store = createCredentialStore({
     keytar: null,
-    env: { HARNESS_ALLOW_PLAINTEXT_SECRETS: "1" },
+    env: { ORCHESTRATOR_ALLOW_PLAINTEXT_SECRETS: "1" },
     fsPaths,
     warn: () => {},
   });
@@ -314,7 +314,7 @@ test("D1-a: plaintext backend tolerates UTF-8 BOM in existing file", async (t) =
 
   const store = createCredentialStore({
     keytar: null,
-    env: { HARNESS_ALLOW_PLAINTEXT_SECRETS: "1" },
+    env: { ORCHESTRATOR_ALLOW_PLAINTEXT_SECRETS: "1" },
     fsPaths,
     warn: () => {},
   });
@@ -330,7 +330,7 @@ test("D1-a: plaintext backend rejects malformed credentials.json (refuses to ove
 
   const store = createCredentialStore({
     keytar: null,
-    env: { HARNESS_ALLOW_PLAINTEXT_SECRETS: "1" },
+    env: { ORCHESTRATOR_ALLOW_PLAINTEXT_SECRETS: "1" },
     fsPaths,
     warn: () => {},
   });
@@ -378,7 +378,7 @@ test("D1-a: credential_plaintext_fallback audit fires ONCE on plaintext selectio
   const ledger = makeLedger();
   const store = createCredentialStore({
     keytar: null,
-    env: { HARNESS_ALLOW_PLAINTEXT_SECRETS: "1" },
+    env: { ORCHESTRATOR_ALLOW_PLAINTEXT_SECRETS: "1" },
     fsPaths,
     ledger,
     warn: () => {},
@@ -396,7 +396,7 @@ test("D1-a: credential_backend_unavailable audit on no-keytar + no-flag", () => 
   assert.ok(entry);
   assert.equal(entry.data.reason, "keytar_missing");
   assert.match(entry.data.hint, /install keytar/);
-  assert.match(entry.data.hint, /HARNESS_ALLOW_PLAINTEXT_SECRETS=1/);
+  assert.match(entry.data.hint, /ORCHESTRATOR_ALLOW_PLAINTEXT_SECRETS=1/);
 });
 
 // ─────────────────────────────────────────────────────────────────
@@ -458,21 +458,21 @@ test("D1-a: returned store handle is frozen (caller cannot swap backend)", () =>
 //  D1-gov-3 — public-sector hard-block on plaintext
 // ─────────────────────────────────────────────────────────────────
 
-test("D1-gov-3: public-sector mode HARD-BLOCKS plaintext even with HARNESS_ALLOW_PLAINTEXT_SECRETS=1", (t) => {
+test("D1-gov-3: public-sector mode HARD-BLOCKS plaintext even with ORCHESTRATOR_ALLOW_PLAINTEXT_SECRETS=1", (t) => {
   const fsPaths = tmpConfigPaths(t);
   const warned = [];
   const store = createCredentialStore({
     keytar: null,
     env: {
-      HARNESS_DEPLOYMENT_PROFILE: "public-sector",
-      HARNESS_ALLOW_PLAINTEXT_SECRETS: "1",
+      ORCHESTRATOR_DEPLOYMENT_PROFILE: "public-sector",
+      ORCHESTRATOR_ALLOW_PLAINTEXT_SECRETS: "1",
     },
     fsPaths,
     warn: (msg) => warned.push(msg),
   });
   assert.equal(store.backend, "none",
     "public-sector must override the plaintext opt-in flag");
-  assert.ok(warned.some((w) => /HARNESS_DEPLOYMENT_PROFILE=public-sector/.test(w)));
+  assert.ok(warned.some((w) => /ORCHESTRATOR_DEPLOYMENT_PROFILE=public-sector/.test(w)));
   assert.ok(warned.some((w) => /Install keytar/.test(w)));
 });
 
@@ -482,8 +482,8 @@ test("D1-gov-3: public-sector + no-keytar emits credential_backend_unavailable w
   createCredentialStore({
     keytar: null,
     env: {
-      HARNESS_DEPLOYMENT_PROFILE: "public-sector",
-      HARNESS_ALLOW_PLAINTEXT_SECRETS: "1",
+      ORCHESTRATOR_DEPLOYMENT_PROFILE: "public-sector",
+      ORCHESTRATOR_ALLOW_PLAINTEXT_SECRETS: "1",
     },
     fsPaths,
     ledger,
@@ -499,8 +499,8 @@ test("D1-gov-3: public-sector + setSecret throws (fail-closed end-to-end)", asyn
   const store = createCredentialStore({
     keytar: null,
     env: {
-      HARNESS_DEPLOYMENT_PROFILE: "public-sector",
-      HARNESS_ALLOW_PLAINTEXT_SECRETS: "1",
+      ORCHESTRATOR_DEPLOYMENT_PROFILE: "public-sector",
+      ORCHESTRATOR_ALLOW_PLAINTEXT_SECRETS: "1",
     },
     fsPaths,
     warn: () => {},
@@ -516,7 +516,7 @@ test("D1-gov-3: standard mode + plaintext flag still works (no regression)", (t)
   const fsPaths = tmpConfigPaths(t);
   const store = createCredentialStore({
     keytar: null,
-    env: { HARNESS_ALLOW_PLAINTEXT_SECRETS: "1" },
+    env: { ORCHESTRATOR_ALLOW_PLAINTEXT_SECRETS: "1" },
     fsPaths,
     warn: () => {},
   });
@@ -531,7 +531,7 @@ test("D1-gov-3: deploymentProfile injection takes precedence over env (test inje
   const fsPaths = tmpConfigPaths(t);
   const store = createCredentialStore({
     keytar: null,
-    env: { HARNESS_ALLOW_PLAINTEXT_SECRETS: "1" }, // would normally enable plaintext
+    env: { ORCHESTRATOR_ALLOW_PLAINTEXT_SECRETS: "1" }, // would normally enable plaintext
     deploymentProfile: { publicSector: true, allowPlaintextSecrets: false }, // override
     fsPaths,
     warn: () => {},

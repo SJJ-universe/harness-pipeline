@@ -11,7 +11,7 @@
 ## 0. What this document is
 
 This is the wire-format contract between the orchestrator and a
-`harness-runner` container. It pins:
+`orchestrator-runner` container. It pins:
 
 - which **hook events** the runner is allowed to send through to the
   local executor,
@@ -155,7 +155,7 @@ Allowed `data` keys: `agent_id`, `session_id`. **`agent_id` is required.**
 
 ## 4. Executor dispatch mapping
 
-When `HARNESS_REMOTE_BRIDGE_MODE=dispatch`, the sanitized payload is
+When `ORCHESTRATOR_REMOTE_BRIDGE_MODE=dispatch`, the sanitized payload is
 forwarded to the local executor's matching method:
 
 | Hook | Executor method | Bound argument list (positional) |
@@ -187,7 +187,7 @@ The executor selection follows the existing
 
 ## 5. Bridge mode taxonomy
 
-`HARNESS_REMOTE_BRIDGE_MODE` env value (parsed by `resolveBridgeMode`):
+`ORCHESTRATOR_REMOTE_BRIDGE_MODE` env value (parsed by `resolveBridgeMode`):
 
 | Mode | Validation | Audit verbs emitted | Dispatch |
 | --- | :---: | --- | :---: |

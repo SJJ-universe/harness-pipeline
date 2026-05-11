@@ -46,7 +46,7 @@ Includes the first-time-use guide for non-technical end users
 ## §3 Live-verify family
 
 **Audience**: operator (or CI in opt-in mode) verifying a live
-running harness against a real browser or real Claude/Codex
+running orchestrator against a real browser or real Claude/Codex
 binaries.
 
 Each runbook here drives a specific probe script in `scripts/` and

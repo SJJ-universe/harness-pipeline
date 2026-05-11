@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  index.legacy.html — preserved legacy harness dashboard (Slice UI-P1-a, 2026-04-30).
+  index.legacy.html — preserved legacy orchestrator dashboard (Slice UI-P1-a, 2026-04-30).
 
   This file is the EXACT pre-UI-P1 markup. The product shell at index.html
   is the new default first paint; this legacy view stays available
@@ -30,7 +30,7 @@
        consume `--hsh-*` custom properties. Tokens are additive —
        backwards-compatible with existing `var(--bg-card, #161b22)`-
        style hex fallbacks. See docs/ui-dashboard-design-notes.md. -->
-  <link rel="stylesheet" href="css/harness-shell.css" />
+  <link rel="stylesheet" href="css/orchestrator-shell.css" />
   <link rel="stylesheet" href="style.css" />
   <!-- Slice MA3 (Phase D, 2026-04-27): monitor shell stylesheet. Scoped
        under .monitor-shell so it only affects the new shell DOM (default
@@ -48,7 +48,7 @@
   <!-- UI-P8 (Phase 2 Round 3, 2026-04-30) — legacy-view deprecation
        banner. Sits above the skip link so screen readers announce it
        once on page load. Dismissible via the × button (state persists
-       to localStorage `harness:legacy-banner-dismissed`). The CTA is
+       to localStorage `orchestrator:legacy-banner-dismissed`). The CTA is
        a plain `<a href="/">` so it works without JS — legacy-banner.js
        only owns the dismiss flow + locale re-application.
 
@@ -56,7 +56,7 @@
        something even before OrchestratorI18n loads. data-i18n attributes
        update the text once OrchestratorI18n.applyDom() runs (or on KO/EN
        toggle). -->
-  <div id="harness-legacy-banner" class="harness-legacy-banner"
+  <div id="orchestrator-legacy-banner" class="orchestrator-legacy-banner"
        role="region"
        data-i18n-aria-label="legacy.banner.aria"
        aria-label="새 대시보드 안내">
@@ -128,10 +128,10 @@
        skip-link focus the region itself (it's not natively focusable). -->
   <main id="main-content" role="main" tabindex="-1">
 
-  <!-- Harness Track: horse racing animation strip -->
-  <div class="harness-track" id="harness-track">
+  <!-- Orchestrator Track: horse racing animation strip -->
+  <div class="orchestrator-track" id="orchestrator-track">
     <div class="horse-rider" id="horse-rider"></div>
-    <div class="harness-status" id="harness-status"></div>
+    <div class="orchestrator-status" id="orchestrator-status"></div>
   </div>
 
   <!-- Main Content: Left Pipeline + Right Panel -->
@@ -429,7 +429,7 @@
        app.js to decide whether an incoming event belongs to the focused
        run tab. Ships as a UMD module so Node tests can require() it. -->
   <script src="js/run-id-filter.js"></script>
-  <!-- Slice AC (Phase 2.5, v6): harness horse animation (pixel art +
+  <!-- Slice AC (Phase 2.5, v6): orchestrator horse animation (pixel art +
        gallop loop + state machine) extracted from app.js. Must load
        before app.js so window.OrchestratorHorseAnimation is ready when the
        first setHorseState() call fires. -->
@@ -521,13 +521,13 @@
        script can read OrchestratorMonitorMode.resolveMode synchronously. -->
   <script src="js/monitor/mode.js"></script>
   <script src="js/monitor/panels/mode-toggle.js"></script>
-  <!-- Slice UI-H2 (Phase D / Phase E1.5, 2026-04-30): Harness Track
+  <!-- Slice UI-H2 (Phase D / Phase E1.5, 2026-04-30): Orchestrator Track
        panel — galloping horse pipeline visualization tied to actual
        run state. Pure state machine (horse-state-machine.js) +
-       UMD panel (panels/harness-track.js). Reads from store; never
+       UMD panel (panels/orchestrator-track.js). Reads from store; never
        fakes progress (unknown phase → "관찰 중" placeholder). -->
   <script src="js/monitor/horse-state-machine.js"></script>
-  <script src="js/monitor/panels/harness-track.js"></script>
+  <script src="js/monitor/panels/orchestrator-track.js"></script>
   <!-- Slice UI-H3 (Phase D / Phase E1.5, 2026-04-30): Dual Agent
        Console — read-only stream view. Claude on the left, Codex
        on the right. Operator input flows via UI-H4 review relay,
@@ -543,7 +543,7 @@
        card. Surfaces posture / sandbox / PII / approval pending
        summary at-a-glance. Mounted in BOTH simple AND advanced
        modes. layout.js also writes data-posture on documentElement
-       so harness-shell.css freezes animations under public-sector. -->
+       so orchestrator-shell.css freezes animations under public-sector. -->
   <script src="js/monitor/panels/security-status-card.js"></script>
   <!-- Slice UI-H6 (Phase D / Phase E1.5, 2026-04-30): Simple shell
        + 4 operator-friendly cards. Mounted by layout.js when

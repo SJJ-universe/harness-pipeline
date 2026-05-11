@@ -96,7 +96,7 @@ function createGeneralPipelineRunner({
   // run (gr-XXX); the inner ids are an implementation detail. Without
   // this overwrite, the bridge synthesizes a session keyed by
   // codex-XXX (not gr-XXX), so the synthetic stream never connects to
-  // the harness-track panel's selectedRunId → STAGE 1/7 PLAN forever
+  // the orchestrator-track panel's selectedRunId → STAGE 1/7 PLAN forever
   // even though phase_update events update the orchestration run
   // correctly. Forcing the overwrite collapses the two id spaces.
   function _withRunId(event, runId) {
@@ -274,7 +274,7 @@ function createGeneralPipelineRunner({
         // the rest of this run's events (pipeline_start, phase_update,
         // pipeline_complete). Without this the synthetic session is
         // keyed by the codex-runner's internal id (codex-XXX-XXX) and
-        // never attaches to the harness-track panel.
+        // never attaches to the orchestrator-track panel.
         broadcastRunId: runId,
       });
 

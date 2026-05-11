@@ -54,12 +54,12 @@ test("UI-Doc-Gov: doc lists all 6 manifest schemas (or baseline file path)", () 
   const doc = _readDoc();
   const required = [
     "tests/visual/baseline-product-shell.json",
-    "harness-visual-live/v1",
-    "harness-visual-assert/v1",
-    "harness-visual-a11y/v1",
-    "harness-visual-button/v1",
+    "orchestrator-visual-live/v1",
+    "orchestrator-visual-assert/v1",
+    "orchestrator-visual-a11y/v1",
+    "orchestrator-visual-button/v1",
     // UI-Fuse: top-level fused summary schema
-    "harness-visual-fused/v1",
+    "orchestrator-visual-fused/v1",
   ];
   for (const schema of required) {
     assert.ok(doc.includes(schema),

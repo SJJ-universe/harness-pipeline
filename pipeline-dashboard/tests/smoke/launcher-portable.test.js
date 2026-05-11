@@ -1,6 +1,6 @@
 // tests/smoke/launcher-portable.test.js — Slice D0-d (Phase E1, 2026-04-29)
 //
-// End-to-end-ish coverage for the harness-start launcher *without*
+// End-to-end-ish coverage for the orchestrator-start launcher *without*
 // actually downloading a release zip or starting the dashboard.
 //
 // What we test (and why these and not more):
@@ -10,15 +10,15 @@
 //      if launcher-cli regresses, both platforms break the same way.
 //
 //   2. The Windows .bat launcher is reachable + non-empty.
-//      We can't `cmd.exe /c harness-start.bat` in Node tests on Linux CI,
+//      We can't `cmd.exe /c orchestrator-start.bat` in Node tests on Linux CI,
 //      and Windows CI cannot run the .sh path. We therefore validate
 //      *file presence* (script in repo) + *handler completeness* (CLI
 //      coverage tested via Node). Smoke for the actual interactive
 //      launch lives in `tests/e2e/launcher-windows.ps1` (manual).
 //
-//   3. `HARNESS_DATA_DIR` is honored by configPaths.resolve() when the
+//   3. `ORCHESTRATOR_DATA_DIR` is honored by configPaths.resolve() when the
 //      launcher invokes resolve-paths. This is the portable-mode
-//      contract: an operator pointing $HARNESS_DATA_DIR at a USB stick
+//      contract: an operator pointing $ORCHESTRATOR_DATA_DIR at a USB stick
 //      must see versions/ open under that USB stick path, not %LOCALAPPDATA%.
 //
 //   4. SHA256 mismatch: launcher-cli verify-sha256 returns exit 1 on
@@ -29,7 +29,7 @@
 //   - Actual zip extraction → manual e2e + future D0-c integration tests
 //   - `node start.js` boot path → tests/smoke/server-boot.test.js
 //   - PowerShell parser correctness → covered ad-hoc; PSv5.1 lacks
-//     the kind of cross-platform headless harness Node has.
+//     the kind of cross-platform headless orchestrator Node has.
 
 "use strict";
 
@@ -45,7 +45,7 @@ const REPO_ROOT = path.resolve(__dirname, "..", "..");
 const CLI_PATH = path.join(REPO_ROOT, "scripts", "launcher", "launcher-cli.js");
 
 // Common test helper: invoke launcher-cli with args, capture stdout/exit.
-// Pass through an env override map so we can simulate HARNESS_DATA_DIR.
+// Pass through an env override map so we can simulate ORCHESTRATOR_DATA_DIR.
 function runCli(args, opts = {}) {
   const result = spawnSync(process.execPath, [CLI_PATH, ...args], {
     encoding: "utf-8",
@@ -111,7 +111,7 @@ test("launcher-cli: validate-manifest accepts valid example", () => {
 });
 
 test("launcher-cli: validate-manifest rejects schema violations", (t) => {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "harness-launcher-test-"));
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-launcher-test-"));
   t.after(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
 
   // url is plain http — must reject (we mandate https for in-transit
@@ -136,7 +136,7 @@ test("launcher-cli: validate-manifest tolerates UTF-8 BOM", (t) => {
   // PowerShell 5.1's `Set-Content -Encoding utf8` injects a BOM. The
   // CLI must accept BOM-prefixed JSON because the launcher scripts
   // sometimes redirect through PowerShell-staged temp files.
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "harness-launcher-test-"));
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-launcher-test-"));
   t.after(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
   const valid = {
     version: "1.0.0",
@@ -153,7 +153,7 @@ test("launcher-cli: validate-manifest tolerates UTF-8 BOM", (t) => {
 });
 
 test("launcher-cli: verify-sha256 matches a known hash", (t) => {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "harness-launcher-test-"));
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-launcher-test-"));
   t.after(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
 
   const file = path.join(tmpDir, "data.bin");
@@ -170,7 +170,7 @@ test("launcher-cli: verify-sha256 matches a known hash", (t) => {
 });
 
 test("launcher-cli: verify-sha256 fails on mismatch", (t) => {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "harness-launcher-test-"));
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-launcher-test-"));
   t.after(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
 
   const file = path.join(tmpDir, "data.bin");
@@ -219,14 +219,14 @@ test("launcher-cli: check-runtime accepts version meeting minimum", () => {
   assert.match(r2.stdout, /"ok"\s*:\s*false/);
 });
 
-test("launcher-cli: resolve-paths honors HARNESS_DATA_DIR override", () => {
+test("launcher-cli: resolve-paths honors ORCHESTRATOR_DATA_DIR override", () => {
   // Portable-mode contract. Set the env override and confirm the
   // resolved versionsDir lives under the override path. Use a
   // platform-appropriate marker so this test passes identically on
   // Win + Mac + Linux CI.
-  const portable = path.join(os.tmpdir(), "harness-portable-test-zone");
+  const portable = path.join(os.tmpdir(), "orchestrator-portable-test-zone");
   const { code, stdout } = runCli(["resolve-paths"], {
-    env: { HARNESS_DATA_DIR: portable },
+    env: { ORCHESTRATOR_DATA_DIR: portable },
   });
   assert.equal(code, 0);
   const resolved = JSON.parse(stdout);
@@ -253,7 +253,7 @@ test("launcher-cli: version-install-dir resolves cleanly for valid versions", ()
   // Hits the happy path so we know the function doesn't reject all
   // inputs (which would mask bugs during refactor).
   const { code, stdout } = runCli(["version-install-dir", "1.2.3"], {
-    env: { HARNESS_DATA_DIR: path.join(os.tmpdir(), "v-install-test") },
+    env: { ORCHESTRATOR_DATA_DIR: path.join(os.tmpdir(), "v-install-test") },
   });
   assert.equal(code, 0);
   // Trim because the CLI appends a trailing newline; the launcher
@@ -265,7 +265,7 @@ test("launcher-cli: version-install-dir resolves cleanly for valid versions", ()
 });
 
 test("launcher-cli: manifest-field extracts a single field value", (t) => {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "harness-launcher-test-"));
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-launcher-test-"));
   t.after(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
 
   const manifest = {
@@ -312,11 +312,11 @@ test("D0-e validate-manifest-url accepts https:// by default", () => {
 
 test("D0-e validate-manifest-url rejects http:// without escape hatch", () => {
   const r = runCli(["validate-manifest-url", "http://example.com/manifest.json"], {
-    env: { HARNESS_ALLOW_INSECURE_MANIFEST_URL: "" }, // explicit unset
+    env: { ORCHESTRATOR_ALLOW_INSECURE_MANIFEST_URL: "" }, // explicit unset
   });
   assert.equal(r.code, 1, "http URL must be rejected when override is off");
   assert.match(r.stderr, /https:\/\/ required/);
-  assert.match(r.stderr, /HARNESS_ALLOW_INSECURE_MANIFEST_URL=1/, "stderr documents the escape hatch");
+  assert.match(r.stderr, /ORCHESTRATOR_ALLOW_INSECURE_MANIFEST_URL=1/, "stderr documents the escape hatch");
 });
 
 test("D0-e validate-manifest-url rejects file:// without escape hatch", () => {
@@ -325,11 +325,11 @@ test("D0-e validate-manifest-url rejects file:// without escape hatch", () => {
   assert.match(r.stderr, /https:\/\/ required/);
 });
 
-test("D0-e validate-manifest-url permits non-https with HARNESS_ALLOW_INSECURE_MANIFEST_URL=1", () => {
+test("D0-e validate-manifest-url permits non-https with ORCHESTRATOR_ALLOW_INSECURE_MANIFEST_URL=1", () => {
   // Dev / test escape hatch. Loud stderr warning is mandatory so the
   // operator can never quietly drift from the safe default.
   const r = runCli(["validate-manifest-url", "http://localhost:8080/m.json"], {
-    env: { HARNESS_ALLOW_INSECURE_MANIFEST_URL: "1" },
+    env: { ORCHESTRATOR_ALLOW_INSECURE_MANIFEST_URL: "1" },
   });
   assert.equal(r.code, 0, "exit 0 when escape hatch is enabled");
   assert.match(r.stderr, /WARNING/, "stderr warns the operator");
@@ -434,8 +434,8 @@ test("launcher scripts exist in the repo for every supported platform", () => {
   // depended on by docs/operator-guide.md; if any goes missing the
   // first-run UX breaks silently for that OS until someone notices.
   const required = [
-    "harness-start.bat",
-    "harness-start.sh",
+    "orchestrator-start.bat",
+    "orchestrator-start.sh",
     "scripts/launcher/launcher-cli.js",
     "scripts/launcher/install-version.ps1",
     "scripts/launcher/install-version.sh",

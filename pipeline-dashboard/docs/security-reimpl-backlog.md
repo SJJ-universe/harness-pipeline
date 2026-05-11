@@ -1,6 +1,6 @@
 # Phase 3-S — 보안 재구현 backlog (정본 추적용 요약)
 
-이 문서는 `harness-pipeline-analysis` 정본 리포 위에서 진행 중인 보안
+이 문서는 `orchestrator-pipeline-analysis` 정본 리포 위에서 진행 중인 보안
 강화 라운드(Phase 3-S)의 짧은 추적표입니다. 슬라이스별 의도와 진행
 상태만 담고, 자세한 reimpl 가이드/risk 분석/원본 reference 매핑은
 개인 플랜 폴더의 backlog를 참조합니다.
@@ -10,7 +10,7 @@
 
 ## 운영 규칙 (변경 금지)
 
-- 정본 working tree: `C:\Users\SJ\harness-pipeline-analysis` (master).
+- 정본 working tree: `C:\Users\SJ\orchestrator-pipeline-analysis` (master).
 - workspace 보존(read-only reference, 절대 수정 금지):
   - archive: `C:\Users\SJ\archive\workspace-2026-04-27\`
   - bundle: `C:\Users\SJ\archive\workspace-pipeline-dashboard-2026-04-27.bundle`

@@ -3,7 +3,7 @@
 //
 // What this module does:
 //   - For each (route × viewport) cell in the 4×4 = 16 matrix, opens
-//     a chromium browser context, navigates to the live harness
+//     a chromium browser context, navigates to the live orchestrator
 //     server, waits for the route's documented mount selector, takes
 //     a full-page PNG screenshot, records timing metadata.
 //   - Returns a manifest object describing every cell + outcome.
@@ -56,7 +56,7 @@ function cellFilename(route, viewport) {
  */
 function buildManifest({ cells, base, capturedAt, browserVersion, totalElapsedMs }) {
   return {
-    schema: "harness-visual-live/v1",
+    schema: "orchestrator-visual-live/v1",
     capturedAt,
     base,
     browser: { name: "chromium", version: browserVersion || null },

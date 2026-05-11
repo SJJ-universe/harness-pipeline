@@ -51,7 +51,7 @@ test("POL-b: GET /api/policy-packs returns frozen schema + 5 packs", async () =>
   await withServer({}, async ({ port }) => {
     const res = await httpGet(port, "/api/policy-packs");
     assert.equal(res.status, 200);
-    assert.equal(res.body.schema, "harness-policy-pack/v1");
+    assert.equal(res.body.schema, "orchestrator-policy-pack/v1");
     assert.ok(Array.isArray(res.body.packs));
     assert.equal(res.body.packs.length, 5);
   });
@@ -126,7 +126,7 @@ test("POL-b: currentPack reflects deploymentProfile.pack", async () => {
 test("POL-b: metadata.hardGatesEffectiveMode reflects POL-a precedence", async () => {
   // env=1 + no pack default → hard
   await withServer({
-    env: { HARNESS_HARD_GATES: "1" },
+    env: { ORCHESTRATOR_HARD_GATES: "1" },
   }, async ({ port }) => {
     const res = await httpGet(port, "/api/policy-packs");
     assert.equal(res.body.metadata.hardGatesEffectiveMode, "hard");
@@ -150,7 +150,7 @@ test("POL-b: metadata.hardGatesEffectiveMode 'warn' when env=0 + pack hardGatesD
   // Operator override in incident triage scenario
   await withServer({
     deploymentProfile: { pack: "finance-high-privacy", hardGatesDefault: true },
-    env: { HARNESS_HARD_GATES: "0" },
+    env: { ORCHESTRATOR_HARD_GATES: "0" },
   }, async ({ port }) => {
     const res = await httpGet(port, "/api/policy-packs");
     assert.equal(res.body.metadata.hardGatesEffectiveMode, "warn");
@@ -170,10 +170,10 @@ test("POL-b: metadata.runMemoryEffective reflects pack + env", async () => {
   });
 });
 
-test("POL-b: env HARNESS_RUN_MEMORY_DISABLE=1 → runMemoryEffective:false", async () => {
+test("POL-b: env ORCHESTRATOR_RUN_MEMORY_DISABLE=1 → runMemoryEffective:false", async () => {
   await withServer({
     deploymentProfile: { runMemoryEnabled: true },
-    env: { HARNESS_RUN_MEMORY_DISABLE: "1" },
+    env: { ORCHESTRATOR_RUN_MEMORY_DISABLE: "1" },
   }, async ({ port }) => {
     const res = await httpGet(port, "/api/policy-packs");
     assert.equal(res.body.metadata.runMemoryEffective, false);

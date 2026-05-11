@@ -14,7 +14,7 @@ const http = require("node:http");
 
 const { createDecisionContextRoutes } = require("../../src/routes/decisionContextRoutes");
 
-// ── Test harness ───────────────────────────────────────────────
+// ── Test orchestrator ───────────────────────────────────────────────
 
 function _bootApp(adapters) {
   const app = express();
@@ -62,7 +62,7 @@ test("SMART-0-b: GET /api/decision-context with no adapters → 200 + default sn
   try {
     const res = await _get(handle.base, "/api/decision-context");
     assert.equal(res.status, 200);
-    assert.equal(res.json.schema, "harness-decision-context/v1");
+    assert.equal(res.json.schema, "orchestrator-decision-context/v1");
     assert.equal(typeof res.json.timestamp, "string");
     // All adapters absent → all sources "absent"
     for (const id of [
@@ -80,11 +80,11 @@ test("SMART-0-b: GET /api/decision-context with no adapters → 200 + default sn
   }
 });
 
-test("SMART-0-b: x-harness-has-pii header → hasPii boolean true in response", async () => {
+test("SMART-0-b: x-orchestrator-has-pii header → hasPii boolean true in response", async () => {
   const handle = await _bootApp({});
   try {
     const res = await _get(handle.base, "/api/decision-context", {
-      "x-harness-has-pii": "1",
+      "x-orchestrator-has-pii": "1",
     });
     assert.equal(res.status, 200);
     assert.equal(res.json.booleans.hasPii, true);
@@ -97,7 +97,7 @@ test("SMART-0-b: header any-other-value → hasPii false", async () => {
   const handle = await _bootApp({});
   try {
     const res = await _get(handle.base, "/api/decision-context", {
-      "x-harness-has-pii": "yes",  // not exactly "1" → false
+      "x-orchestrator-has-pii": "yes",  // not exactly "1" → false
     });
     assert.equal(res.json.booleans.hasPii, false);
   } finally {

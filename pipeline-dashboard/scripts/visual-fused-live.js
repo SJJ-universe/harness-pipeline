@@ -105,7 +105,7 @@ the live product shell under ONE server boot + ONE chromium install.
 Writes a single combined output directory with 4 subdirs + summary.json.
 
 Options:
-  --port <n>            Server port (default 4799 or HARNESS_VISUAL_LIVE_PORT)
+  --port <n>            Server port (default 4799 or ORCHESTRATOR_VISUAL_LIVE_PORT)
   --out-dir <path>      Output directory (default docs/reports/<YYYY-MM-DD>-ui-fuse[-<label>]/)
   --label <text>        Optional label suffix for the directory name
   --tools <list>        Comma-separated subset (default: all 4)
@@ -191,7 +191,7 @@ function buildFusedSummary({ outDir, results, fusedAt }) {
     }
   }
   return {
-    schema: "harness-visual-fused/v1",
+    schema: "orchestrator-visual-fused/v1",
     fusedAt,
     outDir,
     tools,

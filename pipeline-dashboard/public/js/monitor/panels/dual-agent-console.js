@@ -104,11 +104,11 @@
     // selections across mounts.
     storage,
     // SMART-3-POLISH-a: localStorage key for the recently-used preset.
-    // Default uses the harness:<feature>:v1 namespace pattern shared
-    // across the dashboard (e.g. harness:runHistory:v1). Bumping the
+    // Default uses the orchestrator:<feature>:v1 namespace pattern shared
+    // across the dashboard (e.g. orchestrator:runHistory:v1). Bumping the
     // version (v2) is how a future schema change is rolled out without
     // operator intervention — old keys simply become orphans.
-    recentPresetsKey = "harness:recentPresetId:v1",
+    recentPresetsKey = "orchestrator:recentPresetId:v1",
   } = {}) {
     if (!root || typeof root.appendChild !== "function") {
       throw new Error("dual-agent-console.create: root must be an element");

@@ -330,7 +330,7 @@ test("D2-b: tier1+2 without profile uses filtered parent env (no profile require
   assert.equal(result.authenticated, true);
   // Tier 2 spawn env must have parent's ANTHROPIC_API_KEY STRIPPED
   // (filterSensitiveEnv applied) — the CLI is supposed to read its
-  // own creds from disk, not inherit them from the harness.
+  // own creds from disk, not inherit them from the orchestrator.
   assert.equal(spawnImpl.calls[1].options.env.ANTHROPIC_API_KEY, undefined);
   assert.equal(spawnImpl.calls[1].options.env.PATH, "/x");
 });

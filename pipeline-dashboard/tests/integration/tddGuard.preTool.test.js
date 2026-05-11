@@ -15,7 +15,7 @@ const { PipelineExecutor } = require("../../executor/pipeline-executor");
 const { PipelineState } = require("../../executor/pipeline-state");
 
 function makeExecutor(events = []) {
-  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "harness-tddg-"));
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-tddg-"));
   const templates = {
     // Single-phase template (D) that has tddGuard — lets us park the executor
     // here without traversing A/B/C setup.
@@ -99,7 +99,7 @@ test("Phases with no tddGuard block are unaffected (regression guard)", async ()
   // which permits Edit/Write. This test exercises the TDD Guard bypass path
   // in particular, so we need the phase to be otherwise edit-capable.
   const events = [];
-  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "harness-tddg-nop-"));
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-tddg-nop-"));
   const templates = {
     default: {
       id: "default",

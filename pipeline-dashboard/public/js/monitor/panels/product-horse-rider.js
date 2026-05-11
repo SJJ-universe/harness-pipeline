@@ -21,9 +21,9 @@
 //     bronze; passing a different accent overrides per-instance
 //
 // What this module does NOT do:
-//   - Drive the gallop/rear state from store events. The harness-track
+//   - Drive the gallop/rear state from store events. The orchestrator-track
 //     panel owns that decision (UI-P5 wires phase_change → setState).
-//   - Pan horizontally across lanes. The harness-track positions this
+//   - Pan horizontally across lanes. The orchestrator-track positions this
 //     sprite via absolute left%; the sprite itself only animates
 //     in-place.
 

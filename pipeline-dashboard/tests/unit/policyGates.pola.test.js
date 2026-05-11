@@ -4,11 +4,11 @@
 //
 // Pre-POL-a behavior: resolveGateMode(env) consulted ONLY env.
 // Pack with hardGatesDefault=true (finance-high-privacy) had no
-// effect at runtime — operator had to ALSO set HARNESS_HARD_GATES=1.
+// effect at runtime — operator had to ALSO set ORCHESTRATOR_HARD_GATES=1.
 //
 // Post-POL-a precedence (verified by these tests):
-//   1. env HARNESS_HARD_GATES=1/true/hard → "hard" (operator opt-in)
-//   2. env HARNESS_HARD_GATES=0/false/warn/no → "warn" (operator override)
+//   1. env ORCHESTRATOR_HARD_GATES=1/true/hard → "hard" (operator opt-in)
+//   2. env ORCHESTRATOR_HARD_GATES=0/false/warn/no → "warn" (operator override)
 //   3. deploymentProfile.hardGatesDefault === true → "hard" (pack rule)
 //   4. WARN (safe default)
 //
@@ -27,7 +27,7 @@ const policyGates = require("../../src/policy/policyGates");
 
 test("POL-a resolveGateMode: env=1 + pack default=warn → hard (env wins)", () => {
   const mode = policyGates.resolveGateMode(
-    { HARNESS_HARD_GATES: "1" },
+    { ORCHESTRATOR_HARD_GATES: "1" },
     { hardGatesDefault: false },
   );
   assert.equal(mode, "hard");
@@ -35,10 +35,10 @@ test("POL-a resolveGateMode: env=1 + pack default=warn → hard (env wins)", () 
 
 test("POL-a resolveGateMode: env=0 + pack default=true → warn (operator override beats pack)", () => {
   // Operator running finance-high-privacy who needs to soften gates
-  // during incident triage / migration. HARNESS_HARD_GATES=0 wins
+  // during incident triage / migration. ORCHESTRATOR_HARD_GATES=0 wins
   // over the pack's hardGatesDefault=true.
   const mode = policyGates.resolveGateMode(
-    { HARNESS_HARD_GATES: "0" },
+    { ORCHESTRATOR_HARD_GATES: "0" },
     { hardGatesDefault: true },
   );
   assert.equal(mode, "warn",
@@ -47,7 +47,7 @@ test("POL-a resolveGateMode: env=0 + pack default=true → warn (operator overri
 
 test("POL-a resolveGateMode: env=warn + pack default=true → warn", () => {
   const mode = policyGates.resolveGateMode(
-    { HARNESS_HARD_GATES: "warn" },
+    { ORCHESTRATOR_HARD_GATES: "warn" },
     { hardGatesDefault: true },
   );
   assert.equal(mode, "warn");
@@ -55,7 +55,7 @@ test("POL-a resolveGateMode: env=warn + pack default=true → warn", () => {
 
 test("POL-a resolveGateMode: env=false + pack default=true → warn", () => {
   const mode = policyGates.resolveGateMode(
-    { HARNESS_HARD_GATES: "false" },
+    { ORCHESTRATOR_HARD_GATES: "false" },
     { hardGatesDefault: true },
   );
   assert.equal(mode, "warn");
@@ -63,7 +63,7 @@ test("POL-a resolveGateMode: env=false + pack default=true → warn", () => {
 
 test("POL-a resolveGateMode: env=no + pack default=true → warn", () => {
   const mode = policyGates.resolveGateMode(
-    { HARNESS_HARD_GATES: "no" },
+    { ORCHESTRATOR_HARD_GATES: "no" },
     { hardGatesDefault: true },
   );
   assert.equal(mode, "warn");
@@ -98,28 +98,28 @@ test("POL-a resolveGateMode: env unset + no pack → warn (legacy 1-arg behavior
 test("POL-a resolveGateMode: env empty string + pack default=true → hard (empty != explicit)", () => {
   // Empty string env value is treated as unset (whitespace-only also).
   const mode = policyGates.resolveGateMode(
-    { HARNESS_HARD_GATES: "" },
+    { ORCHESTRATOR_HARD_GATES: "" },
     { hardGatesDefault: true },
   );
   assert.equal(mode, "hard");
 });
 
 test("POL-a resolveGateMode: env unrecognized + pack default=true → hard (unknown env doesn't suppress pack)", () => {
-  // An unrecognized env value (e.g., HARNESS_HARD_GATES="maybe") is
+  // An unrecognized env value (e.g., ORCHESTRATOR_HARD_GATES="maybe") is
   // treated as unset rather than as an explicit warn — so the pack
   // default still wins. This matches the principle "explicit override
   // requires recognized truthy/falsy value".
   const mode = policyGates.resolveGateMode(
-    { HARNESS_HARD_GATES: "maybe" },
+    { ORCHESTRATOR_HARD_GATES: "maybe" },
     { hardGatesDefault: true },
   );
   assert.equal(mode, "hard");
 });
 
 test("POL-a resolveGateMode: env case-insensitive (FALSE / Hard / WARN)", () => {
-  assert.equal(policyGates.resolveGateMode({ HARNESS_HARD_GATES: "FALSE" }, {}), "warn");
-  assert.equal(policyGates.resolveGateMode({ HARNESS_HARD_GATES: "Hard" }, {}), "hard");
-  assert.equal(policyGates.resolveGateMode({ HARNESS_HARD_GATES: "WARN" }, {}), "warn");
+  assert.equal(policyGates.resolveGateMode({ ORCHESTRATOR_HARD_GATES: "FALSE" }, {}), "warn");
+  assert.equal(policyGates.resolveGateMode({ ORCHESTRATOR_HARD_GATES: "Hard" }, {}), "hard");
+  assert.equal(policyGates.resolveGateMode({ ORCHESTRATOR_HARD_GATES: "WARN" }, {}), "warn");
 });
 
 // ── Gate function integration ─────────────────────────────────────
@@ -141,7 +141,7 @@ test("POL-a gatePiiBlock: pack hardGatesDefault=true + PII + env unset → BLOCK
 
 test("POL-a gatePiiBlock: pack hardGatesDefault=false + PII + env unset → ok+warn", () => {
   // public-sector pack (hardGatesDefault=false) preserves graduated
-  // rollout — operator must explicitly opt in via HARNESS_HARD_GATES=1.
+  // rollout — operator must explicitly opt in via ORCHESTRATOR_HARD_GATES=1.
   const verdict = policyGates.gatePiiBlock({
     args: "review user jane.doe@example.com",
     deploymentProfile: { publicSector: true, hardGatesDefault: false },
@@ -216,10 +216,10 @@ test("POL-a backwards-compat: gatePiiBlock without deploymentProfile → legacy 
 
 // ── Realistic scenario: finance-high-privacy operator without env override ──
 
-test("POL-a SCENARIO: finance-high-privacy operator without HARNESS_HARD_GATES → automatic hard mode", () => {
+test("POL-a SCENARIO: finance-high-privacy operator without ORCHESTRATOR_HARD_GATES → automatic hard mode", () => {
   // The headline POL-a behavior. An operator who chose the
   // finance-high-privacy pack expects strict gates — they should
-  // NOT have to ALSO remember to set HARNESS_HARD_GATES=1.
+  // NOT have to ALSO remember to set ORCHESTRATOR_HARD_GATES=1.
   const verdict = policyGates.gatePiiBlock({
     args: "review user data: SSN 123-45-6789",  // would be detected
     deploymentProfile: {
@@ -231,7 +231,7 @@ test("POL-a SCENARIO: finance-high-privacy operator without HARNESS_HARD_GATES �
     "finance-high-privacy operator gets hard gates without env opt-in");
 });
 
-test("POL-a SCENARIO: public-sector operator (graduated rollout) needs HARNESS_HARD_GATES=1", () => {
+test("POL-a SCENARIO: public-sector operator (graduated rollout) needs ORCHESTRATOR_HARD_GATES=1", () => {
   // The public-sector pack has hardGatesDefault=false — operator
   // must explicitly enable hard gates. This preserves the SMART-2
   // graduated rollout strategy.
@@ -248,15 +248,15 @@ test("POL-a SCENARIO: public-sector operator (graduated rollout) needs HARNESS_H
   assert.equal(verdict.blocked, false);
 });
 
-test("POL-a SCENARIO: incident triage on finance-high-privacy → operator sets HARNESS_HARD_GATES=0", () => {
+test("POL-a SCENARIO: incident triage on finance-high-privacy → operator sets ORCHESTRATOR_HARD_GATES=0", () => {
   // Operator on finance-high-privacy needs to temporarily soften
-  // gates. HARNESS_HARD_GATES=0 lets them do that without changing
+  // gates. ORCHESTRATOR_HARD_GATES=0 lets them do that without changing
   // the pack id (which would also flip sandbox / signing).
   const verdict = policyGates.gatePiiBlock({
     args: "incident-investigation: review jane.doe@example.com",
     deploymentProfile: { publicSector: true, hardGatesDefault: true },
     mode: policyGates.resolveGateMode(
-      { HARNESS_HARD_GATES: "0" },
+      { ORCHESTRATOR_HARD_GATES: "0" },
       { publicSector: true, hardGatesDefault: true },
     ),
   });

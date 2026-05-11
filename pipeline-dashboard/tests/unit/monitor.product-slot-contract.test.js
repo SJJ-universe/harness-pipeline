@@ -21,7 +21,7 @@ const assert = require("node:assert/strict");
 
 const productShell = require("../../public/js/monitor/shells/product-shell");
 const productHeader = require("../../public/js/monitor/panels/product-header");
-const productOrchestratorTrack = require("../../public/js/monitor/panels/product-harness-track");
+const productOrchestratorTrack = require("../../public/js/monitor/panels/product-orchestrator-track");
 const productPipelineRail = require("../../public/js/monitor/panels/product-pipeline-rail");
 const productMonitorGrid = require("../../public/js/monitor/panels/product-monitor-grid");
 const productDualTerminals = require("../../public/js/monitor/panels/product-dual-terminals");
@@ -131,7 +131,7 @@ const makeRoot = () => makeStubElement("div");
 test("UI-P4 contract: every panel root carries data-region with documented value", () => {
   const checks = [
     { name: "header", factory: productHeader, region: "header" },
-    { name: "harness-track", factory: productOrchestratorTrack, region: "harness-track" },
+    { name: "orchestrator-track", factory: productOrchestratorTrack, region: "orchestrator-track" },
     { name: "pipeline-rail", factory: productPipelineRail, region: "pipeline-rail" },
     { name: "monitor-grid", factory: productMonitorGrid, region: "monitor-grid" },
     { name: "dual-terminals", factory: productDualTerminals, region: "dual-terminals" },
@@ -158,7 +158,7 @@ test("UI-P4 contract: shell skeleton carries data-region-mount slots for all pan
       grid: stubFactory, terminals: stubFactory, chat: stubFactory,
     },
   });
-  const expected = ["header", "harness-track", "workspace", "pipeline-rail",
+  const expected = ["header", "orchestrator-track", "workspace", "pipeline-rail",
     "monitor-stack", "monitor-grid", "dual-terminals",
     // AGENT-DESKTOP-0-c (2026-05-06): chat panel mount slot.
     "chat"];
@@ -442,9 +442,9 @@ test("UI-P4 contract: header indicators carry data-indicator + nested slot", () 
   }
 });
 
-// ── Harness track vocabulary ────────────────────────────────────
+// ── Orchestrator track vocabulary ────────────────────────────────────
 
-test("UI-P4 contract: harness-track lanes carry data-lane-index 0..6 + gate flag", () => {
+test("UI-P4 contract: orchestrator-track lanes carry data-lane-index 0..6 + gate flag", () => {
   const root = makeRoot();
   const store = createMonitorStore();
   productOrchestratorTrack.create({ root, store, doc: makeStubDoc() });
@@ -457,7 +457,7 @@ test("UI-P4 contract: harness-track lanes carry data-lane-index 0..6 + gate flag
   assert.equal(gateLanes.length, 3, "3 lanes carry data-gate=true");
 });
 
-test("UI-P4 contract: harness-track exposes status-pill + horse mount slots", () => {
+test("UI-P4 contract: orchestrator-track exposes status-pill + horse mount slots", () => {
   const root = makeRoot();
   const store = createMonitorStore();
   productOrchestratorTrack.create({ root, store, doc: makeStubDoc() });
@@ -513,7 +513,7 @@ test("PRODUCT-SHELL-WIRING: shutdown lives in the pro-only cluster (NOT always v
     "shutdown must live INSIDE the pro-only cluster (field-pilot safety gate)");
 });
 
-test("runtime contract: harness-track suppresses 'current' lane + horse + stage pill when allowMockData=false and no live run", () => {
+test("runtime contract: orchestrator-track suppresses 'current' lane + horse + stage pill when allowMockData=false and no live run", () => {
   const root = makeRoot();
   const store = createMonitorStore();
   const handle = productOrchestratorTrack.create({
@@ -530,12 +530,12 @@ test("runtime contract: harness-track suppresses 'current' lane + horse + stage 
   // None of the lanes carry "current" — the visual "running" cue is gone.
   const currentLanes = root._findAllByAttr("data-state", "current");
   assert.equal(currentLanes.length, 0,
-    "idle harness-track must not highlight any lane as 'current'");
+    "idle orchestrator-track must not highlight any lane as 'current'");
   // Status pill carries data-activity=idle + idle copy (NOT "STAGE 1/7 · PLAN").
   const pill = root._findOneByAttr("data-track-slot", "status-pill");
   assert.ok(pill, "status pill must render");
   assert.equal(pill.attributes["data-activity"], "idle",
-    "idle harness-track must mark the pill data-activity=idle");
+    "idle orchestrator-track must mark the pill data-activity=idle");
   assert.ok(!/STAGE 1\/7/.test(pill.textContent),
     "idle pill must not surface the 'STAGE n/7' running label");
   // Horse wrap still exists (layout placeholder) but carries no sprite/emoji.
@@ -548,7 +548,7 @@ test("runtime contract: harness-track suppresses 'current' lane + horse + stage 
   assert.equal(state.allowMockData, false);
 });
 
-test("runtime contract: harness-track preserves galloping affordance in demo mode (allowMockData=true)", () => {
+test("runtime contract: orchestrator-track preserves galloping affordance in demo mode (allowMockData=true)", () => {
   const root = makeRoot();
   const store = createMonitorStore();
   const handle = productOrchestratorTrack.create({
@@ -560,7 +560,7 @@ test("runtime contract: harness-track preserves galloping affordance in demo mod
   // Lane 0 should be the "current" lane in demo mode (currentStage=0).
   const currentLanes = root._findAllByAttr("data-state", "current");
   assert.equal(currentLanes.length, 1,
-    "demo harness-track marks exactly one lane (PLAN) as current");
+    "demo orchestrator-track marks exactly one lane (PLAN) as current");
   // Pill carries data-activity=active + the running stage label.
   const pill = root._findOneByAttr("data-track-slot", "status-pill");
   assert.equal(pill.attributes["data-activity"], "active");

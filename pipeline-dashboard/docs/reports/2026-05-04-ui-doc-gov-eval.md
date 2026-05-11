@@ -44,8 +44,8 @@ This test ensures a future round can't add an axe custom rule or a button withou
 
 | File | Section |
 |---|---|
-| `docs/harness-pipeline-distribution-guide.md` | NEW §16-A "Visual Contract Family (UI-P9~P13 통합)" |
-| `docs/harness-pipeline-reference-guide-draft.md` | NEW §19-A "Visual Contract Family와 운영 governance" |
+| `docs/orchestrator-pipeline-distribution-guide.md` | NEW §16-A "Visual Contract Family (UI-P9~P13 통합)" |
+| `docs/orchestrator-pipeline-reference-guide-draft.md` | NEW §19-A "Visual Contract Family와 운영 governance" |
 
 Distribution guide adds an operator-facing summary table + anti-pattern hint + pointers to runbooks + governance doc as single entry-point.
 
@@ -106,8 +106,8 @@ What this round changes operationally: future PRs touching visual contracts can 
 |---|---|
 | `docs/visual-contract-governance.md` | docs — master governance (391 lines) |
 | `tests/unit/visual-contract-governance.test.js` | test (8) — drift detection |
-| `docs/harness-pipeline-distribution-guide.md` (modified) | docs — §16-A added |
-| `docs/harness-pipeline-reference-guide-draft.md` (modified) | docs — §19-A added |
+| `docs/orchestrator-pipeline-distribution-guide.md` (modified) | docs — §16-A added |
+| `docs/orchestrator-pipeline-reference-guide-draft.md` (modified) | docs — §19-A added |
 | `docs/reports/2026-05-04-ui-doc-gov-eval.md` | docs — this closeout |
 
 ---
@@ -151,8 +151,8 @@ cat docs/visual-contract-governance.md
 node --test tests/unit/visual-contract-governance.test.js
 
 # Read the cross-linked sections in production guides
-grep -A 20 "16-A" docs/harness-pipeline-distribution-guide.md
-grep -A 20 "19-A" docs/harness-pipeline-reference-guide-draft.md
+grep -A 20 "16-A" docs/orchestrator-pipeline-distribution-guide.md
+grep -A 20 "19-A" docs/orchestrator-pipeline-reference-guide-draft.md
 ```
 
 The drift test ensures `docs/visual-contract-governance.md` §7 stays in lockstep with frozen-list counts in:

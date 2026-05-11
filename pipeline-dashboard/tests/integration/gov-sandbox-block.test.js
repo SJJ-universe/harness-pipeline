@@ -95,11 +95,11 @@ function makeFakeSpawn() {
 }
 
 function withPublicSectorEnv(t) {
-  const prev = process.env.HARNESS_DEPLOYMENT_PROFILE;
-  process.env.HARNESS_DEPLOYMENT_PROFILE = "public-sector";
+  const prev = process.env.ORCHESTRATOR_DEPLOYMENT_PROFILE;
+  process.env.ORCHESTRATOR_DEPLOYMENT_PROFILE = "public-sector";
   t.after(() => {
-    if (prev === undefined) delete process.env.HARNESS_DEPLOYMENT_PROFILE;
-    else process.env.HARNESS_DEPLOYMENT_PROFILE = prev;
+    if (prev === undefined) delete process.env.ORCHESTRATOR_DEPLOYMENT_PROFILE;
+    else process.env.ORCHESTRATOR_DEPLOYMENT_PROFILE = prev;
   });
 }
 
@@ -217,10 +217,10 @@ test("GOV-SB-0 CodexRunner: public-sector mode emits local_executor_blocked audi
 test("GOV-SB-0: standard mode emits NO local_executor_blocked audit (regression guard)", async (t) => {
   // Make sure standard-mode users don't see deny-by-policy noise in
   // the ledger. Every existing single-user install relies on this.
-  const prev = process.env.HARNESS_DEPLOYMENT_PROFILE;
-  delete process.env.HARNESS_DEPLOYMENT_PROFILE; // explicit standard
+  const prev = process.env.ORCHESTRATOR_DEPLOYMENT_PROFILE;
+  delete process.env.ORCHESTRATOR_DEPLOYMENT_PROFILE; // explicit standard
   t.after(() => {
-    if (prev !== undefined) process.env.HARNESS_DEPLOYMENT_PROFILE = prev;
+    if (prev !== undefined) process.env.ORCHESTRATOR_DEPLOYMENT_PROFILE = prev;
   });
 
   const ledger = makeLedger();

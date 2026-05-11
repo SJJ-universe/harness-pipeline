@@ -19,13 +19,13 @@ round that requires actual deployment.
 > **작업 디렉토리 / Working directory**: every command in this
 > runbook runs from inside the npm package directory
 > `pipeline-dashboard/` (which sits inside the git repo at
-> `harness-pipeline-analysis/`). Running `git` from the parent
+> `orchestrator-pipeline-analysis/`). Running `git` from the parent
 > works (git walks up to find `.git`); running `npm` from the
 > parent fails with `ENOENT` because that's where `package.json`
 > lives. **`cd` first** before every block:
 >
 > ```powershell
-> cd C:\path\to\harness-pipeline-analysis\pipeline-dashboard
+> cd C:\path\to\orchestrator-pipeline-analysis\pipeline-dashboard
 > ```
 
 ## §1 Why this runbook exists
@@ -58,7 +58,7 @@ and §4.
 ### §2.1 Why it blocks v1.0.0
 
 Both `live-verify-smart-arc.js` and `live-verify-review-relay.js`
-are integration probes designed to drive the harness against
+are integration probes designed to drive the orchestrator against
 real Claude/Codex CLIs and produce verifiable evidence packets.
 The CLI surface is unit-tested (CONFIG path, JSON mode, --help)
 but no committed evidence file shows the probe ran successfully
@@ -73,16 +73,16 @@ claim "live-verified against real-binary Claude + Codex".
 
 - Claude CLI installed and authenticated (`claude --version` + `claude login`)
 - Codex CLI installed and authenticated (`codex --version` + `codex login`)
-- Harness server booted with the right env (see each probe's header)
+- Orchestrator server booted with the right env (see each probe's header)
 
 **Probe 1 — SMART arc** (6 properties: hard gates, finance pack,
 PII block, redacted memory, recommendations, preset dispatch):
 
 ```powershell
-cd C:\path\to\harness-pipeline-analysis\pipeline-dashboard
-$env:HARNESS_DEPLOYMENT_PROFILE = "finance-high-privacy"
-$env:HARNESS_HARD_GATES = "1"
-$env:HARNESS_TOKEN = "<test-token>"
+cd C:\path\to\orchestrator-pipeline-analysis\pipeline-dashboard
+$env:ORCHESTRATOR_DEPLOYMENT_PROFILE = "finance-high-privacy"
+$env:ORCHESTRATOR_HARD_GATES = "1"
+$env:ORCHESTRATOR_TOKEN = "<test-token>"
 node start.js          # in a separate terminal (also cd into pipeline-dashboard there)
 node scripts/live-verify-smart-arc.js
 ```
@@ -94,8 +94,8 @@ Evidence: `docs/reports/<date>-smart-arc-live-verify.json`.
 hand-back end-to-end):
 
 ```powershell
-cd C:\path\to\harness-pipeline-analysis\pipeline-dashboard
-$env:HARNESS_TOKEN = "<test-token>"
+cd C:\path\to\orchestrator-pipeline-analysis\pipeline-dashboard
+$env:ORCHESTRATOR_TOKEN = "<test-token>"
 node start.js          # in a separate terminal (also cd into pipeline-dashboard there)
 node scripts/live-verify-review-relay.js
 ```
@@ -178,7 +178,7 @@ least once with evidence captured.
 **Phase 1 — Generate a signed release manifest**:
 
 ```powershell
-cd C:\path\to\harness-pipeline-analysis\pipeline-dashboard
+cd C:\path\to\orchestrator-pipeline-analysis\pipeline-dashboard
 node scripts/sign-manifest.js --help        # confirm tool reachable
 # Generate keypair, sign a sample release manifest. Specifics
 # depend on the deployer's signing infrastructure.
@@ -187,9 +187,9 @@ node scripts/sign-manifest.js --help        # confirm tool reachable
 **Phase 2 — Install via the launcher with the gate active**:
 
 ```powershell
-$env:HARNESS_TRUST_STORE = "C:\path\to\trust-store.json"
-$env:HARNESS_REQUIRE_SIGNED_MANIFEST = "1"
-.\harness-start.bat
+$env:ORCHESTRATOR_TRUST_STORE = "C:\path\to\trust-store.json"
+$env:ORCHESTRATOR_REQUIRE_SIGNED_MANIFEST = "1"
+.\orchestrator-start.bat
 # Expected: install proceeds when manifest is signed by a
 # trust-store key; exits 37 / 38 when not.
 ```
@@ -239,12 +239,12 @@ The blocker closes when **all** of the following are true:
 - E2E report: `docs/reports/<YYYY-MM-DD>-trust-store-e2e-eval.md`.
 - Trust-store fixture (sample, not real keys):
   [`../fixtures/trust-store-example.json`](../fixtures/trust-store-example.json).
-  This file shows the schema shape (`harness-release-trust/v1` plus a
+  This file shows the schema shape (`orchestrator-release-trust/v1` plus a
   `keys[]` array). The placeholder `publicKeyDerBase64` must be
   obviously non-real (`REPLACE_ME`...) — the integration test
   [`tests/integration/trust-store-path-precedence.test.js`](../../tests/integration/trust-store-path-precedence.test.js)
   enforces that anti-real-key guard.
-- Audit chain anchors: in the harness audit ledger, exported via
+- Audit chain anchors: in the orchestrator audit ledger, exported via
   `scripts/external-review-bundle.js`.
 
 ### §3.5 Risks
@@ -253,7 +253,7 @@ The blocker closes when **all** of the following are true:
   (key custody, rotation policy). The runbook should not commit
   real keys; it should describe the convention and link to the
   deployer's signing playbook.
-- HARNESS_ALLOW_UNSIGNED_MANIFEST=1 dev-escape MUST NOT be set in
+- ORCHESTRATOR_ALLOW_UNSIGNED_MANIFEST=1 dev-escape MUST NOT be set in
   the production-posture phases. The operator runbook explicitly
   documents this carve-out.
 
@@ -284,7 +284,7 @@ The field-pilot is a **calendar-time** procedure, not a single
 command. The four runbooks in `docs/runbooks/field-pilot-*.md`
 define the daily, on-incident, and end-of-week protocols:
 
-- Day 0: bring up the harness on the pilot deployment, capture
+- Day 0: bring up the orchestrator on the pilot deployment, capture
   baseline state. Fill `field-pilot-deployment-log.md` Day 0
   template.
 - Days 1–7: daily activity log entries; on incident → fill

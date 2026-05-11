@@ -17,7 +17,7 @@
 // add a `viewports` knob; for v1 single-desktop is the right
 // trade-off.
 //
-// Manifest schema `harness-visual-button/v1` (distinct from
+// Manifest schema `orchestrator-visual-button/v1` (distinct from
 // capture v1 / assert v1 / a11y v1).
 
 "use strict";
@@ -97,7 +97,7 @@ function buildButtonManifest({ cells, base, capturedAt, browserVersion, totalEla
     totalButtonsSkipped: cells.reduce((s, c) => s + (c.summary ? c.summary.skipped : 0), 0),
   };
   return {
-    schema: "harness-visual-button/v1",
+    schema: "orchestrator-visual-button/v1",
     capturedAt,
     base,
     browser: { name: "chromium", version: browserVersion || null },

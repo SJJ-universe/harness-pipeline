@@ -136,7 +136,7 @@ test("GOV-AUDIT-0 smoke: sealed bundle without --key reports key required", () =
   }
 });
 
-test("GOV-AUDIT-0 smoke: HARNESS_AUDIT_KEY env works as alternative to --key", () => {
+test("GOV-AUDIT-0 smoke: ORCHESTRATOR_AUDIT_KEY env works as alternative to --key", () => {
   const ledger = makeStubLedger({
     entriesByRun: { run1: [{ eventId: "e1", at: "2026-04-30T00:00:00Z", type: "x" }] },
     chainByRun: { run1: { valid: true, entries: 1 } },
@@ -150,7 +150,7 @@ test("GOV-AUDIT-0 smoke: HARNESS_AUDIT_KEY env works as alternative to --key", (
   try {
     const r = spawnSync(process.execPath, [SCRIPT, file], {
       encoding: "utf-8",
-      env: { ...process.env, HARNESS_AUDIT_KEY: sealKey.toString("hex") },
+      env: { ...process.env, ORCHESTRATOR_AUDIT_KEY: sealKey.toString("hex") },
     });
     assert.equal(r.status, 0);
     assert.match(r.stdout, /RESULT: PASS/);

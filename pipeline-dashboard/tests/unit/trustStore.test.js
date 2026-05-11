@@ -143,7 +143,7 @@ test("trustStore: add() round-trip — key persists + keyId derived", (t) => {
   assert.match(added.addedAt, /^\d{4}-\d{2}-\d{2}T/);
   // File written + parseable
   const onDisk = JSON.parse(fs.readFileSync(filePath, "utf-8"));
-  assert.equal(onDisk.schema, "harness-release-trust/v1");
+  assert.equal(onDisk.schema, "orchestrator-release-trust/v1");
   assert.equal(onDisk.keys.length, 1);
   // get() returns the same shape
   assert.equal(store.get(k.keyId).keyId, k.keyId);
@@ -328,7 +328,7 @@ test("trustStore: per-key shape malformed on read throws trust_file_invalid", (t
   const filePath = path.join(dir, "ts.json");
   // Hand-edited file with a missing keyId field.
   fs.writeFileSync(filePath, JSON.stringify({
-    schema: "harness-release-trust/v1",
+    schema: "orchestrator-release-trust/v1",
     keys: [{ publicKeyDerBase64: "abc" }],
   }));
   const store = createTrustStore({ filePath });
@@ -345,7 +345,7 @@ test("trustStore: BOM-prefixed file is tolerated", (t) => {
   // UTF-8 BOM (﻿) prepended — PowerShell 5.1 emits this by default
   // when an operator uses Set-Content -Encoding utf8 to seed a file.
   fs.writeFileSync(filePath, "﻿" + JSON.stringify({
-    schema: "harness-release-trust/v1",
+    schema: "orchestrator-release-trust/v1",
     keys: [],
   }));
   const store = createTrustStore({ filePath });

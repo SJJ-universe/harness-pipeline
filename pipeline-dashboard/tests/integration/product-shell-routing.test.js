@@ -106,9 +106,9 @@ test("UI-P8 routing: /?mode=legacy serves the deprecation banner + dismiss contr
     assert.equal(res.status, 200);
     const html = await res.text();
     // Banner mount + class hooks present
-    assert.match(html, /id="harness-legacy-banner"/,
+    assert.match(html, /id="orchestrator-legacy-banner"/,
       "legacy banner element must be present in /?mode=legacy");
-    assert.match(html, /class="harness-legacy-banner"/);
+    assert.match(html, /class="orchestrator-legacy-banner"/);
     assert.match(html, /class="legacy-banner-dismiss"/,
       "dismiss button must be present in legacy banner markup");
     // CTA links to root (the product shell)
@@ -130,7 +130,7 @@ test("UI-P8 routing: GET / (product shell) does NOT contain the legacy banner", 
     const res = await fetch(`${BASE}/`);
     assert.equal(res.status, 200);
     const html = await res.text();
-    assert.equal(html.includes("harness-legacy-banner"), false,
+    assert.equal(html.includes("orchestrator-legacy-banner"), false,
       "product shell never carries the legacy deprecation banner — banner is " +
       "scoped to /?mode=legacy only (per UI-P0 §285+286)",
     );

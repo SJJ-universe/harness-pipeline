@@ -172,21 +172,21 @@ describe("tool_blocked source field", () => {
   });
 });
 
-describe("Harness track animation structure", () => {
-  // Slice UI-P1 (2026-04-30): the legacy harness-track / horse-rider /
+describe("Orchestrator track animation structure", () => {
+  // Slice UI-P1 (2026-04-30): the legacy orchestrator-track / horse-rider /
   // pipeline-pill DOM lives in index.legacy.html now. The product
-  // shell at index.html mounts its own harness-track via
-  // product-harness-track.js; the legacy DOM stays available via
+  // shell at index.html mounts its own orchestrator-track via
+  // product-orchestrator-track.js; the legacy DOM stays available via
   // ?mode=legacy. Each round below verifies the structure is
   // PRESERVED in legacy.html — the operator-friendly alternate view
   // depends on it.
   const htmlSrc = readFile("public/index.legacy.html");
   const appSrc = readFile("public/app.js");
 
-  it("legacy index.html contains harness-track, horse-rider, harness-status elements", () => {
-    assert.ok(htmlSrc.includes('id="harness-track"'), "harness-track missing in legacy");
+  it("legacy index.html contains orchestrator-track, horse-rider, orchestrator-status elements", () => {
+    assert.ok(htmlSrc.includes('id="orchestrator-track"'), "orchestrator-track missing in legacy");
     assert.ok(htmlSrc.includes('id="horse-rider"'), "horse-rider missing in legacy");
-    assert.ok(htmlSrc.includes('id="harness-status"'), "harness-status missing in legacy");
+    assert.ok(htmlSrc.includes('id="orchestrator-status"'), "orchestrator-status missing in legacy");
   });
 
   it("legacy index.html title is SJ Orchestrator — Legacy", () => {

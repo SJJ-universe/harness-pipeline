@@ -10,9 +10,9 @@
 #
 # Prerequisites:
 #   Boot the harness with:
-#     HARNESS_DEPLOYMENT_PROFILE=finance-high-privacy
-#     HARNESS_HARD_GATES=1
-#     HARNESS_TOKEN=<test-token>
+#     ORCHESTRATOR_DEPLOYMENT_PROFILE=finance-high-privacy
+#     ORCHESTRATOR_HARD_GATES=1
+#     ORCHESTRATOR_TOKEN=<test-token>
 #     node start.js
 #
 # Examples:

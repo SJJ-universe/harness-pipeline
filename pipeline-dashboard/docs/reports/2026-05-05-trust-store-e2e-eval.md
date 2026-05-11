@@ -51,7 +51,7 @@ Files produced (in `<tmp>/keystore/`):
 
 The `release.zip` is a 10 KB synthetic test bundle (`README-release.txt`
 + `package.json`). The `file://` URL is dev-only; production deployers
-use `https://`. `HARNESS_ALLOW_INSECURE_MANIFEST_URL=1` was set for the
+use `https://`. `ORCHESTRATOR_ALLOW_INSECURE_MANIFEST_URL=1` was set for the
 duration of this E2E test (loud warning was emitted at fetch time).
 
 ### §1.3 Signing
@@ -97,7 +97,7 @@ captured to the audit ledger).
 ### §2.1 Scenario A — Signed manifest + known key (positive case)
 
 ```text
-[validate-manifest-url] WARNING: accepting non-https URL ... HARNESS_ALLOW_INSECURE_MANIFEST_URL=1
+[validate-manifest-url] WARNING: accepting non-https URL ... ORCHESTRATOR_ALLOW_INSECURE_MANIFEST_URL=1
 [install-version] manifest OK: version=1.0.0-e2e
 [install-version] resolving trust store path...
 [install-version] trust store: ...harness-e2e-...\trust-store.json (source=env-trust-store, exists=True)
@@ -191,7 +191,7 @@ the signature attested to are not the bytes that arrived.
 ### §4.2 Manifest schema rejected `file://` URLs even with the dev-only env override
 
 The fetch-stage validator (`launcher-cli validate-manifest-url`) honors
-`HARNESS_ALLOW_INSECURE_MANIFEST_URL=1`. The manifest BODY validator
+`ORCHESTRATOR_ALLOW_INSECURE_MANIFEST_URL=1`. The manifest BODY validator
 in `src/runtime/launcherManifest.js` did not — it always required
 `https://`. This made the E2E test impossible without spinning up an
 HTTPS server with self-signed cert.
@@ -199,7 +199,7 @@ HTTPS server with self-signed cert.
 **Fix landed in same round**: extended the env override to also relax
 the body-url check. Production posture (env unset) keeps the strict
 `https://` rule. Two new unit tests pin both branches:
-- `HARNESS_ALLOW_INSECURE_MANIFEST_URL=1 relaxes manifest-body url check`
+- `ORCHESTRATOR_ALLOW_INSECURE_MANIFEST_URL=1 relaxes manifest-body url check`
 - `env unset or != '1' keeps file:// rejected (production posture)`
 
 ---

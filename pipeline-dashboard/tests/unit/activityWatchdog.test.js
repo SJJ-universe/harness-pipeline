@@ -11,7 +11,7 @@ const assert = require("node:assert/strict");
 
 const w = require("../../src/runtime/activityWatchdog");
 
-// ── Fake timer harness ─────────────────────────────────────────────
+// ── Fake timer orchestrator ─────────────────────────────────────────────
 //
 // We don't use node:timers/fake or jest fake timers. A small in-memory
 // scheduler keyed by virtual time gives us identical behavior with
@@ -73,7 +73,7 @@ function makeWatchdog(overrides = {}) {
 // ── Frozen vocabulary ─────────────────────────────────────────────
 
 test("watchdog: SCHEMA + STATES + KILL_REASONS frozen", () => {
-  assert.equal(w.SCHEMA, "harness-activity-watchdog/v1");
+  assert.equal(w.SCHEMA, "orchestrator-activity-watchdog/v1");
   assert.ok(Object.isFrozen(w.STATES));
   assert.ok(Object.isFrozen(w.KILL_REASONS));
   assert.equal(w.STATES.IDLE, "idle");

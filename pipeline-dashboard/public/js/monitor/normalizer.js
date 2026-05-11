@@ -1,6 +1,6 @@
 // Slice MA1 (Phase D, 2026-04-27) — OrchestratorMonitorNormalizer.
 //
-// Translates the harness's heterogeneous broadcast events into the single
+// Translates the orchestrator's heterogeneous broadcast events into the single
 // canonical envelope spec section 6.5 defines:
 //
 //   { type, runId, ts, scope, summary, payload }

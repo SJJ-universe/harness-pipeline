@@ -391,7 +391,7 @@ function nodeToPhase(node) {
   return _nodePhaseMap[node] || null;
 }
 
-// ── Harness Horse Animation ──
+// ── Orchestrator Horse Animation ──
 // Slice AC (Phase 2.5): the pixel-art horse SVG generator, the gallop
 // frame loop, and the idle/galloping/reining state machine all moved
 // to public/js/horse-animation.js (OrchestratorHorseAnimation). The wrappers
@@ -810,7 +810,7 @@ function handleEvent(event) {
       handleAutoPipeline(event.data);
       break;
 
-    // ── Harness events (Phase 1-4) ──
+    // ── Orchestrator events (Phase 1-4) ──
     case "harness_mode":
       updateOrchestratorMode(event.data.enabled);
       break;
@@ -1129,7 +1129,7 @@ function handleEvent(event) {
   }
 }
 
-// ── Harness Helpers (Phase 1-4 events) ──
+// ── Orchestrator Helpers (Phase 1-4 events) ──
 
 function handlePipelineMutated(data) {
   const { template, mutationType, ruleId, nextIdx } = data;
@@ -1164,18 +1164,18 @@ function updateCycleCounter(iteration) {
 }
 
 function updateOrchestratorMode(enabled) {
-  let el = document.getElementById("harness-mode-indicator");
+  let el = document.getElementById("orchestrator-mode-indicator");
   if (!el) {
     const right = document.querySelector(".header-right");
     if (!right) return;
     el = document.createElement("span");
-    el.id = "harness-mode-indicator";
-    el.className = "harness-mode-indicator";
+    el.id = "orchestrator-mode-indicator";
+    el.className = "orchestrator-mode-indicator";
     el.title = "오케스트레이터 모드 (클릭하여 토글)";
     el.addEventListener("click", toggleOrchestratorMode);
     right.appendChild(el);
   }
-  el.textContent = enabled ? "🔒 Harness ON" : "Harness OFF";
+  el.textContent = enabled ? "🔒 Orchestrator ON" : "Orchestrator OFF";
   el.classList.toggle("on", !!enabled);
 }
 
@@ -1699,7 +1699,7 @@ function initEventBindings() {
   });
   // Slice E (v4): run history drawer. applyReplayEvent must be reachable from
   // the drawer's click handler — expose it on window explicitly so the test
-  // harness and the drawer both use the same reducer.
+  // orchestrator and the drawer both use the same reducer.
   window.applyReplayEvent = applyReplayEvent;
   _b("#btn-open-run-history", () => {
     if (window.OrchestratorRunHistory) window.OrchestratorRunHistory.open();
@@ -1933,7 +1933,7 @@ renderToolFeed();
 renderCritiqueTimeline();
 // Load pipeline templates and render default
 loadAllTemplates();
-// Show harness mode indicator (state from server)
+// Show orchestrator mode indicator (state from server)
 fetchOrchestratorMode();
 // Server / Codex initial status
 fetchServerInfo();

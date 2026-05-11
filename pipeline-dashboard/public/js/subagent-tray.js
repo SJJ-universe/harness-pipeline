@@ -1,4 +1,4 @@
-// Harness subagent tray — Slice D (v4).
+// Orchestrator subagent tray — Slice D (v4).
 //
 // Renders a live list of Claude Code subagents (dispatched via the Agent tool)
 // driven by the SubagentStart / SubagentStop hooks. Matches toast.js's two-

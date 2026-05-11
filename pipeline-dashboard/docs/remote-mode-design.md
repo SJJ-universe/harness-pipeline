@@ -9,8 +9,8 @@
 ## Current Security Posture
 
 - Default host: `127.0.0.1` (loopback only)
-- `HARNESS_ALLOW_REMOTE=1` required for network exposure
-- Token auth via `x-harness-token` header
+- `ORCHESTRATOR_ALLOW_REMOTE=1` required for network exposure
+- Token auth via `x-orchestrator-token` header
 - `/api/auth/token` endpoint returns token (loopback-gated)
 - WebSocket terminal authenticates via `?token=` query parameter
 

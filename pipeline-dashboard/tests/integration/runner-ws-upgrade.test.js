@@ -31,10 +31,10 @@ const { setupRemoteRunner } = require("../../src/server/remoteRunnerSetup");
 const { EvidenceLedger } = require("../../src/runtime/evidenceLedger");
 const jwt = require("../../src/security/jwt");
 
-// ── mini-server harness ───────────────────────────────────────────
+// ── mini-server orchestrator ───────────────────────────────────────────
 
 function startMini({ mode = "preview", token = "ws-e2e-token-aaa", ledgerDir = null } = {}) {
-  const setup = setupRemoteRunner({ env: { HARNESS_REMOTE_MODE: mode, HARNESS_TOKEN: token } });
+  const setup = setupRemoteRunner({ env: { ORCHESTRATOR_REMOTE_MODE: mode, ORCHESTRATOR_TOKEN: token } });
   const ledger = ledgerDir
     ? new EvidenceLedger({ rootDir: ledgerDir, signingKey: setup.ledgerKey })
     : null;
@@ -55,7 +55,7 @@ function startMini({ mode = "preview", token = "ws-e2e-token-aaa", ledgerDir = n
       handleRunner(ws, req, verdict);
       return;
     }
-    // Non-runner path is rejected in this minimal harness so the test
+    // Non-runner path is rejected in this minimal orchestrator so the test
     // doesn't accidentally get a "happy" path through the unrelated
     // dashboard auth. server.js uses verifyWsConnection here.
     try { ws.close(1008, "non-runner path"); } catch (_) {}
@@ -76,16 +76,16 @@ function startMini({ mode = "preview", token = "ws-e2e-token-aaa", ledgerDir = n
   });
 }
 
-function buildToken(runId, key, harness = {}) {
+function buildToken(runId, key, orchestrator = {}) {
   return jwt.issue({
     runId,
     key,
     runDurationMs: 60_000,
-    harness: {
+    orchestrator: {
       runOrigin: "container-remote",
       sandboxClass: "container-strict",
       hostIdentity: "runner-aaa",
-      ...harness,
+      ...orchestrator,
     },
   });
 }
@@ -118,10 +118,10 @@ function connectWs(port, urlPath) {
 // ── happy path ────────────────────────────────────────────────────
 
 test("R1-e-2: valid runJWT → upgrade accepted + hello frame", async () => {
-  const harness = await startMini();
-  const token = buildToken("rr-1", harness.setup.jwtKey);
+  const orchestrator = await startMini();
+  const token = buildToken("rr-1", orchestrator.setup.jwtKey);
 
-  const result = await connectWs(harness.port, `/api/runner/events?runId=rr-1&token=${token}`);
+  const result = await connectWs(orchestrator.port, `/api/runner/events?runId=rr-1&token=${token}`);
   try {
     assert.equal(result.kind, "message", "first event should be the hello frame");
     const msg = JSON.parse(result.payload);
@@ -130,49 +130,49 @@ test("R1-e-2: valid runJWT → upgrade accepted + hello frame", async () => {
     assert.equal(typeof msg.ts, "number");
   } finally {
     try { result.ws.close(); } catch (_) {}
-    await harness.close();
+    await orchestrator.close();
   }
 });
 
 // ── auth rejections ───────────────────────────────────────────────
 
 test("R1-e-2: no runId/token → close 1008", async () => {
-  const harness = await startMini();
-  const result = await connectWs(harness.port, "/api/runner/events");
+  const orchestrator = await startMini();
+  const result = await connectWs(orchestrator.port, "/api/runner/events");
   try {
     assert.equal(result.kind, "close");
     assert.equal(result.payload.code, 1008);
     assert.match(result.payload.reason, /required/);
   } finally {
-    await harness.close();
+    await orchestrator.close();
   }
 });
 
 test("R1-e-2: forged JWT (different key) → close 1008", async () => {
-  const harness = await startMini({ token: "real-token" });
+  const orchestrator = await startMini({ token: "real-token" });
   const otherSetup = setupRemoteRunner({
-    env: { HARNESS_REMOTE_MODE: "preview", HARNESS_TOKEN: "different-token" },
+    env: { ORCHESTRATOR_REMOTE_MODE: "preview", ORCHESTRATOR_TOKEN: "different-token" },
   });
   const forged = buildToken("rr-1", otherSetup.jwtKey);
 
-  const result = await connectWs(harness.port, `/api/runner/events?runId=rr-1&token=${forged}`);
+  const result = await connectWs(orchestrator.port, `/api/runner/events?runId=rr-1&token=${forged}`);
   try {
     assert.equal(result.kind, "close");
     assert.equal(result.payload.code, 1008);
   } finally {
-    await harness.close();
+    await orchestrator.close();
   }
 });
 
 test("R1-e-2: mode=off → close 1011 (transient, retryable)", async () => {
-  const harness = await startMini({ mode: "off" });
-  const result = await connectWs(harness.port, "/api/runner/events?runId=rr-1&token=anything");
+  const orchestrator = await startMini({ mode: "off" });
+  const result = await connectWs(orchestrator.port, "/api/runner/events?runId=rr-1&token=anything");
   try {
     assert.equal(result.kind, "close");
     assert.equal(result.payload.code, 1011);
     assert.match(result.payload.reason, /not configured/i);
   } finally {
-    await harness.close();
+    await orchestrator.close();
   }
 });
 
@@ -181,10 +181,10 @@ test("R1-e-2: mode=off → close 1011 (transient, retryable)", async () => {
 test("R1-e-2: connect emits runner_ws_connected; close emits runner_ws_disconnected", async () => {
   const os = require("node:os");
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "r1e2-ledger-"));
-  const harness = await startMini({ ledgerDir: tmp });
+  const orchestrator = await startMini({ ledgerDir: tmp });
   try {
-    const token = buildToken("rr-audit-1", harness.setup.jwtKey);
-    const result = await connectWs(harness.port, `/api/runner/events?runId=rr-audit-1&token=${token}`);
+    const token = buildToken("rr-audit-1", orchestrator.setup.jwtKey);
+    const result = await connectWs(orchestrator.port, `/api/runner/events?runId=rr-audit-1&token=${token}`);
     try { result.ws.close(1000, "test done"); } catch (_) {}
     // Wait briefly for close to propagate to ledger.
     await new Promise((r) => setTimeout(r, 100));
@@ -196,10 +196,10 @@ test("R1-e-2: connect emits runner_ws_connected; close emits runner_ws_disconnec
     assert.ok(types.includes("runner_ws_disconnected"), "expected runner_ws_disconnected");
 
     // Audit chain validates (HMAC-signed since signingKey was set).
-    const v = harness.ledger.verifyChain("rr-audit-1");
+    const v = orchestrator.ledger.verifyChain("rr-audit-1");
     assert.equal(v.valid, true, "chain verify must succeed: " + (v.reason || ""));
   } finally {
-    await harness.close();
+    await orchestrator.close();
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 });

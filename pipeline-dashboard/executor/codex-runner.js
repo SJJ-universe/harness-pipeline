@@ -4,7 +4,7 @@
 // Features:
 //   - Real-time output streaming via codex_progress broadcasts (live + bounded)
 //   - Bounded final buffers (1MB stdout / 256KB stderr) with truncated flag
-//   - Secret redaction on all broadcasts (HARNESS_TOKEN, sk-*, ghp_*, etc.)
+//   - Secret redaction on all broadcasts (ORCHESTRATOR_TOKEN, sk-*, ghp_*, etc.)
 //   - DI-friendly: spawnImpl + broadcast + redact overrideable for tests
 //
 // Output contract (enforced via prompt, parsed heuristically):
@@ -37,7 +37,8 @@ const SECRET_PATTERNS = [
   /gho_[A-Za-z0-9]{20,}/g,
   /xoxb-[A-Za-z0-9-]{20,}/g,
   /xoxp-[A-Za-z0-9-]{20,}/g,
-  /HARNESS_TOKEN[=:]\s*["']?[A-Za-z0-9_-]+["']?/gi,
+  // ORCHESTRATOR-RENAME-1: redact both legacy and canonical token names
+  /(HARNESS|ORCHESTRATOR)_TOKEN[=:]\s*["']?[A-Za-z0-9_-]+["']?/gi,
   /Authorization:\s*Bearer\s+[A-Za-z0-9._-]+/gi,
 ];
 
@@ -186,7 +187,7 @@ class CodexRunner {
       // shell's bridge keys synthetic streaming sessions on data.runId,
       // and the orchestration layer (generalPipelineRunner) needs them
       // to share a key with its other lifecycle events (pipeline_start,
-      // phase_update, etc.) so harness-track + monitor-grid pick up the
+      // phase_update, etc.) so orchestrator-track + monitor-grid pick up the
       // same run. Without this, the bridge synthesizes one session per
       // codex invocation (codex-XXX) that's disconnected from the
       // orchestration run (gr-XXX), and the live tail card can't
@@ -367,7 +368,7 @@ class CodexRunner {
                 data: {
                   // PLS-0-followup: prefer the orchestration runId so
                   // the dashboard groups this stream with the same run
-                  // it shows in harness-track. Fall back to the inner
+                  // it shows in orchestrator-track. Fall back to the inner
                   // runRegistry id when there's no orchestration layer
                   // (legacy / direct-codex callers).
                   runId: broadcastRunId || runId,

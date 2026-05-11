@@ -168,7 +168,7 @@ What this round changes operationally: a first-run operator sees concrete next s
 - **UI-Fuse** — fused workflow + PR-gating for capture/assert/a11y/button manifests. Conditions documented in governance §6.2.
 - **SMART-0..SMART-5 + SKILL-PACK-0** — Plan §S Part S 본격 시작. SMART-0 decision context can extend the classifier with broader operator-state inputs.
 - **UI-Onboarding-Tour** — interactive tour after first profile creation (not just static card).
-- **Setup wizard CLI integration** — `harness-start.bat` could spawn setup-wizard.{ps1,sh} on first launch when accountStatus shows no profile.
+- **Setup wizard CLI integration** — `orchestrator-start.bat` could spawn setup-wizard.{ps1,sh} on first launch when accountStatus shows no profile.
 
 ---
 

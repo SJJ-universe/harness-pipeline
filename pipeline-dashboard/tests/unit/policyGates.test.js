@@ -14,7 +14,7 @@ const gates = require("../../src/policy/policyGates");
 // ── Frozen vocabulary ─────────────────────────────────────────────
 
 test("policyGates: SCHEMA constant", () => {
-  assert.equal(gates.SCHEMA, "harness-policy-gate/v1");
+  assert.equal(gates.SCHEMA, "orchestrator-policy-gate/v1");
 });
 
 test("policyGates: GATE_MODES is frozen with hard/warn", () => {
@@ -55,29 +55,29 @@ test("resolveGateMode: default = warn (safe rollout)", () => {
   assert.equal(gates.resolveGateMode({}), "warn");
 });
 
-test("resolveGateMode: HARNESS_HARD_GATES=1 → hard", () => {
-  assert.equal(gates.resolveGateMode({ HARNESS_HARD_GATES: "1" }), "hard");
+test("resolveGateMode: ORCHESTRATOR_HARD_GATES=1 → hard", () => {
+  assert.equal(gates.resolveGateMode({ ORCHESTRATOR_HARD_GATES: "1" }), "hard");
 });
 
-test("resolveGateMode: HARNESS_HARD_GATES=true → hard", () => {
-  assert.equal(gates.resolveGateMode({ HARNESS_HARD_GATES: "true" }), "hard");
+test("resolveGateMode: ORCHESTRATOR_HARD_GATES=true → hard", () => {
+  assert.equal(gates.resolveGateMode({ ORCHESTRATOR_HARD_GATES: "true" }), "hard");
 });
 
-test("resolveGateMode: HARNESS_HARD_GATES=hard → hard", () => {
-  assert.equal(gates.resolveGateMode({ HARNESS_HARD_GATES: "hard" }), "hard");
+test("resolveGateMode: ORCHESTRATOR_HARD_GATES=hard → hard", () => {
+  assert.equal(gates.resolveGateMode({ ORCHESTRATOR_HARD_GATES: "hard" }), "hard");
 });
 
-test("resolveGateMode: HARNESS_HARD_GATES=warn → warn", () => {
-  assert.equal(gates.resolveGateMode({ HARNESS_HARD_GATES: "warn" }), "warn");
+test("resolveGateMode: ORCHESTRATOR_HARD_GATES=warn → warn", () => {
+  assert.equal(gates.resolveGateMode({ ORCHESTRATOR_HARD_GATES: "warn" }), "warn");
 });
 
-test("resolveGateMode: HARNESS_HARD_GATES=0 → warn", () => {
-  assert.equal(gates.resolveGateMode({ HARNESS_HARD_GATES: "0" }), "warn");
+test("resolveGateMode: ORCHESTRATOR_HARD_GATES=0 → warn", () => {
+  assert.equal(gates.resolveGateMode({ ORCHESTRATOR_HARD_GATES: "0" }), "warn");
 });
 
 test("resolveGateMode: case-insensitive", () => {
-  assert.equal(gates.resolveGateMode({ HARNESS_HARD_GATES: "HARD" }), "hard");
-  assert.equal(gates.resolveGateMode({ HARNESS_HARD_GATES: "True" }), "hard");
+  assert.equal(gates.resolveGateMode({ ORCHESTRATOR_HARD_GATES: "HARD" }), "hard");
+  assert.equal(gates.resolveGateMode({ ORCHESTRATOR_HARD_GATES: "True" }), "hard");
 });
 
 test("resolveGateMode: undefined env → warn", () => {

@@ -30,7 +30,7 @@ test("READINESS-DOC-1: file exists + non-empty", () => {
 });
 
 test("READINESS-DOC-1: H1 title present", () => {
-  assert.match(read(), /^# Harness Readiness Rubric/m);
+  assert.match(read(), /^# Orchestrator Readiness Rubric/m);
 });
 
 test("READINESS-DOC-1: tagged with slice READINESS-DOC-1", () => {

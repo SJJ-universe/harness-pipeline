@@ -2,12 +2,12 @@
 // Slice LV0-b (Phase 2 / SMART-LV-0, 2026-05-05) — operator live probe
 // for the SMART arc properties.
 //
-// Run AFTER booting harness with:
-//   HARNESS_DEPLOYMENT_PROFILE=finance-high-privacy
-//   HARNESS_HARD_GATES=1
-//   HARNESS_TOKEN=<test-token>
+// Run AFTER booting orchestrator with:
+//   ORCHESTRATOR_DEPLOYMENT_PROFILE=finance-high-privacy
+//   ORCHESTRATOR_HARD_GATES=1
+//   ORCHESTRATOR_TOKEN=<test-token>
 //   node start.js
-// (or harness-start.bat with the same env)
+// (or orchestrator-start.bat with the same env)
 //
 // What it does:
 //   1. Probe /api/health → server up
@@ -51,7 +51,7 @@
 //
 // Evidence packet schema:
 //   {
-//     schema: "harness-smart-lv-evidence/v1",
+//     schema: "orchestrator-smart-lv-evidence/v1",
 //     runAt: ISO timestamp,
 //     verdict: "PASS" | "FAIL" | "CONFIG",
 //     environment: { pack, publicSector, hardGatesEnv, ... },
@@ -136,9 +136,9 @@ Exit codes:
   2  CONFIG — server down / wrong env / no token
 
 Prerequisites: server boot with
-  HARNESS_DEPLOYMENT_PROFILE=finance-high-privacy
-  HARNESS_HARD_GATES=1
-  HARNESS_TOKEN=<token>
+  ORCHESTRATOR_DEPLOYMENT_PROFILE=finance-high-privacy
+  ORCHESTRATOR_HARD_GATES=1
+  ORCHESTRATOR_TOKEN=<token>
 `);
 }
 
@@ -164,7 +164,7 @@ async function http(args, method, url, body, token) {
     headers: {
       Accept: "application/json",
       ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
-      ...(token ? { "x-harness-token": token } : {}),
+      ...(token ? { "x-orchestrator-token": token } : {}),
     },
   };
   if (body !== undefined) init.body = JSON.stringify(body);
@@ -189,13 +189,13 @@ async function http(args, method, url, body, token) {
 }
 
 async function fetchToken(args) {
-  // The harness emits a token at boot to .harness/local-token; we
-  // read that file directly (the operator can also set HARNESS_TOKEN
+  // The orchestrator emits a token at boot to .harness/local-token; we
+  // read that file directly (the operator can also set ORCHESTRATOR_TOKEN
   // env, in which case we use it).
-  if (process.env.HARNESS_TOKEN) return process.env.HARNESS_TOKEN;
+  if (process.env.ORCHESTRATOR_TOKEN) return process.env.ORCHESTRATOR_TOKEN;
   const candidates = [
-    path.resolve(__dirname, "..", ".harness", "local-token"),
-    path.resolve(__dirname, "..", "..", ".harness", "local-token"),
+    path.resolve(__dirname, "..", ".orchestrator", "local-token"),
+    path.resolve(__dirname, "..", "..", ".orchestrator", "local-token"),
   ];
   for (const p of candidates) {
     try {
@@ -219,7 +219,7 @@ async function main() {
   }
 
   const evidence = {
-    schema: "harness-smart-lv-evidence/v1",
+    schema: "orchestrator-smart-lv-evidence/v1",
     runAt: new Date().toISOString(),
     verdict: "PASS",
     environment: {},
@@ -243,7 +243,7 @@ async function main() {
 
   const token = await fetchToken(args);
   if (!token) {
-    step(args, "0b", "auth token", "FAIL", "no .harness/local-token + no HARNESS_TOKEN env");
+    step(args, "0b", "auth token", "FAIL", "no .harness/local-token + no ORCHESTRATOR_TOKEN env");
     evidence.verdict = "CONFIG";
     evidence.notes.push("no auth token");
     return _emitAndExit(args, evidence, 2);
@@ -270,7 +270,7 @@ async function main() {
     pack: profile.pack || profile.mode,
     publicSector: profile.publicSector === true,
     hardGatesDefault: profile.hardGatesDefault === true,
-    hardGatesEnv: process.env.HARNESS_HARD_GATES === "1" || process.env.HARNESS_HARD_GATES === "true",
+    hardGatesEnv: process.env.ORCHESTRATOR_HARD_GATES === "1" || process.env.ORCHESTRATOR_HARD_GATES === "true",
   };
   evidence.properties.p1_hard_gates_env = {
     ok: evidence.environment.hardGatesEnv === true,
@@ -282,7 +282,7 @@ async function main() {
     hardGatesDefault: evidence.environment.hardGatesDefault,
     publicSector: evidence.environment.publicSector,
   };
-  step(args, "1", "HARNESS_HARD_GATES env",
+  step(args, "1", "ORCHESTRATOR_HARD_GATES env",
     evidence.properties.p1_hard_gates_env.ok ? "PASS" : "SKIP",
     `mode=${evidence.environment.hardGatesEnv ? "hard" : "warn"}`);
   step(args, "2", "finance-high-privacy pack",

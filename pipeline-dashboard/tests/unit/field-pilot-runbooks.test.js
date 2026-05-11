@@ -82,7 +82,7 @@ test("FP-b deployment-log: has Pilot context block", () => {
   assert.match(md, /Pilot ID/);
   assert.match(md, /Operator/);
   assert.match(md, /Pack mode/);
-  assert.match(md, /Harness version/);
+  assert.match(md, /Orchestrator version/);
 });
 
 test("FP-b deployment-log: has Daily entries section + 7 days", () => {
@@ -111,8 +111,8 @@ test("FP-b deployment-log: has Closeout section", () => {
 
 test("FP-b deployment-log: cross-references field-pilot-status JSON schema", () => {
   const md = readRunbook("field-pilot-deployment-log.md");
-  assert.match(md, /harness-field-pilot-status\/v1/,
-    "should mention schema name harness-field-pilot-status/v1");
+  assert.match(md, /orchestrator-field-pilot-status\/v1/,
+    "should mention schema name orchestrator-field-pilot-status/v1");
   // should mention the 8 frozen top-level keys
   for (const k of ["schema", "capturedAt", "verdict", "environment",
                    "health", "audit", "runtime", "notes"]) {
@@ -218,7 +218,7 @@ test("FP-b troubleshooting: covers RR0 idle-watchdog timeouts", () => {
 test("FP-b troubleshooting: covers POL-c pack-rule gate behavior", () => {
   const md = readRunbook("field-pilot-troubleshooting.md");
   assert.match(md, /policy_gate_blocked/);
-  assert.match(md, /HARNESS_DEPLOYMENT_PROFILE/);
+  assert.match(md, /ORCHESTRATOR_DEPLOYMENT_PROFILE/);
 });
 
 // ── feedback-survey.md contract ──────────────────────────────────

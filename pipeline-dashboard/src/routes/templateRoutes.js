@@ -1,7 +1,7 @@
 // Pipeline template routes — Slice E (v4) extended.
 //
 // Builds on the original GET endpoints with POST / DELETE for user-uploadable
-// templates. Authentication (x-harness-token) is handled by the outer auth
+// templates. Authentication (x-orchestrator-token) is handled by the outer auth
 // middleware; this module only enforces shape + id rules.
 //
 // Contract:

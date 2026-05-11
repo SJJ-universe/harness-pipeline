@@ -62,7 +62,7 @@ function evaluate(action = {}, policy) {
 
   if (action.path) {
     if (!isInsideRoot(action.path, repoRoot)) {
-      return decision("block", `path is outside harness root: ${action.path}`, {
+      return decision("block", `path is outside orchestrator root: ${action.path}`, {
         matchedRule: "path-outside-root",
       });
     }
@@ -71,7 +71,7 @@ function evaluate(action = {}, policy) {
   if (action.paths) {
     for (const p of action.paths) {
       if (!isInsideRoot(p, repoRoot)) {
-        return decision("block", `path is outside harness root: ${p}`, {
+        return decision("block", `path is outside orchestrator root: ${p}`, {
           matchedRule: "path-outside-root",
         });
       }
@@ -102,7 +102,7 @@ function evaluate(action = {}, policy) {
   }
 
   if (action.type === "agent-run" && action.args && action.args.includes("--dangerously-skip-permissions")) {
-    if (process.env.HARNESS_ALLOW_DANGEROUS_AGENT !== "1" || !action.explicitConfirmation) {
+    if (process.env.ORCHESTRATOR_ALLOW_DANGEROUS_AGENT !== "1" || !action.explicitConfirmation) {
       return decision("block", "dangerous agent permissions require explicit override", {
         matchedRule: "dangerous-agent",
       });
@@ -110,7 +110,7 @@ function evaluate(action = {}, policy) {
   }
 
   if (action.cwd && !isInsideRoot(path.resolve(action.cwd), repoRoot)) {
-    return decision("block", `cwd is outside harness root: ${action.cwd}`, {
+    return decision("block", `cwd is outside orchestrator root: ${action.cwd}`, {
       matchedRule: "cwd-outside-root",
     });
   }

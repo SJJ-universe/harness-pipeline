@@ -2,7 +2,7 @@
 //
 // The pipeline event WebSocket previously accepted any incoming connection
 // without an origin/loopback/token check (only the /terminal subpath was
-// guarded). With HARNESS_ALLOW_REMOTE=1 + HARNESS_HOST=0.0.0.0 a remote
+// guarded). With ORCHESTRATOR_ALLOW_REMOTE=1 + ORCHESTRATOR_HOST=0.0.0.0 a remote
 // attacker could open a pipeline WS and read every broadcast (tool calls,
 // findings, checkpoints) without a token.
 //
@@ -24,7 +24,7 @@ const {
   isLoopbackHost,
 } = require("../../src/security/auth");
 
-function mkTmpRoot() { return fs.mkdtempSync(path.join(os.tmpdir(), "harness-ws-s1-")); }
+function mkTmpRoot() { return fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-ws-s1-")); }
 
 // Faithful reproduction of verifyWsConnection from server.js — kept here
 // so a regression in the server's copy is detectable from the test suite.
@@ -41,7 +41,7 @@ function makeVerifier({ allowRemote, host, validateToken }) {
       suppliedToken = wsUrl.searchParams.get("token") || "";
     } catch (_) {}
     if (!validateToken(suppliedToken)) {
-      return { ok: false, code: 1008, reason: "missing or invalid harness token" };
+      return { ok: false, code: 1008, reason: "missing or invalid orchestrator token" };
     }
     const originHeader = req.headers && req.headers.origin;
     if (originHeader) {
@@ -65,12 +65,12 @@ function makeReq({ remote = "127.0.0.1", url = "/", host, origin } = {}) {
 
 function freshAuth(envToken = "ws-test-token") {
   const root = mkTmpRoot();
-  const saved = process.env.HARNESS_TOKEN;
-  process.env.HARNESS_TOKEN = envToken;
+  const saved = process.env.ORCHESTRATOR_TOKEN;
+  process.env.ORCHESTRATOR_TOKEN = envToken;
   const a = createAuthMiddleware({ repoRoot: root });
   // restore env so other tests don't see it
-  if (saved === undefined) delete process.env.HARNESS_TOKEN;
-  else process.env.HARNESS_TOKEN = saved;
+  if (saved === undefined) delete process.env.ORCHESTRATOR_TOKEN;
+  else process.env.ORCHESTRATOR_TOKEN = saved;
   return a;
 }
 
@@ -115,7 +115,7 @@ test("verifyWsConnection: allowRemote=true rejects missing token", () => {
   const verify = makeVerifier({ allowRemote: true, host: "0.0.0.0", validateToken: a.validateToken });
   const r = verify(makeReq({ remote: "10.0.0.5", url: "/" }));
   assert.equal(r.ok, false);
-  assert.match(r.reason, /missing or invalid harness token/);
+  assert.match(r.reason, /missing or invalid orchestrator token/);
 });
 
 test("verifyWsConnection: allowRemote=true rejects wrong token", () => {
@@ -123,7 +123,7 @@ test("verifyWsConnection: allowRemote=true rejects wrong token", () => {
   const verify = makeVerifier({ allowRemote: true, host: "0.0.0.0", validateToken: a.validateToken });
   const r = verify(makeReq({ remote: "10.0.0.5", url: "/?token=wrong" }));
   assert.equal(r.ok, false);
-  assert.match(r.reason, /missing or invalid harness token/);
+  assert.match(r.reason, /missing or invalid orchestrator token/);
 });
 
 test("verifyWsConnection: allowRemote=true accepts correct ?token=", () => {

@@ -47,7 +47,7 @@ test("UI-P10 capture.buildManifest: schema + summary shape", () => {
     browserVersion: "131.0.6778.69",
     totalElapsedMs: 4321,
   });
-  assert.equal(m.schema, "harness-visual-live/v1");
+  assert.equal(m.schema, "orchestrator-visual-live/v1");
   assert.equal(m.base, "http://127.0.0.1:4799");
   assert.equal(m.capturedAt, "2026-05-04T00:00:00.000Z");
   assert.equal(m.browser.name, "chromium");

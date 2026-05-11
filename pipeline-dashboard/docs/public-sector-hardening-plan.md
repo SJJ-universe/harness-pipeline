@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build a public-sector deployment profile where Harness Pipeline becomes a controlled AI work gateway: user PCs are UI-only, execution happens in sandbox runners, provider calls pass through privacy filtering, and every sensitive action is approved and auditable.
+**Goal:** Build a public-sector deployment profile where Orchestrator Pipeline becomes a controlled AI work gateway: user PCs are UI-only, execution happens in sandbox runners, provider calls pass through privacy filtering, and every sensitive action is approved and auditable.
 
 **Architecture:** Add a `public-sector` policy mode that is fail-closed by default. Local execution, personal accounts, plaintext credentials, direct local workspace mounts, and unscanned provider calls are disabled; sandbox-only runners, DLP/PII gates, approval workflow, signed/offline distribution, and auditor evidence become first-class surfaces. The first insertion point is D1 because profile/credential/spawn rewiring is where agency-managed accounts and sandbox-only execution must be enforced.
 
@@ -12,7 +12,7 @@
 
 ## 0. Product Positioning
 
-Public-sector Harness is not a prettier wrapper around Claude Code or Codex CLI.
+Public-sector Orchestrator is not a prettier wrapper around Claude Code or Codex CLI.
 
 It is an **AI work control layer** for agency networks:
 
@@ -25,7 +25,7 @@ It is an **AI work control layer** for agency networks:
 
 The short message:
 
-> Public-sector Harness lets an agency use Claude/Codex-style AI coding workflows only inside agency policy: sandboxed execution, privacy filtering, approval, network allowlisting, signed distribution, and audit evidence.
+> Public-sector Orchestrator lets an agency use Claude/Codex-style AI coding workflows only inside agency policy: sandboxed execution, privacy filtering, approval, network allowlisting, signed distribution, and audit evidence.
 
 ## 1. Scope
 
@@ -56,7 +56,7 @@ The short message:
 
 ```mermaid
 flowchart LR
-  U["User PC\nBrowser/UI only"] --> O["Harness Orchestrator\nPolicy, approval, audit"]
+  U["User PC\nBrowser/UI only"] --> O["Orchestrator Orchestrator\nPolicy, approval, audit"]
   O --> P["Policy Engine\npublic-sector fail-closed defaults"]
   O --> D["PII/DLP Gate\ninline scan + deep scan index"]
   O --> R["Sandbox Runner Pool\nLinux/VM/container strict"]
@@ -108,7 +108,7 @@ flowchart LR
 ### New Policy Files
 
 - Create: `src/policy/deploymentProfile.js`  
-  Resolves `HARNESS_DEPLOYMENT_PROFILE`, exposes fail-closed booleans, and provides reusable assertions.
+  Resolves `ORCHESTRATOR_DEPLOYMENT_PROFILE`, exposes fail-closed booleans, and provides reusable assertions.
 
 - Create: `src/policy/publicSectorPolicy.js`  
   Encodes profile, workspace, credential, provider, and scan requirements for agency deployments.
@@ -210,7 +210,7 @@ test("defaults to standard mode", () => {
 
 test("public-sector mode is fail-closed", () => {
   const profile = resolveDeploymentProfile({
-    env: { HARNESS_DEPLOYMENT_PROFILE: "public-sector" },
+    env: { ORCHESTRATOR_DEPLOYMENT_PROFILE: "public-sector" },
   });
   assert.equal(profile.mode, "public-sector");
   assert.equal(profile.publicSector, true);
@@ -232,7 +232,7 @@ const MODES = new Set(["standard", "public-sector"]);
 
 function resolveDeploymentProfile(opts = {}) {
   const env = opts.env || process.env;
-  const requested = env.HARNESS_DEPLOYMENT_PROFILE || "standard";
+  const requested = env.ORCHESTRATOR_DEPLOYMENT_PROFILE || "standard";
   const mode = MODES.has(requested) ? requested : "standard";
   const publicSector = mode === "public-sector";
 
@@ -241,7 +241,7 @@ function resolveDeploymentProfile(opts = {}) {
     publicSector,
     allowLocalExecutor: !publicSector,
     allowPersonalAccounts: !publicSector,
-    allowPlaintextSecrets: !publicSector && env.HARNESS_ALLOW_PLAINTEXT_SECRETS === "1",
+    allowPlaintextSecrets: !publicSector && env.ORCHESTRATOR_ALLOW_PLAINTEXT_SECRETS === "1",
     requireSandboxWorkspace: publicSector,
     requireAgencyManagedAccount: publicSector,
     requireSignedManifest: publicSector,
@@ -766,7 +766,7 @@ git commit -m "GOV-AUDIT-0: add public-sector auditor evidence export"
 
 - [ ] **Step 1: Require signed manifest in public-sector mode**
 
-When `HARNESS_DEPLOYMENT_PROFILE=public-sector`, installer mode rejects a manifest without signature metadata.
+When `ORCHESTRATOR_DEPLOYMENT_PROFILE=public-sector`, installer mode rejects a manifest without signature metadata.
 
 Required manifest extension:
 
@@ -774,7 +774,7 @@ Required manifest extension:
 {
   "version": "1.1.0",
   "publishedAt": "2026-05-15T09:00:00Z",
-  "url": "https://agency.internal/releases/harness-pipeline-1.1.0.zip",
+  "url": "https://agency.internal/releases/orchestrator-pipeline-1.1.0.zip",
   "sha256": "64 lowercase hex chars",
   "minNodeVersion": "24.0.0",
   "signature": {
@@ -910,7 +910,7 @@ Suggested movement after verified implementation:
 
 The public-sector baseline is not complete until all are true:
 
-- `HARNESS_DEPLOYMENT_PROFILE=public-sector` blocks local executor paths.
+- `ORCHESTRATOR_DEPLOYMENT_PROFILE=public-sector` blocks local executor paths.
 - Agency-managed profile creation succeeds; personal profile creation fails.
 - Secure credential backend failure blocks setup.
 - Sandbox-only run dispatch succeeds with imported files.

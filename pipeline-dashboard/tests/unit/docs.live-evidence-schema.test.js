@@ -48,9 +48,9 @@ test("LIVE-EVIDENCE-SCHEMA-DOC: H1 + slice tag", () => {
 
 const SECTIONS = [
   ["§1", "Why this exists"],
-  ["§2", "Schema 1 — `harness-smart-lv-evidence/v1`"],
+  ["§2", "Schema 1 — `orchestrator-smart-lv-evidence/v1`"],
   ["§3", "Schema 2 — `live-verify-review-relay/v1`"],
-  ["§4", "Schema 3 — `harness-live-evidence-bundle/v1`"],  // LIVE-EVIDENCE-COLLECTOR added
+  ["§4", "Schema 3 — `orchestrator-live-evidence-bundle/v1`"],  // LIVE-EVIDENCE-COLLECTOR added
   ["§5", "Audit-chain anchors"],
   ["§6", "Schema versioning policy"],
   ["§7", "Schema convergence notes"],
@@ -68,10 +68,10 @@ for (const [num, name] of SECTIONS) {
 
 // ── Schema identifiers locked ─────────────────────────────────
 
-test("LIVE-EVIDENCE-SCHEMA-DOC: schema 1 string locked as harness-smart-lv-evidence/v1", () => {
+test("LIVE-EVIDENCE-SCHEMA-DOC: schema 1 string locked as orchestrator-smart-lv-evidence/v1", () => {
   const text = read(DOC);
   // Appears in title, in source code reference, in example.
-  const occurrences = (text.match(/harness-smart-lv-evidence\/v1/g) || []).length;
+  const occurrences = (text.match(/orchestrator-smart-lv-evidence\/v1/g) || []).length;
   assert.ok(occurrences >= 3,
     `expected ≥ 3 mentions of the schema 1 identifier, got ${occurrences}`);
 });
@@ -153,7 +153,7 @@ test("LIVE-EVIDENCE-SCHEMA-DOC: §3.4 documents the FAIL_* vocabulary", () => {
 
 test("LIVE-EVIDENCE-SCHEMA-DOC: §4 schema-3 identifier locked", () => {
   const text = read(DOC);
-  const occurrences = (text.match(/harness-live-evidence-bundle\/v1/g) || []).length;
+  const occurrences = (text.match(/orchestrator-live-evidence-bundle\/v1/g) || []).length;
   assert.ok(occurrences >= 3,
     `expected ≥ 3 mentions of the bundle schema identifier, got ${occurrences}`);
 });
@@ -271,7 +271,7 @@ test("CONFORMANCE: smart-arc probe CONFIG output matches schema 1 v1 shape", () 
     `smart-arc CONFIG exit must be 2, got ${result.status}`);
   const evidence = JSON.parse(result.stdout);
   // Doc-locked top-level field names
-  assert.equal(evidence.schema, "harness-smart-lv-evidence/v1");
+  assert.equal(evidence.schema, "orchestrator-smart-lv-evidence/v1");
   assert.ok("runAt" in evidence, "schema 1 must have `runAt` (not `executedAt`)");
   assert.ok("verdict" in evidence);
   assert.ok("environment" in evidence);
@@ -325,8 +325,8 @@ test("CROSS-COHERENCE: smart-arc script + schema doc agree on identifier", () =>
     path.resolve(REPO_ROOT, "scripts", "live-verify-smart-arc.js"), "utf-8"
   );
   // Script must hard-code the v1 string the doc locked.
-  assert.match(scriptText, /["']harness-smart-lv-evidence\/v1["']/,
-    "smart-arc script must emit schema = 'harness-smart-lv-evidence/v1'");
+  assert.match(scriptText, /["']orchestrator-smart-lv-evidence\/v1["']/,
+    "smart-arc script must emit schema = 'orchestrator-smart-lv-evidence/v1'");
 });
 
 test("CROSS-COHERENCE: review-relay script + schema doc agree on identifier", () => {

@@ -25,8 +25,8 @@ function createCheckpointStore({
   // the `pipeline-` prefix because the directory already disambiguates.
   const isDefaultRun = !runId || runId === "default";
   const dir = isDefaultRun
-    ? path.join(root, ".harness")
-    : path.join(root, ".harness", "runs", runId);
+    ? path.join(root, ".orchestrator")
+    : path.join(root, ".orchestrator", "runs", runId);
   const resolvedFilename =
     filename || (isDefaultRun ? "pipeline-checkpoint.json" : "checkpoint.json");
   const checkpointPath = path.join(dir, resolvedFilename);

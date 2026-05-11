@@ -44,8 +44,8 @@ test("R1-b: deriveJwtKey diverges when info label changes (domain separation)", 
 });
 
 test("R1-b: deriveJwtKey diverges when salt changes (version bump)", () => {
-  const v1 = deriveJwtKey("test-token-1234567890abcdef", { salt: "harness-jwt-v1" });
-  const v2 = deriveJwtKey("test-token-1234567890abcdef", { salt: "harness-jwt-v2" });
+  const v1 = deriveJwtKey("test-token-1234567890abcdef", { salt: "orchestrator-jwt-v1" });
+  const v2 = deriveJwtKey("test-token-1234567890abcdef", { salt: "orchestrator-jwt-v2" });
   assert.notDeepEqual(v1, v2);
 });
 
@@ -100,12 +100,12 @@ test("R1-b: issued token's payload carries sub / aud / iat / exp", () => {
   assert.equal(payload.exp, 1700000000 + 60 + 60);
 });
 
-test("R1-b: issued token attaches harness:{runOrigin,sandboxClass,hostIdentity} when supplied", () => {
+test("R1-b: issued token attaches orchestrator:{runOrigin,sandboxClass,hostIdentity} when supplied", () => {
   const key = deriveJwtKey("k1");
   const tok = issue({
     runId: "rr-1",
     key,
-    harness: {
+    orchestrator: {
       runOrigin: "container-remote",
       sandboxClass: "container-strict",
       hostIdentity: "runner-pool-a/3",
@@ -114,18 +114,18 @@ test("R1-b: issued token attaches harness:{runOrigin,sandboxClass,hostIdentity} 
     },
   });
   const payload = JSON.parse(_internal.b64uDecode(tok.split(".")[1]).toString("utf-8"));
-  assert.deepEqual(payload.harness, {
+  assert.deepEqual(payload.orchestrator, {
     runOrigin: "container-remote",
     sandboxClass: "container-strict",
     hostIdentity: "runner-pool-a/3",
   });
 });
 
-test("R1-b: issue omits harness when no fields are supplied", () => {
+test("R1-b: issue omits orchestrator when no fields are supplied", () => {
   const key = deriveJwtKey("k1");
-  const tok = issue({ runId: "rr-1", key, harness: {} });
+  const tok = issue({ runId: "rr-1", key, orchestrator: {} });
   const payload = JSON.parse(_internal.b64uDecode(tok.split(".")[1]).toString("utf-8"));
-  assert.equal(Object.prototype.hasOwnProperty.call(payload, "harness"), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(payload, "orchestrator"), false);
 });
 
 test("R1-b: issue rejects missing/empty runId", () => {

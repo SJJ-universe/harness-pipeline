@@ -11,7 +11,7 @@ This runbook walks an operator through the **live end-to-end verification** of t
 - `public/js/monitor/panels/dual-agent-console.js`
 - `public/js/monitor/review-session-client.js`
 
-The companion CI-runnable smoke (`tests/smoke/review-relay-end-to-end.test.js`) covers the harness wiring with stub runners. This runbook covers what stubs cannot — actually invoking the operator's installed `codex` and `claude` CLIs against real APIs.
+The companion CI-runnable smoke (`tests/smoke/review-relay-end-to-end.test.js`) covers the orchestrator wiring with stub runners. This runbook covers what stubs cannot — actually invoking the operator's installed `codex` and `claude` CLIs against real APIs.
 
 ---
 
@@ -22,11 +22,11 @@ Before running the probe:
 - [ ] **Node 24+** installed and on PATH (`node --version` ≥ v24).
 - [ ] **Codex CLI** installed (`where codex` on Windows, `which codex` on Linux/Mac). If missing, install via `npm install -g @openai/codex`.
 - [ ] **Claude CLI** installed (`where claude` / `which claude`). Required only for `--with-handback` runs. Install via `npm install -g @anthropic-ai/claude-code`.
-- [ ] **A configured profile** in the harness with credentials for the runner you want to exercise:
+- [ ] **A configured profile** in the orchestrator with credentials for the runner you want to exercise:
   - For Codex critique: profile must have an `openai-api-key` secret OR Codex CLI must be authenticated globally (`codex auth status` returns "logged in").
   - For Claude hand-back: profile must have an `anthropic-api-key` secret OR Claude CLI must be globally authenticated.
-- [ ] **A clean checkout** of the harness — `git status -s` shows only intentional changes.
-- [ ] **No active runs** in the harness — `curl http://127.0.0.1:4201/api/server/info | jq .activeChildCount` returns `0`.
+- [ ] **A clean checkout** of the orchestrator — `git status -s` shows only intentional changes.
+- [ ] **No active runs** in the orchestrator — `curl http://127.0.0.1:4201/api/server/info | jq .activeChildCount` returns `0`.
 
 ---
 
@@ -34,16 +34,16 @@ Before running the probe:
 
 This is the canonical case: standard posture, full Codex critique → operator hand-back to Claude.
 
-### 2.1 Boot the harness server
+### 2.1 Boot the orchestrator server
 
 ```powershell
 # Windows
-.\harness-start.bat
+.\orchestrator-start.bat
 ```
 
 ```bash
 # Mac / Linux
-./harness-start.sh
+./orchestrator-start.sh
 ```
 
 Wait for the line `Pipeline Dashboard: http://127.0.0.1:4201` and the `terminal: enabled` indicator. Verify the server is up:
@@ -65,7 +65,7 @@ Pick the **Standard** track. Make sure `Test Claude` and `Test Codex` both pass 
 
 ### 2.3 Run the live probe
 
-In a second shell (the harness server keeps running in the first):
+In a second shell (the orchestrator server keeps running in the first):
 
 ```powershell
 .\scripts\live-verify-review-relay.ps1 `
@@ -108,7 +108,7 @@ Evidence JSON is written to `docs/reports/<date>-review-relay-live-verify.json`.
 Open `runs/system/ledger.jsonl` and grep for the session ID returned in the probe output:
 
 ```bash
-grep "<session-id-prefix>" /c/Users/SJ/harness-pipeline-analysis/runs/system/ledger.jsonl
+grep "<session-id-prefix>" /c/Users/SJ/orchestrator-pipeline-analysis/runs/system/ledger.jsonl
 ```
 
 You should see at minimum:
@@ -141,12 +141,12 @@ This case verifies the policy gate: under public-sector posture, hand-back to lo
 ### 3.1 Set posture before booting
 
 ```powershell
-$env:HARNESS_DEPLOYMENT_PROFILE = "public-sector"
-.\harness-start.bat
+$env:ORCHESTRATOR_DEPLOYMENT_PROFILE = "public-sector"
+.\orchestrator-start.bat
 ```
 
 ```bash
-HARNESS_DEPLOYMENT_PROFILE=public-sector ./harness-start.sh
+ORCHESTRATOR_DEPLOYMENT_PROFILE=public-sector ./orchestrator-start.sh
 ```
 
 Verify `GET /api/server/info` returns `deployment.publicSector: true` + `allowLocalExecutor: false`.
@@ -178,7 +178,7 @@ If you see this, the route gate fired before the dispatcher even ran (correct be
 
 ## 4. Failure-mode probe (optional)
 
-To verify the harness handles dispatcher failures gracefully:
+To verify the orchestrator handles dispatcher failures gracefully:
 
 ### 4.1 Force a failure
 
@@ -202,15 +202,15 @@ This is the correct behavior — the operator UI can see the failure via the aud
 ## 5. Troubleshooting
 
 ### Server not reachable
-- Confirm the harness is running: `curl http://127.0.0.1:4201/api/health`
+- Confirm the orchestrator is running: `curl http://127.0.0.1:4201/api/health`
 - Check the port — the launcher prints `Pipeline Dashboard: http://127.0.0.1:<port>`
 - Check the firewall isn't blocking 127.0.0.1:4201
 
 ### `dispatch_runner_unavailable` (503)
-- The harness has `_reviewSpawnDispatcher` constructed but no codex/claude runner wired. Inspect `server.js` lines around the dispatcher construction. This shouldn't happen on a clean checkout — it indicates a regression in `server.js` wiring.
+- The orchestrator has `_reviewSpawnDispatcher` constructed but no codex/claude runner wired. Inspect `server.js` lines around the dispatcher construction. This shouldn't happen on a clean checkout — it indicates a regression in `server.js` wiring.
 
 ### `dispatch_already_in_flight` (409) on first call
-- A previous probe run never reached completion and the in-flight Map still tracks that session. Restart the harness to clear in-process state.
+- A previous probe run never reached completion and the in-flight Map still tracks that session. Restart the orchestrator to clear in-process state.
 
 ### Codex/Claude exits with code 1
 - Check authentication: `codex auth status` and `claude auth status`. If "Logged out", run the setup wizard or authenticate manually.
@@ -221,7 +221,7 @@ This is the correct behavior — the operator UI can see the failure via the aud
 - Check `runs/system/ledger.jsonl` for `review_session_dispatch_failed` — that means the runner returned ok:false before the chunks could complete.
 
 ### Public-sector posture probe returns 200 instead of 409
-- The deployment profile didn't load. Check `GET /api/server/info` and confirm `deployment.publicSector: true`. Set `HARNESS_DEPLOYMENT_PROFILE=public-sector` BEFORE booting the harness.
+- The deployment profile didn't load. Check `GET /api/server/info` and confirm `deployment.publicSector: true`. Set `ORCHESTRATOR_DEPLOYMENT_PROFILE=public-sector` BEFORE booting the orchestrator.
 
 ---
 
@@ -243,7 +243,7 @@ If you cannot run the full probe (no Codex/Claude installed, no API budget, etc.
 LIVE_RELAY_EVIDENCE=1 npm run test:smoke -- --test-name-pattern "LV-1 smoke"
 ```
 
-This runs the stub-runner smoke (`tests/smoke/review-relay-end-to-end.test.js`) and emits stub-evidence JSON files to `docs/reports/<date>-review-relay-stub-smoke-*.json`. The stub-evidence proves the **harness wiring** works end-to-end; only the live probe proves the **real-binary integration** works.
+This runs the stub-runner smoke (`tests/smoke/review-relay-end-to-end.test.js`) and emits stub-evidence JSON files to `docs/reports/<date>-review-relay-stub-smoke-*.json`. The stub-evidence proves the **orchestrator wiring** works end-to-end; only the live probe proves the **real-binary integration** works.
 
 A complete LV round closes BOTH:
 - CI smoke green (in-process stub) — proves wiring

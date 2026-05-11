@@ -266,7 +266,7 @@ const EXECUTOR_DISPATCH = Object.freeze({
 // ── 5. Bridge mode taxonomy ─────────────────────────────────────────
 
 /**
- * `HARNESS_REMOTE_BRIDGE_MODE` env values:
+ * `ORCHESTRATOR_REMOTE_BRIDGE_MODE` env values:
  *
  *   off       — default. Broadcast-only (R1 behavior). routeRemote
  *               emits `runner_hook_routed` and stops; no validation,
@@ -288,7 +288,7 @@ const DEFAULT_BRIDGE_MODE = "off";
 function resolveBridgeMode(env) {
   // Same defensive parsing pattern as setupRemoteRunner. Anything
   // unrecognized falls back to the safest default.
-  const raw = (env && env.HARNESS_REMOTE_BRIDGE_MODE) || "";
+  const raw = (env && env.ORCHESTRATOR_REMOTE_BRIDGE_MODE) || "";
   const value = String(raw).trim().toLowerCase();
   if (BRIDGE_MODES.includes(value)) return value;
   return DEFAULT_BRIDGE_MODE;
@@ -342,7 +342,7 @@ const AUDIT_VERBS = Object.freeze([
  *   runner_hook_approval_denied    — operator pressed "거부". No
  *                                    dispatch; the chain closes.
  *   runner_hook_approval_timeout   — no operator response within
- *                                    `HARNESS_REMOTE_APPROVAL_TIMEOUT_MS`
+ *                                    `ORCHESTRATOR_REMOTE_APPROVAL_TIMEOUT_MS`
  *                                    (default 30000). Treated as deny.
  */
 const APPROVAL_AUDIT_VERBS = Object.freeze([
@@ -373,7 +373,7 @@ const APPROVAL_RESOLUTIONS = Object.freeze([
 
 /**
  * Default timeout for an approval request, in milliseconds. Override
- * via `HARNESS_REMOTE_APPROVAL_TIMEOUT_MS`. 30s is the operator-UX
+ * via `ORCHESTRATOR_REMOTE_APPROVAL_TIMEOUT_MS`. 30s is the operator-UX
  * sweet spot the R3-0 plan §1.5 derived: long enough for a casual
  * desk review, short enough that a stuck approval doesn't park a
  * runner indefinitely.

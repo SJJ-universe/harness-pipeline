@@ -5,7 +5,7 @@
 **Date**: 2026-04-27.
 **Roadmap reference**: `docs/superpowers/specs/2026-04-27-five-priority-roadmap.md` §7 (Priority 4).
 **Predecessor docs (kept, cross-linked, not duplicated)**:
-`remote-mode-design.md`, `container-sandbox.md`, `harness-architecture.md`,
+`remote-mode-design.md`, `container-sandbox.md`, `orchestrator-architecture.md`,
 `security-model.md`.
 
 This RFC consolidates the four P4 plan slices (A: boundary audit, B:
@@ -21,7 +21,7 @@ design before any code lands.
 
 A concrete, implementable description of:
 
-1. What the local-first harness guarantees today and where each guarantee
+1. What the local-first orchestrator guarantees today and where each guarantee
    would break the moment a run originates outside the local machine.
 2. The isolation model that closes those gaps — workspace, process,
    token, filesystem, network, and child-process boundaries.
@@ -55,13 +55,13 @@ A concrete, implementable description of:
 | **Trust boundary** | The line between code we control (the orchestrator + monitor + auth) and code we sandbox (the workload + Codex/Claude subprocesses). |
 | **Workspace** | The mounted directory tree the workload can read and (in the writable subset) write. |
 | **Workload** | A Codex critic, a Claude executor, a TDD-stage-2 verifier, or a subagent — anything that the orchestrator spawns to do real work. |
-| **Operator** | The human running the harness. There is exactly one operator; multi-operator is platform-tier (Phase 3). |
+| **Operator** | The human running the orchestrator. There is exactly one operator; multi-operator is platform-tier (Phase 3). |
 
 ---
 
 ## 1. Current-state boundary audit (P4-A)
 
-### 1.1 What the harness guarantees TODAY
+### 1.1 What the orchestrator guarantees TODAY
 
 These are the load-bearing properties verified by the existing test
 suite (936 unit / 197 integration / live readiness 15/15) and the
@@ -69,8 +69,8 @@ Phase 3-S security work:
 
 | Property | Mechanism | Code anchor |
 |---|---|---|
-| Loopback default | `HARNESS_HOST=127.0.0.1` + `requireTrustedOrigin` rejects non-loopback unless `HARNESS_ALLOW_REMOTE=1` | `src/security/auth.js`, `server.js` WS upgrade gate |
-| Token gate on state-changing HTTP | `x-harness-token` header required for POST/PUT/PATCH/DELETE; `crypto.timingSafeEqual` | `src/security/auth.js` |
+| Loopback default | `ORCHESTRATOR_HOST=127.0.0.1` + `requireTrustedOrigin` rejects non-loopback unless `ORCHESTRATOR_ALLOW_REMOTE=1` | `src/security/auth.js`, `server.js` WS upgrade gate |
+| Token gate on state-changing HTTP | `x-orchestrator-token` header required for POST/PUT/PATCH/DELETE; `crypto.timingSafeEqual` | `src/security/auth.js` |
 | WS upgrade auth | `verifyWsConnection` covers `/terminal` AND pipeline events | `src/server/wsAuth.js` (Slice S1) |
 | Path containment | `pathSandbox.resolveInsideRoot` runs realpath + symlink resolution + Windows case-double-check | `src/security/pathSandbox.js` (Slice S2) |
 | Per-run state isolation | `Map<runId, PipelineExecutor>` each with own `PipelineState` + `checkpointStore` | `executor/pipeline-orchestrator.js` (Slice Y/Z) |
@@ -93,7 +93,7 @@ following implicit assumptions stop holding:
 | Assumption (today) | What breaks remotely | Severity |
 |---|---|---|
 | Workload's filesystem is the operator's filesystem | Workload runs on a remote host; "open `package.json`" needs explicit context | **High** |
-| Workload sees the operator's environment variables | `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `HARNESS_TOKEN` are operator secrets — never ship them whole | **Critical** |
+| Workload sees the operator's environment variables | `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `ORCHESTRATOR_TOKEN` are operator secrets — never ship them whole | **Critical** |
 | Workload network = loopback + intentional API egress | Remote workload could reach internal services (cloud metadata, peer hosts) | **Critical** |
 | Hook callbacks reach `127.0.0.1:4201` | Remote workload's localhost is NOT the dashboard | **High** |
 | Pipeline state lives in `.harness/` next to the orchestrator | Remote workload writes locally; orchestrator can't see it | **High** |
@@ -213,7 +213,7 @@ Each remote workload gets a short-lived, scope-limited credential.
   remote workload talks to the orchestrator, NOT to the API directly.
   This is the inverse of today's model and it's intentional: it keeps
   rate-limit accounting + cost telemetry centralized.
-- `HARNESS_TOKEN` is replaced for remote runs by a per-run JWT issued
+- `ORCHESTRATOR_TOKEN` is replaced for remote runs by a per-run JWT issued
   by the orchestrator at run start. Lifetime = run duration + 60s
   grace. Audience = `runner-{runId}`. Includes `runId` claim so a
   stolen token can only act on its own run.
@@ -424,18 +424,18 @@ test, or a check this RFC names that gets added later.
 | **G6. Readiness rubric covers remote** | New rubric category "remote isolation" added to `docs/readiness-rubric.md`. 0/3 stars until G1-G5 pass; 3/3 once remote mode is exposed. CI gate (Phase D MD2) blocks merge if rubric drops below 14/15 | Extends MD2 + MD1 |
 | **G7. Graceful shutdown reaches remote children** | Test: kill orchestrator → remote runner observes orphan signal within 5s → cleans its own children | TODO |
 | **G8. Audit ledger signed** | Hash-chained ledger (existing `evidenceLedger`) extended with HMAC signature over each entry; integration test confirms tampering detected | Extends existing |
-| **G9. Documentation in sync** | `harness-architecture.md` + `security-model.md` + this RFC reference each other. `scorecard:check` (MD2) passes | Extends MD2 |
+| **G9. Documentation in sync** | `orchestrator-architecture.md` + `security-model.md` + this RFC reference each other. `scorecard:check` (MD2) passes | Extends MD2 |
 | **G10. Implementation RFC approved** | A second RFC ("Remote Sandbox Implementation") with concrete container image, runtime choice (docker / podman / kata / firecracker), and infra prereqs is approved before code starts | **DRAFT COMPLETE** — see [`remote-sandbox-impl.md`](./remote-sandbox-impl.md) (MG1). Pending operator sign-off before R1 slices begin. |
 
 ### 4.1 Phased rollout
 
 Once gates G1–G10 are GREEN:
 
-1. **Phase R1 — internal preview**. `HARNESS_REMOTE_MODE=preview`
+1. **Phase R1 — internal preview**. `ORCHESTRATOR_REMOTE_MODE=preview`
    exposes container-local only. Operator runs against a runner on the
    same machine; no actual network involved. Validates the isolation
    model in a controlled environment.
-2. **Phase R2 — single remote runner**. `HARNESS_REMOTE_MODE=on` plus
+2. **Phase R2 — single remote runner**. `ORCHESTRATOR_REMOTE_MODE=on` plus
    a single configured runner host. Operator can now assign a run to
    the remote runner via dashboard UI.
 3. **Phase R3 — multi-runner**. Pool of runners. Run assignment moves
@@ -452,7 +452,7 @@ previous phase's gate.**
 | Failure | Detection | Rollback |
 |---|---|---|
 | Runner host unreachable mid-run | Heartbeat timeout (10s) → `isolationStatus = "lost"` | Run marked failed; operator can replay locally |
-| Egress allowlist accidentally too permissive | Audit log shows `egress_blocked` rate drop or missing | `HARNESS_REMOTE_MODE=preview` (downgrade), investigate |
+| Egress allowlist accidentally too permissive | Audit log shows `egress_blocked` rate drop or missing | `ORCHESTRATOR_REMOTE_MODE=preview` (downgrade), investigate |
 | Monitor metadata desync (envelope missing `origin`) | `scorecard:check` fails | Same — block merge until envelope shape restored |
 | Hook ingress accepts invalid JWT | Test G4 fails | Block deploy; the JWT bug is treated as a P0 |
 | Workload escapes container | Audit log shows host process emitting workload-tagged events | Kill the runner host; treat as a security incident |
@@ -463,7 +463,7 @@ previous phase's gate.**
 
 - **Per-user RBAC** — there is one operator. Multi-user is Phase 3.
 - **Custom Dockerfiles** — initial rollout ships with one fixed image.
-- **GPU access** — out of scope; rare for this harness's workloads.
+- **GPU access** — out of scope; rare for this orchestrator's workloads.
 - **Cross-region replication** — orchestrator stays single-instance.
 - **High-availability orchestrator** — orchestrator restart is still
   a manual operation; HA is Phase 3.
@@ -488,7 +488,7 @@ previous phase's gate.**
 2. **Hook ingress channel** → **WS primary + HTTPS POST one-shot fallback**.
    See impl RFC §3. WS reuses existing `verifyWsConnection`; POST exists
    for partition recovery.
-3. **JWT issuer** → **Orchestrator self-signed (HS256, HARNESS_TOKEN-derived
+3. **JWT issuer** → **Orchestrator self-signed (HS256, ORCHESTRATOR_TOKEN-derived
    via HKDF)**. See impl RFC §4. External IdP deferred to Phase 3.
 4. **Audit ledger storage** → **Extend existing `evidenceLedger` JSONL +
    HMAC-SHA256 signature per entry**. See impl RFC §5. SQLite migration
@@ -502,7 +502,7 @@ previous phase's gate.**
   (Priority 4) — the original P4 brief.
 - `docs/remote-mode-design.md` — current remote-mode threat model.
 - `docs/container-sandbox.md` — runner isolation requirements.
-- `docs/harness-architecture.md` — current architecture overview.
+- `docs/orchestrator-architecture.md` — current architecture overview.
 - `docs/security-model.md` — Phase 3-S security boundary.
 - Plan file (`~/.claude/plans/swift-waddling-hanrahan.md`) Part C
   §Phase 3 — long-horizon platformization conditions.

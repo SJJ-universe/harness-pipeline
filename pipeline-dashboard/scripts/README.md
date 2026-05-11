@@ -3,7 +3,7 @@
 **Slice SCRIPTS-INDEX-1 (Phase 2 v2 follow-up, 2026-05-05)**
 
 This directory holds every operator-invocable and CI-invocable
-script. The harness uses scripts as the primary public surface for
+script. The orchestrator uses scripts as the primary public surface for
 operations work — `npm run readiness:check`, `npm run scorecard:sync`,
 `scripts/r2-up.sh`, etc.
 
@@ -23,7 +23,7 @@ gate. Every PR touches at least one of these indirectly.
 | --- | --- | --- |
 | [`readiness-report.js`](readiness-report.js) | The 18-star readiness rubric runner. Spawns a throwaway server in live mode. | `npm run readiness:check` |
 | [`sync-scorecard.js`](sync-scorecard.js) | Auto-derive test counts + readiness totals into the scorecard markers. | `npm run scorecard:sync` / `:check` |
-| [`validate-hook-deployment.js`](validate-hook-deployment.js) | Verify the harness hook contracts ship correctly. | `npm run verify:hooks` |
+| [`validate-hook-deployment.js`](validate-hook-deployment.js) | Verify the orchestrator hook contracts ship correctly. | `npm run verify:hooks` |
 | [`compute-sri.js`](compute-sri.js) | Compute Subresource Integrity hashes for static asset references. | `npm run sri:print` |
 | [`visual-baseline-update.js`](visual-baseline-update.js) | Refresh / check the visual regression baselines. | `npm run visual:update` / `:check` |
 | [`preflight.js`](preflight.js) | Pre-deployment health check — runs every required gate (visual / readiness / scorecard / hooks) plus optional smoke. See [`docs/runbooks/deployment-readiness.md`](../docs/runbooks/deployment-readiness.md). | `npm run preflight` |
@@ -41,19 +41,19 @@ internal verification of bundle integrity.
 
 ## §3 Setup & first-run launcher
 
-For new operators booting the harness for the first time + for
+For new operators booting the orchestrator for the first time + for
 ongoing version management.
 
 | Script | Purpose |
 | --- | --- |
 | [`setup-wizard.js`](setup-wizard.js) | First-run interactive wizard (with `.sh` + `.ps1` wrappers). |
 | [`launcher/launcher-cli.js`](launcher/launcher-cli.js) | Launcher CLI: install / verify / update orchestration. |
-| [`launcher/install-version.sh`](launcher/install-version.sh) / [`.ps1`](launcher/install-version.ps1) | Per-platform install script invoked by `harness-start`. |
+| [`launcher/install-version.sh`](launcher/install-version.sh) / [`.ps1`](launcher/install-version.ps1) | Per-platform install script invoked by `orchestrator-start`. |
 | [`launcher/check-update.sh`](launcher/check-update.sh) / [`.ps1`](launcher/check-update.ps1) | Manifest update polling (read-only — never auto-installs). |
 | [`launcher/trust-store-path.js`](launcher/trust-store-path.js) | Path resolver shared with the server-side trust-store runtime. |
 | [`launcher/manifest.json.example`](launcher/manifest.json.example) | Reference shape for a release manifest. |
 
-## §4 R2 single-runner evaluation harness
+## §4 R2 single-runner evaluation orchestrator
 
 Live-verification probes for the R2 single-runner deployment. These
 are NOT part of `npm test` — they are operator-runnable on demand.
@@ -78,7 +78,7 @@ property you want to verify.
 | --- | --- |
 | [`live-verify-review-relay.js`](live-verify-review-relay.js) | Dual-agent review-relay live probe (with `.sh` + `.ps1` wrappers). |
 | [`live-verify-smart-arc.js`](live-verify-smart-arc.js) | SMART arc live probe (with `.sh` + `.ps1` wrappers). |
-| [`collect-live-evidence.js`](collect-live-evidence.js) | Aggregate the two probe outputs into a single sealed bundle (schema `harness-live-evidence-bundle/v1`). See [`docs/live-evidence-schema.md`](../docs/live-evidence-schema.md) §4. |
+| [`collect-live-evidence.js`](collect-live-evidence.js) | Aggregate the two probe outputs into a single sealed bundle (schema `orchestrator-live-evidence-bundle/v1`). See [`docs/live-evidence-schema.md`](../docs/live-evidence-schema.md) §4. |
 
 ## §6 Field pilot
 
@@ -106,7 +106,7 @@ visual issues; not part of CI.
 
 | Script | Purpose |
 | --- | --- |
-| [`build-runner.sh`](build-runner.sh) / [`build-runner.ps1`](build-runner.ps1) | Build the harness-runner Docker image. |
+| [`build-runner.sh`](build-runner.sh) / [`build-runner.ps1`](build-runner.ps1) | Build the orchestrator-runner Docker image. |
 | [`env-check.ps1`](env-check.ps1) | Windows environment diagnostic (Node version, PATH, prerequisites). |
 
 ---

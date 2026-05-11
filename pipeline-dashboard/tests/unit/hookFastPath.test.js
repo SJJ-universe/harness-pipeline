@@ -2,7 +2,7 @@
 const { describe, it } = require("node:test");
 const assert = require("node:assert/strict");
 
-// The FIRE_AND_FORGET_TOOLS set is defined inside harness-hook.js which is a
+// The FIRE_AND_FORGET_TOOLS set is defined inside orchestrator-hook.js which is a
 // standalone CLI script. We replicate the set here and verify it matches the
 // expected safe-tool list.
 const FIRE_AND_FORGET_TOOLS = new Set([

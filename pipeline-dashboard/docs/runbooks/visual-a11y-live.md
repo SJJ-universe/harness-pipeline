@@ -2,7 +2,7 @@
 
 > **Slice**: UI-P12 (Phase D Round UI-P, 2026-05-04)
 >
-> **목적**: UI-P10/P11 인프라 위에 axe-core (WCAG 2.0/2.1 A+AA, ~50 rules) + 2개 harness 전용 custom rule을 얹어, 4 routes × 4 viewports = 16 cells 전체에서 접근성 회귀를 자동 검출. 공공기관 / 사내망 / 정부 조달 시나리오의 의무 항목.
+> **목적**: UI-P10/P11 인프라 위에 axe-core (WCAG 2.0/2.1 A+AA, ~50 rules) + 2개 orchestrator 전용 custom rule을 얹어, 4 routes × 4 viewports = 16 cells 전체에서 접근성 회귀를 자동 검출. 공공기관 / 사내망 / 정부 조달 시나리오의 의무 항목.
 >
 > **이 도구가 잡는 것**:
 > - axe-core: ARIA roles + labels, keyboard fundamentals, button-name, link-name, image-alt, frame-title, duplicate-id, html-has-lang, etc.
@@ -127,11 +127,11 @@ node scripts/visual-a11y-live.js --quiet --json > a11y-result.json
 
 ---
 
-## 5. Manifest 스키마 (harness-visual-a11y/v1)
+## 5. Manifest 스키마 (orchestrator-visual-a11y/v1)
 
 ```json
 {
-  "schema": "harness-visual-a11y/v1",
+  "schema": "orchestrator-visual-a11y/v1",
   "capturedAt": "2026-05-04T08:00:00.000Z",
   "base": "http://127.0.0.1:4799",
   "browser": { "name": "chromium", "version": "131.0.6778.69" },
@@ -286,7 +286,7 @@ P12-d에서 `.github/workflows/visual-a11y-live.yml` workflow_dispatch만 추가
 - 미국 Section 508 (Federal acquisition)
 - EU EN 301 549 (web accessibility regulation)
 
-→ axe-core WCAG 2.1 AA + harness-specific custom (lang/skip-link)는 이 모든 표준의 핵심 부분집합. 이번 라운드 통과 시 정부 조달 evidence trail의 시작점이 잡힘.
+→ axe-core WCAG 2.1 AA + orchestrator-specific custom (lang/skip-link)는 이 모든 표준의 핵심 부분집합. 이번 라운드 통과 시 정부 조달 evidence trail의 시작점이 잡힘.
 
 ---
 
@@ -294,7 +294,7 @@ P12-d에서 `.github/workflows/visual-a11y-live.yml` workflow_dispatch만 추가
 
 | 다음 라운드 | UI-P12가 제공하는 것 |
 |---|---|
-| UI-P13 Dead Button | 같은 chromium harness — click + axe 결합 가능 |
+| UI-P13 Dead Button | 같은 chromium orchestrator — click + axe 결합 가능 |
 | UI-Doc-Gov | a11y manifest 형식 + commit 정책 |
 | UI-FirstRun | first-run UI도 같은 a11y 평가 받아야 |
 

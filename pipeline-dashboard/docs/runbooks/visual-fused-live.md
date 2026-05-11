@@ -102,7 +102,7 @@ node scripts/visual-fused-live.js --quiet --json > fused-result.json
 
 ```json
 {
-  "schema": "harness-visual-fused/v1",
+  "schema": "orchestrator-visual-fused/v1",
   "fusedAt": "2026-05-04T08:00:00.000Z",
   "outDir": "docs/reports/2026-05-04-ui-fuse-pr-1234",
   "tools": {
@@ -112,10 +112,10 @@ node scripts/visual-fused-live.js --quiet --json > fused-result.json
     "button":  "ran"
   },
   "perTool": {
-    "capture": { "schema": "harness-visual-live/v1", "totalElapsedMs": 8421, "summary": { "ok": 16, "failed": 0 } },
-    "assert":  { "schema": "harness-visual-assert/v1", "totalElapsedMs": 5234, "summary": { "cellsAllPassed": 16 } },
+    "capture": { "schema": "orchestrator-visual-live/v1", "totalElapsedMs": 8421, "summary": { "ok": 16, "failed": 0 } },
+    "assert":  { "schema": "orchestrator-visual-assert/v1", "totalElapsedMs": 5234, "summary": { "cellsAllPassed": 16 } },
     "a11y":    { "error": "navigation timeout" },
-    "button":  { "schema": "harness-visual-button/v1", "totalElapsedMs": 4521, "summary": { "totalCells": 4, "cellsAllPassed": 4 } }
+    "button":  { "schema": "orchestrator-visual-button/v1", "totalElapsedMs": 4521, "summary": { "totalCells": 4, "cellsAllPassed": 4 } }
   }
 }
 ```

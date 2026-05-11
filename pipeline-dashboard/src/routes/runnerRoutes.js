@@ -12,7 +12,7 @@
 //
 //   /handshake   reads Authorization: Bearer <bootstrap>
 //                bootstrap is matched via constant-time compare against
-//                HARNESS_REMOTE_RUNNER_TOKEN_<host> (env or test override).
+//                ORCHESTRATOR_REMOTE_RUNNER_TOKEN_<host> (env or test override).
 //                On success returns { runnerToken } in the response body.
 //
 //   /heartbeat   reads Authorization: Bearer <runnerToken>
@@ -27,7 +27,7 @@
 //
 // FEATURE FLAG (MG1 §3.3):
 //
-//   Routes 404 when HARNESS_REMOTE_MODE === "off" (or not set).
+//   Routes 404 when ORCHESTRATOR_REMOTE_MODE === "off" (or not set).
 //   "preview" is the R1 default; "on" is reserved for R2+.
 //   The flag is read once at construction; restart to flip it.
 
@@ -180,7 +180,7 @@ function createRunnerRoutes({
         return res.status(500).json({ error: "hook routing failed" });
       }
     }
-    _ledgerAudit(runId, "runner_hook_ok", { hostIdentity: result.payload.harness && result.payload.harness.hostIdentity });
+    _ledgerAudit(runId, "runner_hook_ok", { hostIdentity: result.payload.orchestrator && result.payload.orchestrator.hostIdentity });
     return res.json({ ok: true, accepted: true });
   });
 

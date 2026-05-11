@@ -159,7 +159,7 @@ class HookRouter {
         return { decision: "block", reason: alarm.message };
       }
     }
-    if (process.env.HARNESS_DEBUG === "1") {
+    if (process.env.ORCHESTRATOR_DEBUG === "1") {
       console.log(`[HookRouter] ${event} executor=${!!this.executor} enabled=${this.executor?.enabled}`);
     }
 
@@ -696,7 +696,7 @@ class HookRouter {
   }
 
   _samplePayload(event, payload) {
-    if (process.env.HARNESS_SAMPLE_HOOKS !== "1") return;
+    if (process.env.ORCHESTRATOR_SAMPLE_HOOKS !== "1") return;
     // P-4 Performance: async fire-and-forget — never block hook processing
     // Size cap: truncate large payloads to avoid disk/memory pressure
     const MAX_SAMPLE_SIZE = 32_000;

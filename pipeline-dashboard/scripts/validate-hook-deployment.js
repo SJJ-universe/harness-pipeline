@@ -20,7 +20,7 @@ function candidateSettingsPaths() {
   const out = [];
   // Walk upward from cwd up to three levels to cover:
   //   pipeline-dashboard/     (cwd when running npm script)
-  //   harness-pipeline-analysis/  (repo root, where settings actually lives)
+  //   orchestrator-pipeline-analysis/  (repo root, where settings actually lives)
   //   workspace/              (user monorepo root)
   let dir = process.cwd();
   for (let i = 0; i < 4; i++) {
@@ -48,7 +48,7 @@ function main() {
   if (reports.length === 0) {
     console.error("No .claude/settings.json found in any of:");
     for (const p of paths) console.error(`  ${p}`);
-    console.error("\nCreate one with the 10 hooks this harness expects:");
+    console.error("\nCreate one with the 10 hooks this orchestrator expects:");
     console.error("  UserPromptSubmit, PreToolUse, PostToolUse, Stop,");
     console.error("  SessionStart, SessionEnd, SubagentStart, SubagentStop,");
     console.error("  Notification, PreCompact");

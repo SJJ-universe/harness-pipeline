@@ -15,7 +15,7 @@ const { PipelineState } = require("../../executor/pipeline-state");
 const { HookRouter } = require("../../executor/hook-router");
 
 function mkTempRepo() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), "harness-multirun-"));
+  return fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-multirun-"));
 }
 
 function mkTemplates() {

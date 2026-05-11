@@ -7,7 +7,7 @@
 // fictional tool name) so claude's allow-list contains only a tool
 // that doesn't exist — effectively disabling every real tool in the
 // planner subprocess. With no real tools available, PreToolUse hooks
-// cannot fire, so the harness's own hooks can never re-enter during
+// cannot fire, so the orchestrator's own hooks can never re-enter during
 // a planner call.
 //
 // Why a sentinel string rather than `--tools ""`?
@@ -95,7 +95,7 @@ class ClaudeRunner {
     // BOTH must be wired together for profileSpawn to engage. When
     // either is null, the runner falls back to P0 base only (the
     // pre-D1 single-user behavior). This lets server.js (or a test
-    // harness) opt INTO profile-aware spawning without breaking
+    // orchestrator) opt INTO profile-aware spawning without breaking
     // every existing test that constructs ClaudeRunner with the
     // old arg shape.
     profileStore = null,
@@ -225,7 +225,7 @@ class ClaudeRunner {
           // `(`, `)`, `&`, `|`, `^`, `>`, `<`, `"`, etc.) gets mis-
           // parsed by cmd.exe and the planner fails with exitCode=1
           // and a tiny stdout. The user surfaced this with a Korean
-          // task containing `(하네스 엔진)` — the parens crashed the
+          // task containing `(오케스트레이터 엔진)` — the parens crashed the
           // command line. Codex runner has used the stdin pattern since
           // v6 (executor/codex-runner.js:326-330); Claude is now aligned.
           const args = [
@@ -234,7 +234,7 @@ class ClaudeRunner {
             "--tools",
             "NoOpDisableSentinel",
           ];
-          if (process.env.HARNESS_ALLOW_DANGEROUS_AGENT === "1" && explicitConfirmation) {
+          if (process.env.ORCHESTRATOR_ALLOW_DANGEROUS_AGENT === "1" && explicitConfirmation) {
             args.push("--dangerously-skip-permissions");
           }
           const policyDecision = dangerGate.evaluate({

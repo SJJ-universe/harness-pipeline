@@ -1,6 +1,6 @@
-// Slice UI-P1-f / UI-P3-d (Phase 2 Round 3, 2026-04-30) — harness track.
+// Slice UI-P1-f / UI-P3-d (Phase 2 Round 3, 2026-04-30) — orchestrator track.
 //
-// Renders the 92px harness-track band per the reference. UI-P1 shipped
+// Renders the 92px orchestrator-track band per the reference. UI-P1 shipped
 // a static 7-stage display with a 🐎 emoji placeholder. UI-P3 swaps
 // the placeholder for the real sprite player from product-horse-rider.js
 // — now the horse galops in place at first paint.
@@ -98,9 +98,9 @@
 
     const track = _doc.createElement("div");
     track.className = "prod-track";
-    track.setAttribute("data-region", "harness-track");
+    track.setAttribute("data-region", "orchestrator-track");
     track.setAttribute("role", "region");
-    track.setAttribute("aria-label", "Harness Track — 파이프라인 단계 진행 표시");
+    track.setAttribute("aria-label", "Orchestrator Track — 파이프라인 단계 진행 표시");
 
     // Lane labels
     const lanes = _doc.createElement("div");

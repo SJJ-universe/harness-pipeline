@@ -11,7 +11,7 @@
 #   - exposes :4201 for the dashboard + runner WS upgrade endpoint.
 #   - HOST defaults to 0.0.0.0 inside the container so docker port
 #     mapping can reach it. The auth middleware is still active
-#     (HARNESS_TOKEN-gated). Operators are expected to publish ports as
+#     (ORCHESTRATOR_TOKEN-gated). Operators are expected to publish ports as
 #     `127.0.0.1:4201:4201` so only the host loopback can reach the
 #     dashboard.
 #
@@ -20,8 +20,8 @@
 #
 # Run (manual; the docker-compose.r2-single-runner.yml file wraps this):
 #   docker run --rm -it \
-#     -e HARNESS_TOKEN=<token> \
-#     -e HARNESS_REMOTE_MODE=preview \
+#     -e ORCHESTRATOR_TOKEN=<token> \
+#     -e ORCHESTRATOR_REMOTE_MODE=preview \
 #     -p 127.0.0.1:4201:4201 \
 #     harness-orchestrator:dev
 
@@ -42,16 +42,16 @@ FROM node:24-bookworm-slim AS runtime
 # Non-root account. UID 10100 to keep clear visual separation from the
 # runner's UID 10001 — if both images mount a shared volume by accident,
 # we want the file owners to differentiate at a glance.
-RUN groupadd --system --gid 10100 harness \
+RUN groupadd --system --gid 10100 orchestrator \
   && useradd --system --uid 10100 --gid 10100 \
        --home-dir /app --no-create-home --shell /usr/sbin/nologin \
-       harness
+       orchestrator
 
 # Layout:
 #   /app                     — REPO_ROOT (server.js does
 #                              `path.resolve(__dirname, "..")`)
 #   /app/dashboard           — orchestrator code (server.js + deps)
-#   /app/.harness            — auth token (recreated at boot if absent)
+#   /app/.orchestrator            — auth token (recreated at boot if absent)
 #   /app/runs                — RunRegistry + EvidenceLedger root
 #                              (`runsDir = path.join(REPO_ROOT, "runs")`)
 #                              MUST be writable by harness; mounted as a
@@ -85,18 +85,18 @@ COPY fixtures               ./fixtures
 # Writable workspaces at REPO_ROOT (= /app). Must be created + chowned
 # BEFORE the USER drop because /app itself is root-owned in
 # node:24-bookworm-slim and a non-root mkdirSync would fail.
-RUN mkdir -p /app/.harness /app/runs \
-  && chown -R harness:harness /app/.harness /app/runs /app/dashboard
+RUN mkdir -p /app/.orchestrator /app/runs \
+  && chown -R orchestrator:orchestrator /app/.orchestrator /app/runs /app/dashboard
 
-USER harness
+USER orchestrator
 
 ENV NODE_ENV=production
 ENV PORT=4201
 # 0.0.0.0 binding inside the container; the host should publish the port
 # as 127.0.0.1:4201:4201 so only the host loopback can reach the
-# dashboard. Auth middleware enforces HARNESS_TOKEN regardless.
-# server.js compares HARNESS_ALLOW_REMOTE === "1" exactly — be literal.
-ENV HARNESS_ALLOW_REMOTE=1
+# dashboard. Auth middleware enforces ORCHESTRATOR_TOKEN regardless.
+# server.js compares ORCHESTRATOR_ALLOW_REMOTE === "1" exactly — be literal.
+ENV ORCHESTRATOR_ALLOW_REMOTE=1
 
 EXPOSE 4201
 

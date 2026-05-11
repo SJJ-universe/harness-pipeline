@@ -1,4 +1,4 @@
-# Harness Readiness Rubric
+# Orchestrator Readiness Rubric
 
 Date: 2026-04-27
 Status: Initial draft (Slice MB5 of Phase D Round 2)
@@ -7,7 +7,7 @@ Parent spec: `docs/superpowers/specs/2026-04-27-five-priority-roadmap.md` (P5)
 
 ## 1. Why this exists
 
-The harness has strong unit + integration coverage (<!-- AUTO:test-counts -->**4068 unit / 574 integration**<!-- /AUTO -->) — but unit coverage tells you "the code does what it says". It does NOT tell you whether the system is OPERATIONALLY usable for the next wave. This rubric defines that operational view.
+The orchestrator has strong unit + integration coverage (<!-- AUTO:test-counts -->**4068 unit / 574 integration**<!-- /AUTO -->) — but unit coverage tells you "the code does what it says". It does NOT tell you whether the system is OPERATIONALLY usable for the next wave. This rubric defines that operational view.
 
 _(test-count line above auto-derived by `npm run scorecard:sync`; do not hand-edit between markers.)_
 
@@ -23,7 +23,7 @@ Each category has 0..3 stars. Total 18 stars across the rubric. A category at 0 
 
 **Question**: Can an operator answer "what is running right now and what's it doing?" in under 5 seconds?
 
-**Why it matters**: An operator who can't tell *what is happening at this moment* can't trust any output the harness produces. Run visibility is the bedrock of every other operator-trust signal in this rubric — a 0/3 here makes the rest of the stars effectively vacuous, because the operator has no fixed point to evaluate them against.
+**Why it matters**: An operator who can't tell *what is happening at this moment* can't trust any output the orchestrator produces. Run visibility is the bedrock of every other operator-trust signal in this rubric — a 0/3 here makes the rest of the stars effectively vacuous, because the operator has no fixed point to evaluate them against.
 
 | Stars | Criterion |
 | --- | --- |
@@ -35,7 +35,7 @@ Each category has 0..3 stars. Total 18 stars across the rubric. A category at 0 
 
 ### 2.2 Child visibility
 
-**Question**: If the harness spawns 3 children (Codex + Claude + subagent), can an operator see all three from the dashboard?
+**Question**: If the orchestrator spawns 3 children (Codex + Claude + subagent), can an operator see all three from the dashboard?
 
 **Why it matters**: A typical run can spawn 3+ child processes — Codex (critic), Claude (executor), plus any subagents the executor delegates to. If a single child becomes invisible to the operator (e.g. a subagent stuck in a tight loop, or a runaway Codex token burst), there is no in-band way to catch it before it consumes resources. The agent-tree panel is what makes "spawn happened" survive into "spawn is observable".
 
@@ -79,7 +79,7 @@ Each category has 0..3 stars. Total 18 stars across the rubric. A category at 0 
 
 **Question**: Can a future panel be added without changing the server contract?
 
-**Why it matters**: New panels must arrive without breaking shipped clients. If shipping a feature requires changing `/api/server/info`'s shape, every external integration (CLI tools, third-party dashboards, smoke probes) breaks on upgrade. Contract stability is what lets the harness keep growing without the cost of growing scaling super-linearly with downstream consumer count.
+**Why it matters**: New panels must arrive without breaking shipped clients. If shipping a feature requires changing `/api/server/info`'s shape, every external integration (CLI tools, third-party dashboards, smoke probes) breaks on upgrade. Contract stability is what lets the orchestrator keep growing without the cost of growing scaling super-linearly with downstream consumer count.
 
 | Stars | Criterion |
 | --- | --- |
@@ -93,15 +93,15 @@ Each category has 0..3 stars. Total 18 stars across the rubric. A category at 0 
 
 **Question**: When the operator opts into the remote-runner subsystem, does the trust boundary actually hold?
 
-**Why it matters**: When the operator opts into remote runners, the trust boundary is the difference between local-only inspection and exposing the orchestrator's authority to a distributed agent. A breach in this category is materially worse than any other star drop in this rubric — a compromised remote runner could potentially access local resources or forge audit entries. This is the only category where the *default* posture matters as much as the verified-behavior posture: the harness ships fail-closed and only opens the boundary on explicit operator opt-in.
+**Why it matters**: When the operator opts into remote runners, the trust boundary is the difference between local-only inspection and exposing the orchestrator's authority to a distributed agent. A breach in this category is materially worse than any other star drop in this rubric — a compromised remote runner could potentially access local resources or forge audit entries. This is the only category where the *default* posture matters as much as the verified-behavior posture: the orchestrator ships fail-closed and only opens the boundary on explicit operator opt-in.
 
 | Stars | Criterion |
 | --- | --- |
-| ★ | `HARNESS_REMOTE_MODE` defaults to `"off"` (workspace-boundary closed). `setupRemoteRunner({ env: {} })` returns `mode="off"`, `runnerRegistry=null`, both keys `null`; `createRunnerRoutes(mode="off")` 404s every route. |
-| ★★ | Token model with HKDF domain separation. The JWT signing key (`info="runner-jwt"`) and the audit-ledger signing key (`info="audit-ledger"`) derive from the same `HARNESS_TOKEN` IKM but produce two independent 32-byte keys. Compromising one must not compromise the other. |
+| ★ | `ORCHESTRATOR_REMOTE_MODE` defaults to `"off"` (workspace-boundary closed). `setupRemoteRunner({ env: {} })` returns `mode="off"`, `runnerRegistry=null`, both keys `null`; `createRunnerRoutes(mode="off")` 404s every route. |
+| ★★ | Token model with HKDF domain separation. The JWT signing key (`info="runner-jwt"`) and the audit-ledger signing key (`info="audit-ledger"`) derive from the same `ORCHESTRATOR_TOKEN` IKM but produce two independent 32-byte keys. Compromising one must not compromise the other. |
 | ★★★ | **Live end-to-end round-trip** (R1-g upgrade). An in-process orchestrator + RunnerAgent: handshake → WS hello → `agent_started` frame → orchestrator's `childRegistry` shows the remote child with the right `runId` + `hostIdentity` + `remote:true` flag, AND the audit chain still verifies under HMAC. Subsumes the previous "audit chain only" check — a regression in path-aware demux, JWT verify, WS frame routing, child projection, OR ledger signing makes this star drop. |
 
-**Star progression**: ★ verifies the default-off posture — the most important security invariant in the harness. ★★ tests the cryptographic property that lets the two signing keys live in the same process without one's compromise cascading to the other. ★★★ exercises the entire remote pathway end-to-end so a regression anywhere in WS demux, JWT verify, frame routing, child projection, or ledger HMAC drops the star — there is no place to silently break this.
+**Star progression**: ★ verifies the default-off posture — the most important security invariant in the orchestrator. ★★ tests the cryptographic property that lets the two signing keys live in the same process without one's compromise cascading to the other. ★★★ exercises the entire remote pathway end-to-end so a regression anywhere in WS demux, JWT verify, frame routing, child projection, or ledger HMAC drops the star — there is no place to silently break this.
 
 > The full agent flow (handshake → heartbeat sliding TTL → JWT-authenticated WS hook → graceful release) is exercised by the integration suite (`tests/integration/runner-server-wiring.test.js`, `runner-routes.test.js`, `runner-ws-r1g.test.js`). The readiness rubric verifies these three invariants live; the suite covers the broader choreography.
 
@@ -109,7 +109,7 @@ Each category has 0..3 stars. Total 18 stars across the rubric. A category at 0 
 
 The numbers below come from `npm run scorecard:sync` running
 `scripts/readiness-report.js` in **live mode** — i.e. the script spawns
-a throwaway harness (`node server.js` on `HARNESS_READINESS_PORT=5099`)
+a throwaway orchestrator (`node server.js` on `ORCHESTRATOR_READINESS_PORT=5099`)
 and exercises the http endpoints alongside the in-process module
 checks. This is the canonical signal; the rest of this document and
 the doc-sync test suite agree that "readiness" means "live readiness".
@@ -160,7 +160,7 @@ Each entry below records when a category last hit its third star.
 
 ```
 $ node scripts/readiness-report.js
-=== Harness Readiness Report ===
+=== Orchestrator Readiness Report ===
   run-visibility       ★★★  (3/3)
   child-visibility     ★★★  (3/3)
   replay-visibility    ★★★  (3/3)
@@ -172,7 +172,7 @@ $ node scripts/readiness-report.js
   contract-stability   ★★★  (3/3)
     + layout panels override invokes stub panel.create (behavior verified)
   remote-isolation     ★★★  (3/3)
-    + HARNESS_REMOTE_MODE default = off (fail-closed, behavior verified)
+    + ORCHESTRATOR_REMOTE_MODE default = off (fail-closed, behavior verified)
     + HKDF JWT + ledger keys derive with domain separation (behavior verified)
     + live runner agent → orchestrator round-trip projects remote child + ledger chain verifies (behavior verified)
   ───────────────────────────────
@@ -202,7 +202,7 @@ Exit codes (post-R1-i, with READINESS-BOOT-FAILURE-CONFIG):
 - `1` — total ≥ 12 (preview-ready)
 - `2` — total ≥ 7  (internal-only)
 - `3` — total < 7  (blocking — do not ship)
-- `4` — CONFIG: harness server boot failed (sandboxed shell, EPERM, EACCES, ENOENT, timeout, premature exit).
+- `4` — CONFIG: orchestrator server boot failed (sandboxed shell, EPERM, EACCES, ENOENT, timeout, premature exit).
 
 The `--json` flag produces machine-readable output for PR gates.
 

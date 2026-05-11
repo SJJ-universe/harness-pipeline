@@ -11,7 +11,7 @@ The survey complements the machine evidence:
 - **Probe** → did anything in the audit chain look wrong?
 - **Deployment log** → what did the operator do each day?
 - **Incident ledger** → what deviated from boring?
-- **Survey (this file)** → did the harness *feel* like a tool the operator
+- **Survey (this file)** → did the orchestrator *feel* like a tool the operator
   trusts?
 
 A pilot can be technically green (no incidents, all probes OK) and still

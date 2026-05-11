@@ -22,7 +22,7 @@
 //   phone_kr_landline — 한국 일반전화 (02/0XX with 7-8 digit body).
 //
 //   email             — RFC 5321ish email. Pre-filter excludes the
-//                       obvious harness audit metadata fields (the
+//                       obvious orchestrator audit metadata fields (the
 //                       redactor never sees those because the audit
 //                       sanitizer fires first, but sample emails
 //                       still need redaction in operator-visible

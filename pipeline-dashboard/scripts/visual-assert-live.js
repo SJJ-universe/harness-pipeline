@@ -50,7 +50,7 @@ the live product shell at every cell of the 4×4 (route × viewport)
 matrix. Reports pass/fail manifest + exit code 0/1/2.
 
 Options:
-  --port <n>                Server port (default 4799 or HARNESS_VISUAL_LIVE_PORT)
+  --port <n>                Server port (default 4799 or ORCHESTRATOR_VISUAL_LIVE_PORT)
   --out-dir <path>          Output directory for manifest.json
                             (default docs/reports/<YYYY-MM-DD>-ui-p11-assert/)
   --label <text>            Optional label suffix for the directory name

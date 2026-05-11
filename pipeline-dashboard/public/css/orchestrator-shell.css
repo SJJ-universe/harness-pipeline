@@ -1,7 +1,7 @@
 /* Slice UI-H0 (Phase D / Phase E1.5, 2026-04-30) — design-token layer.
  *
- * Single source of truth for the SJ Harness Dashboard visual vocabulary
- * extracted from the mockup at C:\Users\SJ\Downloads\web page\sj-harness-
+ * Single source of truth for the SJ Orchestrator Dashboard visual vocabulary
+ * extracted from the mockup at C:\Users\SJ\Downloads\web page\sj-orchestrator-
  * dashboard\. The mockup itself uses React/Babel/CDN + Google Fonts —
  * which we explicitly DON'T adopt (per docs/ui-h-redesign-plan.md
  * §0.2). This file extracts the design tokens (color, typography,
@@ -10,7 +10,7 @@
  *
  * Loading order in public/index.html:
  *
- *   1. <link rel="stylesheet" href="css/harness-shell.css">  <-- this file
+ *   1. <link rel="stylesheet" href="css/orchestrator-shell.css">  <-- this file
  *   2. <link rel="stylesheet" href="style.css">              (legacy)
  *   3. <link rel="stylesheet" href="style.monitor.css">      (monitor shell)
  *
@@ -58,7 +58,7 @@
   --hsh-border-hairline: rgba(255, 255, 255, 0.05);
 
   /* Accent — bronze for primary, blue for Codex */
-  --hsh-bronze:        #C9A66B;        /* Claude / primary CTA / harness gate */
+  --hsh-bronze:        #C9A66B;        /* Claude / primary CTA / orchestrator gate */
   --hsh-bronze-soft:   rgba(201, 166, 107, 0.14);
   --hsh-bronze-faint:  rgba(201, 166, 107, 0.05);
   --hsh-codex-blue:    #7FA9CB;        /* Codex / Verifier */
@@ -138,7 +138,7 @@
   /* Default durations */
   --hsh-dur-fast: 0.15s;
   --hsh-dur-base: 0.25s;
-  --hsh-dur-slow: 1.05s;        /* harness-track lane glide */
+  --hsh-dur-slow: 1.05s;        /* orchestrator-track lane glide */
 
   /* Pulse used by active-stage indicator + status pill */
   --hsh-anim-pulse: hsh-pulse 1.4s ease-in-out infinite;
@@ -146,7 +146,7 @@
   --hsh-anim-slide: hsh-slide 1.6s ease-in-out infinite;
   /* Caret used by codex live console */
   --hsh-anim-caret: hsh-caret-blink 1s steps(1) infinite;
-  /* Rear callout — harness gate fires */
+  /* Rear callout — orchestrator gate fires */
   --hsh-anim-rear-callout: hsh-rear-callout 0.25s ease-out;
 }
 

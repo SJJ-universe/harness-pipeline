@@ -1,6 +1,6 @@
 // Slice D0-a (Phase E1 productization, 2026-04-28) — launcherManifest tests.
 //
-// Pins the schema contract that the harness-start launcher depends on.
+// Pins the schema contract that the orchestrator-start launcher depends on.
 // A careless future loosening (e.g. accepting http:// URLs, mixed-case
 // hex) would degrade the trust posture without the test failing — these
 // tests catch it.
@@ -26,7 +26,7 @@ const {
 const VALID_MANIFEST = Object.freeze({
   version: "1.1.0",
   publishedAt: "2026-05-15T09:00:00Z",
-  url: "https://github.com/SJJ-universe/harness-pipeline/releases/download/v1.1.0/harness-pipeline-1.1.0.zip",
+  url: "https://github.com/SJJ-universe/orchestrator-pipeline/releases/download/v1.1.0/orchestrator-pipeline-1.1.0.zip",
   sha256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
   minNodeVersion: "24.0.0",
 });
@@ -73,10 +73,10 @@ test("D0-a: validateManifestSchema rejects http:// URL (https mandatory)", () =>
 // in the manifest body are accepted. Production posture (env unset)
 // MUST keep rejecting.
 
-test("TRUST-STORE-E2E-EVIDENCE: HARNESS_ALLOW_INSECURE_MANIFEST_URL=1 relaxes manifest-body url check", () => {
-  const original = process.env.HARNESS_ALLOW_INSECURE_MANIFEST_URL;
+test("TRUST-STORE-E2E-EVIDENCE: ORCHESTRATOR_ALLOW_INSECURE_MANIFEST_URL=1 relaxes manifest-body url check", () => {
+  const original = process.env.ORCHESTRATOR_ALLOW_INSECURE_MANIFEST_URL;
   try {
-    process.env.HARNESS_ALLOW_INSECURE_MANIFEST_URL = "1";
+    process.env.ORCHESTRATOR_ALLOW_INSECURE_MANIFEST_URL = "1";
     const m = { ...VALID_MANIFEST, url: "file:///C:/tmp/release.zip" };
     const r = validateManifestSchema(m);
     assert.equal(r.ok, true,
@@ -90,17 +90,17 @@ test("TRUST-STORE-E2E-EVIDENCE: HARNESS_ALLOW_INSECURE_MANIFEST_URL=1 relaxes ma
     assert.ok(r.manifest, "ok:true response must include the validated manifest");
   } finally {
     if (original === undefined) {
-      delete process.env.HARNESS_ALLOW_INSECURE_MANIFEST_URL;
+      delete process.env.ORCHESTRATOR_ALLOW_INSECURE_MANIFEST_URL;
     } else {
-      process.env.HARNESS_ALLOW_INSECURE_MANIFEST_URL = original;
+      process.env.ORCHESTRATOR_ALLOW_INSECURE_MANIFEST_URL = original;
     }
   }
 });
 
 test("TRUST-STORE-E2E-EVIDENCE: env unset or != '1' keeps file:// rejected (production posture)", () => {
-  const original = process.env.HARNESS_ALLOW_INSECURE_MANIFEST_URL;
+  const original = process.env.ORCHESTRATOR_ALLOW_INSECURE_MANIFEST_URL;
   try {
-    delete process.env.HARNESS_ALLOW_INSECURE_MANIFEST_URL;
+    delete process.env.ORCHESTRATOR_ALLOW_INSECURE_MANIFEST_URL;
     const m = { ...VALID_MANIFEST, url: "file:///C:/tmp/release.zip" };
     const r = validateManifestSchema(m);
     assert.equal(r.ok, false,
@@ -109,15 +109,15 @@ test("TRUST-STORE-E2E-EVIDENCE: env unset or != '1' keeps file:// rejected (prod
 
     // Even an explicit "0" value must NOT relax — the env contract
     // is "1 = relax", anything else = strict.
-    process.env.HARNESS_ALLOW_INSECURE_MANIFEST_URL = "0";
+    process.env.ORCHESTRATOR_ALLOW_INSECURE_MANIFEST_URL = "0";
     const r2 = validateManifestSchema(m);
     assert.equal(r2.ok, false,
       "env='0' must keep strict mode (only '1' relaxes)");
   } finally {
     if (original === undefined) {
-      delete process.env.HARNESS_ALLOW_INSECURE_MANIFEST_URL;
+      delete process.env.ORCHESTRATOR_ALLOW_INSECURE_MANIFEST_URL;
     } else {
-      process.env.HARNESS_ALLOW_INSECURE_MANIFEST_URL = original;
+      process.env.ORCHESTRATOR_ALLOW_INSECURE_MANIFEST_URL = original;
     }
   }
 });

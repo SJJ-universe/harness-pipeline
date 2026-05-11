@@ -8,7 +8,7 @@
 //
 //   To avoid either (a) locking ourselves to a deprecated field or (b)
 //   breaking older installations of Claude Code during the transition, every
-//   PreToolUse response in the harness is now built through this adapter
+//   PreToolUse response in the orchestrator is now built through this adapter
 //   which emits BOTH the legacy and modern shapes at once.
 //
 // Scope:

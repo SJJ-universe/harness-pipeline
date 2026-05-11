@@ -1,7 +1,7 @@
 // Slice END-USER-DEPLOY-POLISH (Phase 2 v2 follow-up, 2026-05-05) —
 // structural test for docs/runbooks/first-time-use.md (Korean-primary
 // first-time-use guide for non-technical end users) + bilingual
-// surface verification on harness-start.bat.
+// surface verification on orchestrator-start.bat.
 
 "use strict";
 
@@ -12,7 +12,7 @@ const path = require("node:path");
 
 const REPO_ROOT = path.resolve(__dirname, "..", "..");
 const RUNBOOK = path.resolve(REPO_ROOT, "docs", "runbooks", "first-time-use.md");
-const BAT = path.resolve(REPO_ROOT, "harness-start.bat");
+const BAT = path.resolve(REPO_ROOT, "orchestrator-start.bat");
 
 function read(p) { return fs.readFileSync(p, "utf-8"); }
 
@@ -69,7 +69,7 @@ test("END-USER-DEPLOY-POLISH: §1 explains in Korean what the tool is", () => {
   // Must contain the core Korean explanation phrase
   assert.match(seg, /AI 코딩 도구를 안전하게 감독하는 대시보드/,
     "§1 must give the one-sentence Korean explanation");
-  // Must clarify Harness is NOT a replacement for Claude/Codex
+  // Must clarify Orchestrator is NOT a replacement for Claude/Codex
   assert.match(seg, /대체하지 않습니다/);
 });
 
@@ -84,7 +84,7 @@ test("END-USER-DEPLOY-POLISH: §2 lists prerequisites with Korean labels", () =>
   // The text appears inside a blockquote that may wrap, so allow
   // whitespace AND blockquote-continuation markers between words.
   assert.match(seg, /비밀번호를 받지[\s>]+않습니다/,
-    "§2 must clarify that Harness does not collect provider passwords");
+    "§2 must clarify that Orchestrator does not collect provider passwords");
 });
 
 test("END-USER-DEPLOY-POLISH: §3 walks through extract → double-click → browser", () => {
@@ -92,7 +92,7 @@ test("END-USER-DEPLOY-POLISH: §3 walks through extract → double-click → bro
   const idx = text.indexOf("## §3");
   const seg = text.slice(idx, text.indexOf("## §4", idx));
   assert.match(seg, /더블클릭/, "§3 must mention 더블클릭 (double-click)");
-  assert.match(seg, /harness-start\.bat/, "§3 must name the launcher");
+  assert.match(seg, /orchestrator-start\.bat/, "§3 must name the launcher");
   assert.match(seg, /127\.0\.0\.1:4201/, "§3 must show the dashboard URL");
 });
 
@@ -122,7 +122,7 @@ test("END-USER-DEPLOY-POLISH: §5 distinguishes Claude vs Codex with the passwor
   assert.match(seg, /codex --version/);
   assert.match(seg, /Anthropic|OpenAI/);
   assert.match(seg, /비밀번호를 묻지 않습니다/,
-    "§5 must reiterate that Harness never asks for passwords");
+    "§5 must reiterate that Orchestrator never asks for passwords");
 });
 
 test("END-USER-DEPLOY-POLISH: §6 explains the approval card UX", () => {
@@ -165,15 +165,15 @@ test("END-USER-DEPLOY-POLISH: runbooks/README.md lists first-time-use.md", () =>
     "§2 row must tag first-time-use.md as targeted at 일반 사용자");
 });
 
-// ── Bilingual harness-start.bat surface ─────────────────────
+// ── Bilingual orchestrator-start.bat surface ─────────────────────
 
-test("END-USER-DEPLOY-POLISH: harness-start.bat has Korean fallback for Node-missing error", () => {
+test("END-USER-DEPLOY-POLISH: orchestrator-start.bat has Korean fallback for Node-missing error", () => {
   const text = read(BAT);
   assert.match(text, /Node\.js가 설치되어 있지 않습니다/,
     "Node-missing error must include the Korean explanation");
 });
 
-test("END-USER-DEPLOY-POLISH: harness-start.bat has Korean fallback for boot timeout", () => {
+test("END-USER-DEPLOY-POLISH: orchestrator-start.bat has Korean fallback for boot timeout", () => {
   const text = read(BAT);
   assert.match(text, /서버가 10초 안에 응답하지 않았습니다/,
     "boot-timeout error must include the Korean explanation");
@@ -181,7 +181,7 @@ test("END-USER-DEPLOY-POLISH: harness-start.bat has Korean fallback for boot tim
     "boot-timeout error must point operators at the first-time-use runbook");
 });
 
-test("END-USER-DEPLOY-POLISH: harness-start.bat closes with bilingual completion banner", () => {
+test("END-USER-DEPLOY-POLISH: orchestrator-start.bat closes with bilingual completion banner", () => {
   const text = read(BAT);
   assert.match(text, /시작 완료/,
     "completion banner must include Korean affirmation");

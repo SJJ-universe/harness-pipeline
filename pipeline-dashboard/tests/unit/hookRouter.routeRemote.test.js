@@ -122,7 +122,7 @@ test("R1-g: routeRemote tolerates missing tool / data fields", () => {
 
 test("R1-g: routeRemote NEVER calls into the attached executor (trust boundary)", () => {
   // Belt-and-suspenders: R2.5 adds a controlled bridge that MAY drive
-  // the executor under HARNESS_REMOTE_BRIDGE_MODE=dispatch. Default
+  // the executor under ORCHESTRATOR_REMOTE_BRIDGE_MODE=dispatch. Default
   // off (R1 + R2 behavior) — this test pins the off-by-default
   // invariant.
   const { router } = makeRouter();
@@ -183,7 +183,7 @@ test("R3-e-d: routeRemote PASSES write-side tools through sanitization (no longe
   // — these now sanitize successfully with `requiresApproval: true`.
   // The hook-router's approval gate (still in this slice) decides
   // whether dispatch happens. With no approvalManager wired (the
-  // default makeRouter harness), the gate fail-closes; with a manager
+  // default makeRouter orchestrator), the gate fail-closes; with a manager
   // wired, the operator decides.
   const { router } = makeRouter();
   for (const writeTool of ["Bash", "Edit", "Write"]) {

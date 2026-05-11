@@ -3,7 +3,7 @@
 // Opens over #template-editor-overlay. Left pane lists templates (built-ins
 // marked read-only, customs deletable); right pane is a textarea with JSON
 // lint + save/delete controls. All writes go through POST/DELETE
-// /api/pipeline/templates which are already protected by the x-harness-token
+// /api/pipeline/templates which are already protected by the x-orchestrator-token
 // middleware (api-client.js attaches it automatically).
 //
 // The editor is intentionally primitive — no Monaco, no tree view. The JSON

@@ -22,7 +22,7 @@
 //   POST /api/setup/probe-workspace
 //     Body: { workspacePath: string }
 //     Returns { ok, exists, writable, normalizedPath, error }.
-//     Lightweight write-then-delete check (.harness-write-test file).
+//     Lightweight write-then-delete check (.orchestrator-write-test file).
 //     Used by the wizard's standard track to confirm the operator's
 //     chosen workspace is writable BEFORE finalize.
 //
@@ -71,7 +71,7 @@ const path = require("path");
 const { discoverCli } = require("../runtime/cliProbe");
 const { probeProvider, PROBE_MODES } = require("../runtime/providerProbe");
 
-// Minimum Node version. Locked to 24 because the harness uses Node
+// Minimum Node version. Locked to 24 because the orchestrator uses Node
 // 24-only features (fetch with timeout AbortSignal, native test
 // runner, etc.). Bump this when we drop another version.
 const MINIMUM_NODE_MAJOR = 24;
@@ -83,7 +83,7 @@ const MINIMUM_NODE_VERSION = `${MINIMUM_NODE_MAJOR}.0.0`;
 function _writeTestPath(workspacePath) {
   return path.join(
     workspacePath,
-    `.harness-write-test-${process.pid}-${Date.now()}`,
+    `.orchestrator-write-test-${process.pid}-${Date.now()}`,
   );
 }
 
@@ -152,7 +152,7 @@ async function _probeWorkspace(workspacePath, opts = {}) {
 
   // Confirm writable via write-then-delete.
   try {
-    fsImpl.writeFileSync(testFile, "harness-write-test", "utf-8");
+    fsImpl.writeFileSync(testFile, "orchestrator-write-test", "utf-8");
   } catch (err) {
     return {
       ok: false,

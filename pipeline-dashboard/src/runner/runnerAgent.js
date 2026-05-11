@@ -1,4 +1,4 @@
-// Slice R1-e-3 (Phase D R1, 2026-04-28) — harness-runner agent.
+// Slice R1-e-3 (Phase D R1, 2026-04-28) — orchestrator-runner agent.
 //
 // Transport-first agent. Its only responsibility right now is keeping
 // a clean channel open to the orchestrator:
@@ -22,7 +22,7 @@
 //
 // MG1 §6 specifies env-driven, heartbeat-driven discovery for the runner
 // control plane. R1 ships the "operator launches the agent for a specific
-// run" shape: HARNESS_RUN_ID + HARNESS_RUN_JWT come pre-issued. R2 adds
+// run" shape: ORCHESTRATOR_RUN_ID + ORCHESTRATOR_RUN_JWT come pre-issued. R2 adds
 // orchestrator-driven dispatch (push-via-heartbeat or pull-from-queue)
 // which removes the operator from the loop.
 
@@ -166,7 +166,7 @@ class RunnerAgent {
       throw new Error("handshake failed: response missing runnerToken");
     }
     this.runnerToken = json.runnerToken;
-    this.logger.log("[harness-runner] handshake ok");
+    this.logger.log("[orchestrator-runner] handshake ok");
   }
 
   // ── heartbeat (§8.1 step 2) ─────────────────────────────────────
@@ -202,19 +202,19 @@ class RunnerAgent {
         this.stats.heartbeatsOk += 1;
       } else {
         this.stats.heartbeatsFailed += 1;
-        this.logger.warn(`[harness-runner] heartbeat HTTP ${res.status}`);
+        this.logger.warn(`[orchestrator-runner] heartbeat HTTP ${res.status}`);
         if (res.status === 401) {
           // runnerToken rotation case — re-handshake so we don't get
           // stuck in a 401 loop. Future MG1 §9 handling will surface
           // this in the audit ledger as a runner_reauth event.
           await this._handshake().catch((err) => {
-            this.logger.error(`[harness-runner] re-handshake failed: ${err.message}`);
+            this.logger.error(`[orchestrator-runner] re-handshake failed: ${err.message}`);
           });
         }
       }
     } catch (err) {
       this.stats.heartbeatsFailed += 1;
-      this.logger.warn(`[harness-runner] heartbeat error: ${err.message}`);
+      this.logger.warn(`[orchestrator-runner] heartbeat error: ${err.message}`);
     }
     this._scheduleHeartbeat();
   }
@@ -234,7 +234,7 @@ class RunnerAgent {
     try {
       ws = new this.WebSocketCtor(url);
     } catch (err) {
-      this.logger.error(`[harness-runner] ws ctor threw: ${err.message}`);
+      this.logger.error(`[orchestrator-runner] ws ctor threw: ${err.message}`);
       this._scheduleReconnect();
       return;
     }
@@ -243,7 +243,7 @@ class RunnerAgent {
     ws.on("open", () => {
       this.stats.wsConnects += 1;
       this._reconnectAttempt = 0;       // reset backoff on successful open
-      this.logger.log(`[harness-runner] ws open run=${this.config.runId}`);
+      this.logger.log(`[orchestrator-runner] ws open run=${this.config.runId}`);
     });
 
     ws.on("message", (msg) => {
@@ -253,7 +253,7 @@ class RunnerAgent {
         if (parsed && parsed.type === "hello" && parsed.runId === this.config.runId) {
           this.helloReceived = true;
           this.stats.wsHellos += 1;
-          this.logger.log(`[harness-runner] ws hello received run=${this.config.runId}`);
+          this.logger.log(`[orchestrator-runner] ws hello received run=${this.config.runId}`);
         }
         // R1-g will route business frames here.
       } catch (_) { /* malformed — drop */ }
@@ -261,7 +261,7 @@ class RunnerAgent {
 
     ws.on("close", (code, reason) => {
       this.stats.wsDisconnects += 1;
-      this.logger.log(`[harness-runner] ws close code=${code} reason=${String(reason)}`);
+      this.logger.log(`[orchestrator-runner] ws close code=${code} reason=${String(reason)}`);
       this.ws = null;
       // Slice R3-d (Phase D R3, 2026-04-28): code 1000 = orchestrator
       // sent a clean close (graceful shutdown). Distinguish from 1006
@@ -272,7 +272,7 @@ class RunnerAgent {
       // can interpret exit 0 as "no need to revive".
       if (code === 1000) {
         this.logger.log(
-          `[harness-runner] ws close 1000 (clean orchestrator shutdown) — agent stopping cleanly`,
+          `[orchestrator-runner] ws close 1000 (clean orchestrator shutdown) — agent stopping cleanly`,
         );
         this.stop();
         return;
@@ -280,7 +280,7 @@ class RunnerAgent {
       // 1011 = orchestrator can't honor (mode=off, no key). Don't spin.
       // 1008 = bad credentials. Same — don't spin against a wall.
       if (code === 1011 || code === 1008) {
-        this.logger.error(`[harness-runner] ws close ${code} is fatal — agent stopping`);
+        this.logger.error(`[orchestrator-runner] ws close ${code} is fatal — agent stopping`);
         this.stop();
         return;
       }
@@ -290,7 +290,7 @@ class RunnerAgent {
     ws.on("error", (err) => {
       // Errors usually precede a close; the close handler does the
       // reconnect bookkeeping. Just log here.
-      this.logger.warn(`[harness-runner] ws error: ${err && err.message ? err.message : err}`);
+      this.logger.warn(`[orchestrator-runner] ws error: ${err && err.message ? err.message : err}`);
     });
   }
 
@@ -304,7 +304,7 @@ class RunnerAgent {
     const capped = Math.min(base, this.config.reconnectMaxMs);
     // Full jitter: random in [capped/2, capped]
     const delay = Math.floor(capped / 2 + Math.random() * (capped / 2));
-    this.logger.log(`[harness-runner] ws reconnect in ${delay}ms (attempt ${attempt})`);
+    this.logger.log(`[orchestrator-runner] ws reconnect in ${delay}ms (attempt ${attempt})`);
     this._reconnectTimer = this.setTimeoutFn(() => {
       this._reconnectTimer = null;
       this.state = STATES.RUNNING;
@@ -334,9 +334,9 @@ class RunnerAgent {
 // the minimum; the floor exists to catch typos, off-by-one units (e.g.,
 // "5" intended as "5000"), and copy-paste accidents.
 const _ENV_NUMERIC_MIN_MS = Object.freeze({
-  HARNESS_HEARTBEAT_INTERVAL_MS: 1_000,   // sub-second heartbeats spam the orch
-  HARNESS_RECONNECT_BASE_MS:     100,     // base must allow fast recovery
-  HARNESS_RECONNECT_MAX_MS:      1_000,   // cap below 1s defeats backoff
+  ORCHESTRATOR_HEARTBEAT_INTERVAL_MS: 1_000,   // sub-second heartbeats spam the orch
+  ORCHESTRATOR_RECONNECT_BASE_MS:     100,     // base must allow fast recovery
+  ORCHESTRATOR_RECONNECT_MAX_MS:      1_000,   // cap below 1s defeats backoff
 });
 
 function _parsePositiveIntegerEnv(name, raw) {
@@ -354,36 +354,36 @@ function _parsePositiveIntegerEnv(name, raw) {
 
 function configFromEnv(env = process.env) {
   const required = {
-    bootstrapToken: env.HARNESS_BOOTSTRAP_TOKEN,
-    hostIdentity: env.HARNESS_HOST_IDENTITY,
-    orchestratorUrl: env.HARNESS_ORCHESTRATOR_URL,
-    runId: env.HARNESS_RUN_ID,
-    runJwt: env.HARNESS_RUN_JWT,
+    bootstrapToken: env.ORCHESTRATOR_BOOTSTRAP_TOKEN,
+    hostIdentity: env.ORCHESTRATOR_HOST_IDENTITY,
+    orchestratorUrl: env.ORCHESTRATOR_ORCHESTRATOR_URL,
+    runId: env.ORCHESTRATOR_RUN_ID,
+    runJwt: env.ORCHESTRATOR_RUN_JWT,
   };
   const missing = Object.entries(required)
     .filter(([, v]) => typeof v !== "string" || v.length === 0)
     .map(([k]) => k);
   if (missing.length > 0) {
-    const envKeys = missing.map((k) => "HARNESS_" + k.replace(/([A-Z])/g, "_$1").toUpperCase());
+    const envKeys = missing.map((k) => "ORCHESTRATOR_" + k.replace(/([A-Z])/g, "_$1").toUpperCase());
     throw new Error("missing required env: " + envKeys.join(", "));
   }
   const optional = {};
-  if (env.HARNESS_SANDBOX_CLASS) optional.sandboxClass = env.HARNESS_SANDBOX_CLASS;
+  if (env.ORCHESTRATOR_SANDBOX_CLASS) optional.sandboxClass = env.ORCHESTRATOR_SANDBOX_CLASS;
   // R1-k3: each numeric env var goes through validation so a bad value
   // throws *here* (config error path), not at the first timer fire.
-  if (env.HARNESS_HEARTBEAT_INTERVAL_MS) {
+  if (env.ORCHESTRATOR_HEARTBEAT_INTERVAL_MS) {
     optional.heartbeatIntervalMs = _parsePositiveIntegerEnv(
-      "HARNESS_HEARTBEAT_INTERVAL_MS", env.HARNESS_HEARTBEAT_INTERVAL_MS,
+      "ORCHESTRATOR_HEARTBEAT_INTERVAL_MS", env.ORCHESTRATOR_HEARTBEAT_INTERVAL_MS,
     );
   }
-  if (env.HARNESS_RECONNECT_BASE_MS) {
+  if (env.ORCHESTRATOR_RECONNECT_BASE_MS) {
     optional.reconnectBaseMs = _parsePositiveIntegerEnv(
-      "HARNESS_RECONNECT_BASE_MS", env.HARNESS_RECONNECT_BASE_MS,
+      "ORCHESTRATOR_RECONNECT_BASE_MS", env.ORCHESTRATOR_RECONNECT_BASE_MS,
     );
   }
-  if (env.HARNESS_RECONNECT_MAX_MS) {
+  if (env.ORCHESTRATOR_RECONNECT_MAX_MS) {
     optional.reconnectMaxMs = _parsePositiveIntegerEnv(
-      "HARNESS_RECONNECT_MAX_MS", env.HARNESS_RECONNECT_MAX_MS,
+      "ORCHESTRATOR_RECONNECT_MAX_MS", env.ORCHESTRATOR_RECONNECT_MAX_MS,
     );
   }
   return { ...required, ...optional };

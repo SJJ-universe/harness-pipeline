@@ -13,7 +13,7 @@
 #
 # Env overrides:
 #
-#   HARNESS_RUNNER_TAG            override the image:tag
+#   ORCHESTRATOR_RUNNER_TAG            override the image:tag
 #
 # Cosign signing (R3+ requirement per MG1 §2) is intentionally omitted
 # here. R1 is opt-in for image signing — operators wanting it should
@@ -28,7 +28,7 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$ROOT_DIR"
 
 GIT_SHA="$(git rev-parse --short HEAD 2>/dev/null || echo 'dirty')"
-IMAGE_TAG="${HARNESS_RUNNER_TAG:-harness-runner:$GIT_SHA}"
+IMAGE_TAG="${ORCHESTRATOR_RUNNER_TAG:-harness-runner:$GIT_SHA}"
 
 EMIT_SBOM=1
 for arg in "$@"; do

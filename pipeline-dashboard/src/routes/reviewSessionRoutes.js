@@ -64,7 +64,7 @@ const MAX_BODY_BYTES = 16 * 1024;  // 16 KB JSON body cap (instruction is the la
 // carry PII. gateReleaseSigned + gateEvidenceExportReady fire at
 // other layers (launcher / release-ready endpoints).
 //
-// Mode is resolved from process env (HARNESS_HARD_GATES=1 → hard,
+// Mode is resolved from process env (ORCHESTRATOR_HARD_GATES=1 → hard,
 // default → warn). The route consults the verdict:
 //   - blocked=true → caller returns 409 + emits policy_gate_blocked
 //                    audit. Manager state UNTOUCHED (invariant).

@@ -65,7 +65,7 @@ const ALLOWED_EVENT_TYPES = new Set([
 ]);
 
 // Canonical Claude Code hook event names (e.g. SessionStart, PreCompact) map to
-// the internal kebab-case aliases below in hooks/harness-hook.js via CLI args
+// the internal kebab-case aliases below in hooks/orchestrator-hook.js via CLI args
 // and in .claude/settings.json entries. This Set is the single source of truth
 // for which aliases the dashboard's /api/hook endpoint accepts.
 const ALLOWED_HOOK_EVENTS = new Set([

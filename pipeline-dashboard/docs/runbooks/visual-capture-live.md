@@ -73,7 +73,7 @@ node scripts/visual-capture-live.js --help
 
 | 플래그 | 설명 | 기본값 |
 |---|---|---|
-| `--port <n>` | 서버 포트 | 4799 (env `HARNESS_VISUAL_LIVE_PORT` override 가능) |
+| `--port <n>` | 서버 포트 | 4799 (env `ORCHESTRATOR_VISUAL_LIVE_PORT` override 가능) |
 | `--out-dir <path>` | 출력 디렉토리 | `docs/reports/<date>-ui-p10-live/` |
 | `--label <text>` | 출력 디렉토리 label suffix | (없음) |
 | `--quiet` | per-cell 진행 출력 억제 | 출력함 |
@@ -112,7 +112,7 @@ node scripts/visual-capture-live.js --quiet --json > capture-result.json
 
 ```json
 {
-  "schema": "harness-visual-live/v1",
+  "schema": "orchestrator-visual-live/v1",
   "capturedAt": "2026-05-04T08:30:00.000Z",
   "base": "http://127.0.0.1:4799",
   "browser": { "name": "chromium", "version": "131.0.6778.69" },

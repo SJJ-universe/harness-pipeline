@@ -13,7 +13,7 @@ const tp = require("../../src/runtime/timeoutPolicy");
 // ── Frozen vocabulary ─────────────────────────────────────────────
 
 test("timeoutPolicy: SCHEMA constant", () => {
-  assert.equal(tp.SCHEMA, "harness-timeout-policy/v1");
+  assert.equal(tp.SCHEMA, "orchestrator-timeout-policy/v1");
 });
 
 test("timeoutPolicy: MIN/MAX bounds are sane", () => {
@@ -152,10 +152,10 @@ test("resolve: empty env + public-sector posture → public_sector preset auto-a
   assert.equal(policy.sources.resolvedFromPosture, true);
 });
 
-test("resolve: HARNESS_TIMEOUT_PRESET=long_run beats public-sector posture", () => {
+test("resolve: ORCHESTRATOR_TIMEOUT_PRESET=long_run beats public-sector posture", () => {
   // Operator wants long_run even under public-sector — env wins
   const policy = tp.resolveTimeoutPolicy({
-    env: { HARNESS_TIMEOUT_PRESET: "long_run" },
+    env: { ORCHESTRATOR_TIMEOUT_PRESET: "long_run" },
     deploymentProfile: { publicSector: true },
   });
   assert.equal(policy.preset, "long_run");
@@ -164,10 +164,10 @@ test("resolve: HARNESS_TIMEOUT_PRESET=long_run beats public-sector posture", () 
   assert.equal(policy.sources.resolvedFromPosture, false);
 });
 
-test("resolve: unknown HARNESS_TIMEOUT_PRESET → falls through to deployment profile logic", () => {
+test("resolve: unknown ORCHESTRATOR_TIMEOUT_PRESET → falls through to deployment profile logic", () => {
   // Operator typo'd preset — fall through to public_sector posture
   const policy = tp.resolveTimeoutPolicy({
-    env: { HARNESS_TIMEOUT_PRESET: "speedy" },
+    env: { ORCHESTRATOR_TIMEOUT_PRESET: "speedy" },
     deploymentProfile: { publicSector: true },
   });
   assert.equal(policy.preset, "public_sector",
@@ -177,7 +177,7 @@ test("resolve: unknown HARNESS_TIMEOUT_PRESET → falls through to deployment pr
 
 test("resolve: unknown preset + standard posture → interactive (final fallback)", () => {
   const policy = tp.resolveTimeoutPolicy({
-    env: { HARNESS_TIMEOUT_PRESET: "speedy" },
+    env: { ORCHESTRATOR_TIMEOUT_PRESET: "speedy" },
     deploymentProfile: { publicSector: false },
   });
   assert.equal(policy.preset, "interactive");
@@ -199,11 +199,11 @@ test("resolve: missing env → uses process.env (defensive)", () => {
 
 // ── Per-field env overrides ──────────────────────────────────────
 
-test("override: HARNESS_CODEX_TIMEOUT_MS wins over preset value", () => {
+test("override: ORCHESTRATOR_CODEX_TIMEOUT_MS wins over preset value", () => {
   const policy = tp.resolveTimeoutPolicy({
     env: {
-      HARNESS_TIMEOUT_PRESET: "long_run",
-      HARNESS_CODEX_TIMEOUT_MS: "5000",  // 5 seconds — much shorter than long_run's 20 min
+      ORCHESTRATOR_TIMEOUT_PRESET: "long_run",
+      ORCHESTRATOR_CODEX_TIMEOUT_MS: "5000",  // 5 seconds — much shorter than long_run's 20 min
     },
     deploymentProfile: { publicSector: false },
   });
@@ -217,10 +217,10 @@ test("override: HARNESS_CODEX_TIMEOUT_MS wins over preset value", () => {
 test("override: each of 4 fields overridable independently", () => {
   const policy = tp.resolveTimeoutPolicy({
     env: {
-      HARNESS_CODEX_TIMEOUT_MS: "10000",
-      HARNESS_CLAUDE_TIMEOUT_MS: "20000",
-      HARNESS_PHASE_TIMEOUT_MS: "30000",
-      HARNESS_CHILD_QUEUE_TIMEOUT_MS: "40000",
+      ORCHESTRATOR_CODEX_TIMEOUT_MS: "10000",
+      ORCHESTRATOR_CLAUDE_TIMEOUT_MS: "20000",
+      ORCHESTRATOR_PHASE_TIMEOUT_MS: "30000",
+      ORCHESTRATOR_CHILD_QUEUE_TIMEOUT_MS: "40000",
     },
     deploymentProfile: { publicSector: false },
   });
@@ -237,10 +237,10 @@ test("override: each of 4 fields overridable independently", () => {
 test("override: out-of-range value rejected (falls back to preset)", () => {
   const policy = tp.resolveTimeoutPolicy({
     env: {
-      HARNESS_CODEX_TIMEOUT_MS: "0",      // below MIN
-      HARNESS_CLAUDE_TIMEOUT_MS: "-1000", // negative
-      HARNESS_PHASE_TIMEOUT_MS: "999999999", // above MAX
-      HARNESS_CHILD_QUEUE_TIMEOUT_MS: "abc", // not a number
+      ORCHESTRATOR_CODEX_TIMEOUT_MS: "0",      // below MIN
+      ORCHESTRATOR_CLAUDE_TIMEOUT_MS: "-1000", // negative
+      ORCHESTRATOR_PHASE_TIMEOUT_MS: "999999999", // above MAX
+      ORCHESTRATOR_CHILD_QUEUE_TIMEOUT_MS: "abc", // not a number
     },
     deploymentProfile: { publicSector: false },
   });
@@ -258,7 +258,7 @@ test("override: out-of-range value rejected (falls back to preset)", () => {
 
 test("override: empty string env value treated as not set", () => {
   const policy = tp.resolveTimeoutPolicy({
-    env: { HARNESS_CODEX_TIMEOUT_MS: "" },
+    env: { ORCHESTRATOR_CODEX_TIMEOUT_MS: "" },
     deploymentProfile: { publicSector: false },
   });
   assert.equal(policy.codexTimeoutMs, 120 * 1000);
@@ -267,7 +267,7 @@ test("override: empty string env value treated as not set", () => {
 
 test("override: at MIN bound is accepted", () => {
   const policy = tp.resolveTimeoutPolicy({
-    env: { HARNESS_CODEX_TIMEOUT_MS: String(tp.MIN_TIMEOUT_MS) },
+    env: { ORCHESTRATOR_CODEX_TIMEOUT_MS: String(tp.MIN_TIMEOUT_MS) },
     deploymentProfile: { publicSector: false },
   });
   assert.equal(policy.codexTimeoutMs, tp.MIN_TIMEOUT_MS);
@@ -275,7 +275,7 @@ test("override: at MIN bound is accepted", () => {
 
 test("override: at MAX bound is accepted", () => {
   const policy = tp.resolveTimeoutPolicy({
-    env: { HARNESS_CODEX_TIMEOUT_MS: String(tp.MAX_TIMEOUT_MS) },
+    env: { ORCHESTRATOR_CODEX_TIMEOUT_MS: String(tp.MAX_TIMEOUT_MS) },
     deploymentProfile: { publicSector: false },
   });
   assert.equal(policy.codexTimeoutMs, tp.MAX_TIMEOUT_MS);
@@ -283,7 +283,7 @@ test("override: at MAX bound is accepted", () => {
 
 test("override: floored to integer (operators may pass float)", () => {
   const policy = tp.resolveTimeoutPolicy({
-    env: { HARNESS_CODEX_TIMEOUT_MS: "5000.7" },
+    env: { ORCHESTRATOR_CODEX_TIMEOUT_MS: "5000.7" },
     deploymentProfile: { publicSector: false },
   });
   assert.equal(policy.codexTimeoutMs, 5000);
@@ -296,13 +296,13 @@ test("policy: returned object is frozen + carries schema + overrides + sources",
   assert.ok(Object.isFrozen(policy));
   assert.ok(Object.isFrozen(policy.overrides));
   assert.ok(Object.isFrozen(policy.sources));
-  assert.equal(policy.schema, "harness-timeout-policy/v1");
+  assert.equal(policy.schema, "orchestrator-timeout-policy/v1");
   assert.throws(() => { policy.codexTimeoutMs = 999; });
 });
 
 test("policy: presetLabel populated from registry", () => {
   const policy = tp.resolveTimeoutPolicy({
-    env: { HARNESS_TIMEOUT_PRESET: "long_run" },
+    env: { ORCHESTRATOR_TIMEOUT_PRESET: "long_run" },
   });
   assert.equal(policy.presetLabel, "Long-running");
 });
@@ -313,7 +313,7 @@ test("end-to-end: public-sector posture + per-field codex override (operator dia
   // Operator on public-sector wants the longer Claude timeouts but
   // shorter Codex (specific to their fast-Codex deployment).
   const policy = tp.resolveTimeoutPolicy({
-    env: { HARNESS_CODEX_TIMEOUT_MS: "60000" },  // 1 min
+    env: { ORCHESTRATOR_CODEX_TIMEOUT_MS: "60000" },  // 1 min
     deploymentProfile: { publicSector: true },
   });
   assert.equal(policy.preset, "public_sector");

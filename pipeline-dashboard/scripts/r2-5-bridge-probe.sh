@@ -5,7 +5,7 @@
 #
 # Verifies the full lifecycle of one PRE-DISPATCHED hook + one
 # REJECTED hook against a real Docker harness running with
-# HARNESS_REMOTE_BRIDGE_MODE=dispatch. The probe asserts that:
+# ORCHESTRATOR_REMOTE_BRIDGE_MODE=dispatch. The probe asserts that:
 #
 #   1. The orchestrator's audit chain captures the full narrative:
 #        runner_hook_routed → runner_hook_sanitized → runner_hook_dispatched
@@ -18,10 +18,10 @@
 #      R2 known-gap is closed by R2.5-d's runner-claimed fallback).
 #
 # Pre-conditions:
-#   - .env.r2 exists with HARNESS_REMOTE_BRIDGE_MODE=dispatch (or env
+#   - .env.r2 exists with ORCHESTRATOR_REMOTE_BRIDGE_MODE=dispatch (or env
 #     override at up time).
 #   - Harness brought up via:
-#       HARNESS_REMOTE_BRIDGE_MODE=dispatch ./scripts/r2-up.sh
+#       ORCHESTRATOR_REMOTE_BRIDGE_MODE=dispatch ./scripts/r2-up.sh
 #     The script verifies the running orchestrator's env BEFORE
 #     probing; failing fast with a clear message beats false
 #     positives.
@@ -50,7 +50,7 @@ docker_exec() {
 ORCH=harness-orchestrator-r2
 RUNNER=harness-runner-r2
 DASH_BASE=http://127.0.0.1:4201
-DASH_TOKEN="$HARNESS_TOKEN"
+DASH_TOKEN="$ORCHESTRATOR_TOKEN"
 
 pass=0; fail=0
 report() {
@@ -58,16 +58,16 @@ report() {
   else echo "  [FAIL] $2" >&2; fail=$(( fail + 1 )); fi
 }
 
-# Verify orchestrator is running with HARNESS_REMOTE_BRIDGE_MODE=dispatch.
-running_mode="$(docker_exec "$ORCH" sh -c 'echo "${HARNESS_REMOTE_BRIDGE_MODE:-unset}"' 2>/dev/null || echo unreachable)"
+# Verify orchestrator is running with ORCHESTRATOR_REMOTE_BRIDGE_MODE=dispatch.
+running_mode="$(docker_exec "$ORCH" sh -c 'echo "${ORCHESTRATOR_REMOTE_BRIDGE_MODE:-unset}"' 2>/dev/null || echo unreachable)"
 if [[ "$running_mode" != "dispatch" ]]; then
-  echo "[r2-5-bridge] orchestrator is running with HARNESS_REMOTE_BRIDGE_MODE=$running_mode" >&2
+  echo "[r2-5-bridge] orchestrator is running with ORCHESTRATOR_REMOTE_BRIDGE_MODE=$running_mode" >&2
   echo "[r2-5-bridge] this probe needs dispatch mode. Tear down and re-up:" >&2
   echo "    ./scripts/r2-down.sh --clean" >&2
-  echo "    HARNESS_REMOTE_BRIDGE_MODE=dispatch ./scripts/r2-up.sh" >&2
+  echo "    ORCHESTRATOR_REMOTE_BRIDGE_MODE=dispatch ./scripts/r2-up.sh" >&2
   exit 64
 fi
-echo "[r2-5-bridge] orchestrator confirmed at HARNESS_REMOTE_BRIDGE_MODE=dispatch"
+echo "[r2-5-bridge] orchestrator confirmed at ORCHESTRATOR_REMOTE_BRIDGE_MODE=dispatch"
 echo
 
 # ── Inject probe frames inside the runner container ────────────────
@@ -81,9 +81,9 @@ echo
 echo "[r2-5-bridge] launching probe inside $RUNNER (sends 1 dispatched + 1 rejected hook)..."
 docker_exec -w /app "$RUNNER" node -e '
   const { WebSocket } = require("ws");
-  const wsUrl = process.env.HARNESS_ORCHESTRATOR_URL.replace(/^http/, "ws")
-    + "/api/runner/events?runId=" + encodeURIComponent(process.env.HARNESS_RUN_ID)
-    + "&token=" + encodeURIComponent(process.env.HARNESS_RUN_JWT);
+  const wsUrl = process.env.ORCHESTRATOR_ORCHESTRATOR_URL.replace(/^http/, "ws")
+    + "/api/runner/events?runId=" + encodeURIComponent(process.env.ORCHESTRATOR_RUN_ID)
+    + "&token=" + encodeURIComponent(process.env.ORCHESTRATOR_RUN_JWT);
   const ws = new WebSocket(wsUrl);
   let helloSeen = false;
   ws.on("message", (m) => {
@@ -113,7 +113,7 @@ docker_exec -w /app "$RUNNER" node -e '
 sleep 2
 
 # ── Anchor 1: dispatched audit entry for the accepted hook ─────────
-ledger_file="/app/runs/${HARNESS_RUN_ID}/ledger.jsonl"
+ledger_file="/app/runs/${ORCHESTRATOR_RUN_ID}/ledger.jsonl"
 ledger_text="$(docker_exec "$ORCH" cat "$ledger_file" 2>/dev/null || echo "")"
 if echo "$ledger_text" | grep -q '"type":"runner_hook_dispatched"'; then
   # Extract the method to confirm onPreTool was the target.
@@ -175,15 +175,15 @@ else
 fi
 
 # ── Anchor 5: monitor route returns 200 for runner-claimed runId ───
-# Closes R2 known-gap. /api/monitor/runs/<HARNESS_RUN_ID> should now
+# Closes R2 known-gap. /api/monitor/runs/<ORCHESTRATOR_RUN_ID> should now
 # return 200 — either because dispatch promoted it to a pipeline run
 # (R2.5-c lazy getOrCreateRun) or because R2.5-d falls back to the
 # runner-claimed registry on null pipeline run.
-detail_status="$(curl -fsS -o /dev/null -w '%{http_code}' --max-time 5 -H "x-harness-token: $DASH_TOKEN" "$DASH_BASE/api/monitor/runs/${HARNESS_RUN_ID}" 2>/dev/null || echo "000")"
+detail_status="$(curl -fsS -o /dev/null -w '%{http_code}' --max-time 5 -H "x-harness-token: $DASH_TOKEN" "$DASH_BASE/api/monitor/runs/${ORCHESTRATOR_RUN_ID}" 2>/dev/null || echo "000")"
 if [[ "$detail_status" == "200" ]]; then
-  report PASS "/api/monitor/runs/${HARNESS_RUN_ID} returns 200 (R2 known-gap closed)"
+  report PASS "/api/monitor/runs/${ORCHESTRATOR_RUN_ID} returns 200 (R2 known-gap closed)"
 else
-  report FAIL "/api/monitor/runs/${HARNESS_RUN_ID} returned $detail_status (expected 200)"
+  report FAIL "/api/monitor/runs/${ORCHESTRATOR_RUN_ID} returned $detail_status (expected 200)"
 fi
 
 echo

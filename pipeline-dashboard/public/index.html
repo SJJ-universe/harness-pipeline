@@ -6,7 +6,7 @@
   from the reference HTML at the operator's design-source folder
   (verified in docs/ui-reference-port-plan.md):
     - 52px header (logo + status pill + Simple/Pro + KO/EN + indicators + actions)
-    - 92px Harness Track (sprite player + 7-stage band + status pill)
+    - 92px Orchestrator Track (sprite player + 7-stage band + status pill)
     - 2-column workspace: pipeline rail + (monitor grid stacked over dual terminals)
 
   Default mode is `simple` per Section 7 sign-off (reference defaults pro;
@@ -95,10 +95,10 @@
   <script src="js/monitor/review-session-client.js"></script>
   <script src="js/monitor/panels/product-header.js"></script>
   <!-- UI-P3-b: horse rider sprite player. Must load BEFORE
-       product-harness-track.js because the track resolves
+       product-orchestrator-track.js because the track resolves
        window.OrchestratorProductHorseRider at create() time. -->
   <script src="js/monitor/panels/product-horse-rider.js"></script>
-  <script src="js/monitor/panels/product-harness-track.js"></script>
+  <script src="js/monitor/panels/product-orchestrator-track.js"></script>
   <script src="js/monitor/panels/product-pipeline-rail.js"></script>
   <script src="js/monitor/panels/product-monitor-grid.js"></script>
   <script src="js/monitor/panels/product-dual-terminals.js"></script>

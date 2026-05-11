@@ -11,12 +11,12 @@
 // fresh snapshot per request. Frequency: legacy-bridge polls
 // every 5s (SMART-0-c), CI scrapers can hit it on demand.
 //
-// hasPii is a header signal (`x-harness-has-pii: 1`) not a body
+// hasPii is a header signal (`x-orchestrator-has-pii: 1`) not a body
 // param — the route doesn't do PII scanning itself; if the panel
 // has a recent piiScanner verdict it can pass it via the header.
 // Default is hasPii=false.
 //
-// Loopback-only (relies on the existing global x-harness-token gate
+// Loopback-only (relies on the existing global x-orchestrator-token gate
 // in server.js for state-changing routes — this is a read-only route
 // so the token gate doesn't apply, but loopback binding still does).
 
@@ -73,7 +73,7 @@ function createDecisionContextRoutes({
     : null;
 
   router.get("/decision-context", function (req, res) {
-    const hasPii = req.header("x-harness-has-pii") === "1";
+    const hasPii = req.header("x-orchestrator-has-pii") === "1";
     let snapshot;
     try {
       snapshot = buildContext({

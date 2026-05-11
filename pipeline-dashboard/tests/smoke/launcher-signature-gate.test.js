@@ -9,7 +9,7 @@
 //      version.{ps1,sh} matrix dispatches on (signed PASS, unsigned,
 //      unknown_key_id, signature_mismatch, trust-store missing).
 //
-//   3. install-version + harness-start lint — the script content
+//   3. install-version + orchestrator-start lint — the script content
 //      contains the audit verbs and exit-code wiring. We can't run
 //      PowerShell on Linux CI or bash on Windows CI, so the script
 //      bodies are pinned via grep tests instead. The actual interactive
@@ -88,7 +88,7 @@ test("E3-F1 smoke: resolve-trust-store-path returns env-trust-store source", () 
   try {
     const target = path.join(dir, "tstore.json");
     const r = runCli(["resolve-trust-store-path"], {
-      env: { HARNESS_TRUST_STORE: target },
+      env: { ORCHESTRATOR_TRUST_STORE: target },
     });
     assert.equal(r.code, 0);
     const out = JSON.parse(r.stdout);
@@ -108,11 +108,11 @@ test("E3-F1 smoke: resolve-trust-store-path honors --trust-store flag", () => {
   assert.equal(out.source, "cli-flag");
 });
 
-test("E3-F1 smoke: resolve-trust-store-path appends FILENAME for HARNESS_CONFIG_DIR", () => {
+test("E3-F1 smoke: resolve-trust-store-path appends FILENAME for ORCHESTRATOR_CONFIG_DIR", () => {
   const dir = tmpDir();
   try {
     const r = runCli(["resolve-trust-store-path"], {
-      env: { HARNESS_CONFIG_DIR: dir },
+      env: { ORCHESTRATOR_CONFIG_DIR: dir },
     });
     assert.equal(r.code, 0);
     const out = JSON.parse(r.stdout);
@@ -213,7 +213,7 @@ test("E3-F1 smoke: verify-manifest-signature requires manifest path arg", () => 
   assert.match(r.stderr, /missing/);
 });
 
-// ───── 3) install-version + harness-start script integrity (lint) ─────
+// ───── 3) install-version + orchestrator-start script integrity (lint) ─────
 
 test("E3-F1 smoke: install-version.ps1 contains signature gate matrix wiring", () => {
   const ps = fs.readFileSync(
@@ -221,8 +221,8 @@ test("E3-F1 smoke: install-version.ps1 contains signature gate matrix wiring", (
   );
   // Every key matrix branch must be visible in the script body.
   const required = [
-    "HARNESS_DEPLOYMENT_PROFILE",                      // posture detection
-    "HARNESS_ALLOW_UNSIGNED_MANIFEST",                 // dev escape env
+    "ORCHESTRATOR_DEPLOYMENT_PROFILE",                      // posture detection
+    "ORCHESTRATOR_ALLOW_UNSIGNED_MANIFEST",                 // dev escape env
     "effectiveAllowUnsigned",                          // public-sector ignores escape
     "launcher_signature_verified",                     // PASS audit verb
     "launcher_signature_failed",                       // FAIL audit verb
@@ -242,8 +242,8 @@ test("E3-F1 smoke: install-version.sh contains signature gate matrix wiring", ()
     path.join(REPO_ROOT, "scripts", "launcher", "install-version.sh"), "utf-8",
   );
   const required = [
-    "HARNESS_DEPLOYMENT_PROFILE",
-    "HARNESS_ALLOW_UNSIGNED_MANIFEST",
+    "ORCHESTRATOR_DEPLOYMENT_PROFILE",
+    "ORCHESTRATOR_ALLOW_UNSIGNED_MANIFEST",
     "EFFECTIVE_ALLOW_UNSIGNED",
     "launcher_signature_verified",
     "launcher_signature_failed",
@@ -258,31 +258,31 @@ test("E3-F1 smoke: install-version.sh contains signature gate matrix wiring", ()
   }
 });
 
-test("E3-F1 smoke: harness-start.bat surfaces signature posture pre-flight", () => {
-  const bat = fs.readFileSync(path.join(REPO_ROOT, "harness-start.bat"), "utf-8");
+test("E3-F1 smoke: orchestrator-start.bat surfaces signature posture pre-flight", () => {
+  const bat = fs.readFileSync(path.join(REPO_ROOT, "orchestrator-start.bat"), "utf-8");
   const required = [
-    "HARNESS_DEPLOYMENT_PROFILE",                      // env documented in header
-    "HARNESS_ALLOW_UNSIGNED_MANIFEST",                 // env documented
-    "HARNESS_TRUST_STORE",                             // env documented
+    "ORCHESTRATOR_DEPLOYMENT_PROFILE",                      // env documented in header
+    "ORCHESTRATOR_ALLOW_UNSIGNED_MANIFEST",                 // env documented
+    "ORCHESTRATOR_TRUST_STORE",                             // env documented
     "signature gate posture",                          // pre-flight echo
     "resolve-trust-store-path",                        // pre-flight call
   ];
   for (const tok of required) {
-    assert.ok(bat.includes(tok), `harness-start.bat must contain "${tok}"`);
+    assert.ok(bat.includes(tok), `orchestrator-start.bat must contain "${tok}"`);
   }
 });
 
-test("E3-F1 smoke: harness-start.sh surfaces signature posture pre-flight", () => {
-  const sh = fs.readFileSync(path.join(REPO_ROOT, "harness-start.sh"), "utf-8");
+test("E3-F1 smoke: orchestrator-start.sh surfaces signature posture pre-flight", () => {
+  const sh = fs.readFileSync(path.join(REPO_ROOT, "orchestrator-start.sh"), "utf-8");
   const required = [
-    "HARNESS_DEPLOYMENT_PROFILE",
-    "HARNESS_ALLOW_UNSIGNED_MANIFEST",
-    "HARNESS_TRUST_STORE",
+    "ORCHESTRATOR_DEPLOYMENT_PROFILE",
+    "ORCHESTRATOR_ALLOW_UNSIGNED_MANIFEST",
+    "ORCHESTRATOR_TRUST_STORE",
     "signature gate posture",
     "resolve-trust-store-path",
   ];
   for (const tok of required) {
-    assert.ok(sh.includes(tok), `harness-start.sh must contain "${tok}"`);
+    assert.ok(sh.includes(tok), `orchestrator-start.sh must contain "${tok}"`);
   }
 });
 

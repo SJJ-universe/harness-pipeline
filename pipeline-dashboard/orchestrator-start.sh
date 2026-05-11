@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # ============================================================================
-# harness-start.sh - Pipeline Dashboard Mac/Linux launcher (Phase E1, D0-c)
+# orchestrator-start.sh - Pipeline Dashboard Mac/Linux launcher (Phase E1, D0-c)
 # ============================================================================
 #
-# Companion to harness-start.bat. Phase E plan §O-cross-platform: Windows is
+# Companion to orchestrator-start.bat. Phase E plan §O-cross-platform: Windows is
 # the 1st-class target, Mac/Linux is best-effort. The same logic still
 # applies — mode detection, manifest validation via launcher-cli.js,
 # health-check loop, browser auto-open — just expressed in bash.
@@ -13,27 +13,27 @@
 #   DEV mode (server.js exists alongside this script)
 #     Launch start.js directly from the script's directory. No download.
 #
-#   INSTALLER mode (server.js absent, HARNESS_MANIFEST_URL is set)
+#   INSTALLER mode (server.js absent, ORCHESTRATOR_MANIFEST_URL is set)
 #     Delegate to scripts/launcher/install-version.sh. After it writes
 #     the install marker, cd into the install dir and launch.
 #
 # Environment overrides (read directly):
-#   HARNESS_DATA_DIR        - override ~/.local/share/HarnessPipeline (Linux)
+#   ORCHESTRATOR_DATA_DIR        - override ~/.local/share/HarnessPipeline (Linux)
 #                             or ~/Library/Application Support/HarnessPipeline (Mac)
-#   HARNESS_CONFIG_DIR      - override ~/.config/HarnessPipeline (Linux)
-#   HARNESS_MANIFEST_URL    - source for installer mode's manifest.json
-#   HARNESS_NO_BROWSER=1    - skip auto-open (CI / headless smoke)
-#   HARNESS_PORT            - default 4201
-#   HARNESS_HOST            - default 127.0.0.1
-#   HARNESS_TRUST_STORE     - explicit trust-store.json path for the
+#   ORCHESTRATOR_CONFIG_DIR      - override ~/.config/HarnessPipeline (Linux)
+#   ORCHESTRATOR_MANIFEST_URL    - source for installer mode's manifest.json
+#   ORCHESTRATOR_NO_BROWSER=1    - skip auto-open (CI / headless smoke)
+#   ORCHESTRATOR_PORT            - default 4201
+#   ORCHESTRATOR_HOST            - default 127.0.0.1
+#   ORCHESTRATOR_TRUST_STORE     - explicit trust-store.json path for the
 #                             E3-F1 manifest signature gate. Falls back
-#                             to HARNESS_CONFIG_DIR, OS default, or
+#                             to ORCHESTRATOR_CONFIG_DIR, OS default, or
 #                             portable bundled location.
-#   HARNESS_DEPLOYMENT_PROFILE=public-sector
+#   ORCHESTRATOR_DEPLOYMENT_PROFILE=public-sector
 #                             switches signature gate to fail-closed
 #                             with NO escape. Public-sector ignores the
 #                             dev opt-in below.
-#   HARNESS_ALLOW_UNSIGNED_MANIFEST=1
+#   ORCHESTRATOR_ALLOW_UNSIGNED_MANIFEST=1
 #                             dev-only escape: install unsigned manifest
 #                             with LOUD warning + audit
 #                             launcher_signature_bypass entry. Public-
@@ -47,7 +47,7 @@
 set -euo pipefail
 
 # --- 1. Anchor cwd to the script's own dir -------------------------------
-# Without this, `./harness-start.sh` from a parent dir would launch from
+# Without this, `./orchestrator-start.sh` from a parent dir would launch from
 # the wrong place. `cd "$(dirname …)"` works under Bash 3.2+ (macOS ships 3.2).
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
@@ -70,17 +70,17 @@ if [[ -f "$SCRIPT_DIR/server.js" ]]; then
 else
   MODE="installer"
   echo "[harness-start] installer mode: server.js absent."
-  if [[ -z "${HARNESS_MANIFEST_URL:-}" ]]; then
-    echo "[harness-start] HARNESS_MANIFEST_URL not set — cannot fetch." >&2
+  if [[ -z "${ORCHESTRATOR_MANIFEST_URL:-}" ]]; then
+    echo "[harness-start] ORCHESTRATOR_MANIFEST_URL not set — cannot fetch." >&2
     echo "                Either:" >&2
     echo "                  1. Re-run from a directory containing server.js, or" >&2
-    echo "                  2. Set HARNESS_MANIFEST_URL=<https url> and re-run." >&2
+    echo "                  2. Set ORCHESTRATOR_MANIFEST_URL=<https url> and re-run." >&2
     exit 11
   fi
   # D0-e: scheme check before delegating to install-version.sh.
-  if ! node "$SCRIPT_DIR/scripts/launcher/launcher-cli.js" validate-manifest-url "$HARNESS_MANIFEST_URL" >/dev/null 2>&1; then
-    echo "[harness-start] HARNESS_MANIFEST_URL must use https:// (set" >&2
-    echo "                HARNESS_ALLOW_INSECURE_MANIFEST_URL=1 for dev only)." >&2
+  if ! node "$SCRIPT_DIR/scripts/launcher/launcher-cli.js" validate-manifest-url "$ORCHESTRATOR_MANIFEST_URL" >/dev/null 2>&1; then
+    echo "[harness-start] ORCHESTRATOR_MANIFEST_URL must use https:// (set" >&2
+    echo "                ORCHESTRATOR_ALLOW_INSECURE_MANIFEST_URL=1 for dev only)." >&2
     exit 15
   fi
 fi
@@ -92,13 +92,13 @@ if [[ "$MODE" == "installer" ]]; then
   # the resolved posture + trust-store so the operator sees what the
   # install will demand BEFORE manifest fetch.
   POSTURE="standard"
-  [[ "${HARNESS_DEPLOYMENT_PROFILE:-}" == "public-sector" ]] && POSTURE="public-sector"
+  [[ "${ORCHESTRATOR_DEPLOYMENT_PROFILE:-}" == "public-sector" ]] && POSTURE="public-sector"
   echo "[harness-start] signature gate posture: $POSTURE"
-  if [[ "${HARNESS_ALLOW_UNSIGNED_MANIFEST:-}" == "1" ]]; then
+  if [[ "${ORCHESTRATOR_ALLOW_UNSIGNED_MANIFEST:-}" == "1" ]]; then
     if [[ "$POSTURE" == "public-sector" ]]; then
-      echo "[harness-start] WARNING: HARNESS_ALLOW_UNSIGNED_MANIFEST=1 is IGNORED under public-sector posture."
+      echo "[harness-start] WARNING: ORCHESTRATOR_ALLOW_UNSIGNED_MANIFEST=1 is IGNORED under public-sector posture."
     else
-      echo "[harness-start] WARNING: HARNESS_ALLOW_UNSIGNED_MANIFEST=1 set (dev escape; never use in production)."
+      echo "[harness-start] WARNING: ORCHESTRATOR_ALLOW_UNSIGNED_MANIFEST=1 set (dev escape; never use in production)."
     fi
   fi
   # Resolve trust-store path for visibility. Failure is non-fatal — the
@@ -110,7 +110,7 @@ if [[ "$MODE" == "installer" ]]; then
   fi
 
   bash "$SCRIPT_DIR/scripts/launcher/install-version.sh" \
-    --manifest-url "$HARNESS_MANIFEST_URL"
+    --manifest-url "$ORCHESTRATOR_MANIFEST_URL"
   rc=$?
   if [[ $rc -ne 0 ]]; then
     echo "[harness-start] install-version.sh failed (rc=$rc) — see log above." >&2
@@ -118,10 +118,10 @@ if [[ "$MODE" == "installer" ]]; then
   fi
 
   # Resolve the install marker. Using the same env-priority order as the .bat:
-  # explicit HARNESS_DATA_DIR > OS default. The OS default mirrors what
+  # explicit ORCHESTRATOR_DATA_DIR > OS default. The OS default mirrors what
   # configPaths.js resolves on this platform.
-  if [[ -n "${HARNESS_DATA_DIR:-}" ]]; then
-    DATA_DIR="$HARNESS_DATA_DIR"
+  if [[ -n "${ORCHESTRATOR_DATA_DIR:-}" ]]; then
+    DATA_DIR="$ORCHESTRATOR_DATA_DIR"
   elif [[ "$(uname)" == "Darwin" ]]; then
     DATA_DIR="$HOME/Library/Application Support/HarnessPipeline"
   else
@@ -156,8 +156,8 @@ if [[ -f "$MANIFEST_PATH" ]]; then
 fi
 
 # --- 6. Health-check existing instance ---------------------------------
-HEALTH_PORT="${HARNESS_PORT:-4201}"
-HEALTH_HOST="${HARNESS_HOST:-127.0.0.1}"
+HEALTH_PORT="${ORCHESTRATOR_PORT:-4201}"
+HEALTH_HOST="${ORCHESTRATOR_HOST:-127.0.0.1}"
 HEALTH_URL="http://$HEALTH_HOST:$HEALTH_PORT"
 
 # Helper for open-browser. Mac uses `open`, Linux uses `xdg-open`; both
@@ -181,10 +181,10 @@ open_browser_or_print() {
 # at someone else's app.
 if node "$SCRIPT_DIR/scripts/launcher/launcher-cli.js" verify-health "$HEALTH_URL/api/health" >/dev/null 2>&1; then
   echo "[harness-start] already running at $HEALTH_URL"
-  if [[ "${HARNESS_NO_BROWSER:-0}" != "1" ]]; then
+  if [[ "${ORCHESTRATOR_NO_BROWSER:-0}" != "1" ]]; then
     open_browser_or_print "$HEALTH_URL" || true
   else
-    echo "                HARNESS_NO_BROWSER=1 set — not opening browser."
+    echo "                ORCHESTRATOR_NO_BROWSER=1 set — not opening browser."
   fi
   exit 0
 fi
@@ -208,10 +208,10 @@ while [[ $RETRY -lt 10 ]]; do
   # success early.
   if node "$SCRIPT_DIR/scripts/launcher/launcher-cli.js" verify-health "$HEALTH_URL/api/health" >/dev/null 2>&1; then
     echo "[harness-start] server up at $HEALTH_URL"
-    if [[ "${HARNESS_NO_BROWSER:-0}" != "1" ]]; then
+    if [[ "${ORCHESTRATOR_NO_BROWSER:-0}" != "1" ]]; then
       open_browser_or_print "$HEALTH_URL" || true
     else
-      echo "[harness-start] HARNESS_NO_BROWSER=1 — browser not opened."
+      echo "[harness-start] ORCHESTRATOR_NO_BROWSER=1 — browser not opened."
     fi
     echo "[harness-start] launcher complete. Server runs in the background (pid=$SUPERVISOR_PID)."
     echo "                Stop the server from the dashboard UI or with: kill $SUPERVISOR_PID"

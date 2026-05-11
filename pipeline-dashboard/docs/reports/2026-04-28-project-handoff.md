@@ -238,7 +238,7 @@ PowerShell evaluation flow:
 ```powershell
 Set-Location C:\Users\SJ\harness-pipeline-analysis\pipeline-dashboard
 Copy-Item .env.r2.example .env.r2
-# fill HARNESS_TOKEN and RUNNER_BOOTSTRAP_TOKEN
+# fill ORCHESTRATOR_TOKEN and RUNNER_BOOTSTRAP_TOKEN
 
 .\scripts\r2-up.ps1
 .\scripts\r2-eval.ps1

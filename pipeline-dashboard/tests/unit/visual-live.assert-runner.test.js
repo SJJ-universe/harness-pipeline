@@ -39,7 +39,7 @@ test("UI-P11 assert-runner.buildAssertManifest: schema + summary derivation", ()
     browserVersion: "131.0.0.0",
     totalElapsedMs: 5000,
   });
-  assert.equal(m.schema, "harness-visual-assert/v1");
+  assert.equal(m.schema, "orchestrator-visual-assert/v1");
   assert.equal(m.rulesetVersion, ASSERTIONS.length);
   assert.equal(m.rulesetIds.length, ASSERTIONS.length);
   assert.equal(m.summary.totalCells, 3);

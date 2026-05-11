@@ -17,7 +17,7 @@
 //
 // Mounted in BOTH simple AND advanced modes; on simple it's a
 // first-class card on the dashboard, on advanced it sits next to
-// the harness-track for at-a-glance posture confirmation.
+// the orchestrator-track for at-a-glance posture confirmation.
 
 (function (root, factory) {
   const api = factory();

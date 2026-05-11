@@ -38,7 +38,7 @@ cd C:/Users/SJ/harness-pipeline-analysis/pipeline-dashboard
 
 # 1. Operator secrets (NEVER committed; .env.r2 is .gitignored)
 cp .env.r2.example .env.r2
-# edit .env.r2: set HARNESS_TOKEN and RUNNER_BOOTSTRAP_TOKEN to fresh
+# edit .env.r2: set ORCHESTRATOR_TOKEN and RUNNER_BOOTSTRAP_TOKEN to fresh
 # 32-byte hex strings (e.g. via `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`)
 
 # 2. Bring up (non-strict — host port mapping works)
@@ -96,9 +96,9 @@ sustained throughput within a single connection.
 **Pass.** End-to-end token flow over the Docker network on the
 maintainer's host:
 
-1. Operator writes `HARNESS_TOKEN` + `RUNNER_BOOTSTRAP_TOKEN` into
+1. Operator writes `ORCHESTRATOR_TOKEN` + `RUNNER_BOOTSTRAP_TOKEN` into
    `.env.r2`.
-2. `r2-up.sh` mints a `HARNESS_RUN_JWT` from `HARNESS_TOKEN` via
+2. `r2-up.sh` mints a `ORCHESTRATOR_RUN_JWT` from `ORCHESTRATOR_TOKEN` via
    `src/security/jwt.js#issue` (HS256 over an HKDF-derived key).
 3. Compose hands the JWT into the runner container as env.
 4. Runner agent does the 3-step handshake — POST `/api/runner/handshake`
@@ -190,7 +190,7 @@ spawned), with the `remote-isolation` 6th category (R1-i) all green:
 
 ```
 remote-isolation     ★★★  (3/3)
-  + HARNESS_REMOTE_MODE default = off (fail-closed, behavior verified)
+  + ORCHESTRATOR_REMOTE_MODE default = off (fail-closed, behavior verified)
   + HKDF JWT + ledger keys derive with domain separation (behavior verified)
   + live runner agent → orchestrator round-trip projects remote child
     + ledger chain verifies (behavior verified)
@@ -268,7 +268,7 @@ for real":
 | 1 | `Dockerfile.runner` did not COPY `src/runner/runnerAgent.js` | R2-2 | runner crashed on first require |
 | 2 | `Dockerfile.orchestrator` did not COPY `skill-registry.js` | R2-2 | orchestrator boot failed on `require("./skill-registry")` |
 | 3 | `Dockerfile.orchestrator` placed `server.js` at `/app/server.js`; `REPO_ROOT = path.resolve(__dirname,"..")` resolved to `/`, so `runsDir = "/runs"` was unwritable. Fix: WORKDIR `/app/dashboard`. | R2-2 | EvidenceLedger silently swallowed EACCES; audit chain stayed empty |
-| 4 | `HARNESS_ALLOW_REMOTE` compare is `=== "1"`, not `=== "true"` | R2-2 | orchestrator bound to 127.0.0.1 inside the container; runner on the same Docker network hit "connection refused" |
+| 4 | `ORCHESTRATOR_ALLOW_REMOTE` compare is `=== "1"`, not `=== "true"` | R2-2 | orchestrator bound to 127.0.0.1 inside the container; runner on the same Docker network hit "connection refused" |
 | 5 | Project-wide `.dockerignore` (tuned for runner image) excluded orchestrator code paths. Fix: `Dockerfile.orchestrator.dockerignore`. | R2-2 | orchestrator build failed at `COPY executor/`, `COPY public/`, `COPY src/` |
 | 6 | `r2-down.sh` failed when `.env.r2` was deleted (compose still validates `${VAR:?msg}` on `down`) | R2-2 | tear-down stuck operators in dirty state |
 | 7 | `r2-eval.sh` hit MSYS / Git-Bash path conversion (`/app/runs/...` -> `C:/Program Files/Git/app/runs/...`) | R2-2 | ledger anchors reported MISSING despite being present |
@@ -284,7 +284,7 @@ These are useful when the harness hits an unexpected state.
 
 - **Always `--clean` between runs that change `.env.r2`**. Compose
   caches the env values into the running containers; if you change
-  HARNESS_TOKEN without `down --clean`, the new token won't propagate
+  ORCHESTRATOR_TOKEN without `down --clean`, the new token won't propagate
   and the runner will get HTTP 401 against the old runnerToken.
 - **The runJWT minted by `r2-up.sh` has a 1-hour lifetime** (set in
   the script via `runDurationMs: 3600000`). For longer-lived test
@@ -309,7 +309,7 @@ These are useful when the harness hits an unexpected state.
     const { setupRemoteRunner } = require("./src/server/remoteRunnerSetup");
     const setup = setupRemoteRunner({ env: process.env });
     const l = new EvidenceLedger({ rootDir: "/app/runs", signingKey: setup.ledgerKey });
-    console.log(l.verifyChain(process.env.HARNESS_RUN_ID));
+    console.log(l.verifyChain(process.env.ORCHESTRATOR_RUN_ID));
   '
   ```
 - **Strict-mode dashboard access**: while

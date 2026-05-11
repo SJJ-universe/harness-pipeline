@@ -29,7 +29,7 @@ const { createProfileStore, validateProfile, SCHEMA_VERSION } = require(
 // ── helpers ────────────────────────────────────────────────────
 
 function tmpFile(t) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "harness-profile-test-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-profile-test-"));
   const file = path.join(dir, "profiles.json");
   t.after(() => {
     try { fs.rmSync(dir, { recursive: true, force: true }); } catch (_) {}

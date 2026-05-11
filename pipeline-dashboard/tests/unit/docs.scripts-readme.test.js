@@ -50,7 +50,7 @@ const SECTIONS = [
   ["§1", "Quality, readiness, and CI gates"],
   ["§2", "External review & audit"],
   ["§3", "Setup & first-run launcher"],
-  ["§4", "R2 single-runner evaluation harness"],
+  ["§4", "R2 single-runner evaluation orchestrator"],
   ["§5", "Live verification"],
   ["§6", "Field pilot"],
   ["§7", "Visual probes"],

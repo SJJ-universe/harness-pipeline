@@ -1,4 +1,4 @@
-// Phase 2 verification harness — exercises PipelineExecutor in isolation
+// Phase 2 verification orchestrator — exercises PipelineExecutor in isolation
 // without affecting the running server's executor instance (which the
 // developer's own Claude session is attached to via hooks).
 //

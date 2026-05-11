@@ -10,8 +10,8 @@
 // presetLibrary + real deploymentProfile (with fake clock + fake
 // spawn so the test is deterministic):
 //
-//   1. HARNESS_HARD_GATES=1 changes resolveGateMode to "hard"
-//   2. HARNESS_DEPLOYMENT_PROFILE=finance-high-privacy auto-applies
+//   1. ORCHESTRATOR_HARD_GATES=1 changes resolveGateMode to "hard"
+//   2. ORCHESTRATOR_DEPLOYMENT_PROFILE=finance-high-privacy auto-applies
 //      stricter pack with hardGatesDefault=true
 //   3. Hard gate block on PII input emits exactly ONE policy_gate_blocked
 //      audit row with the right shape (state-immutability + audit
@@ -19,7 +19,7 @@
 //   4. Pipeline complete fires runMemory.recordRunMemory under
 //      public-sector posture → record persisted with redacted=true,
 //      raw PII NEVER in audit data (privacy-by-design from SMART-4)
-//   5. decisionContext booleans match the harness state; recommendation
+//   5. decisionContext booleans match the orchestrator state; recommendation
 //      engine returns the right rules (SMART-1 first consumer)
 //   6. Review session dispatch with `presetId: "security"` causes
 //      _buildCodexPrompt to inject the [Preset: Security] header AND
@@ -47,18 +47,18 @@ const recommendationEngine = require("../../public/js/runtime/recommendationEngi
 const { resolveDeploymentProfile } = require("../../src/policy/deploymentProfile");
 
 function makeLedgerDir() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), "harness-smart-lv-"));
+  return fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-smart-lv-"));
 }
 
-// ── Property 1: HARNESS_HARD_GATES=1 changes mode ─────────────────
+// ── Property 1: ORCHESTRATOR_HARD_GATES=1 changes mode ─────────────────
 
-test("LV0-a property 1: HARNESS_HARD_GATES=1 → policy gate mode is hard", () => {
-  const mode = policyGates.resolveGateMode({ HARNESS_HARD_GATES: "1" });
+test("LV0-a property 1: ORCHESTRATOR_HARD_GATES=1 → policy gate mode is hard", () => {
+  const mode = policyGates.resolveGateMode({ ORCHESTRATOR_HARD_GATES: "1" });
   assert.equal(mode, "hard",
-    "HARNESS_HARD_GATES=1 must enable hard mode (operator opt-in)");
+    "ORCHESTRATOR_HARD_GATES=1 must enable hard mode (operator opt-in)");
 });
 
-test("LV0-a property 1: HARNESS_HARD_GATES unset → warn (graduated rollout default)", () => {
+test("LV0-a property 1: ORCHESTRATOR_HARD_GATES unset → warn (graduated rollout default)", () => {
   const mode = policyGates.resolveGateMode({});
   assert.equal(mode, "warn",
     "default is warn (existing deployments unaffected without explicit opt-in)");
@@ -68,7 +68,7 @@ test("LV0-a property 1: HARNESS_HARD_GATES unset → warn (graduated rollout def
 
 test("LV0-a property 2: finance-high-privacy pack hardGatesDefault=true", () => {
   const profile = resolveDeploymentProfile({
-    env: { HARNESS_DEPLOYMENT_PROFILE: "finance-high-privacy" },
+    env: { ORCHESTRATOR_DEPLOYMENT_PROFILE: "finance-high-privacy" },
   });
   // SMART-5 cross-field invariant: stricter than public-sector
   assert.equal(profile.publicSector, true);
@@ -83,7 +83,7 @@ test("LV0-a property 2: finance-high-privacy pack hardGatesDefault=true", () => 
 
 test("LV0-a property 2: public-sector pack has hardGatesDefault=false (graduated rollout)", () => {
   const profile = resolveDeploymentProfile({
-    env: { HARNESS_DEPLOYMENT_PROFILE: "public-sector" },
+    env: { ORCHESTRATOR_DEPLOYMENT_PROFILE: "public-sector" },
   });
   assert.equal(profile.hardGatesDefault, false,
     "public-sector defaults to warn — operator opts in via env");
@@ -199,7 +199,7 @@ test("LV0-a property 4: opt-out env disables run memory writes", () => {
       runId: "lv-run-OptOut",
       inputs: { goal: "x" },
       ledger,
-      env: { HARNESS_RUN_MEMORY_DISABLE: "1" },
+      env: { ORCHESTRATOR_RUN_MEMORY_DISABLE: "1" },
       deploymentProfile: { publicSector: true },
     });
     assert.equal(r.recorded, false);

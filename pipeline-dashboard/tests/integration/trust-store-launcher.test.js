@@ -55,7 +55,7 @@ test("TRUST-STORE-0 integration: server + launcher resolvers are the SAME module
 });
 
 test("TRUST-STORE-0 integration: same env produces same resolved path on both sides", () => {
-  const env = { HARNESS_TRUST_STORE: "/explicit/path/from/env.json" };
+  const env = { ORCHESTRATOR_TRUST_STORE: "/explicit/path/from/env.json" };
   const fromServer = trustStorePath.resolveTrustStorePath({ env });
   const fromLauncher = launcherTrustStorePath.resolveTrustStorePath({ env });
   assert.equal(fromServer.path, fromLauncher.path);
@@ -184,9 +184,9 @@ test("TRUST-STORE-0 integration: removing one key when other keys remain → unk
   );
 });
 
-// ── Resolver-honoring: HARNESS_TRUST_STORE env path round-trip ─────
+// ── Resolver-honoring: ORCHESTRATOR_TRUST_STORE env path round-trip ─────
 
-test("TRUST-STORE-0 integration: launcher honors HARNESS_TRUST_STORE env when runtime wrote there", (t) => {
+test("TRUST-STORE-0 integration: launcher honors ORCHESTRATOR_TRUST_STORE env when runtime wrote there", (t) => {
   const dir = tmpDir();
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const customPath = path.join(dir, "custom-trust.json");
@@ -222,7 +222,7 @@ test("TRUST-STORE-0 integration: launcher honors HARNESS_TRUST_STORE env when ru
   //    --trust-store flag). The shared resolver finds it.
   const v = runCli(
     ["verify-manifest-signature", manifestPath],
-    { HARNESS_TRUST_STORE: customPath },
+    { ORCHESTRATOR_TRUST_STORE: customPath },
   );
   assert.equal(v.status, 0, `stderr: ${v.stderr}`);
   const verifyResult = JSON.parse(v.stdout);
@@ -259,6 +259,6 @@ test("TRUST-STORE-0 integration: launcher 2 reports trust_store_source for foren
   assert.equal(JSON.parse(v1.stdout).trustStoreSource, "cli-flag");
 
   // Env override → source = "env-trust-store"
-  const v2 = runCli(["verify-manifest-signature", manifestPath], { HARNESS_TRUST_STORE: file });
+  const v2 = runCli(["verify-manifest-signature", manifestPath], { ORCHESTRATOR_TRUST_STORE: file });
   assert.equal(JSON.parse(v2.stdout).trustStoreSource, "env-trust-store");
 });

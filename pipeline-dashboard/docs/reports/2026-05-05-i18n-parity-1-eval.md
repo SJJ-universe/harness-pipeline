@@ -198,7 +198,7 @@ Per plan §S §S-next-after, remaining follow-up candidates:
 - **POL-UI-2 pack switch UI** — reactive switch with confirmation
   modal + runner-graceful-shutdown hook + audit chain entry
   (meaningful blast radius — runtime mutation of policy state)
-- **Operator runs `harness-start.bat` in production for ≥1 week** —
+- **Operator runs `orchestrator-start.bat` in production for ≥1 week** —
   the FP-a daily probe + 5 follow-up rounds + I18N-PARITY-1 now
   combine to a smoother experience
 - **External reviewer engagement** — apparatus is fully ready

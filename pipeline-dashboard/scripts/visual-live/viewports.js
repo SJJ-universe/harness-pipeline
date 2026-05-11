@@ -2,7 +2,7 @@
 // for live browser visual verification.
 //
 // Each viewport simulates a real screen size operators / 일반 사용자
-// commonly run the harness dashboard on. The list is intentionally
+// commonly run the orchestrator dashboard on. The list is intentionally
 // small (4) so the 4-route × 4-viewport matrix stays at 16 captures —
 // large enough to surface real-world responsive issues, small enough
 // that a CI artifact upload stays under reasonable size.

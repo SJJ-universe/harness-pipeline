@@ -181,7 +181,7 @@ test("R3-e-d: write-tool dispatch BLOCKED on deny", async () => {
 
 test("R3-e-d: write-tool dispatch BLOCKED on timeout", async () => {
   // We need the manager to schedule a timer that we control. Use a
-  // controllable harness so we can fire the timeout deterministically.
+  // controllable orchestrator so we can fire the timeout deterministically.
   const audits = [];
   let timerCb = null;
   const manager = new ApprovalManager({

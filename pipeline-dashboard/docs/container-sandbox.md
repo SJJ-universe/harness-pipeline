@@ -28,7 +28,7 @@ Isolate Claude/Codex runner subprocesses in containers to prevent:
 ## Docker Sandbox Design
 
 ```dockerfile
-# Dockerfile.harness-runner
+# Dockerfile.orchestrator-runner
 FROM node:22-slim
 WORKDIR /workspace
 COPY --chown=node:node . /src:ro
@@ -57,6 +57,6 @@ deploy:
 ## Implementation Phases
 
 1. Document design (this file) — no code changes
-2. Create `Dockerfile.harness-runner` + `docker-compose.runner.yml`
-3. Modify `codex-runner.js` and `claude-runner.js` to spawn in container when `HARNESS_CONTAINER_MODE=1`
+2. Create `Dockerfile.orchestrator-runner` + `docker-compose.runner.yml`
+3. Modify `codex-runner.js` and `claude-runner.js` to spawn in container when `ORCHESTRATOR_CONTAINER_MODE=1`
 4. Integration test: container runner produces same output as direct spawn

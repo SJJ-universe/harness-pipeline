@@ -2,7 +2,7 @@
 // CLI surface tests. Pins:
 //   - --help prints usage + exits 0
 //   - server unreachable → exit 3 (CONFIG)
-//   - --json emits valid harness-field-pilot-status/v1 schema
+//   - --json emits valid orchestrator-field-pilot-status/v1 schema
 //   - --notes flag preserved in output
 
 "use strict";
@@ -60,7 +60,7 @@ test("FP-a CLI: --json output is valid JSON when server unreachable", () => {
   ]);
   assert.equal(result.status, 3);
   const evidence = JSON.parse(result.stdout);
-  assert.equal(evidence.schema, "harness-field-pilot-status/v1");
+  assert.equal(evidence.schema, "orchestrator-field-pilot-status/v1");
   assert.equal(evidence.verdict, "CONFIG");
   assert.ok(typeof evidence.capturedAt === "string");
 });

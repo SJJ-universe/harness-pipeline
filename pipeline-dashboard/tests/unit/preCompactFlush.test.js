@@ -14,7 +14,7 @@ const { PipelineState } = require("../../executor/pipeline-state");
 const { createCheckpointStore } = require("../../executor/checkpoint");
 
 function makeEnv() {
-  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "harness-precompact-"));
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-precompact-"));
   const events = [];
   const templates = {
     default: {
@@ -52,11 +52,11 @@ test("onPreCompact writes summary file + broadcasts pipeline_compacted", async (
 
   await ex.onPreCompact({ trigger: "manual" });
 
-  const summaryPath = path.join(repoRoot, ".harness", "last-compact-summary.md");
+  const summaryPath = path.join(repoRoot, ".orchestrator", "last-compact-summary.md");
   assert.ok(fs.existsSync(summaryPath), "summary file must be written");
   const body = fs.readFileSync(summaryPath, "utf-8");
   assert.ok(Buffer.byteLength(body, "utf-8") <= 2048, "summary must be ≤2KB");
-  assert.match(body, /Harness PreCompact Summary/);
+  assert.match(body, /Orchestrator PreCompact Summary/);
   assert.match(body, /Phase:/);
   assert.match(body, /Original task: please implement a feature/);
 
@@ -84,7 +84,7 @@ test("onPreCompact truncates oversize summaries", async () => {
   await ex.onPreCompact({ trigger: "auto" });
 
   const body = fs.readFileSync(
-    path.join(repoRoot, ".harness", "last-compact-summary.md"),
+    path.join(repoRoot, ".orchestrator", "last-compact-summary.md"),
     "utf-8"
   );
   assert.ok(Buffer.byteLength(body, "utf-8") <= 2048,

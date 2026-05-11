@@ -63,7 +63,7 @@ test("idle response still has a valid ISO exportedAt", async () => {
   });
 });
 
-test("GET /api/runs/current does not require x-harness-token", async () => {
+test("GET /api/runs/current does not require x-orchestrator-token", async () => {
   await withServer(async () => {
     // Same rationale as /api/pipeline/templates: GET-only endpoints are
     // loopback-trusted and don't need the state-changing token. An explicit

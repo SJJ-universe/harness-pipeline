@@ -66,7 +66,7 @@
     // grid so a first-run operator sees "프로필이 필요합니다" at the
     // top of their viewport. The overlay self-hides when an active
     // profile is present, so users with a configured profile see no
-    // banner. Mounted via _mount so the test harness can inject a
+    // banner. Mounted via _mount so the test orchestrator can inject a
     // panel stub or the live page can rely on the global.
     const overlayMount = _doc.createElement("div");
     overlayMount.className = "ss-welcome-mount";

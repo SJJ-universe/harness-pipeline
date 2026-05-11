@@ -1,4 +1,4 @@
-// Harness toast system — Slice C (v4).
+// Orchestrator toast system — Slice C (v4).
 //
 // Two layers:
 //   1. `ToastState` — a pure in-memory stack manager. No DOM dependencies,

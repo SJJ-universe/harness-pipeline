@@ -167,21 +167,21 @@ test("R2.5-a: BRIDGE_MODES is exactly off / report / dispatch", () => {
 
 test("R2.5-a: DEFAULT_BRIDGE_MODE is 'off' (opt-in upgrade path)", () => {
   // Existing R1/R2 deployments upgrading to R2.5 must see no behavior
-  // change unless they explicitly set HARNESS_REMOTE_BRIDGE_MODE.
+  // change unless they explicitly set ORCHESTRATOR_REMOTE_BRIDGE_MODE.
   assert.equal(c.DEFAULT_BRIDGE_MODE, "off");
 });
 
 test("R2.5-a: resolveBridgeMode parses env values correctly", () => {
   assert.equal(c.resolveBridgeMode({}), "off");
-  assert.equal(c.resolveBridgeMode({ HARNESS_REMOTE_BRIDGE_MODE: "" }), "off");
-  assert.equal(c.resolveBridgeMode({ HARNESS_REMOTE_BRIDGE_MODE: "off" }), "off");
-  assert.equal(c.resolveBridgeMode({ HARNESS_REMOTE_BRIDGE_MODE: "report" }), "report");
-  assert.equal(c.resolveBridgeMode({ HARNESS_REMOTE_BRIDGE_MODE: "dispatch" }), "dispatch");
+  assert.equal(c.resolveBridgeMode({ ORCHESTRATOR_REMOTE_BRIDGE_MODE: "" }), "off");
+  assert.equal(c.resolveBridgeMode({ ORCHESTRATOR_REMOTE_BRIDGE_MODE: "off" }), "off");
+  assert.equal(c.resolveBridgeMode({ ORCHESTRATOR_REMOTE_BRIDGE_MODE: "report" }), "report");
+  assert.equal(c.resolveBridgeMode({ ORCHESTRATOR_REMOTE_BRIDGE_MODE: "dispatch" }), "dispatch");
   // Whitespace + casing tolerance.
-  assert.equal(c.resolveBridgeMode({ HARNESS_REMOTE_BRIDGE_MODE: "  REPORT " }), "report");
+  assert.equal(c.resolveBridgeMode({ ORCHESTRATOR_REMOTE_BRIDGE_MODE: "  REPORT " }), "report");
   // Unrecognized falls back to default (safe).
-  assert.equal(c.resolveBridgeMode({ HARNESS_REMOTE_BRIDGE_MODE: "yolo" }), "off");
-  assert.equal(c.resolveBridgeMode({ HARNESS_REMOTE_BRIDGE_MODE: "true" }), "off");
+  assert.equal(c.resolveBridgeMode({ ORCHESTRATOR_REMOTE_BRIDGE_MODE: "yolo" }), "off");
+  assert.equal(c.resolveBridgeMode({ ORCHESTRATOR_REMOTE_BRIDGE_MODE: "true" }), "off");
 });
 
 // ── Audit verbs ────────────────────────────────────────────────────

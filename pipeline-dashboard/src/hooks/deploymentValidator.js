@@ -1,8 +1,8 @@
 // Hook Deployment Validator — Slice F0, v5.
 //
 // Verifies that a `.claude/settings.json` actually registers all 10 hooks
-// that this harness knows how to handle. The harness itself wires the code
-// paths (see executor/hook-router.js, hooks/harness-hook.js) but none of
+// that this orchestrator knows how to handle. The orchestrator itself wires the code
+// paths (see executor/hook-router.js, hooks/orchestrator-hook.js) but none of
 // that matters if Claude Code isn't configured to *call* the bridge.
 //
 // Returns a report object. It's the CLI wrapper's job
@@ -10,7 +10,7 @@
 
 const fs = require("fs");
 
-// Every Claude Code hook the harness knows how to consume.
+// Every Claude Code hook the orchestrator knows how to consume.
 const REQUIRED_HOOKS = [
   "UserPromptSubmit",
   "PreToolUse",
@@ -24,7 +24,7 @@ const REQUIRED_HOOKS = [
   "PreCompact",
 ];
 
-// Canonical hook name → the CLI alias harness-hook.js expects as argv[2].
+// Canonical hook name → the CLI alias orchestrator-hook.js expects as argv[2].
 // Mirrors the switch in executor/hook-router.js::route().
 const ALIAS_MAP = {
   UserPromptSubmit: "user-prompt",
@@ -39,7 +39,7 @@ const ALIAS_MAP = {
   PreCompact: "pre-compact",
 };
 
-// Tools the harness MUST see in PreToolUse for phase-scoped metrics,
+// Tools the orchestrator MUST see in PreToolUse for phase-scoped metrics,
 // TDD Guard (Slice G), and allowedTools enforcement to work correctly.
 // Empty matcher ("" or "*") is treated as match-all and satisfies all tools.
 const REQUIRED_PRETOOL_MATCHERS = ["Edit", "Write", "Bash", "Read", "Glob", "Grep"];
@@ -94,9 +94,9 @@ function validateDeployment(settingsPath) {
     const cmd = block?.hooks?.[0]?.command || "";
     const aliasFound = _extractAlias(cmd);
     const aliasOk = aliasFound === expectedAlias;
-    // Soft check: command should mention harness-hook.js so we know it's
+    // Soft check: command should mention orchestrator-hook.js so we know it's
     // pointed at the right bridge, not some arbitrary script.
-    const commandOk = /harness-hook\.js/.test(cmd);
+    const commandOk = /orchestrator-hook\.js/.test(cmd);
 
     report.hooks[hookName] = {
       present: true,
@@ -130,8 +130,8 @@ function validateDeployment(settingsPath) {
 }
 
 function _extractAlias(command) {
-  // e.g. `node "C:/.../harness-hook.js" user-prompt` → "user-prompt"
-  const m = /harness-hook\.js["']?\s+([A-Za-z][A-Za-z0-9-]*)\s*$/.exec(command);
+  // e.g. `node "C:/.../orchestrator-hook.js" user-prompt` → "user-prompt"
+  const m = /orchestrator-hook\.js["']?\s+([A-Za-z][A-Za-z0-9-]*)\s*$/.exec(command);
   return m ? m[1] : null;
 }
 

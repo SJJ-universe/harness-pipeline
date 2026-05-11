@@ -21,7 +21,7 @@
 //
 // MG1 §8.2 token taxonomy (locked in this module):
 //
-//   bootstrap   — read from HARNESS_REMOTE_RUNNER_TOKEN_<host> env at
+//   bootstrap   — read from ORCHESTRATOR_REMOTE_RUNNER_TOKEN_<host> env at
 //                 handshake time. Single-use; a successful handshake
 //                 marks it consumed in-memory until process restart.
 //   runnerToken — 32-byte hex issued here. 24h sliding window, refreshed
@@ -54,7 +54,7 @@ class RunnerRegistry {
    * @param {function} [opts.now=Date.now]   - Override clock (tests).
    * @param {function} [opts.bootstrapTokenFor] - (hostIdentity) → token
    *        Override the env-driven default in tests. The default reads
-   *        process.env["HARNESS_REMOTE_RUNNER_TOKEN_" + sanitizedHost].
+   *        process.env["ORCHESTRATOR_REMOTE_RUNNER_TOKEN_" + sanitizedHost].
    * @param {number} [opts.runnerTokenTtlMs] - Sliding window for runnerToken.
    * @param {number} [opts.heartbeatDropMs]  - Inactivity threshold.
    */
@@ -128,7 +128,7 @@ class RunnerRegistry {
   static _defaultBootstrapTokenFor(hostIdentity) {
     // Replace any non-alnum char with `_` for env-var compatibility.
     const sanitized = String(hostIdentity || "").replace(/[^A-Za-z0-9]/g, "_");
-    return process.env["HARNESS_REMOTE_RUNNER_TOKEN_" + sanitized];
+    return process.env["ORCHESTRATOR_REMOTE_RUNNER_TOKEN_" + sanitized];
   }
 
   // ── handshake (§8.1 step 1) ──────────────────────────────────────

@@ -49,7 +49,7 @@
 
 "use strict";
 
-const SCHEMA = "harness-activity-watchdog/v1";
+const SCHEMA = "orchestrator-activity-watchdog/v1";
 
 const STATES = Object.freeze({
   IDLE: "idle",

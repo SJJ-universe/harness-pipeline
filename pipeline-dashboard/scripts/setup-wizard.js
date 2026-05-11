@@ -15,7 +15,7 @@
 //                  CLI discovery is SKIPPED — the agency profile uses
 //                  a remote sandbox runner, not local Claude/Codex.
 //
-// Track is chosen by HARNESS_DEPLOYMENT_PROFILE env (read at start).
+// Track is chosen by ORCHESTRATOR_DEPLOYMENT_PROFILE env (read at start).
 // Operator can also pass --public-sector / --standard to override.
 //
 // Why a Node script with thin .ps1 / .sh wrappers:
@@ -31,10 +31,10 @@
 //
 // Inputs the wizard reads:
 //
-//   - HARNESS_BASE_URL          (default http://127.0.0.1:4201)
-//   - HARNESS_TOKEN             (else read from .harness/local-token)
-//   - HARNESS_DEPLOYMENT_PROFILE
-//   - HARNESS_NO_TTY            (skip prompts, fail-closed if any
+//   - ORCHESTRATOR_BASE_URL          (default http://127.0.0.1:4201)
+//   - ORCHESTRATOR_TOKEN             (else read from .harness/local-token)
+//   - ORCHESTRATOR_DEPLOYMENT_PROFILE
+//   - ORCHESTRATOR_NO_TTY            (skip prompts, fail-closed if any
 //                                required input was supposed to be
 //                                interactive — useful for CI)
 //
@@ -45,7 +45,7 @@
 //   3 — invalid input (bad CLI args / non-TTY without flags)
 //
 // What this script deliberately does NOT do:
-//   - Start the harness server. The launcher is responsible for that.
+//   - Start the orchestrator server. The launcher is responsible for that.
 //     If the server isn't reachable, the wizard prints an actionable
 //     message and exits with code 2.
 //   - Spend tokens. Tier 3 (canRun) is opt-in via --tier3 + interactive
@@ -61,14 +61,14 @@ const readline = require("readline");
 
 const VERSION = "0.1.0-d2d";
 const DEFAULT_BASE_URL = "http://127.0.0.1:4201";
-const TOKEN_FILE_RELATIVE = path.join(".harness", "local-token");
+const TOKEN_FILE_RELATIVE = path.join(".orchestrator", "local-token");
 
 // ── arg parsing ─────────────────────────────────────────────────
 
 function parseArgs(argv) {
   // Tiny flag parser. Recognized flags:
-  //   --base-url <url>        override HARNESS_BASE_URL
-  //   --token <token>         override HARNESS_TOKEN / .harness/local-token
+  //   --base-url <url>        override ORCHESTRATOR_BASE_URL
+  //   --token <token>         override ORCHESTRATOR_TOKEN / .harness/local-token
   //   --standard              force standard track
   //   --public-sector         force public-sector track
   //   --tier3                 enable tier-3 (token-spending) provider tests
@@ -95,7 +95,7 @@ function parseArgs(argv) {
 
 function printHelp() {
   process.stdout.write([
-    "harness setup wizard (D2-d)",
+    "orchestrator setup wizard (D2-d)",
     "",
     "Usage:",
     "  node scripts/setup-wizard.js [options]",
@@ -105,13 +105,13 @@ function printHelp() {
     "  --public-sector       Force public-sector track (override env)",
     "  --tier3               Allow tier-3 (token-spending) provider tests",
     "  --no-prompt           Refuse interactive prompts (CI-friendly)",
-    "  --base-url <url>      Override HARNESS_BASE_URL",
-    "  --token <token>       Override HARNESS_TOKEN / .harness/local-token",
+    "  --base-url <url>      Override ORCHESTRATOR_BASE_URL",
+    "  --token <token>       Override ORCHESTRATOR_TOKEN / .harness/local-token",
     "  --version             Print version and exit",
     "  --help                Print this help and exit",
     "",
     "Track selection (when neither --standard nor --public-sector is given):",
-    "  HARNESS_DEPLOYMENT_PROFILE=public-sector → public-sector track",
+    "  ORCHESTRATOR_DEPLOYMENT_PROFILE=public-sector → public-sector track",
     "  Otherwise                                → standard track",
     "",
     "",
@@ -121,12 +121,12 @@ function printHelp() {
 // ── env / token resolution ─────────────────────────────────────
 
 function resolveBaseUrl(args, env) {
-  return args.baseUrl || env.HARNESS_BASE_URL || DEFAULT_BASE_URL;
+  return args.baseUrl || env.ORCHESTRATOR_BASE_URL || DEFAULT_BASE_URL;
 }
 
 function resolveToken(args, env, repoRoot) {
   if (args.token) return args.token;
-  if (env.HARNESS_TOKEN) return env.HARNESS_TOKEN;
+  if (env.ORCHESTRATOR_TOKEN) return env.ORCHESTRATOR_TOKEN;
   // Fall back to .harness/local-token in the repo root.
   const tokenFile = path.join(repoRoot, TOKEN_FILE_RELATIVE);
   try {
@@ -138,7 +138,7 @@ function resolveToken(args, env, repoRoot) {
 
 function resolveTrack(args, env) {
   if (args.mode) return args.mode;
-  if (env.HARNESS_DEPLOYMENT_PROFILE === "public-sector") return "public-sector";
+  if (env.ORCHESTRATOR_DEPLOYMENT_PROFILE === "public-sector") return "public-sector";
   return "standard";
 }
 
@@ -192,7 +192,7 @@ async function postJson({ baseUrl, token, path: p, body, fetchImpl }) {
     throw new Error("fetch is unavailable in this Node runtime");
   }
   const headers = { "content-type": "application/json" };
-  if (token) headers["x-harness-token"] = token;
+  if (token) headers["x-orchestrator-token"] = token;
   const url = baseUrl.replace(/\/+$/, "") + p;
   let res;
   try {
@@ -394,8 +394,8 @@ async function runStandardTrack(ctx) {
     .toLowerCase().replace(/[^a-z0-9_-]/g, "-");
   const label = await ctx.prompt.ask("Profile label", "Personal");
   const defaultWs = process.platform === "win32"
-    ? path.join(process.env.USERPROFILE || "C:\\", "harness-workspace")
-    : path.join(process.env.HOME || "/tmp", "harness-workspace");
+    ? path.join(process.env.USERPROFILE || "C:\\", "orchestrator-workspace")
+    : path.join(process.env.HOME || "/tmp", "orchestrator-workspace");
   const workspacePath = await ctx.prompt.ask("Workspace path", defaultWs);
 
   const ws = await stepProbeWorkspace(ctx, workspacePath);
@@ -477,7 +477,7 @@ async function runPublicSectorTrack(ctx) {
 
   printInfo("Acknowledgments (no automatic verification — operator-driven):");
   const ackSandbox = await ctx.prompt.confirm(
-    "Sandbox runner is configured (HARNESS_REMOTE_MODE / runner host)?",
+    "Sandbox runner is configured (ORCHESTRATOR_REMOTE_MODE / runner host)?",
     false,
   );
   if (!ackSandbox) {
@@ -547,11 +547,11 @@ async function main(argv, env, opts = {}) {
   const baseUrl = resolveBaseUrl(args, env);
   const token = resolveToken(args, env, repoRoot);
   const track = resolveTrack(args, env);
-  const noPrompt = !!(args.noPrompt || env.HARNESS_NO_TTY);
+  const noPrompt = !!(args.noPrompt || env.ORCHESTRATOR_NO_TTY);
 
   if (!token) {
     process.stderr.write(
-      "error: no HARNESS_TOKEN found. Start the harness server first " +
+      "error: no ORCHESTRATOR_TOKEN found. Start the orchestrator server first " +
       "(it creates .harness/local-token), or pass --token <value>.\n",
     );
     return 2;
@@ -560,7 +560,7 @@ async function main(argv, env, opts = {}) {
   const prompt = opts.promptImpl || makePrompt(noPrompt);
   const ctx = { baseUrl, token, args, prompt, fetchImpl: opts.fetchImpl };
 
-  process.stdout.write(`Harness Setup Wizard ${VERSION}\n`);
+  process.stdout.write(`Orchestrator Setup Wizard ${VERSION}\n`);
   process.stdout.write(`  Base URL: ${baseUrl}\n`);
   process.stdout.write(`  Track:    ${track}\n`);
 

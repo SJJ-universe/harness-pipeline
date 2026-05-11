@@ -12,7 +12,7 @@ const { PipelineExecutor } = require("../../executor/pipeline-executor");
 const { PipelineState } = require("../../executor/pipeline-state");
 
 function makeEnv({ critiqueOk = true, findings = [] } = {}) {
-  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "harness-codex-gate-"));
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-codex-gate-"));
   const events = [];
   const codexCalls = [];
   // Fake CodexRunner — avoids spawning a real binary.
@@ -96,7 +96,7 @@ test("Failed gate on a cycle-eligible Codex phase loops back via linkedCycle", a
 });
 
 test("Passing gate advances past Codex phase without cycling", async () => {
-  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "harness-codex-gate-"));
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-codex-gate-"));
   const events = [];
   const codex = {
     exec: async () => ({ ok: true, summary: "fine", findings: [], exitCode: 0 }),

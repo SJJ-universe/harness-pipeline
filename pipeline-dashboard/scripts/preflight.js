@@ -102,7 +102,7 @@ function verdictFor(step, result) {
     if (result.exitCode === 4) {
       return {
         verdict: "FAIL",
-        detail: "CONFIG: harness server boot failed. NOT a regression — environment cannot run live checks. " +
+        detail: "CONFIG: orchestrator server boot failed. NOT a regression — environment cannot run live checks. " +
                 "Run preflight from a normal terminal (PowerShell, bash, CI runner).",
       };
     }
@@ -194,7 +194,7 @@ function main() {
   const results = [];
 
   if (!QUIET) {
-    out("=== Harness Preflight ===\n");
+    out("=== Orchestrator Preflight ===\n");
     out("배포 전 점검 — pre-deployment verification\n\n");
   }
 
@@ -233,7 +233,7 @@ function main() {
 
   if (JSON_MODE) {
     process.stdout.write(JSON.stringify({
-      preflight: "harness",
+      preflight: "orchestrator",
       version: 1,
       allRequiredPassed,
       passedRequired,

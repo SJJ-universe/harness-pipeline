@@ -149,8 +149,8 @@ function assertLocalExecutorAllowed(deploymentProfile) {
   if (deploymentProfile.allowLocalExecutor === false) {
     const err = new Error(
       "local executor disabled by public-sector policy " +
-      "(set HARNESS_DEPLOYMENT_PROFILE=standard to allow, or use a " +
-      "remote runner via HARNESS_REMOTE_MODE)",
+      "(set ORCHESTRATOR_DEPLOYMENT_PROFILE=standard to allow, or use a " +
+      "remote runner via ORCHESTRATOR_REMOTE_MODE)",
     );
     err.code = "PUBLIC_SECTOR_LOCAL_EXECUTOR_DISABLED";
     throw err;
@@ -195,7 +195,7 @@ function assertSandboxWorkspaceRequired(profile, deploymentProfile) {
   const err = new Error(
     `public-sector policy requires workspaceMode="${REQUIRED_WORKSPACE_MODE}" ` +
     `but profile "${profile.id || "<unknown>"}" has workspaceMode="${profile.workspaceMode || "<unset>"}". ` +
-    `Recreate the profile with sandbox workspace, or set HARNESS_DEPLOYMENT_PROFILE=standard.`,
+    `Recreate the profile with sandbox workspace, or set ORCHESTRATOR_DEPLOYMENT_PROFILE=standard.`,
   );
   err.code = "PUBLIC_SECTOR_SANDBOX_WORKSPACE_REQUIRED";
   throw err;
@@ -264,7 +264,7 @@ function assertWriteToolApprovalAvailable(deploymentProfile, approvalManager) {
     `(Bash/Edit/Write) but no approvalManager is wired into the hook-router. ` +
     `Construct HookRouter with { approvalManager } pointing at the same ` +
     `instance the /api/approvals routes use, or set ` +
-    `HARNESS_DEPLOYMENT_PROFILE=standard.`,
+    `ORCHESTRATOR_DEPLOYMENT_PROFILE=standard.`,
   );
   err.code = "PUBLIC_SECTOR_APPROVAL_MANAGER_REQUIRED";
   throw err;

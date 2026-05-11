@@ -5,14 +5,14 @@
 //   GET /api/policy-packs
 //     No body. Returns:
 //       {
-//         schema: "harness-policy-pack/v1",
+//         schema: "orchestrator-policy-pack/v1",
 //         currentPack: { modeId, label, ... },     // resolved profile
 //         packs: [...5 packs with full rule fields],
 //         metadata: {
 //           hardGatesEffectiveMode: "hard"|"warn",  // POL-a runtime mode
 //           runMemoryEffective: true|false,         // POL-a runtime
-//           hardGatesEnvOverride: bool,             // operator set HARNESS_HARD_GATES
-//           runMemoryEnvOverride: bool,             // HARNESS_RUN_MEMORY_DISABLE
+//           hardGatesEnvOverride: bool,             // operator set ORCHESTRATOR_HARD_GATES
+//           runMemoryEnvOverride: bool,             // ORCHESTRATOR_RUN_MEMORY_DISABLE
 //         }
 //       }
 //
@@ -77,8 +77,8 @@ function createPolicyPackRoutes(deps = {}) {
 
     // POL-a runtime metadata: what mode is actually in effect right now?
     const hardGatesEffectiveMode = policyGates.resolveGateMode(env, deploymentProfile);
-    const hardGatesEnv = String(env.HARNESS_HARD_GATES || "").trim().toLowerCase();
-    const runMemoryEnv = String(env.HARNESS_RUN_MEMORY_DISABLE || "").trim().toLowerCase();
+    const hardGatesEnv = String(env.ORCHESTRATOR_HARD_GATES || "").trim().toLowerCase();
+    const runMemoryEnv = String(env.ORCHESTRATOR_RUN_MEMORY_DISABLE || "").trim().toLowerCase();
     const hardGatesEnvOverride = hardGatesEnv === "1" || hardGatesEnv === "true"
       || hardGatesEnv === "hard" || hardGatesEnv === "0"
       || hardGatesEnv === "false" || hardGatesEnv === "warn"
@@ -118,10 +118,10 @@ function createPolicyPackRoutes(deps = {}) {
         // public-sector pack need to know what's expected of them.
         publicSectorRequirements: [
           "agency-managed account (operator workflow + IT-issued profile)",
-          "sandbox workspace (Docker / VM isolation; HARNESS_DEPLOYMENT_PROFILE alone is not enough)",
+          "sandbox workspace (Docker / VM isolation; ORCHESTRATOR_DEPLOYMENT_PROFILE alone is not enough)",
           "signed manifest (E3-F1 launcher gate + GOV-RELEASE-0 trust-store keys)",
           "PII scan fail-closed (gate refuses provider dispatch on detection)",
-          "no plaintext secrets (HARNESS_ALLOW_PLAINTEXT_SECRETS=1 is silently ignored)",
+          "no plaintext secrets (ORCHESTRATOR_ALLOW_PLAINTEXT_SECRETS=1 is silently ignored)",
         ],
       },
       serverTime: Date.now(),

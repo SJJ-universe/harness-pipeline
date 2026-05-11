@@ -1,13 +1,13 @@
 # UI Dashboard Design Notes
 
-> Status: **UI-H0 — design tokens locked in `public/css/harness-shell.css`**.
+> Status: **UI-H0 — design tokens locked in `public/css/orchestrator-shell.css`**.
 > Updated: 2026-04-30.
 > Cross-refs: [UI-H Hybrid Redesign Plan](./ui-h-redesign-plan.md),
 > [Scorecard](./scorecard.md).
 
-This is the operator-facing design contract for the SJ Harness
+This is the operator-facing design contract for the SJ Orchestrator
 Dashboard's monitor shell. The full token list lives in
-`public/css/harness-shell.css`; this doc explains the policy
+`public/css/orchestrator-shell.css`; this doc explains the policy
 contract every panel + future round must honor.
 
 ---
@@ -15,23 +15,23 @@ contract every panel + future round must honor.
 ## 1. Token vocabulary
 
 All design tokens are CSS custom properties prefixed `--hsh-*`
-(harness-shell). Categories:
+(orchestrator-shell). Categories:
 
 | Category | Examples | Purpose |
 |---|---|---|
 | Color (background) | `--hsh-bg-base`, `--hsh-bg-shell`, `--hsh-bg-card`, `--hsh-bg-rail`, `--hsh-bg-elev` | Background layers from page → shell → card → rail → elevated card |
 | Color (text) | `--hsh-text`, `--hsh-text-dim`, `--hsh-text-mute`, `--hsh-text-faint` | Four-tier text contrast |
-| Color (accent) | `--hsh-bronze`, `--hsh-codex-blue` | Claude / primary CTA / harness gate vs Codex / Verifier |
+| Color (accent) | `--hsh-bronze`, `--hsh-codex-blue` | Claude / primary CTA / orchestrator gate vs Codex / Verifier |
 | Color (semantic) | `--hsh-green-pass`, `--hsh-red-danger`, `--hsh-orange`, `--hsh-yellow`, `--hsh-purple` | Verify pass / critical / high / medium / subagent |
 | Color (soft) | `*-soft` and `*-faint` variants | Background fill at 5-18% alpha |
 | Typography | `--hsh-font-body`, `--hsh-font-mono`, `--hsh-font-serif` | System-font stacks (no Google Fonts) |
 | Type scale | `--hsh-fs-xs/sm/md/base/lg/xl/display` | 9 / 10 / 11 / 13 / 14 / 17 / 22 px |
 | Density | `--hsh-radius`, `--hsh-radius-md`, `--hsh-radius-pill`, `--hsh-space-1..6` | Compact dashboard density (3-4 px radius, 4-24 px spacing) |
-| Motion | `--hsh-anim-pulse`, `--hsh-anim-slide`, `--hsh-anim-caret`, `--hsh-anim-rear-callout`, `--hsh-dur-fast/base/slow`, `--hsh-ease-snap`, `--hsh-ease-out` | Pulsing dots, sliding progress, blinking caret, harness gate callout |
+| Motion | `--hsh-anim-pulse`, `--hsh-anim-slide`, `--hsh-anim-caret`, `--hsh-anim-rear-callout`, `--hsh-dur-fast/base/slow`, `--hsh-ease-snap`, `--hsh-ease-out` | Pulsing dots, sliding progress, blinking caret, orchestrator gate callout |
 
 Backwards-compatible fallbacks: existing CSS uses
 `var(--bg-card, #161b22)` style with hex fallbacks. Those fallbacks
-remain so a panel rendering before harness-shell.css loads (or
+remain so a panel rendering before orchestrator-shell.css loads (or
 after a stylesheet error) still has a sane visual. Tokens are
 ADDITIVE; consumers opt in.
 
@@ -39,7 +39,7 @@ ADDITIVE; consumers opt in.
 
 ## 2. Theme policy
 
-**Dark only for now.** The mockup at `Downloads/web page/sj-harness-
+**Dark only for now.** The mockup at `Downloads/web page/sj-orchestrator-
 dashboard/` was designed for dark; light theme is a follow-up
 round.
 
@@ -57,7 +57,7 @@ Two triggers freeze every animation token:
    query.
 2. `data-posture="public-sector"` attribute on
    `document.documentElement` (set by UI-H5 when
-   `HARNESS_DEPLOYMENT_PROFILE=public-sector`).
+   `ORCHESTRATOR_DEPLOYMENT_PROFILE=public-sector`).
 
 Either trigger causes:
 
@@ -65,7 +65,7 @@ Either trigger causes:
   `--hsh-anim-rear-callout` → `none`.
 - `--hsh-dur-fast/base/slow` → `0s`.
 
-Effect: Harness Track horse stops at the current lane. Progress
+Effect: Orchestrator Track horse stops at the current lane. Progress
 strips freeze. Caret stops blinking. Pill dots become static.
 
 The static markers and lane labels remain visible — operators
@@ -85,7 +85,7 @@ Per UI Plan.txt §"공공기관 모드":
 Public-sector posture invokes:
 
 1. **Reduced-motion** (token-driven, see §3 above).
-2. **Policy-gate timeline** (UI-H2 + UI-H5 — Harness Track
+2. **Policy-gate timeline** (UI-H2 + UI-H5 — Orchestrator Track
    renders gates as static markers with policy-tier color tags
    instead of the gallop+rear sequence).
 3. **Sandbox stream tab** in the dual console (UI-H3 + UI-H5 —
@@ -118,7 +118,7 @@ serif: Georgia, "Apple SD Gothic Neo", "Noto Serif KR", serif
 
 If an operator wants Pretendard or JetBrains Mono, they self-host:
 drop the woff2 file in their fonts folder + add an `@font-face`
-declaration. The harness doesn't bundle them.
+declaration. The orchestrator doesn't bundle them.
 
 Platform variance is accepted — Mac users see San Francisco,
 Windows users see Segoe UI, Linux users see whatever their
@@ -143,7 +143,7 @@ round (UI-H plan §7 "Out of scope").
 ## 7. Animation budget
 
 Every animation token can be triggered by ≤ 1 element at a time
-in a typical operator view. The Harness Track is the heaviest
+in a typical operator view. The Orchestrator Track is the heaviest
 animator (one running horse) — RAF-based, freezes when the tab
 is hidden via Page Visibility API (UI-H2 implementation
 contract).
@@ -204,7 +204,7 @@ overrides.
 
 - `C:\Users\SJ\Downloads\web page\UI Plan.txt` — UI policy
   directive
-- `C:\Users\SJ\Downloads\web page\sj-harness-dashboard\` —
+- `C:\Users\SJ\Downloads\web page\sj-orchestrator-dashboard\` —
   React mockup (color values + density + animation patterns
   extracted)
 - `docs/ui-h-redesign-plan.md` — round structure

@@ -198,7 +198,7 @@ test("S3-d UI: mount triggers client.listPresets when supported", async () => {
   const store = createMonitorStore();
   const client = fakeClient({
     listPresetsImpl: () => Promise.resolve({
-      schema: "harness-review-preset/v1",
+      schema: "orchestrator-review-preset/v1",
       presets: SAMPLE_PRESETS,
     }),
   });

@@ -57,7 +57,7 @@
 
 "use strict";
 
-const SCHEMA = "harness-review-preset/v1";
+const SCHEMA = "orchestrator-review-preset/v1";
 
 // Hard caps. Current presets sit at ~600-900 bytes per system prompt;
 // the cap is 4 KiB (UTF-16 char count, not strict bytes — JS string

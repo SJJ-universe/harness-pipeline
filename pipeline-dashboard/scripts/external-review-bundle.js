@@ -61,7 +61,7 @@
 //   2  INCIDENT
 //   3  CONFIG (file missing / not a git repo)
 //
-// Output schema: harness-external-review-bundle/v1
+// Output schema: orchestrator-external-review-bundle/v1
 // Output file:   <output-dir>/<label>-external-review-bundle.json
 //
 // External reviewer pattern:
@@ -88,7 +88,7 @@ const ANSI = {
   reset:  process.env.NO_COLOR ? "" : "\x1b[0m",
 };
 
-const SCHEMA = "harness-external-review-bundle/v1";
+const SCHEMA = "orchestrator-external-review-bundle/v1";
 
 // Project root resolution — anchor at the pipeline-dashboard
 // directory (the script's parent), where docs/ + scripts/ live. Git
@@ -152,7 +152,7 @@ Exit codes:
   2  INCIDENT   — audit chain integrity FAILED, scorecard parse FAILED, or --strict + offline
   3  CONFIG     — scorecard.md missing, readiness-rubric.md missing, not a git repo
 
-Schema: harness-external-review-bundle/v1
+Schema: orchestrator-external-review-bundle/v1
 Output: <output-dir>/<label>-external-review-bundle.json
 `);
 }
@@ -165,7 +165,7 @@ async function http(args, method, url, token) {
     method,
     headers: {
       Accept: "application/json",
-      ...(token ? { "x-harness-token": token } : {}),
+      ...(token ? { "x-orchestrator-token": token } : {}),
     },
   };
   const ctrl = new AbortController();
@@ -185,9 +185,9 @@ async function http(args, method, url, token) {
 }
 
 async function fetchToken() {
-  if (process.env.HARNESS_TOKEN) return process.env.HARNESS_TOKEN;
+  if (process.env.ORCHESTRATOR_TOKEN) return process.env.ORCHESTRATOR_TOKEN;
   const candidates = [
-    path.resolve(REPO_ROOT, ".harness", "local-token"),
+    path.resolve(REPO_ROOT, ".orchestrator", "local-token"),
   ];
   for (const p of candidates) {
     try {
@@ -405,7 +405,7 @@ async function _captureLive(args) {
 
   const token = await fetchToken();
   if (!token) {
-    live.skipReason = "no auth token (.harness/local-token absent + HARNESS_TOKEN unset)";
+    live.skipReason = "no auth token (.harness/local-token absent + ORCHESTRATOR_TOKEN unset)";
     step(args, "live probe", "DEGRADED", live.skipReason);
     return live;
   }

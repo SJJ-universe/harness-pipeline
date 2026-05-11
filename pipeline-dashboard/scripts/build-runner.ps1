@@ -12,7 +12,7 @@
 #
 # Env overrides:
 #
-#   $env:HARNESS_RUNNER_TAG       override the image:tag
+#   $env:ORCHESTRATOR_RUNNER_TAG       override the image:tag
 
 [CmdletBinding()]
 param(
@@ -29,7 +29,7 @@ Set-Location $RootDir
 
 $gitSha = (& git rev-parse --short HEAD 2>$null)
 if (-not $gitSha) { $gitSha = "dirty" }
-$imageTag = if ($env:HARNESS_RUNNER_TAG) { $env:HARNESS_RUNNER_TAG } else { "harness-runner:$gitSha" }
+$imageTag = if ($env:ORCHESTRATOR_RUNNER_TAG) { $env:ORCHESTRATOR_RUNNER_TAG } else { "harness-runner:$gitSha" }
 
 Write-Host "[build-runner] Building $imageTag..."
 & docker build -f Dockerfile.runner -t $imageTag .

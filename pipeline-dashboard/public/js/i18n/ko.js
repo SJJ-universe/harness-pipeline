@@ -270,7 +270,7 @@
     "policyPack.cardLabel":                              "현재 정책 팩",
     "policyPack.aria.region":                            "정책 팩 정보",
     "policyPack.currentLabel":                           "현재 사용 중",
-    "policyPack.changeHint":                             "팩 변경은 서버 재시작이 필요합니다 (HARNESS_DEPLOYMENT_PROFILE 환경변수 변경 + 재부팅).",
+    "policyPack.changeHint":                             "팩 변경은 서버 재시작이 필요합니다 (ORCHESTRATOR_DEPLOYMENT_PROFILE 환경변수 변경 + 재부팅).",
     "policyPack.publicSectorRequirements.title":         "🛡 공공기관 / 규제 배포 요구사항",
     "policyPack.publicSectorRequirements.intro":         "이 팩을 선택하기 전에 다음을 준비해 두세요:",
     "policyPack.runtimeEffective.label":                 "현재 런타임 적용 상태",
@@ -318,7 +318,7 @@
     module.exports = table;
   }
   if (typeof root !== "undefined") {
-    root.HARNESS_I18N = root.HARNESS_I18N || {};
-    root.HARNESS_I18N.ko = table;
+    root.ORCHESTRATOR_I18N = root.ORCHESTRATOR_I18N || {};
+    root.ORCHESTRATOR_I18N.ko = table;
   }
 })(typeof window !== "undefined" ? window : globalThis);

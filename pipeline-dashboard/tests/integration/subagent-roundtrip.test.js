@@ -14,7 +14,7 @@ const { PipelineState } = require("../../executor/pipeline-state");
 const { createEventReplayBuffer, REPLAY_TYPES } = require("../../src/runtime/eventReplayBuffer");
 
 function makeEnv() {
-  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "harness-sub-rt-"));
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-sub-rt-"));
   const replayBuf = createEventReplayBuffer({ maxSize: 100 });
   const broadcasts = [];
   const broadcast = (e) => {

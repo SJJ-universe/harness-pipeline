@@ -38,7 +38,7 @@ test("UI-P13 buildButtonManifest: schema + summary derivation", () => {
     totalElapsedMs: 5000,
     viewportId: "desktop-1366",
   });
-  assert.equal(m.schema, "harness-visual-button/v1");
+  assert.equal(m.schema, "orchestrator-visual-button/v1");
   assert.equal(m.viewportId, "desktop-1366");
   assert.equal(m.catalogVersion, BUTTONS.length);
   assert.equal(m.catalogIds.length, BUTTONS.length);

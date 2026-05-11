@@ -1,7 +1,7 @@
 // Slice UI-H9-a (Phase D / Phase E1.5, 2026-04-30) — audit read API.
 //
 // Operator-facing read-only HTTP for evidence-ledger inspection.
-// The drill-down view (UI-H9-b/c) needs to surface what the harness
+// The drill-down view (UI-H9-b/c) needs to surface what the orchestrator
 // audited for a particular run; the existing read API was internal-only
 // (`evidenceLedger.read(runId)`) so we expose it under /api/audit.
 //
@@ -82,7 +82,7 @@ function _parseLimit(raw) {
 function createAuditRoutes({ evidenceLedger, sealKey, deploymentProfile } = {}) {
   if (!evidenceLedger || typeof evidenceLedger.read !== "function" || typeof evidenceLedger.verifyChain !== "function") {
     // Don't fail boot — return a stub router that 503s every call.
-    // This preserves the rest of the harness if a future refactor
+    // This preserves the rest of the orchestrator if a future refactor
     // accidentally drops the ledger. The drill-down panel surfaces
     // the 503 cleanly and falls back to "audit unavailable" copy.
     const router = express.Router();

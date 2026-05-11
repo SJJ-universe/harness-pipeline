@@ -29,7 +29,7 @@ const { createSetupRoutes } = require("../../src/routes/setupRoutes");
 // ── helpers (lifted from profile-routes.test.js) ──────────────
 
 function tmpDir(t) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "harness-setup-test-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-setup-test-"));
   t.after(() => {
     try { fs.rmSync(dir, { recursive: true, force: true }); } catch (_) {}
   });

@@ -127,11 +127,11 @@ node scripts/visual-button-live.js --quiet --json > button-result.json
 
 ---
 
-## 5. Manifest 스키마 (harness-visual-button/v1)
+## 5. Manifest 스키마 (orchestrator-visual-button/v1)
 
 ```json
 {
-  "schema": "harness-visual-button/v1",
+  "schema": "orchestrator-visual-button/v1",
   "capturedAt": "2026-05-04T08:00:00.000Z",
   "base": "http://127.0.0.1:4799",
   "browser": { "name": "chromium", "version": "131.0.6778.69" },
@@ -216,7 +216,7 @@ btn.setAttribute("aria-label", "세션을 먼저 시작하세요 — Start 버�
 
 해결:
 - handler 함수에서 명시적 DOM mutation 추가 (`document.body.setAttribute("data-mode-changed", Date.now())`)
-- 또는 `harness:mode-changed` CustomEvent 발사 + UI 업데이트 후크
+- 또는 `orchestrator:mode-changed` CustomEvent 발사 + UI 업데이트 후크
 
 ### 6.4 `click-console-error` FAIL
 

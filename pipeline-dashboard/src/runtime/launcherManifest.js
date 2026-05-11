@@ -1,6 +1,6 @@
 // Slice D0-a (Phase E1 productization, 2026-04-28) — release manifest validator.
 //
-// Tiny module that the harness-start launcher invokes via `node` to:
+// Tiny module that the orchestrator-start launcher invokes via `node` to:
 //   1. Validate a downloaded manifest.json against an expected schema
 //   2. Verify SHA256 of a downloaded zip against the manifest
 //   3. Parse semver-ish version strings for the install path
@@ -70,12 +70,12 @@ function validateManifestSchema(raw) {
   if (typeof raw.url === "string" && !/^https:\/\//.test(raw.url)) {
     // SMART-ARC-PROBE-SCHEMA-FIX follow-up (2026-05-05):
     // The fetch-stage validator (launcher-cli validate-manifest-url)
-    // already honors HARNESS_ALLOW_INSECURE_MANIFEST_URL=1 with a LOUD
+    // already honors ORCHESTRATOR_ALLOW_INSECURE_MANIFEST_URL=1 with a LOUD
     // warning + dev-only contract. Extending the same env override to
     // the manifest BODY's url field keeps the relaxation surface a
     // single env variable (operators don't have to remember two flags).
     // Production posture (env unset) keeps the strict https:// rule.
-    if (process.env.HARNESS_ALLOW_INSECURE_MANIFEST_URL === "1") {
+    if (process.env.ORCHESTRATOR_ALLOW_INSECURE_MANIFEST_URL === "1") {
       // Permitted in dev — the upstream validator already warned.
     } else {
       errors.push("url must use https:// (plain http blocked to prevent in-transit tampering)");

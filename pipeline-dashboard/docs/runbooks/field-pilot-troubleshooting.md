@@ -38,7 +38,7 @@ permission / network) before they know what the symptom means.
 
 ## Section 1 — Installation & launcher
 
-### 1.1 `harness-start.bat` exits with code 37 (signature_missing)
+### 1.1 `orchestrator-start.bat` exits with code 37 (signature_missing)
 
 **Symptom**: launcher refuses to install a fresh build.
 **Likely cause**: production fail-closed gate (E3-F1) — manifest is unsigned
@@ -50,10 +50,10 @@ and the trust-store does not have the publisher key.
    your team's release key (private key never enters this catalog).
 3. Add the corresponding public key to the trust-store via the dashboard
    `Settings → Manifest signing keys` panel.
-4. Retry `harness-start.bat`.
+4. Retry `orchestrator-start.bat`.
 
 **Workaround (dev only — DO NOT USE IN PRODUCTION)**:
-- Set `HARNESS_ALLOW_UNSIGNED_MANIFEST=1` and re-run. The launcher will
+- Set `ORCHESTRATOR_ALLOW_UNSIGNED_MANIFEST=1` and re-run. The launcher will
   install with a LOUD warning and emit `launcher_signature_bypass` to the
   audit chain. Public-sector pack ignores this escape — exit 37 still fires.
 
@@ -83,7 +83,7 @@ untrusted source. Verify the fingerprint with the publisher first.
 
 ### 1.3 `node --version` says < 24
 
-**Symptom**: launcher refuses to start, or harness server boot fails with a
+**Symptom**: launcher refuses to start, or orchestrator server boot fails with a
 syntax error.
 **Likely cause**: the operator's Node is older than the minimum (24+).
 
@@ -126,19 +126,19 @@ JSON.
 
 ### 2.1 `claude login` opens a browser but never returns
 
-**Symptom**: operator runs `claude login` from the harness dashboard's
+**Symptom**: operator runs `claude login` from the orchestrator dashboard's
 copy-login-command CTA, the browser opens, but the CLI never finishes.
 **Likely cause**: corporate proxy intercepting the OAuth callback, or the
 browser is opening on a different machine than the CLI.
 
 **Workaround**:
-1. Run `claude login` from the same machine where the harness server is
+1. Run `claude login` from the same machine where the orchestrator server is
    running (not over SSH or RDP).
 2. If a corporate proxy is involved, ask IT to whitelist the Anthropic
    auth domains.
 3. As a last resort, paste the device-code in the terminal manually.
 
-**Safe-guidance principle**: the harness's `COPY_LOGIN_COMMAND_CLAUDE` CTA
+**Safe-guidance principle**: the orchestrator's `COPY_LOGIN_COMMAND_CLAUDE` CTA
 copies the command to clipboard but does not run it — by design. The
 operator runs it, observes the browser, and confirms manually.
 
@@ -161,7 +161,7 @@ OpenAI key) but the local CLI cache is stale.
 
 **Symptom**: operator clicks `Switch profile` in the dashboard; backend
 returns `active_run`.
-**Likely cause**: the harness blocks profile switch while a run is active
+**Likely cause**: the orchestrator blocks profile switch while a run is active
 (D1 invariant).
 
 **Workaround**:
@@ -179,7 +179,7 @@ change mid-run because the audit chain entry would not match.
 **Likely cause**: same `<install-dir>`, same audit chain.
 
 **Workaround**:
-- Each operator should use a distinct `HARNESS_DATA_DIR` (or full install
+- Each operator should use a distinct `ORCHESTRATOR_DATA_DIR` (or full install
   copy). The audit chain is per-install — there is no per-operator
   partition.
 - For team pilots, prefer separate machines or separate user profiles on
@@ -202,12 +202,12 @@ silent for ≥ idle timeout (default 20 min for `long_run` preset).
   reviews).
 - If the operator expects critiques > 20 min idle, switch to
   `public_sector` preset (idle limit 30 min) or set
-  `HARNESS_TIMEOUT_PRESET=public_sector`.
+  `ORCHESTRATOR_TIMEOUT_PRESET=public_sector`.
 
 **Workaround (case 2: critique was producing output but operator wants
 more total budget)**:
 - The total timer (default 20 min for `long_run`) is separate from idle.
-- Increase total: `HARNESS_TIMEOUT_TOTAL_MS=2700000` (45 min).
+- Increase total: `ORCHESTRATOR_TIMEOUT_TOTAL_MS=2700000` (45 min).
 
 **Safe-guidance principle**: do not disable the watchdog. Idle kill is the
 field-pilot's first line of defense against runaway spend.
@@ -224,7 +224,7 @@ field-pilot's first line of defense against runaway spend.
 - Open `Settings → Approvals` in the dashboard. There may be a pending
   approval blocking the run.
 - If approvals are coming in too slow, lower the approval timeout
-  (`HARNESS_REMOTE_APPROVAL_TIMEOUT_MS`) so the run fails fast instead of
+  (`ORCHESTRATOR_REMOTE_APPROVAL_TIMEOUT_MS`) so the run fails fast instead of
   hanging on idle.
 
 ---
@@ -258,8 +258,8 @@ blocks remote write tools; `finance-high-privacy` blocks remote bash.
 2. Read the pack's `publicSectorRequirements` (POL-c) to understand which
    gates are hard.
 3. If the gate is **wrong for your context**, switch packs:
-   `HARNESS_DEPLOYMENT_PROFILE=standard` and restart.
-4. Do **not** set `HARNESS_HARD_GATES=warn` on a public-sector or
+   `ORCHESTRATOR_DEPLOYMENT_PROFILE=standard` and restart.
+4. Do **not** set `ORCHESTRATOR_HARD_GATES=warn` on a public-sector or
    finance-high-privacy pack — that escape is a regression for those
    packs.
 
@@ -285,7 +285,7 @@ digit sequences (`YYMMDD-NNNNNNN`) that are actually order numbers.
 
 ## Section 5 — Network & runtime
 
-### 5.1 `harness-heartbeat` count is 0 in today's audit
+### 5.1 `orchestrator-heartbeat` count is 0 in today's audit
 
 **Symptom**: probe `audit.today.byVerb.harness_heartbeat` is 0; verdict may
 still be `OK`.
@@ -307,7 +307,7 @@ filtering it.
 connections.
 
 **Workaround**:
-- Increase the runner heartbeat frequency (`HARNESS_RUNNER_HEARTBEAT_MS`).
+- Increase the runner heartbeat frequency (`ORCHESTRATOR_RUNNER_HEARTBEAT_MS`).
 - If the firewall kills any connection idle for more than N seconds, set
   the heartbeat to less than N/2.
 
@@ -332,7 +332,7 @@ re-connect).
 ### 6.1 `field-pilot-status.js` exits 3 (CONFIG)
 
 **Symptom**: probe cannot reach the server.
-**Likely cause**: `harness-start.bat` did not finish booting, OR a different
+**Likely cause**: `orchestrator-start.bat` did not finish booting, OR a different
 process is on port 4201.
 
 **Workaround**:
@@ -340,7 +340,7 @@ process is on port 4201.
   server is not up.
 - `netstat -ano | findstr :4201` (Windows) or `lsof -i :4201` (mac/linux)
   to identify the listener.
-- Restart `harness-start.bat`.
+- Restart `orchestrator-start.bat`.
 
 ---
 
@@ -358,7 +358,7 @@ probe's `KNOWN_AUDIT_VERBS` set was not updated.
 - Add a troubleshooting entry here referencing the feature commit.
 
 **Safe-guidance principle**: the unknown-verb signal is the field-pilot's
-canary for "the harness changed in a way the operator did not expect".
+canary for "the orchestrator changed in a way the operator did not expect".
 Treat it as an opportunity to update the ledger, not as noise.
 
 ---

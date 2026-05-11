@@ -65,7 +65,7 @@ test("DOC-INDEX-1: file exists + non-empty", () => {
 });
 
 test("DOC-INDEX-1: H1 title present", () => {
-  assert.match(read(), /^# Harness Pipeline Documentation Index/m);
+  assert.match(read(), /^# Orchestrator Pipeline Documentation Index/m);
 });
 
 test("DOC-INDEX-1: tagged with slice DOC-INDEX-1", () => {
@@ -133,7 +133,7 @@ test("DOC-INDEX-1: every tracked doc is referenced in the index", () => {
 // accidental refactor-out of important docs).
 
 const ANCHOR_DOCS = [
-  "harness-architecture.md",
+  "orchestrator-architecture.md",
   "security-model.md",
   "operator-guide.md",
   "scorecard.md",

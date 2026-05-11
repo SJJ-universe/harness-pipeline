@@ -8,7 +8,7 @@ const { PipelineState } = require("../../executor/pipeline-state");
 const { createCheckpointStore } = require("../../executor/checkpoint");
 
 function makeEnv() {
-  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "harness-resume-"));
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-resume-"));
   const events = [];
   const templates = {
     default: {

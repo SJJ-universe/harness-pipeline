@@ -15,7 +15,7 @@
 //     would bloat every poll. Bootstrap runs ONCE on hydrate.
 //   - /api/runs/current returns ONE run snapshot (the active one); the
 //     monitor console wants the orchestrator's full list (Phase 2.5
-//     multi-run + Phase 1 V slice unlocked HARNESS_MAX_RUNS≥1).
+//     multi-run + Phase 1 V slice unlocked ORCHESTRATOR_MAX_RUNS≥1).
 //   - Spec D-spec calls out "server contract는 추가만" — we don't reshape
 //     existing endpoints.
 //
@@ -171,7 +171,7 @@ function createMonitorRoutes({
         pid: process.pid,
         uptime: process.uptime(),
         supervised: !!process.send,
-        mode: mode || (process.env.HARNESS_ALLOW_REMOTE === "1" ? "remote" : "local"),
+        mode: mode || (process.env.ORCHESTRATOR_ALLOW_REMOTE === "1" ? "remote" : "local"),
         bootTime: bootTime || null,
         activeChildCount,
       };

@@ -62,11 +62,11 @@ test("R3-c-2: server.js calls _runnerStaleMonitor.start() in start() and stop() 
     "expected _runnerStaleMonitor.stop() call");
 });
 
-test("R3-c-2: server.js exposes HARNESS_RUNNER_STALE_INTERVAL_MS env override", () => {
+test("R3-c-2: server.js exposes ORCHESTRATOR_RUNNER_STALE_INTERVAL_MS env override", () => {
   // Operators can tighten the cadence for faster signal in deployments
   // where host-loss must be reflected in the chain quickly.
-  assert.match(SERVER_SRC, /HARNESS_RUNNER_STALE_INTERVAL_MS/,
-    "expected HARNESS_RUNNER_STALE_INTERVAL_MS env hook");
+  assert.match(SERVER_SRC, /ORCHESTRATOR_RUNNER_STALE_INTERVAL_MS/,
+    "expected ORCHESTRATOR_RUNNER_STALE_INTERVAL_MS env hook");
 });
 
 // ── End-to-end with real registry + real ledger ─────────────────────

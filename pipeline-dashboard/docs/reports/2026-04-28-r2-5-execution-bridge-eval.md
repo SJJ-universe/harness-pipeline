@@ -27,7 +27,7 @@ but stopped short of letting remote hooks drive the local executor
 strong safeguards baked in:
 
 1. **Feature flag — opt-in promotion path.**
-   `HARNESS_REMOTE_BRIDGE_MODE` env: `off` (default) → `report`
+   `ORCHESTRATOR_REMOTE_BRIDGE_MODE` env: `off` (default) → `report`
    (validation runs, no dispatch) → `dispatch` (full bridge). Existing
    R1/R2 deployments upgrade with no behavior change.
 2. **Audit ledger with five verbs.** Every accepted hook produces 1
@@ -48,12 +48,12 @@ cd C:/Users/SJ/harness-pipeline-analysis/pipeline-dashboard
 
 # 1. Operator secrets (NEVER committed; .env.r2 is .gitignored).
 cp .env.r2.example .env.r2
-# Edit .env.r2 — set HARNESS_TOKEN + RUNNER_BOOTSTRAP_TOKEN to fresh
+# Edit .env.r2 — set ORCHESTRATOR_TOKEN + RUNNER_BOOTSTRAP_TOKEN to fresh
 # 32-byte hex strings.
 
 # 2. Bring up with bridge dispatch enabled (R2.5-c terminal mode).
 ./scripts/r2-down.sh --clean
-HARNESS_REMOTE_BRIDGE_MODE=dispatch ./scripts/r2-up.sh
+ORCHESTRATOR_REMOTE_BRIDGE_MODE=dispatch ./scripts/r2-up.sh
 
 # 3. Run the live bridge probe.
 ./scripts/r2-5-bridge-probe.sh
@@ -70,7 +70,7 @@ MSYS_NO_PATHCONV=1 docker exec harness-orchestrator-r2 \
 # 5. Inspect dispatch counters.
 MSYS_NO_PATHCONV=1 docker exec harness-orchestrator-r2 \
   node -e 'require("http").get("http://127.0.0.1:4201/api/server/info",
-    {headers:{"x-harness-token":process.env.HARNESS_TOKEN}},r=>{
+    {headers:{"x-harness-token":process.env.ORCHESTRATOR_TOKEN}},r=>{
       let b="";r.on("data",c=>b+=c);r.on("end",()=>console.log(JSON.parse(b).hookStats));
   })'
 # Expected: { remoteHookDispatched: 1, remoteHookRejected: 1, ... }
@@ -224,7 +224,7 @@ Recommended operational sequence:
    downstream failures.
 
 Demotion is safe — the bridge has no persistent state of its own.
-Setting `HARNESS_REMOTE_BRIDGE_MODE=off` in env + restart =
+Setting `ORCHESTRATOR_REMOTE_BRIDGE_MODE=off` in env + restart =
 immediate rollback to broadcast-only.
 
 ## 6. Known limitations (intentional)
@@ -267,7 +267,7 @@ predictive.
 
 ## 8. Operator notes
 
-- **Always tear-down + re-up when changing `HARNESS_REMOTE_BRIDGE_MODE`.**
+- **Always tear-down + re-up when changing `ORCHESTRATOR_REMOTE_BRIDGE_MODE`.**
   The orchestrator reads the env once at boot via
   `resolveBridgeMode(process.env)` and stores it in the
   HookRouter. Hot-promotion isn't supported in R2.5 (the
@@ -288,7 +288,7 @@ predictive.
   - `runner_hook_routed` + `runner_hook_sanitized` + `runner_hook_dispatch_error`
     → executor threw; `error` field captures the message.
 - **Bridge throughput at a glance.**
-  `curl -H "x-harness-token: $HARNESS_TOKEN" http://127.0.0.1:4201/api/server/info`
+  `curl -H "x-harness-token: $ORCHESTRATOR_TOKEN" http://127.0.0.1:4201/api/server/info`
   returns `hookStats` with the full counter set: `total`, `byEvent`,
   `remoteHooks`, `remoteHookSanitized`, `remoteHookRejected`,
   `remoteHookDispatched`, `remoteHookDispatchError`.

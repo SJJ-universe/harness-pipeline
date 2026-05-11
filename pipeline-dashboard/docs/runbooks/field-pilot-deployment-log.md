@@ -3,13 +3,13 @@
 **Slice FP-b (Phase 2 / FIELD-PILOT-0, 2026-05-05)**
 
 This is the **operator's daily log** for the 1-week field-pilot deployment of
-the harness. It pairs with `scripts/field-pilot-status.js` (FP-a): the script
+the orchestrator. It pairs with `scripts/field-pilot-status.js` (FP-a): the script
 captures *machine* signal (audit verbs / readiness / posture); this log
 captures *human* signal (what was deployed, who used it, what felt off).
 
 The combined evidence — daily JSON snapshot + this log + the incident ledger
 — is what the operator and external reviewer use to decide whether the
-harness is **production-no-regression** at the end of week 1.
+orchestrator is **production-no-regression** at the end of week 1.
 
 ---
 
@@ -43,7 +43,7 @@ Fill once on day 1.
 | Reviewer (external) | name / role (optional, if any) |
 | Pack mode | `standard` / `public-sector` / `finance-high-privacy` / `offline-internal-network` / `developer-lab` |
 | Deployment posture | `loopback` / (other — explain) |
-| Harness version (commit) | `git rev-parse HEAD` at start of pilot |
+| Orchestrator version (commit) | `git rev-parse HEAD` at start of pilot |
 | Node version | `node --version` |
 | Codex CLI | `codex --version` (or "not used") |
 | Claude CLI | `claude --version` (or "not used") |
@@ -133,7 +133,7 @@ Fill once at end of pilot.
 | Field | Value |
 |---|---|
 | Pilot end date | `YYYY-MM-DD` |
-| Final harness version (commit) | `git rev-parse HEAD` |
+| Final orchestrator version (commit) | `git rev-parse HEAD` |
 | Days fully boring (verdict OK) | N / 7 |
 | Days DEGRADED | N / 7 |
 | Days INCIDENT | N / 7 |
@@ -161,13 +161,13 @@ Fill once at end of pilot.
 
 For each daily entry, the matching JSON snapshot is at
 `<evidence-dir>/<label>-field-pilot-status.json` and follows schema
-`harness-field-pilot-status/v1`.
+`orchestrator-field-pilot-status/v1`.
 
 Top-level keys (frozen — see `scripts/field-pilot-status.js`):
 
 | Key | Meaning |
 |---|---|
-| `schema` | always `harness-field-pilot-status/v1` |
+| `schema` | always `orchestrator-field-pilot-status/v1` |
 | `capturedAt` | ISO timestamp when the probe ran |
 | `verdict` | `OK` / `DEGRADED` / `INCIDENT` / `CONFIG` |
 | `environment` | server-info subset (pack, posture, runtime) |

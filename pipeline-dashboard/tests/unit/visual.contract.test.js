@@ -95,7 +95,7 @@ test("UI-P9 visual contract: legacy view retains UI-P8 banner mount + script", (
   const actual = captureSnapshot();
   // Banner element is present
   assert.ok(
-    actual.indexLegacyHtml.mountIds.indexOf("harness-legacy-banner") >= 0,
+    actual.indexLegacyHtml.mountIds.indexOf("orchestrator-legacy-banner") >= 0,
     "/?mode=legacy must mount the UI-P8 deprecation banner — operator " +
     "escape hatch needs the visible CTA to the product shell",
   );
@@ -156,7 +156,7 @@ test("UI-P9 visual contract: UI-P8 legacy-banner CSS classes compile in style.cs
 test("UI-P9 visual contract: every product panel renders the documented region/slot vocabulary", () => {
   const baseline = _readBaseline();
   const actual = captureSnapshot();
-  const expectedPanels = ["header", "harness-track", "pipeline-rail",
+  const expectedPanels = ["header", "orchestrator-track", "pipeline-rail",
                           "monitor-grid", "dual-terminals", "shell"];
   for (const name of expectedPanels) {
     assert.ok(actual.panels[name],
@@ -182,17 +182,17 @@ test("UI-P9 visual contract: monitor-grid renders 7 documented cards", () => {
   );
 });
 
-test("UI-P9 visual contract: harness-track has 7 lanes + 3 gate markers", () => {
+test("UI-P9 visual contract: orchestrator-track has 7 lanes + 3 gate markers", () => {
   const actual = captureSnapshot();
-  assert.deepEqual(actual.panels["harness-track"].laneIndices, [0, 1, 2, 3, 4, 5, 6],
+  assert.deepEqual(actual.panels["orchestrator-track"].laneIndices, [0, 1, 2, 3, 4, 5, 6],
     "track must render exactly 7 lanes (PLAN ─ DONE)");
-  assert.equal(actual.panels["harness-track"].gateLanes, 3,
+  assert.equal(actual.panels["orchestrator-track"].gateLanes, 3,
     "track must mark exactly 3 lanes as gates (CRITIQUE / RE-CHECK / VERIFY)");
 });
 
 test("UI-P9 visual contract: shell skeleton mounts 5 region slots", () => {
   const actual = captureSnapshot();
-  const required = ["header", "harness-track", "workspace",
+  const required = ["header", "orchestrator-track", "workspace",
                     "pipeline-rail", "monitor-stack",
                     "monitor-grid", "dual-terminals"];
   for (const slot of required) {

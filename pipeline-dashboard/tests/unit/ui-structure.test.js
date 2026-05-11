@@ -93,7 +93,7 @@ test("product index.html loads core modules + panels before product-shell-init.j
 test("product shell runtime disables reference mock data unless demo mode is explicit", () => {
   assert.match(productShellInit, /function _resolveDemoMode\(\)/);
   assert.match(productShellInit, /url\.searchParams\.get\("demo"\)/);
-  assert.match(productShellInit, /localStorage\.getItem\("harness:demo-mode"\)/);
+  assert.match(productShellInit, /localStorage\.getItem\("orchestrator:demo-mode"\)/);
   assert.match(productShellInit, /allowMockData:\s*demoMode/);
 });
 

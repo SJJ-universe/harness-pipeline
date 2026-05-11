@@ -84,7 +84,7 @@ const CTA = Object.freeze({
   // missing-CLI / missing-login flows.
   // COPY_LOGIN_COMMAND_<runner> copies the official CLI login command
   // (e.g. "claude auth login") to clipboard so the operator can paste
-  // it into a terminal — the harness intentionally does NOT collect
+  // it into a terminal — the orchestrator intentionally does NOT collect
   // passwords / OAuth tokens itself (see SAFE_GUIDANCE_PRINCIPLE).
   // RECHECK_PROVIDERS re-runs provider probes after the operator
   // logs in externally.
@@ -96,14 +96,14 @@ const CTA = Object.freeze({
 // Slice RR0-d: safe-guidance principle. Frozen string operators see
 // in the firstRun panel when missing/unauth flows offer login help.
 // The principle is operationalized by:
-//   1. Harness has NO route that accepts passwords / OAuth tokens
+//   1. Orchestrator has NO route that accepts passwords / OAuth tokens
 //   2. RR0-d CTAs are clipboard-copy + external-browser-link only
 //   3. Audit chain `account_login_guidance_clicked` (UI-emitted)
 //      records WHICH guidance the operator took, never the credential
 //
 // UI panel renders this as a footnote / tooltip on the auth CTAs.
 const SAFE_GUIDANCE_PRINCIPLE = Object.freeze({
-  id: "harness-no-credential-collection/v1",
+  id: "orchestrator-no-credential-collection/v1",
   // Translation keys (ko/en) live in public/js/i18n; this object
   // exports the IDs so the panel can request the right localized
   // string without hardcoding English fallbacks.

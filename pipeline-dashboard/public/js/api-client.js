@@ -1,8 +1,8 @@
 // OrchestratorApi — shared HTTP plumbing for the dashboard frontend.
 //
 // Responsibilities:
-//   1. Fetch the per-session harness auth token once (cached in window.HARNESS_TOKEN).
-//   2. Attach `x-harness-token` to every state-changing /api/* request.
+//   1. Fetch the per-session orchestrator auth token once (cached in window.ORCHESTRATOR_TOKEN).
+//   2. Attach `x-orchestrator-token` to every state-changing /api/* request.
 //   3. Slice C (v4): surface HTTP 500+ and network-level failures as toasts
 //      with a "재시도" action, instead of failing silently. Same-message
 //      toasts dedup via OrchestratorToast's counter so retry loops don't stack up.
@@ -12,13 +12,13 @@
   let tokenPromise = null;
 
   async function getToken() {
-    if (window.HARNESS_TOKEN) return window.HARNESS_TOKEN;
+    if (window.ORCHESTRATOR_TOKEN) return window.ORCHESTRATOR_TOKEN;
     if (!tokenPromise) {
       tokenPromise = originalFetch("/api/auth/token")
         .then((res) => (res.ok ? res.json() : null))
         .then((body) => {
-          window.HARNESS_TOKEN = body && body.token ? body.token : "";
-          return window.HARNESS_TOKEN;
+          window.ORCHESTRATOR_TOKEN = body && body.token ? body.token : "";
+          return window.ORCHESTRATOR_TOKEN;
         })
         .catch((err) => {
           // Slice C (v4): token fetch failures were previously swallowed
@@ -30,7 +30,7 @@
             actionLabel: "재시도",
             onAction: () => { tokenPromise = null; getToken(); },
           });
-          window.HARNESS_TOKEN = "";
+          window.ORCHESTRATOR_TOKEN = "";
           return "";
         });
     }
@@ -79,7 +79,7 @@
     if (url.startsWith("/api/") && url !== "/api/auth/token" && isStateChanging) {
       const token = await getToken();
       options.headers = new Headers(options.headers || {});
-      options.headers.set("x-harness-token", token);
+      options.headers.set("x-orchestrator-token", token);
     }
 
     let res;

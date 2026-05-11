@@ -212,7 +212,7 @@ Per plan §S §S-next-after, remaining follow-up candidates:
 - **POL-UI-2 pack switch UI** — reactive switch with confirmation
   modal + runner-graceful-shutdown hook + audit chain entry
   (meaningful blast radius — runtime mutation of policy state)
-- **Operator runs `harness-start.bat` in production for ≥1 week** —
+- **Operator runs `orchestrator-start.bat` in production for ≥1 week** —
   the FP-a daily probe + POL-UI-1 pack-info card + SMART-3-POLISH
   preset memory + SMART-1-BASELINE rec all combine to make this a
   smoother experience now

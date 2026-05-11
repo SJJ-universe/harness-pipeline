@@ -25,7 +25,7 @@
 //
 // `clickSafe: false` for buttons whose activation has dangerous side
 // effects on the real server:
-//   - server shutdown (kills the harness)
+//   - server shutdown (kills the orchestrator)
 //   - codex/claude spawn (consumes API quota; may take seconds)
 //   - state-machine transitions that block subsequent buttons
 //

@@ -109,11 +109,11 @@ test("D1-d ClaudeRunner: public-sector mode refuses spawn (defense-in-depth)", a
   // We simulate public-sector posture by stubbing process.env for the
   // duration of this test. The runner reads it via resolveDeploymentProfile()
   // at spawn time.
-  const prev = process.env.HARNESS_DEPLOYMENT_PROFILE;
-  process.env.HARNESS_DEPLOYMENT_PROFILE = "public-sector";
+  const prev = process.env.ORCHESTRATOR_DEPLOYMENT_PROFILE;
+  process.env.ORCHESTRATOR_DEPLOYMENT_PROFILE = "public-sector";
   t.after(() => {
-    if (prev === undefined) delete process.env.HARNESS_DEPLOYMENT_PROFILE;
-    else process.env.HARNESS_DEPLOYMENT_PROFILE = prev;
+    if (prev === undefined) delete process.env.ORCHESTRATOR_DEPLOYMENT_PROFILE;
+    else process.env.ORCHESTRATOR_DEPLOYMENT_PROFILE = prev;
   });
 
   // Even WITHOUT profileStore/credentialStore wired (the P0 fallback
@@ -129,11 +129,11 @@ test("D1-d ClaudeRunner: public-sector mode refuses spawn (defense-in-depth)", a
 });
 
 test("D1-d CodexRunner: public-sector mode refuses spawn (defense-in-depth)", async (t) => {
-  const prev = process.env.HARNESS_DEPLOYMENT_PROFILE;
-  process.env.HARNESS_DEPLOYMENT_PROFILE = "public-sector";
+  const prev = process.env.ORCHESTRATOR_DEPLOYMENT_PROFILE;
+  process.env.ORCHESTRATOR_DEPLOYMENT_PROFILE = "public-sector";
   t.after(() => {
-    if (prev === undefined) delete process.env.HARNESS_DEPLOYMENT_PROFILE;
-    else process.env.HARNESS_DEPLOYMENT_PROFILE = prev;
+    if (prev === undefined) delete process.env.ORCHESTRATOR_DEPLOYMENT_PROFILE;
+    else process.env.ORCHESTRATOR_DEPLOYMENT_PROFILE = prev;
   });
 
   // Use a fake spawn just so we can verify it never gets called.
@@ -268,8 +268,8 @@ test("D1-d CodexRunner: profile-mode injects credentials into spawn env", async 
   const spawnEnv = fakeSpawn.calls[0].options.env;
   assert.equal(spawnEnv.ANTHROPIC_API_KEY, "sk-from-profile-keychain",
     "credential from profileStore must reach spawn env");
-  assert.equal(spawnEnv.HARNESS_PROFILE_ID, "personal");
-  assert.equal(spawnEnv.HARNESS_WORKSPACE_PATH, profile.workspacePath);
+  assert.equal(spawnEnv.ORCHESTRATOR_PROFILE_ID, "personal");
+  assert.equal(spawnEnv.ORCHESTRATOR_WORKSPACE_PATH, profile.workspacePath);
 
   // The audit row must fire with profile metadata but NEVER carry the secret.
   const audit = ledger.entries.find((e) => e.type === "profile_spawn_env_built");

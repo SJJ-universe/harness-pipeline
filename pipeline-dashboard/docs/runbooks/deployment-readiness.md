@@ -18,7 +18,7 @@ combines the **gates** (must-pass) with **informational** checks
 > Running `npm` from the parent fails with `ENOENT`. **`cd` first**:
 >
 > ```powershell
-> cd C:\path\to\harness-pipeline-analysis\pipeline-dashboard
+> cd C:\path\to\orchestrator-pipeline-analysis\pipeline-dashboard
 > ```
 
 ## §1 Prerequisites
@@ -42,14 +42,14 @@ the exit-code semantics.
 ## §2 Standard usage
 
 ```powershell
-cd C:\path\to\harness-pipeline-analysis\pipeline-dashboard
+cd C:\path\to\orchestrator-pipeline-analysis\pipeline-dashboard
 npm run preflight
 ```
 
 Expected human-readable output:
 
 ```text
-=== Harness Preflight ===
+=== Orchestrator Preflight ===
 배포 전 점검 — pre-deployment verification
 
   [1/5] visual:check                ✓ PASS  (0.1s)
@@ -79,12 +79,12 @@ Exit codes:
 | `visual:check` | Visual baselines in `tests/visual/baseline-product-shell.json` are in sync with the current shell. | < 1 s |
 | `readiness:check` | The 6-category × 3-star readiness rubric scores ≥ 17/18 in **live mode** (server-spawned). | 1–10 s |
 | `scorecard:check` | Auto-derived markers in `docs/scorecard.md` and `docs/readiness-rubric.md` match current test counts and readiness totals. Catches CONFIG-tier readiness exit too. | 30–60 s |
-| `verify:hooks` | Harness hook contracts (`.claude/settings.json`, `hooks/harness-hook.js`) deploy correctly to the project. | < 1 s |
+| `verify:hooks` | Orchestrator hook contracts (`.claude/settings.json`, `hooks/orchestrator-hook.js`) deploy correctly to the project. | < 1 s |
 
 If a required gate FAILs, the preflight summary names the gate +
 its detail. The most common failures are:
 
-- **readiness:check FAIL with detail "CONFIG: harness server boot failed"** — environment cannot spawn a child Node process. Re-run from a normal terminal.
+- **readiness:check FAIL with detail "CONFIG: orchestrator server boot failed"** — environment cannot spawn a child Node process. Re-run from a normal terminal.
 - **scorecard:check FAIL** — `npm run scorecard:sync` was skipped after the last commit. Run it, commit the markers, and re-run preflight.
 - **visual:check FAIL** — UI diverged from baseline. Run `npm run visual:update` after confirming the change is intentional.
 - **verify:hooks FAIL** — `.claude/settings.json` is missing or the hook scripts moved. Restore the file or re-deploy hooks.
@@ -94,7 +94,7 @@ its detail. The most common failures are:
 ### §4.1 `--with-smoke` adds smoke tests
 
 ```powershell
-cd C:\path\to\harness-pipeline-analysis\pipeline-dashboard
+cd C:\path\to\orchestrator-pipeline-analysis\pipeline-dashboard
 npm run preflight -- --with-smoke
 ```
 
@@ -117,7 +117,7 @@ its output depends on advisory data freshness. Run it separately
 before tagging:
 
 ```powershell
-cd C:\path\to\harness-pipeline-analysis\pipeline-dashboard
+cd C:\path\to\orchestrator-pipeline-analysis\pipeline-dashboard
 npm run audit:moderate
 ```
 
@@ -126,7 +126,7 @@ Investigate any moderate or higher advisory before shipping.
 ## §5 JSON mode for CI integration
 
 ```powershell
-cd C:\path\to\harness-pipeline-analysis\pipeline-dashboard
+cd C:\path\to\orchestrator-pipeline-analysis\pipeline-dashboard
 node scripts/preflight.js --json
 ```
 
@@ -134,7 +134,7 @@ Produces a parseable structure:
 
 ```json
 {
-  "preflight": "harness",
+  "preflight": "orchestrator",
   "version": 1,
   "allRequiredPassed": true,
   "passedRequired": 4,

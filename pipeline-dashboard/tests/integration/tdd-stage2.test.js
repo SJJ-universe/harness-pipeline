@@ -11,7 +11,7 @@ const { PipelineState } = require("../../executor/pipeline-state");
 function mkExecutor() {
   const events = [];
   const broadcast = (e) => events.push(e);
-  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "harness-tdd2-"));
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-tdd2-"));
   // Phase E per the default policy allows Bash with npm test / node prefixes.
   // Stage 2 naturally lives here (test-run phase) rather than Phase D
   // (test-author phase where Bash is globally blocked by default-policy.json).

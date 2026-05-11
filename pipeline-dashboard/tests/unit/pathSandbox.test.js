@@ -13,7 +13,7 @@ const {
 // ── happy path / containment ────────────────────────────────────────────
 
 test("resolveInsideRoot resolves relative paths inside the root", () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "harness-root-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-root-"));
   const file = path.join(root, "a.txt");
   fs.writeFileSync(file, "ok");
 
@@ -21,7 +21,7 @@ test("resolveInsideRoot resolves relative paths inside the root", () => {
 });
 
 test("resolveInsideRoot allows nested subdirectory paths", () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "harness-root-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-root-"));
   const sub = path.join(root, "deep", "dir");
   fs.mkdirSync(sub, { recursive: true });
   const file = path.join(sub, "file.md");
@@ -31,7 +31,7 @@ test("resolveInsideRoot allows nested subdirectory paths", () => {
 });
 
 test("resolveInsideRoot allows the root itself", () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "harness-root-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-root-"));
   const got = resolveInsideRoot(".", root);
   assert.equal(got, fs.realpathSync.native(root));
 });
@@ -39,36 +39,36 @@ test("resolveInsideRoot allows the root itself", () => {
 // ── escape rejection ────────────────────────────────────────────────────
 
 test("resolveInsideRoot rejects traversal outside the root", () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "harness-root-"));
-  const outside = path.join(os.tmpdir(), "harness-outside.txt");
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-root-"));
+  const outside = path.join(os.tmpdir(), "orchestrator-outside.txt");
   fs.writeFileSync(outside, "nope");
   assert.throws(
     () => resolveInsideRoot(outside, root, { mustExist: true }),
-    /escapes harness root/
+    /escapes orchestrator root/
   );
 });
 
 test("resolveInsideRoot rejects ../ traversal even if file does not exist", () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "harness-root-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-root-"));
   // resolves to one level above root → outside
   assert.throws(
     () => resolveInsideRoot("../escape.txt", root),
-    /PATH_OUTSIDE_ROOT|escapes harness root/
+    /PATH_OUTSIDE_ROOT|escapes orchestrator root/
   );
 });
 
 test("resolveInsideRoot rejects deep ../../../ traversal", () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "harness-root-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-root-"));
   assert.throws(
     () => resolveInsideRoot("../../../etc/passwd", root),
-    /escapes harness root/
+    /escapes orchestrator root/
   );
 });
 
 // ── input validation ────────────────────────────────────────────────────
 
 test("resolveInsideRoot rejects empty / non-string input", () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "harness-root-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-root-"));
   assert.throws(() => resolveInsideRoot("", root), /BAD_PATH|non-empty string/);
   assert.throws(() => resolveInsideRoot(null, root), /BAD_PATH|non-empty string/);
   assert.throws(() => resolveInsideRoot(undefined, root), /BAD_PATH|non-empty string/);
@@ -82,7 +82,7 @@ test("normalizeRoot rejects empty / non-string root", () => {
 });
 
 test("PathSandboxError is the error type with code attached", () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "harness-root-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-root-"));
   try {
     resolveInsideRoot("../escape", root);
     assert.fail("should have thrown");
@@ -96,13 +96,13 @@ test("PathSandboxError is the error type with code attached", () => {
 // ── mustExist semantics ─────────────────────────────────────────────────
 
 test("mustExist=false allows future paths inside root (parent must exist)", () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "harness-root-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-root-"));
   const got = resolveInsideRoot("not-yet-created.json", root);
   assert.equal(got, path.join(fs.realpathSync.native(root), "not-yet-created.json"));
 });
 
 test("mustExist=true throws PATH_NOT_FOUND when target is missing", () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "harness-root-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-root-"));
   try {
     resolveInsideRoot("missing.txt", root, { mustExist: true });
     assert.fail("should have thrown");
@@ -114,7 +114,7 @@ test("mustExist=true throws PATH_NOT_FOUND when target is missing", () => {
 // ── isInsideRoot wrapper ────────────────────────────────────────────────
 
 test("isInsideRoot returns true / false instead of throwing", () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "harness-root-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-root-"));
   fs.writeFileSync(path.join(root, "ok.txt"), "");
   assert.equal(isInsideRoot("ok.txt", root), true);
   assert.equal(isInsideRoot("../escape", root), false);
@@ -123,7 +123,7 @@ test("isInsideRoot returns true / false instead of throwing", () => {
 // ── symlink safety ──────────────────────────────────────────────────────
 
 test("resolveInsideRoot follows a symlink that stays inside root", () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "harness-root-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-root-"));
   const target = path.join(root, "target.txt");
   fs.writeFileSync(target, "ok");
   const link = path.join(root, "link.txt");
@@ -141,8 +141,8 @@ test("resolveInsideRoot follows a symlink that stays inside root", () => {
 });
 
 test("resolveInsideRoot rejects a symlink that escapes via realpath", () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "harness-root-"));
-  const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), "harness-outside-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-root-"));
+  const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-outside-"));
   const outsideFile = path.join(outsideDir, "secret.txt");
   fs.writeFileSync(outsideFile, "leaked");
   const link = path.join(root, "leak");
@@ -154,7 +154,7 @@ test("resolveInsideRoot rejects a symlink that escapes via realpath", () => {
   }
   assert.throws(
     () => resolveInsideRoot("leak", root, { mustExist: true }),
-    /escapes harness root/
+    /escapes orchestrator root/
   );
 });
 
@@ -162,7 +162,7 @@ test("resolveInsideRoot rejects a symlink that escapes via realpath", () => {
 
 test("Windows: assertInsideRoot accepts case-mismatched but identical path", () => {
   if (process.platform !== "win32") return; // POSIX is exact-case → skip
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "harness-root-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-root-"));
   fs.writeFileSync(path.join(root, "x.txt"), "ok");
   // Same root, but lowercased — emulates a caller that resolved through a
   // different code path that lowercased the drive letter.
@@ -175,7 +175,7 @@ test("Windows: assertInsideRoot accepts case-mismatched but identical path", () 
 // ── Slice S2: Phase 2.5 per-run checkpoint paths must pass ─────────────
 
 test("per-run checkpoint paths (.harness/runs/{runId}/checkpoint.json) are inside root", () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "harness-root-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-root-"));
   const runDir = path.join(root, ".harness", "runs", "session-abc");
   fs.mkdirSync(runDir, { recursive: true });
   const ckpt = path.join(runDir, "checkpoint.json");

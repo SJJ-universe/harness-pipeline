@@ -1,18 +1,18 @@
-# Harness Design — Level 2 → Level 4 로드맵 구현 설계
+# Orchestrator Design — Level 2 → Level 4 로드맵 구현 설계
 
 > 작성일: 2026-04-14
 > 대상 성숙도: Observable(2) → Directive(3) → Adaptive(4)
-> 상위 문서: `HARNESS-ENGINEERING-GUIDE.md`
+> 상위 문서: `ORCHESTRATOR-ENGINEERING-GUIDE.md`
 
 ---
 
 ## 0. 설계 원칙
 
-1. **하네스는 관찰자가 아니라 조종자** — 현재 SessionWatcher는 뒷북 관찰만 하지만, 설계 후 하네스는 Claude의 다음 행동을 실제로 강제·유도한다.
+1. **오케스트레이터는 관찰자가 아니라 조종자** — 현재 SessionWatcher는 뒷북 관찰만 하지만, 설계 후 오케스트레이터는 Claude의 다음 행동을 실제로 강제·유도한다.
 2. **Codex는 대화 상대가 아니라 품질 게이트** — Codex는 사람이 한 번씩 부르는 도구가 아니라, 파이프라인이 자동으로 호출하는 2차 검증자다.
 3. **상태는 Phase 사이를 흐른다** — Phase B의 결과물(계획)이 Phase C의 입력(검토 대상)이 되고, Phase C의 피드백이 Phase D의 입력이 된다. 이 흐름이 `PipelineState`다.
 4. **품질 게이트는 통과 기준을 코드로 가진다** — "다음 Phase로 가도 되는가?"를 판단하는 로직을 `QualityGate`가 소유한다.
-5. **설계는 선언적, 실행은 절차적** — 파이프라인은 JSON으로 선언하고, 실행기는 그 선언을 읽어서 하네스 루프를 돈다.
+5. **설계는 선언적, 실행은 절차적** — 파이프라인은 JSON으로 선언하고, 실행기는 그 선언을 읽어서 오케스트레이터 루프를 돈다.
 
 ---
 
@@ -27,7 +27,7 @@
         │              │            │            │
         ▼              ▼            ▼            ▼
  ┌───────────────────────────────────────────────────────────────┐
- │                 Harness Hook Bridge (hooks/harness-hook.js)    │
+ │                 Orchestrator Hook Bridge (hooks/orchestrator-hook.js)    │
  │     stdin JSON → HTTP POST /api/hook → JSON response            │
  └──────────────────────────┬────────────────────────────────────┘
                             │
@@ -63,9 +63,9 @@
 `session-watcher.js`는 JSONL 파일을 2초 주기로 polling한다. 문제:
 - **지연**: 최악 2초, 평균 1초의 지연.
 - **사후성**: 이미 실행된 tool_use를 읽을 뿐, 막거나 수정할 수 없다.
-- **단방향**: 하네스가 Claude에게 피드백을 돌려줄 통로가 없다.
+- **단방향**: 오케스트레이터가 Claude에게 피드백을 돌려줄 통로가 없다.
 
-Hook은 이 셋을 모두 해결한다. Claude Code가 `PreToolUse`에서 동기적으로 결과를 기다리므로, 하네스는 `{"decision": "block", "reason": "..."}`로 실제 차단이 가능하다.
+Hook은 이 셋을 모두 해결한다. Claude Code가 `PreToolUse`에서 동기적으로 결과를 기다리므로, 오케스트레이터는 `{"decision": "block", "reason": "..."}`로 실제 차단이 가능하다.
 
 ### 2.2 Hook 설정 (`.claude/settings.json`)
 
@@ -76,7 +76,7 @@ Hook은 이 셋을 모두 해결한다. Claude Code가 `PreToolUse`에서 동기
       {
         "matcher": "",
         "hooks": [
-          { "type": "command", "command": "node C:/Users/SJ/workspace/pipeline-dashboard/hooks/harness-hook.js user-prompt" }
+          { "type": "command", "command": "node C:/Users/SJ/workspace/pipeline-dashboard/hooks/orchestrator-hook.js user-prompt" }
         ]
       }
     ],
@@ -84,7 +84,7 @@ Hook은 이 셋을 모두 해결한다. Claude Code가 `PreToolUse`에서 동기
       {
         "matcher": "Edit|Write|Bash",
         "hooks": [
-          { "type": "command", "command": "node C:/Users/SJ/workspace/pipeline-dashboard/hooks/harness-hook.js pre-tool" }
+          { "type": "command", "command": "node C:/Users/SJ/workspace/pipeline-dashboard/hooks/orchestrator-hook.js pre-tool" }
         ]
       }
     ],
@@ -92,7 +92,7 @@ Hook은 이 셋을 모두 해결한다. Claude Code가 `PreToolUse`에서 동기
       {
         "matcher": "",
         "hooks": [
-          { "type": "command", "command": "node C:/Users/SJ/workspace/pipeline-dashboard/hooks/harness-hook.js post-tool" }
+          { "type": "command", "command": "node C:/Users/SJ/workspace/pipeline-dashboard/hooks/orchestrator-hook.js post-tool" }
         ]
       }
     ],
@@ -100,7 +100,7 @@ Hook은 이 셋을 모두 해결한다. Claude Code가 `PreToolUse`에서 동기
       {
         "matcher": "",
         "hooks": [
-          { "type": "command", "command": "node C:/Users/SJ/workspace/pipeline-dashboard/hooks/harness-hook.js stop" }
+          { "type": "command", "command": "node C:/Users/SJ/workspace/pipeline-dashboard/hooks/orchestrator-hook.js stop" }
         ]
       }
     ],
@@ -108,7 +108,7 @@ Hook은 이 셋을 모두 해결한다. Claude Code가 `PreToolUse`에서 동기
       {
         "matcher": "",
         "hooks": [
-          { "type": "command", "command": "node C:/Users/SJ/workspace/pipeline-dashboard/hooks/harness-hook.js session-end" }
+          { "type": "command", "command": "node C:/Users/SJ/workspace/pipeline-dashboard/hooks/orchestrator-hook.js session-end" }
         ]
       }
     ]
@@ -121,12 +121,12 @@ Hook은 이 셋을 모두 해결한다. Claude Code가 `PreToolUse`에서 동기
 - `Stop`은 어시스턴트가 한 턴을 끝낸 시점. Phase 전이 판단의 주된 트리거.
 - `SessionEnd`는 세션 종료 시 파이프라인 정리.
 
-### 2.3 `hooks/harness-hook.js` (신규)
+### 2.3 `hooks/orchestrator-hook.js` (신규)
 
-Claude Code는 hook 스크립트에 **JSON을 stdin으로** 넘기고, stdout의 JSON을 파싱한다. 하네스 브리지는 그 JSON을 대시보드 서버로 릴레이한다.
+Claude Code는 hook 스크립트에 **JSON을 stdin으로** 넘기고, stdout의 JSON을 파싱한다. 오케스트레이터 브리지는 그 JSON을 대시보드 서버로 릴레이한다.
 
 ```javascript
-// pipeline-dashboard/hooks/harness-hook.js
+// pipeline-dashboard/hooks/orchestrator-hook.js
 const http = require("http");
 
 const [,, eventType] = process.argv;
@@ -162,7 +162,7 @@ process.stdin.on("end", async () => {
 
 **설계 포인트**
 - 서버가 없어도 Claude는 멈추면 안 된다 → 모든 에러 경로에서 `exit(0)`, stdout 빈 응답.
-- 타임아웃 1.5초 → 하네스 장애가 Claude 응답 지연으로 번지지 않도록.
+- 타임아웃 1.5초 → 오케스트레이터 장애가 Claude 응답 지연으로 번지지 않도록.
 
 ### 2.4 `/api/hook` 엔드포인트
 
@@ -187,7 +187,7 @@ app.post("/api/hook", async (req, res) => {
 
 ### 2.5 SessionWatcher의 운명
 
-삭제하지 않는다. 하네스 hook이 설치되지 않은 사용자를 위한 **폴백**으로 남긴다. `PipelineExecutor.isHookDriven` 플래그가 true면 SessionWatcher는 broadcast를 건너뛴다.
+삭제하지 않는다. 오케스트레이터 hook이 설치되지 않은 사용자를 위한 **폴백**으로 남긴다. `PipelineExecutor.isHookDriven` 플래그가 true면 SessionWatcher는 broadcast를 건너뛴다.
 
 ---
 
@@ -197,7 +197,7 @@ app.post("/api/hook", async (req, res) => {
 
 지금은 Codex를 파이프라인이 직접 부르지 않는다. "Phase C: Codex 검토"는 그림일 뿐, 실제로는 사용자가 `/plan-critic` 같은 걸 손으로 돌려야 한다.
 
-하네스가 Codex를 진짜로 호출하려면:
+오케스트레이터가 Codex를 진짜로 호출하려면:
 - `codex exec --full-auto "<prompt>"` 를 자식 프로세스로 실행
 - stdout에서 비평 결과를 받아 `PipelineState`에 주입
 - 다음 Phase(Claude)의 프롬프트에 그 비평을 포함시킨다
@@ -238,7 +238,7 @@ class PipelineExecutor {
     if (allowed && !allowed.includes(tool)) {
       return {
         decision: "block",
-        reason: `하네스 ${phase.label} 단계에서는 ${allowed.join(", ")}만 사용할 수 있습니다. 현재 도구: ${tool}`,
+        reason: `오케스트레이터 ${phase.label} 단계에서는 ${allowed.join(", ")}만 사용할 수 있습니다. 현재 도구: ${tool}`,
       };
     }
     return null;
@@ -766,7 +766,7 @@ _applyMutation(mutation) {
 ```
 pipeline-dashboard/
 ├── hooks/
-│   └── harness-hook.js            [신규] Claude Code → 서버 브리지
+│   └── orchestrator-hook.js            [신규] Claude Code → 서버 브리지
 ├── executor/
 │   ├── pipeline-executor.js       [신규] Phase 전이 관리자
 │   ├── pipeline-state.js          [신규] 상태 컨테이너
@@ -802,7 +802,7 @@ pipeline-dashboard/
 ## 8. 구현 순서
 
 1. **Phase 1 (Hook 인프라)** — 이것부터. 없으면 나머지가 다 공중에 뜬다.
-   - `harness-hook.js`, `.claude/settings.json`, `/api/hook`, `HookRouter` 뼈대
+   - `orchestrator-hook.js`, `.claude/settings.json`, `/api/hook`, `HookRouter` 뼈대
    - 이 단계에서 기존 `auto_pipeline_detect` 흐름과 동등한 동작만 재현해도 됨 (실시간성만 확보)
 2. **Phase 2 (Executor + Codex)** — Directive로의 전환.
    - `pipeline-executor.js`, `codex-runner.js`
@@ -833,7 +833,7 @@ pipeline-dashboard/
 
 ## 10. 설계상의 리스크
 
-- **hook 설치 부담**: `.claude/settings.json`이 사용자 워크스페이스마다 필요. `bootstrap-harness.js` 같은 설치 스크립트를 함께 제공해야 한다.
+- **hook 설치 부담**: `.claude/settings.json`이 사용자 워크스페이스마다 필요. `bootstrap-orchestrator.js` 같은 설치 스크립트를 함께 제공해야 한다.
 - **block 남용 위험**: `allowedTools`가 과하게 좁으면 Claude가 루프에 갇힌다. 기본값은 관대하게, 각 phase별로 점진적으로 조인다.
 - **Codex 호출 비용**: 모든 Phase C가 Codex를 자동으로 부르면 토큰/시간 소모. `phase.agent === "codex"`를 템플릿당 1~2개로 제한.
 - **Adapter 무한 mutation**: 규칙이 서로를 트리거하면 루프. mutation 적용 시 `mark` 플래그 필수, 동일 mark는 한 세션에 한 번만.

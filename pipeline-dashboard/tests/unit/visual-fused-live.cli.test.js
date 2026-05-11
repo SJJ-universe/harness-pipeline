@@ -149,7 +149,7 @@ test("UI-Fuse buildFusedSummary: documented schema + structure", () => {
     results: [
       {
         toolId: "capture",
-        manifest: { schema: "harness-visual-live/v1", capturedAt: "x", totalElapsedMs: 100, summary: { total: 16 } },
+        manifest: { schema: "orchestrator-visual-live/v1", capturedAt: "x", totalElapsedMs: 100, summary: { total: 16 } },
         exitCode: 0,
         failed: false,
         skipped: false,
@@ -164,12 +164,12 @@ test("UI-Fuse buildFusedSummary: documented schema + structure", () => {
       },
     ],
   });
-  assert.equal(summary.schema, "harness-visual-fused/v1");
+  assert.equal(summary.schema, "orchestrator-visual-fused/v1");
   assert.equal(summary.fusedAt, "2026-05-04T00:00:00.000Z");
   assert.equal(summary.outDir, "/tmp/fused-test");
   assert.equal(summary.tools.capture, "ran");
   assert.equal(summary.tools.assert, "errored");
-  assert.equal(summary.perTool.capture.schema, "harness-visual-live/v1");
+  assert.equal(summary.perTool.capture.schema, "orchestrator-visual-live/v1");
   assert.equal(summary.perTool.capture.totalElapsedMs, 100);
   assert.equal(summary.perTool.assert.error, "navigation timeout");
 });
@@ -189,7 +189,7 @@ test("UI-Fuse buildFusedSummary: empty results → empty tools/perTool but still
   const summary = cli.buildFusedSummary({
     outDir: "/tmp", fusedAt: "x", results: [],
   });
-  assert.equal(summary.schema, "harness-visual-fused/v1");
+  assert.equal(summary.schema, "orchestrator-visual-fused/v1");
   assert.deepEqual(summary.tools, {});
   assert.deepEqual(summary.perTool, {});
 });

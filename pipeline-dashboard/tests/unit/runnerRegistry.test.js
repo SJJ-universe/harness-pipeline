@@ -251,17 +251,17 @@ test("R1-d: originForRun isolationStatus tracks heartbeat freshness", () => {
 
 // ── env-driven default bootstrap ───────────────────────────────────
 
-test("R1-d: default bootstrapTokenFor reads HARNESS_REMOTE_RUNNER_TOKEN_<sanitized>", () => {
+test("R1-d: default bootstrapTokenFor reads ORCHESTRATOR_REMOTE_RUNNER_TOKEN_<sanitized>", () => {
   // Sanitization: "runner-a/3" → "runner_a_3"
-  const old = process.env["HARNESS_REMOTE_RUNNER_TOKEN_runner_a_3"];
-  process.env["HARNESS_REMOTE_RUNNER_TOKEN_runner_a_3"] = "env-bootstrap";
+  const old = process.env["ORCHESTRATOR_REMOTE_RUNNER_TOKEN_runner_a_3"];
+  process.env["ORCHESTRATOR_REMOTE_RUNNER_TOKEN_runner_a_3"] = "env-bootstrap";
   try {
     const reg = new RunnerRegistry();   // default constructor → env path
     const r = reg.handshake({ hostIdentity: "runner-a/3", bootstrapToken: "env-bootstrap" });
     assert.equal(r.ok, true);
   } finally {
-    if (old === undefined) delete process.env["HARNESS_REMOTE_RUNNER_TOKEN_runner_a_3"];
-    else process.env["HARNESS_REMOTE_RUNNER_TOKEN_runner_a_3"] = old;
+    if (old === undefined) delete process.env["ORCHESTRATOR_REMOTE_RUNNER_TOKEN_runner_a_3"];
+    else process.env["ORCHESTRATOR_REMOTE_RUNNER_TOKEN_runner_a_3"] = old;
   }
 });
 

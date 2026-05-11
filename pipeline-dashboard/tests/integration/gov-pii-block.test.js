@@ -59,12 +59,12 @@ function makeFakeSpawn() {
 }
 
 function withDeploymentProfile(t, value) {
-  const prev = process.env.HARNESS_DEPLOYMENT_PROFILE;
-  if (value === undefined) delete process.env.HARNESS_DEPLOYMENT_PROFILE;
-  else process.env.HARNESS_DEPLOYMENT_PROFILE = value;
+  const prev = process.env.ORCHESTRATOR_DEPLOYMENT_PROFILE;
+  if (value === undefined) delete process.env.ORCHESTRATOR_DEPLOYMENT_PROFILE;
+  else process.env.ORCHESTRATOR_DEPLOYMENT_PROFILE = value;
   t.after(() => {
-    if (prev === undefined) delete process.env.HARNESS_DEPLOYMENT_PROFILE;
-    else process.env.HARNESS_DEPLOYMENT_PROFILE = prev;
+    if (prev === undefined) delete process.env.ORCHESTRATOR_DEPLOYMENT_PROFILE;
+    else process.env.ORCHESTRATOR_DEPLOYMENT_PROFILE = prev;
   });
 }
 

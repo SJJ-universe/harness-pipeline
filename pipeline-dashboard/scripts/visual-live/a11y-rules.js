@@ -11,7 +11,7 @@
 //   1. axe-core does the heavy lifting — WCAG 2.0/2.1 A+AA tags
 //      cover ~50 well-tested rules out of the box (color contrast,
 //      ARIA shape, keyboard fundamentals, landmark structure).
-//   2. Two CUSTOM rules layer on top for harness-specific UX
+//   2. Two CUSTOM rules layer on top for orchestrator-specific UX
 //      contracts axe can't see:
 //        - lang-matches-locale: <html lang> reflects active i18n
 //          locale (KO ↔ EN toggle correctness — pre-condition for

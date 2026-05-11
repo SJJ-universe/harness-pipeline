@@ -25,11 +25,11 @@ if [[ -f "$ENV_FILE" ]]; then
   source "$ENV_FILE"
   set +a
 fi
-export HARNESS_TOKEN="${HARNESS_TOKEN:-down-only-noop}"
+export ORCHESTRATOR_TOKEN="${ORCHESTRATOR_TOKEN:-down-only-noop}"
 export RUNNER_BOOTSTRAP_TOKEN="${RUNNER_BOOTSTRAP_TOKEN:-down-only-noop}"
-export HARNESS_RUN_JWT="${HARNESS_RUN_JWT:-down-only-noop}"
-export HARNESS_HOST_IDENTITY="${HARNESS_HOST_IDENTITY:-runner-r2-001}"
-export HARNESS_RUN_ID="${HARNESS_RUN_ID:-rr-r2-eval-001}"
+export ORCHESTRATOR_RUN_JWT="${ORCHESTRATOR_RUN_JWT:-down-only-noop}"
+export ORCHESTRATOR_HOST_IDENTITY="${ORCHESTRATOR_HOST_IDENTITY:-runner-r2-001}"
+export ORCHESTRATOR_RUN_ID="${ORCHESTRATOR_RUN_ID:-rr-r2-eval-001}"
 
 CLEAN_VOLUMES=false
 for arg in "$@"; do

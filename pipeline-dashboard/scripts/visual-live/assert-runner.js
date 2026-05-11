@@ -21,8 +21,8 @@
 //   0  every applicable assertion passed across every cell
 //   1  at least one assertion failed (manifest still returned)
 //
-// Manifest schema is `harness-visual-assert/v1` — distinct from
-// capture.js's `harness-visual-live/v1` so future rounds can fuse
+// Manifest schema is `orchestrator-visual-assert/v1` — distinct from
+// capture.js's `orchestrator-visual-live/v1` so future rounds can fuse
 // them safely.
 
 "use strict";
@@ -52,7 +52,7 @@ function buildAssertManifest({ cells, base, capturedAt, browserVersion, totalEla
     totalAssertionsSkipped: cells.reduce((s, c) => s + (c.summary ? c.summary.skipped : 0), 0),
   };
   return {
-    schema: "harness-visual-assert/v1",
+    schema: "orchestrator-visual-assert/v1",
     capturedAt,
     base,
     browser: { name: "chromium", version: browserVersion || null },

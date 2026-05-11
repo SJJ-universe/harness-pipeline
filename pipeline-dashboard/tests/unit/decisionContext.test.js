@@ -15,7 +15,7 @@ const {
 // ── Frozen registry shape ───────────────────────────────────────
 
 test("SMART-0: SCHEMA is documented constant", () => {
-  assert.equal(SCHEMA, "harness-decision-context/v1");
+  assert.equal(SCHEMA, "orchestrator-decision-context/v1");
 });
 
 test("SMART-0: BOOLEAN_KEYS frozen + 8 entries", () => {

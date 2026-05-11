@@ -6,7 +6,7 @@ const test = require("node:test");
 const { RunRegistry } = require("../../src/runtime/runRegistry");
 
 test("RunRegistry writes a replayable run manifest", () => {
-  const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "harness-runs-"));
+  const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-runs-"));
   const registry = new RunRegistry({ rootDir });
   const runId = registry.start({ kind: "unit", input: { prompt: "hello" } });
   registry.append(runId, { type: "stdout", bytes: 5 });

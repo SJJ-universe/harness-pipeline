@@ -132,7 +132,7 @@ I18N-PARITY-1 (paired theme: parity → quality).
 
 Next-round candidates:
 - **POL-UI-2 pack switch UI** — runtime mutation, high blast radius
-- **Operator runs `harness-start.bat` in production for ≥1 week**
+- **Operator runs `orchestrator-start.bat` in production for ≥1 week**
 - **External reviewer engagement** — apparatus is fully ready
 - **Pixel-diff visual testing** — Playwright/Puppeteer
 - **Multi-summary aggregation tool**

@@ -21,7 +21,7 @@ const BUILTINS = {
 };
 
 function mkTmpRoot() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), "harness-tplstore-"));
+  return fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-tplstore-"));
 }
 
 test("listCustom() / listAll() start empty when no manifest exists", () => {
@@ -39,7 +39,7 @@ test("upsert() writes atomic file + returns savedAt", () => {
   assert.equal(res.id, "custom-a");
   assert.ok(res.savedAt >= before && res.savedAt <= after + 10);
   // manifest file exists on disk
-  const manifest = JSON.parse(fs.readFileSync(path.join(root, ".harness", "templates.json"), "utf-8"));
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, ".orchestrator", "templates.json"), "utf-8"));
   assert.equal(manifest["custom-a"].name, "A");
 });
 
@@ -86,7 +86,7 @@ test("backups are created on overwrite", () => {
   const store = createTemplateStore({ repoRoot: root, builtins: BUILTINS });
   store.upsert({ id: "custom-a", name: "v1", phases: [{ id: "A" }] });
   store.upsert({ id: "custom-a", name: "v2", phases: [{ id: "A" }] });
-  const backupDir = path.join(root, ".harness", "templates-backup");
+  const backupDir = path.join(root, ".orchestrator", "templates-backup");
   assert.ok(fs.existsSync(backupDir), "backup dir should exist");
   const backups = fs.readdirSync(backupDir);
   assert.ok(backups.length >= 1, "at least one backup file");
@@ -94,7 +94,7 @@ test("backups are created on overwrite", () => {
 
 test("corrupt manifest falls back to empty without throwing", () => {
   const root = mkTmpRoot();
-  const harnessDir = path.join(root, ".harness");
+  const harnessDir = path.join(root, ".orchestrator");
   fs.mkdirSync(harnessDir, { recursive: true });
   fs.writeFileSync(path.join(harnessDir, "templates.json"), "{ not json :(");
   const store = createTemplateStore({ repoRoot: root, builtins: BUILTINS });
@@ -106,7 +106,7 @@ test("corrupt manifest falls back to empty without throwing", () => {
 
 test("manifest load strips entries whose ids aren't custom-* (defense in depth)", () => {
   const root = mkTmpRoot();
-  const harnessDir = path.join(root, ".harness");
+  const harnessDir = path.join(root, ".orchestrator");
   fs.mkdirSync(harnessDir, { recursive: true });
   // Manually craft a manifest that tries to smuggle in a default override.
   fs.writeFileSync(
@@ -134,5 +134,5 @@ test("isBuiltinId / isCustomId helpers match their regex contract", () => {
 test("filePath points at .harness/templates.json under repoRoot", () => {
   const root = mkTmpRoot();
   const store = createTemplateStore({ repoRoot: root, builtins: BUILTINS });
-  assert.equal(store.filePath, path.join(root, ".harness", "templates.json"));
+  assert.equal(store.filePath, path.join(root, ".orchestrator", "templates.json"));
 });

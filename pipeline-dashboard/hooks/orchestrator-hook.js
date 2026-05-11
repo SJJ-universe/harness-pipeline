@@ -1,30 +1,30 @@
 #!/usr/bin/env node
-// Harness Hook Bridge
+// Orchestrator Hook Bridge
 // Claude Code hook → HTTP POST /api/hook → JSON response back to Claude
 //
 // Invocation (from .claude/settings.json):
-//   node pipeline-dashboard/hooks/harness-hook.js <event>
+//   node pipeline-dashboard/hooks/orchestrator-hook.js <event>
 //
 // Where <event> is one of:
 //   user-prompt | pre-tool | post-tool | stop | session-end
 //   session-start | subagent-start | subagent-stop | notification | pre-compact  (Slice A v4)
 //
 // Claude Code sends hook payload as JSON on stdin and expects JSON on stdout.
-// On any failure we exit(0) with empty stdout so Claude is never blocked by harness issues.
+// On any failure we exit(0) with empty stdout so Claude is never blocked by orchestrator issues.
 
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
 
 const EVENT = process.argv[2] || "unknown";
-const HOST = process.env.HARNESS_HOST || "127.0.0.1";
-const PORT = parseInt(process.env.HARNESS_PORT || "4201", 10);
-const HARNESS_ROOT = process.env.HARNESS_ROOT || path.resolve(__dirname, "..", "..");
+const HOST = process.env.ORCHESTRATOR_HOST || "127.0.0.1";
+const PORT = parseInt(process.env.ORCHESTRATOR_PORT || "4201", 10);
+const ORCHESTRATOR_ROOT = process.env.ORCHESTRATOR_ROOT || path.resolve(__dirname, "..", "..");
 
 function readOrchestratorToken() {
-  if (process.env.HARNESS_TOKEN) return process.env.HARNESS_TOKEN;
+  if (process.env.ORCHESTRATOR_TOKEN) return process.env.ORCHESTRATOR_TOKEN;
   try {
-    return fs.readFileSync(path.join(HARNESS_ROOT, ".harness", "local-token"), "utf-8").trim();
+    return fs.readFileSync(path.join(ORCHESTRATOR_ROOT, ".orchestrator", "local-token"), "utf-8").trim();
   } catch (_) {
     return "";
   }
@@ -77,7 +77,7 @@ process.stdin.on("end", () => {
         headers: {
           "content-type": "application/json",
           "content-length": Buffer.byteLength(body),
-          "x-harness-token": readOrchestratorToken(),
+          "x-orchestrator-token": readOrchestratorToken(),
         },
         timeout: 2000,
       },
@@ -108,7 +108,7 @@ process.stdin.on("end", () => {
       headers: {
         "content-type": "application/json",
         "content-length": Buffer.byteLength(body),
-        "x-harness-token": readOrchestratorToken(),
+        "x-orchestrator-token": readOrchestratorToken(),
       },
       timeout: TIMEOUT_MS,
     },

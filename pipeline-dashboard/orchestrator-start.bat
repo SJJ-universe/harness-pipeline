@@ -1,11 +1,11 @@
 ﻿@echo off
 :: ============================================================================
-:: harness-start.bat - Pipeline Dashboard Windows launcher (Phase E1, D0-b)
+:: orchestrator-start.bat - Pipeline Dashboard Windows launcher (Phase E1, D0-b)
 :: ============================================================================
 ::
 :: Why this file lives at the repo root (not in scripts/):
 ::   The user double-clicks this from the release zip. Putting it at the
-::   root means "extract zip, double-click harness-start.bat" is the entire
+::   root means "extract zip, double-click orchestrator-start.bat" is the entire
 ::   first-run experience. No README spelunking.
 ::
 :: Two operating modes:
@@ -15,7 +15,7 @@
 ::     zip. We launch start.js directly without any download/install dance.
 ::     This is the path used during E1 development and for the smoke tests.
 ::
-::   INSTALLER mode (server.js absent, but HARNESS_MANIFEST_URL is set)
+::   INSTALLER mode (server.js absent, but ORCHESTRATOR_MANIFEST_URL is set)
 ::     The script is acting as a bootstrap stub. We delegate to
 ::     scripts\launcher\install-version.ps1 to download + SHA256-verify +
 ::     extract a release zip into %LOCALAPPDATA%\HarnessPipeline\versions\<v>\,
@@ -23,23 +23,23 @@
 ::     E3 Release Hygiene; placeholder logic implemented in this slice.)
 ::
 :: Environment overrides (read directly, no flags):
-::   HARNESS_DATA_DIR        - override %LOCALAPPDATA%\HarnessPipeline
+::   ORCHESTRATOR_DATA_DIR        - override %LOCALAPPDATA%\HarnessPipeline
 ::                             (portable mode: point at a USB stick path)
-::   HARNESS_CONFIG_DIR      - override %APPDATA%\HarnessPipeline\config
-::   HARNESS_MANIFEST_URL    - source for installer mode's manifest.json
-::   HARNESS_NO_BROWSER=1    - skip auto-open (CI / headless smoke)
-::   HARNESS_PORT            - default 4201 (matches server.js default)
-::   HARNESS_HOST            - default 127.0.0.1
-::   HARNESS_TRUST_STORE     - explicit trust-store.json path for the
+::   ORCHESTRATOR_CONFIG_DIR      - override %APPDATA%\HarnessPipeline\config
+::   ORCHESTRATOR_MANIFEST_URL    - source for installer mode's manifest.json
+::   ORCHESTRATOR_NO_BROWSER=1    - skip auto-open (CI / headless smoke)
+::   ORCHESTRATOR_PORT            - default 4201 (matches server.js default)
+::   ORCHESTRATOR_HOST            - default 127.0.0.1
+::   ORCHESTRATOR_TRUST_STORE     - explicit trust-store.json path for the
 ::                             E3-F1 manifest signature gate. If unset,
-::                             the resolver falls back to HARNESS_CONFIG_DIR
+::                             the resolver falls back to ORCHESTRATOR_CONFIG_DIR
 ::                             then OS default (%APPDATA%\HarnessPipeline\)
 ::                             then portable bundled fallback.
-::   HARNESS_DEPLOYMENT_PROFILE=public-sector
+::   ORCHESTRATOR_DEPLOYMENT_PROFILE=public-sector
 ::                             switches signature gate to fail-closed
 ::                             with NO escape (the dev opt-in below is
 ::                             ignored under public-sector posture).
-::   HARNESS_ALLOW_UNSIGNED_MANIFEST=1
+::   ORCHESTRATOR_ALLOW_UNSIGNED_MANIFEST=1
 ::                             dev-only escape: install unsigned manifest
 ::                             with LOUD warning + audit
 ::                             launcher_signature_bypass entry. NEVER set
@@ -49,7 +49,7 @@
 ::   E3-F1 (Slice "Launcher Signature Gate") promotes the install path
 ::   to PRODUCTION FAIL-CLOSED: an unsigned manifest, an unknown signing
 ::   key, or a missing trust store all fail with exit 37/38 unless the
-::   operator opts in via HARNESS_ALLOW_UNSIGNED_MANIFEST=1 in standard
+::   operator opts in via ORCHESTRATOR_ALLOW_UNSIGNED_MANIFEST=1 in standard
 ::   mode. Public-sector mode never honors that escape. The gate logic
 ::   itself lives in scripts\launcher\install-version.ps1 — the .bat
 ::   surfaces the resolved trust-store path for boot-time visibility.
@@ -76,11 +76,11 @@ where node >nul 2>&1
 if errorlevel 1 (
     echo [harness-start] Node.js not found on PATH.
     echo                 Install Node.js 24+ from https://nodejs.org/
-    echo                 then re-run harness-start.bat.
+    echo                 then re-run orchestrator-start.bat.
     echo.
     echo                 [KO] Node.js가 설치되어 있지 않습니다.
     echo                      https://nodejs.org/ 에서 LTS(24 이상^)을
-    echo                      설치한 다음 harness-start.bat을 다시 실행하세요.
+    echo                      설치한 다음 orchestrator-start.bat을 다시 실행하세요.
     pause
     exit /b 10
 )
@@ -99,11 +99,11 @@ if exist "%SCRIPT_DIR%server.js" (
 ) else (
     set "MODE=installer"
     echo [harness-start] installer mode: server.js absent, will fetch release.
-    if "%HARNESS_MANIFEST_URL%"=="" (
-        echo [harness-start] HARNESS_MANIFEST_URL not set - cannot fetch.
+    if "%ORCHESTRATOR_MANIFEST_URL%"=="" (
+        echo [harness-start] ORCHESTRATOR_MANIFEST_URL not set - cannot fetch.
         echo                 Either:
         echo                   1. Re-run from a directory that contains server.js, or
-        echo                   2. Set HARNESS_MANIFEST_URL=^<https url^> and re-run.
+        echo                   2. Set ORCHESTRATOR_MANIFEST_URL=^<https url^> and re-run.
         pause
         exit /b 11
     )
@@ -114,10 +114,10 @@ if exist "%SCRIPT_DIR%server.js" (
     rem block (we are inside the `if exist ... else ( ... )` block) prematurely
     rem terminates the block. The same trap already bit "for dev only)" — we
     rem fix it by escaping every `)` in echoed user-facing text.
-    node "%SCRIPT_DIR%scripts\launcher\launcher-cli.js" validate-manifest-url "%HARNESS_MANIFEST_URL%" >nul 2>&1
+    node "%SCRIPT_DIR%scripts\launcher\launcher-cli.js" validate-manifest-url "%ORCHESTRATOR_MANIFEST_URL%" >nul 2>&1
     if errorlevel 1 (
-        echo [harness-start] HARNESS_MANIFEST_URL must use https:// ^(set
-        echo                 HARNESS_ALLOW_INSECURE_MANIFEST_URL=1 for dev only^).
+        echo [harness-start] ORCHESTRATOR_MANIFEST_URL must use https:// ^(set
+        echo                 ORCHESTRATOR_ALLOW_INSECURE_MANIFEST_URL=1 for dev only^).
         pause
         exit /b 15
     )
@@ -139,13 +139,13 @@ if "%MODE%"=="installer" (
     rem resolved trust-store path so a first-time operator sees what
     rem the install will demand BEFORE the manifest is fetched.
     set "POSTURE=standard"
-    if /i "%HARNESS_DEPLOYMENT_PROFILE%"=="public-sector" set "POSTURE=public-sector"
+    if /i "%ORCHESTRATOR_DEPLOYMENT_PROFILE%"=="public-sector" set "POSTURE=public-sector"
     echo [harness-start] signature gate posture: !POSTURE!
-    if /i "%HARNESS_ALLOW_UNSIGNED_MANIFEST%"=="1" (
+    if /i "%ORCHESTRATOR_ALLOW_UNSIGNED_MANIFEST%"=="1" (
         if "!POSTURE!"=="public-sector" (
-            echo [harness-start] WARNING: HARNESS_ALLOW_UNSIGNED_MANIFEST=1 is IGNORED under public-sector posture.
+            echo [harness-start] WARNING: ORCHESTRATOR_ALLOW_UNSIGNED_MANIFEST=1 is IGNORED under public-sector posture.
         ) else (
-            echo [harness-start] WARNING: HARNESS_ALLOW_UNSIGNED_MANIFEST=1 set ^(dev escape; never use in production^).
+            echo [harness-start] WARNING: ORCHESTRATOR_ALLOW_UNSIGNED_MANIFEST=1 set ^(dev escape; never use in production^).
         )
     )
     rem Resolve trust-store path for visibility. Failure is non-fatal —
@@ -155,7 +155,7 @@ if "%MODE%"=="installer" (
 
     powershell.exe -NoProfile -ExecutionPolicy Bypass ^
         -File "%SCRIPT_DIR%scripts\launcher\install-version.ps1" ^
-        -ManifestUrl "%HARNESS_MANIFEST_URL%"
+        -ManifestUrl "%ORCHESTRATOR_MANIFEST_URL%"
     if errorlevel 1 (
         echo [harness-start] install-version.ps1 failed - see log above.
         pause
@@ -165,7 +165,7 @@ if "%MODE%"=="installer" (
     rem We capture it via a marker file rather than parsing stdout to avoid
     rem cmd's quoting/escaping headaches.
     set "MARKER=%LOCALAPPDATA%\HarnessPipeline\last-install.txt"
-    if "%HARNESS_DATA_DIR%" NEQ "" set "MARKER=%HARNESS_DATA_DIR%\last-install.txt"
+    if "%ORCHESTRATOR_DATA_DIR%" NEQ "" set "MARKER=%ORCHESTRATOR_DATA_DIR%\last-install.txt"
     if not exist "!MARKER!" (
         echo [harness-start] install marker missing at !MARKER!
         pause
@@ -202,9 +202,9 @@ if exist "!MANIFEST_PATH!" (
 :: --- 6. Health-check existing instance ---------------------------------
 :: If a server is already running on the configured port, just open the
 :: browser and exit. Multi-launch protection: never start a second server.
-set "HEALTH_PORT=%HARNESS_PORT%"
+set "HEALTH_PORT=%ORCHESTRATOR_PORT%"
 if "%HEALTH_PORT%"=="" set "HEALTH_PORT=4201"
-set "HEALTH_HOST=%HARNESS_HOST%"
+set "HEALTH_HOST=%ORCHESTRATOR_HOST%"
 if "%HEALTH_HOST%"=="" set "HEALTH_HOST=127.0.0.1"
 set "HEALTH_URL=http://%HEALTH_HOST%:%HEALTH_PORT%"
 
@@ -215,8 +215,8 @@ set "HEALTH_URL=http://%HEALTH_HOST%:%HEALTH_PORT%"
 node "%SCRIPT_DIR%scripts\launcher\launcher-cli.js" verify-health "%HEALTH_URL%/api/health" >nul 2>&1
 if not errorlevel 1 (
     echo [harness-start] already running at %HEALTH_URL%
-    if "%HARNESS_NO_BROWSER%"=="1" (
-        echo                 HARNESS_NO_BROWSER=1 set - not opening browser.
+    if "%ORCHESTRATOR_NO_BROWSER%"=="1" (
+        echo                 ORCHESTRATOR_NO_BROWSER=1 set - not opening browser.
     ) else (
         start "" "%HEALTH_URL%"
     )
@@ -237,7 +237,7 @@ if %RETRY% GEQ 10 (
     echo.
     echo                 [KO] 서버가 10초 안에 응답하지 않았습니다.
     echo                      위 로그에서 빨간색 오류 메시지를 확인하세요.
-    echo                      포트 충돌이면 'set HARNESS_PORT=4301' 후 다시 실행.
+    echo                      포트 충돌이면 'set ORCHESTRATOR_PORT=4301' 후 다시 실행.
     echo                      자세한 안내: docs/runbooks/first-time-use.md §4.2
     pause
     exit /b 20
@@ -259,8 +259,8 @@ if errorlevel 1 (
 echo [harness-start] server up at %HEALTH_URL%
 
 :: --- 9. Open browser (skippable for CI) --------------------------------
-if "%HARNESS_NO_BROWSER%"=="1" (
-    echo [harness-start] HARNESS_NO_BROWSER=1 - browser not opened.
+if "%ORCHESTRATOR_NO_BROWSER%"=="1" (
+    echo [harness-start] ORCHESTRATOR_NO_BROWSER=1 - browser not opened.
 ) else (
     start "" "%HEALTH_URL%"
 )

@@ -120,7 +120,7 @@
     // PRODUCT-LIVE-STREAM-0 (2026-05-07): phase letter → MOCK_STAGES idx
     // mapping. The general pipeline runner (src/server/generalPipelineRunner.js)
     // emits phase_update with `data.phase: "A"|"B"|"C"|"D"` (string) but
-    // never `data.phaseIdx` (number). The product-harness-track panel
+    // never `data.phaseIdx` (number). The product-orchestrator-track panel
     // reads `run.phaseIdx` from the store, so without this mapping the
     // panel never advances past STAGE 1/7. MOCK_STAGES order is:
     //   [PLAN(0), CRITIQUE(1), REVISE(2), RE-CHECK(3),
@@ -165,7 +165,7 @@
           // PRODUCT-LIVE-STREAM-0 Gap E: pipeline_start payload from the
           // general runner has no `phase` field, so phase_update can't
           // run its letter→idx fallback yet. Seed phaseIdx: 0 so the
-          // harness-track panel snaps from null/idle to PLAN immediately
+          // orchestrator-track panel snaps from null/idle to PLAN immediately
           // when the run begins.
           partial = {
             status: "active",
@@ -205,7 +205,7 @@
           // the general runner uses `errors: [...]` (not `failed: bool`)
           // to signal failure. Treat a non-empty errors array OR a
           // truthy `failed` as error. On clean completion, jump phaseIdx
-          // to 6 (DONE) so harness-track shows full progress.
+          // to 6 (DONE) so orchestrator-track shows full progress.
           const _hasErrors = !!data.failed
             || (Array.isArray(data.errors) && data.errors.length > 0);
           partial = {
@@ -230,7 +230,7 @@
       }
 
       // PLS-0-followup (2026-05-08): when a brand-new pipeline run
-      // arrives, also flip selectedRunId so the harness-track + horse
+      // arrives, also flip selectedRunId so the orchestrator-track + horse
       // panels start showing it. Without this the store keeps a stale
       // selectedRunId (often the bootstrap "default" placeholder),
       // selectActiveRunId returns the wrong run, and the panels never

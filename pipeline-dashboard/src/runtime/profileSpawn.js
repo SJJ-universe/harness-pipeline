@@ -8,7 +8,7 @@
 //
 //   1. P0 base                    filterSensitiveEnv(parentEnv)
 //                                 strips TOKEN/SECRET/KEY/PASSWORD/CREDENTIAL
-//                                 from the parent process — the harness
+//                                 from the parent process — the orchestrator
 //                                 never inherits operator-shell secrets.
 //
 //   2. Profile lookup             profileStore.get(profileId)
@@ -21,7 +21,7 @@
 //                                 didn't — partial-credential spawn is
 //                                 always wrong).
 //
-//   4. Telemetry env               HARNESS_PROFILE_ID + HARNESS_WORKSPACE_PATH
+//   4. Telemetry env               ORCHESTRATOR_PROFILE_ID + ORCHESTRATOR_WORKSPACE_PATH
 //                                 land last so the spawned child can
 //                                 self-report which profile it ran under.
 //                                 NOT secret material.
@@ -47,7 +47,7 @@
 //   D1-f sanitizer adds defensive guards at the ledger layer too.
 //
 // What this function deliberately does NOT do:
-//   - Look at HARNESS_REMOTE_MODE or any runner-host concept. The
+//   - Look at ORCHESTRATOR_REMOTE_MODE or any runner-host concept. The
 //     runner-side trust boundary is separate (R1 territory). Profile
 //     credentials are local-only — they NEVER cross the WS to a remote
 //     runner.
@@ -73,8 +73,8 @@ const {
 
 // Telemetry env names that the spawned CLI may read so it knows which
 // profile it ran under. These are NOT secret — purely identifying.
-const HARNESS_PROFILE_ID = "HARNESS_PROFILE_ID";
-const HARNESS_WORKSPACE_PATH = "HARNESS_WORKSPACE_PATH";
+const ORCHESTRATOR_PROFILE_ID = "ORCHESTRATOR_PROFILE_ID";
+const ORCHESTRATOR_WORKSPACE_PATH = "ORCHESTRATOR_WORKSPACE_PATH";
 
 /**
  * Compose the env to pass to a child-process spawn for a given profile.
@@ -89,7 +89,7 @@ const HARNESS_WORKSPACE_PATH = "HARNESS_WORKSPACE_PATH";
  *   Required when profileId is non-null.
  * @param {object} [opts.baseFilterOpts]      - forwarded to
  *   filterSensitiveEnv (e.g. allowKeys for PTY contexts that need
- *   HARNESS_TOKEN).
+ *   ORCHESTRATOR_TOKEN).
  *
  * @returns {Promise<{
  *   env: object,                     // env to pass to spawn()
@@ -193,8 +193,8 @@ async function buildSpawnEnv(opts = {}) {
 
   // ── 5. Telemetry env ────────────────────────────────────────
   // Don't pollute env namespaces — keep these prefixed and few.
-  env[HARNESS_PROFILE_ID] = profile.id;
-  env[HARNESS_WORKSPACE_PATH] = profile.workspacePath;
+  env[ORCHESTRATOR_PROFILE_ID] = profile.id;
+  env[ORCHESTRATOR_WORKSPACE_PATH] = profile.workspacePath;
 
   return Object.freeze({
     env,
@@ -209,6 +209,6 @@ async function buildSpawnEnv(opts = {}) {
 
 module.exports = {
   buildSpawnEnv,
-  HARNESS_PROFILE_ID,
-  HARNESS_WORKSPACE_PATH,
+  ORCHESTRATOR_PROFILE_ID,
+  ORCHESTRATOR_WORKSPACE_PATH,
 };

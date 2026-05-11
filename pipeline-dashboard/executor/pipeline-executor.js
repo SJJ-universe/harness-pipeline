@@ -10,7 +10,7 @@
 //
 // Phase 4 will add PipelineAdapter mutation.
 //
-// Safety: activation is gated by process.env.HARNESS_ENABLED !== "1" by default.
+// Safety: activation is gated by process.env.ORCHESTRATOR_ENABLED !== "1" by default.
 
 const fs = require("fs");
 const path = require("path");
@@ -90,7 +90,7 @@ class PipelineExecutor {
     // never mutates it. Phases without a `tddGuard` block are no-ops.
     this.tddGuard = new TddGuard(this.state);
     this.workspaceDir =
-      workspaceDir || process.env.HARNESS_WORKSPACE_DIR || DEFAULT_WORKSPACE_DIR;
+      workspaceDir || process.env.ORCHESTRATOR_WORKSPACE_DIR || DEFAULT_WORKSPACE_DIR;
     this.repoRoot = repoRoot || path.resolve(__dirname, "..", "..");
     // Checkpoint store: must be explicitly injected (via server.js) for disk persistence.
     // Default is a no-op store — safe for tests that don't need persistence.
@@ -114,7 +114,7 @@ class PipelineExecutor {
     this.onRunComplete = typeof onRunComplete === "function" ? onRunComplete : null;
 
     this.active = null;
-    this.enabled = process.env.HARNESS_ENABLED === "1";
+    this.enabled = process.env.ORCHESTRATOR_ENABLED === "1";
   }
 
   setEnabled(flag) {
@@ -417,7 +417,7 @@ class PipelineExecutor {
           .map(([k, v]) => `${k}=${v}`)
           .join(", ");
         const reason =
-          `[Harness] Phase C 완료 — Codex 비평이 파일로 저장되었습니다.\n` +
+          `[Orchestrator] Phase C 완료 — Codex 비평이 파일로 저장되었습니다.\n` +
           `  파일: ${hint.critiquePath}\n` +
           (hint.ok
             ? `  Codex 실행: OK\n`
@@ -489,7 +489,7 @@ class PipelineExecutor {
     if (source !== "compact") return {};
 
     try {
-      const summaryPath = path.join(this.repoRoot, ".harness", "last-compact-summary.md");
+      const summaryPath = path.join(this.repoRoot, ".orchestrator", "last-compact-summary.md");
       if (!fs.existsSync(summaryPath)) return {};
       let body = fs.readFileSync(summaryPath, "utf-8");
       // Guard against pathological summary files — the 2KB cap is enforced by
@@ -632,7 +632,7 @@ class PipelineExecutor {
     //    assembly so no single noisy field blows the envelope.
     const phase = this._currentPhase();
     const lines = [];
-    lines.push(`# Harness PreCompact Summary`);
+    lines.push(`# Orchestrator PreCompact Summary`);
     lines.push(`- At: ${new Date().toISOString()}`);
     lines.push(`- Trigger: ${(payload && payload.trigger) || "unknown"}`);
     lines.push(`- Template: ${this.active.templateId || "?"}`);
@@ -676,7 +676,7 @@ class PipelineExecutor {
     // 3. Persist. Directory creation is best-effort — if the filesystem is
     //    hostile, fail silently so the hook never blocks Claude.
     try {
-      const dir = path.join(this.repoRoot, ".harness");
+      const dir = path.join(this.repoRoot, ".orchestrator");
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
       fs.writeFileSync(path.join(dir, "last-compact-summary.md"), summaryText, "utf-8");
     } catch (_) {}

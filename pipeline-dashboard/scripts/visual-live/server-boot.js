@@ -19,13 +19,13 @@
 //   - production port 4201 (server default, may already be running)
 //   - integration test ports 4318/4099/etc.
 //   - readiness-report port 5099
-// Operator can override via HARNESS_VISUAL_LIVE_PORT or --port arg.
+// Operator can override via ORCHESTRATOR_VISUAL_LIVE_PORT or --port arg.
 
 "use strict";
 
 const { start } = require("../../server");
 
-const DEFAULT_PORT = Number(process.env.HARNESS_VISUAL_LIVE_PORT || 4799);
+const DEFAULT_PORT = Number(process.env.ORCHESTRATOR_VISUAL_LIVE_PORT || 4799);
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_BOOT_TIMEOUT_MS = 10000;
 const DEFAULT_POLL_INTERVAL_MS = 100;
@@ -48,7 +48,7 @@ async function _waitForHealth(base, timeoutMs, pollMs) {
 }
 
 /**
- * Boot the harness server in-process and wait for /api/health.
+ * Boot the orchestrator server in-process and wait for /api/health.
  *
  * @param {object} [opts]
  * @param {number} [opts.port=4799]

@@ -20,7 +20,7 @@
 //
 //   5. Deleted profile → throws.
 //
-//   6. Telemetry env (HARNESS_PROFILE_ID + HARNESS_WORKSPACE_PATH)
+//   6. Telemetry env (ORCHESTRATOR_PROFILE_ID + ORCHESTRATOR_WORKSPACE_PATH)
 //      lands AND is non-secret.
 //
 //   7. Returned object is frozen + the env it carries is a NEW object
@@ -33,8 +33,8 @@ const test = require("node:test");
 
 const {
   buildSpawnEnv,
-  HARNESS_PROFILE_ID,
-  HARNESS_WORKSPACE_PATH,
+  ORCHESTRATOR_PROFILE_ID,
+  ORCHESTRATOR_WORKSPACE_PATH,
 } = require("../../src/runtime/profileSpawn");
 
 // ── stub stores ────────────────────────────────────────────────
@@ -79,7 +79,7 @@ test("D1-c: parent's sensitive keys are STRIPPED before any profile injection", 
     HOME: "/home/op",
     ANTHROPIC_API_KEY: "operator-shell-leak",
     OPENAI_API_KEY: "another-leak",
-    HARNESS_TOKEN: "loop-back-token",
+    ORCHESTRATOR_TOKEN: "loop-back-token",
     NORMAL_VAR: "ok",
   };
   // No profile → P0 base only.
@@ -88,7 +88,7 @@ test("D1-c: parent's sensitive keys are STRIPPED before any profile injection", 
   assert.equal(out.env.ANTHROPIC_API_KEY, undefined,
     "parent ANTHROPIC_API_KEY must NOT leak into spawn env");
   assert.equal(out.env.OPENAI_API_KEY, undefined);
-  assert.equal(out.env.HARNESS_TOKEN, undefined);
+  assert.equal(out.env.ORCHESTRATOR_TOKEN, undefined);
   // Non-sensitive keys must survive.
   assert.equal(out.env.PATH, "/usr/bin");
   assert.equal(out.env.HOME, "/home/op");
@@ -122,8 +122,8 @@ test("D1-c: profileId=null returns mode='fallback' with no credential injection"
   assert.equal(out.secretsInjected, 0);
   assert.deepEqual(out.secretsKeys, []);
   // No telemetry env in fallback either.
-  assert.equal(out.env[HARNESS_PROFILE_ID], undefined);
-  assert.equal(out.env[HARNESS_WORKSPACE_PATH], undefined);
+  assert.equal(out.env[ORCHESTRATOR_PROFILE_ID], undefined);
+  assert.equal(out.env[ORCHESTRATOR_WORKSPACE_PATH], undefined);
 });
 
 test("D1-c: profileId omitted entirely is the same as null", async () => {
@@ -232,7 +232,7 @@ test("D1-c: profile mode without credentialStore arg throws (developer error)", 
 //  TELEMETRY ENV
 // ─────────────────────────────────────────────────────────────────
 
-test("D1-c: telemetry env (HARNESS_PROFILE_ID + WORKSPACE_PATH) lands in profile mode", async () => {
+test("D1-c: telemetry env (ORCHESTRATOR_PROFILE_ID + WORKSPACE_PATH) lands in profile mode", async () => {
   const profile = sampleProfile("personal");
   const out = await buildSpawnEnv({
     parentEnv: { PATH: "/x" },
@@ -242,16 +242,16 @@ test("D1-c: telemetry env (HARNESS_PROFILE_ID + WORKSPACE_PATH) lands in profile
       personal: { ANTHROPIC_API_KEY: "v" },
     }),
   });
-  assert.equal(out.env[HARNESS_PROFILE_ID], "personal");
-  assert.equal(out.env[HARNESS_WORKSPACE_PATH], profile.workspacePath);
+  assert.equal(out.env[ORCHESTRATOR_PROFILE_ID], "personal");
+  assert.equal(out.env[ORCHESTRATOR_WORKSPACE_PATH], profile.workspacePath);
 });
 
 test("D1-c: telemetry env names are exported and stable", () => {
   // Lock the wire-format. Anything reading these from the spawned CLI
   // (D2 setup wizard probes, future debug tooling) depends on these
   // exact names.
-  assert.equal(HARNESS_PROFILE_ID, "HARNESS_PROFILE_ID");
-  assert.equal(HARNESS_WORKSPACE_PATH, "HARNESS_WORKSPACE_PATH");
+  assert.equal(ORCHESTRATOR_PROFILE_ID, "ORCHESTRATOR_PROFILE_ID");
+  assert.equal(ORCHESTRATOR_WORKSPACE_PATH, "ORCHESTRATOR_WORKSPACE_PATH");
 });
 
 // ─────────────────────────────────────────────────────────────────
@@ -285,7 +285,7 @@ test("D1-c: profile with empty secretIds → secretsInjected=0, mode='profile' (
   assert.equal(out.mode, "profile");
   assert.equal(out.secretsInjected, 0);
   assert.deepEqual(out.secretsKeys, []);
-  assert.equal(out.env[HARNESS_PROFILE_ID], "ws-only");
+  assert.equal(out.env[ORCHESTRATOR_PROFILE_ID], "ws-only");
 });
 
 // ─────────────────────────────────────────────────────────────────
@@ -299,18 +299,18 @@ test("D1-c: returned object is frozen (caller cannot tamper with profile metadat
 });
 
 test("D1-c: baseFilterOpts.allowKeys is forwarded to filterSensitiveEnv", async () => {
-  // The runner.js / PTY pattern needs HARNESS_TOKEN to pass for
+  // The runner.js / PTY pattern needs ORCHESTRATOR_TOKEN to pass for
   // operator-typed curl. profileSpawn must respect the same allowKeys
   // forwarding so a custom caller (PTY context) can opt in selectively.
   const parentEnv = {
-    HARNESS_TOKEN: "should-survive-with-allowKeys",
+    ORCHESTRATOR_TOKEN: "should-survive-with-allowKeys",
     PATH: "/x",
   };
   const out = await buildSpawnEnv({
     parentEnv,
-    baseFilterOpts: { allowKeys: ["HARNESS_TOKEN"] },
+    baseFilterOpts: { allowKeys: ["ORCHESTRATOR_TOKEN"] },
   });
-  assert.equal(out.env.HARNESS_TOKEN, "should-survive-with-allowKeys",
+  assert.equal(out.env.ORCHESTRATOR_TOKEN, "should-survive-with-allowKeys",
     "allowKeys must override the SENSITIVE_KEY_RE filter");
 });
 
@@ -379,7 +379,7 @@ test("D1-gov-5: env-driven public-sector (no opts.deploymentProfile) still block
   // Verify the env path triggers the same block.
   await assert.rejects(
     () => buildSpawnEnv({
-      parentEnv: { HARNESS_DEPLOYMENT_PROFILE: "public-sector" },
+      parentEnv: { ORCHESTRATOR_DEPLOYMENT_PROFILE: "public-sector" },
       profileId: null,
     }),
     { code: "PUBLIC_SECTOR_LOCAL_EXECUTOR_DISABLED" },

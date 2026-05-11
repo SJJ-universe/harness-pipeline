@@ -13,7 +13,7 @@
 //
 // Bundle shape:
 //   {
-//     schema: "harness-auditor-bundle/v1",
+//     schema: "orchestrator-auditor-bundle/v1",
 //     exportedAt: ISO,
 //     mode: "byRun" | "byWindow",
 //     scope: { runId | windowFromAt+windowToAt },
@@ -55,7 +55,7 @@
 
 const crypto = require("crypto");
 
-const SCHEMA = "harness-auditor-bundle/v1";
+const SCHEMA = "orchestrator-auditor-bundle/v1";
 const SEAL_INFO = "auditor-bundle";
 const DEFAULT_LIMIT = 1024;
 const MAX_LIMIT = 8192;

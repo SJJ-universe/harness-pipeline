@@ -142,7 +142,7 @@ Decoded timeline (millisecond-accurate):
 
 - **Successful critique completion** — the probe ran without an authenticated profile; a future probe run with a profile that has a working `openai-api-key` would close this gap. The infrastructure is in place; the run that would close this gap is `node scripts/live-verify-review-relay.js --timeout-ms 180000` after `node scripts/setup-wizard.js`.
 - **Claude hand-back round-trip** — same condition; needs an authenticated Claude profile.
-- **Public-sector posture live probe** — the runbook documents the procedure (`HARNESS_DEPLOYMENT_PROFILE=public-sector ./harness-start.sh`), but the live posture probe was not executed in this round (the integration test `tests/integration/review-relay-spawn.test.js` covers the route-level 409 + dispatcher defense-in-depth deterministically).
+- **Public-sector posture live probe** — the runbook documents the procedure (`ORCHESTRATOR_DEPLOYMENT_PROFILE=public-sector ./orchestrator-start.sh`), but the live posture probe was not executed in this round (the integration test `tests/integration/review-relay-spawn.test.js` covers the route-level 409 + dispatcher defense-in-depth deterministically).
 
 These three follow-ups are operator-runnable any time. The infrastructure to capture them is shipped as part of LV-2 + LV-3.
 

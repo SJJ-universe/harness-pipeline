@@ -10,7 +10,7 @@ const { createMonitorStore } = require("../../public/js/monitor/store");
 
 function samplePayload(overrides = {}) {
   return {
-    schema: "harness-policy-pack/v1",
+    schema: "orchestrator-policy-pack/v1",
     currentPack: "standard",
     packs: [
       { modeId: "standard", label: "Standard", isCurrent: true,
@@ -44,7 +44,7 @@ test("setPolicyPacks: lands payload in snapshot", () => {
   store.setPolicyPacks(samplePayload());
   const s = store.snapshot();
   assert.ok(s.policyPacks);
-  assert.equal(s.policyPacks.schema, "harness-policy-pack/v1");
+  assert.equal(s.policyPacks.schema, "orchestrator-policy-pack/v1");
   assert.equal(s.policyPacks.currentPack, "standard");
   assert.equal(s.policyPacks.packs.length, 2);
   assert.equal(s.policyPacks.metadata.hardGatesEffectiveMode, "warn");
@@ -88,7 +88,7 @@ test("setPolicyPacks: different payload → publish", () => {
 test("setPolicyPacks: missing metadata tolerated → null metadata", () => {
   const store = createMonitorStore();
   store.setPolicyPacks({
-    schema: "harness-policy-pack/v1",
+    schema: "orchestrator-policy-pack/v1",
     currentPack: null,
     packs: [],
     serverTime: null,

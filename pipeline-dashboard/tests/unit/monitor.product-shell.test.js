@@ -210,7 +210,7 @@ test("UI-P1: missing panel factory renders [panel missing: name] placeholder", (
   assert.equal(placeholders.length, 5, "5 missing panels surface 5 placeholders");
   // Placeholders include the panel name in their text
   const names = placeholders.map((p) => p._textContent);
-  assert.ok(names.some((n) => n.includes("harness-track")));
+  assert.ok(names.some((n) => n.includes("orchestrator-track")));
   assert.ok(names.some((n) => n.includes("pipeline-rail")));
   assert.ok(names.some((n) => n.includes("monitor-grid")));
   assert.ok(names.some((n) => n.includes("dual-terminals")));

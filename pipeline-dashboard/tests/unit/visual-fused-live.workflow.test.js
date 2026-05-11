@@ -94,11 +94,11 @@ test("UI-Fuse workflow: invokes all 4 visual:*-live npm scripts", () => {
   }
 });
 
-test("UI-Fuse workflow: emits fused summary.json with harness-visual-fused/v1 schema", () => {
+test("UI-Fuse workflow: emits fused summary.json with orchestrator-visual-fused/v1 schema", () => {
   const yml = _readWorkflow();
-  assert.match(yml, /harness-visual-fused\/v1/,
+  assert.match(yml, /orchestrator-visual-fused\/v1/,
     "fused workflow must emit a top-level summary.json with " +
-    "documented schema 'harness-visual-fused/v1'");
+    "documented schema 'orchestrator-visual-fused/v1'");
   assert.match(yml, /summary\.json/);
 });
 

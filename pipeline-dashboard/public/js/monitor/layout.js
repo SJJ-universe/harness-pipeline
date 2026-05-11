@@ -205,7 +205,7 @@
     // Slice UI-H1: legacy mode short-circuits the shell mount entirely.
     // The existing app.js view is shown unmodified — exactly today's
     // pre-monitor behavior. Operators who explicitly set ?mode=legacy
-    // (or HARNESS_MONITOR_MODE=legacy) are opting out of every UI-H
+    // (or ORCHESTRATOR_MONITOR_MODE=legacy) are opting out of every UI-H
     // surface; this branch is the operator's escape hatch.
     if (mode === "legacy") {
       return {
@@ -359,16 +359,16 @@
     approvalMount.setAttribute("role", "region");
     approvalMount.setAttribute("aria-label", "Pending approvals");
 
-    // Slice UI-H2 (Phase D / E1.5, 2026-04-30): Harness Track region.
+    // Slice UI-H2 (Phase D / E1.5, 2026-04-30): Orchestrator Track region.
     // Galloping-horse pipeline visualization tied to the selected
-    // run's actual phase (per UI Plan §"가져올 요소 §Harness Track
+    // run's actual phase (per UI Plan §"가져올 요소 §Orchestrator Track
     // Animation"). Reads selectedRun.phase + pendingApprovals +
     // runDetails.verifyStatus + accountStatus.deployment.publicSector
     // (the last drives reduced-motion mode for public-sector posture).
     const orchestratorTrackMount = _doc.createElement("div");
-    orchestratorTrackMount.className = "harness-track-region-mount";
+    orchestratorTrackMount.className = "orchestrator-track-region-mount";
     orchestratorTrackMount.setAttribute("role", "region");
-    orchestratorTrackMount.setAttribute("aria-label", "Harness pipeline track");
+    orchestratorTrackMount.setAttribute("aria-label", "Orchestrator pipeline track");
 
     // Slice UI-H3 (Phase D / E1.5, 2026-04-30): Dual Agent Console
     // mount region. Claude on the left, Codex on the right; read-only
@@ -394,7 +394,7 @@
     root.appendChild(globalBarRoot);
     root.appendChild(modeToggleMount);
     root.appendChild(errorBox);
-    // Slice UI-H2: harness-track sits between approval region (so
+    // Slice UI-H2: orchestrator-track sits between approval region (so
     // operator-blocking approvals stay above-the-fold) and the
     // shell-body / simple-mount. In simple mode it's the primary
     // status visual; in advanced mode it's a compact summary above
@@ -491,7 +491,7 @@
               // to / focus its "프로필 추가" form. The settings panel
               // is free to ignore this event (defensive).
               try {
-                const ev = new CustomEvent("harness:openSetupWizard");
+                const ev = new CustomEvent("orchestrator:openSetupWizard");
                 settingsMount.dispatchEvent(ev);
               } catch (_) { /* defensive */ }
             },
@@ -606,7 +606,7 @@
       }
     }
 
-    // ── Slice UI-H2: mount the harness-track panel ──
+    // ── Slice UI-H2: mount the orchestrator-track panel ──
     // Always-live subscription to the store. Renders the 7-lane
     // pipeline + horse marker + rear-callout for approval/verify gates.
     // Public-sector posture (snapshot.accountStatus.deployment.publicSector)
@@ -621,7 +621,7 @@
           doc: _doc,
         });
       } catch (err) {
-        showError("harness track: " + (err && err.message ? err.message : "init failed"), "orchestratorTrack");
+        showError("orchestrator track: " + (err && err.message ? err.message : "init failed"), "orchestratorTrack");
       }
     }
 
@@ -642,7 +642,7 @@
 
     // ── Slice UI-H5: posture-aware [data-posture] on documentElement ──
     // Subscribes to accountStatus.deployment.publicSector and writes
-    // the attribute to <html> so the harness-shell.css overrides
+    // the attribute to <html> so the orchestrator-shell.css overrides
     // (animation freeze, public-sector visual mode) fire globally.
     // The legacy app.js view (mode === "legacy") doesn't reach this
     // code; it gets standard motion regardless of posture (the
@@ -936,7 +936,7 @@
         try { runViewerHandle && runViewerHandle.destroy && runViewerHandle.destroy(); } catch (_) {}
         // Slice UI-H3: tear down the dual-agent-console.
         try { dualConsoleHandle && dualConsoleHandle.destroy && dualConsoleHandle.destroy(); } catch (_) {}
-        // Slice UI-H2: tear down the harness-track panel.
+        // Slice UI-H2: tear down the orchestrator-track panel.
         try { orchestratorTrackHandle && orchestratorTrackHandle.destroy && orchestratorTrackHandle.destroy(); } catch (_) {}
         // Slice UI-H5: tear down security-status card + posture watcher.
         try { securityStatusHandle && securityStatusHandle.destroy && securityStatusHandle.destroy(); } catch (_) {}
@@ -982,7 +982,7 @@
       // Slice UX-2-c: approval region + handle exposed for tests.
       _approvalMount: approvalMount,
       _approvalHandle: approvalHandle,
-      // Slice UI-H2: harness-track region + handle exposed for tests.
+      // Slice UI-H2: orchestrator-track region + handle exposed for tests.
       _orchestratorTrackMount: orchestratorTrackMount,
       _orchestratorTrackHandle: orchestratorTrackHandle,
       // Slice UI-H3: dual-agent-console region + handle exposed for tests.

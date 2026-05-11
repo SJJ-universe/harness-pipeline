@@ -5,12 +5,12 @@
 #
 # Network topology (R3-a):
 #
-#   harness-r2-operator   non-internal bridge, host port mapping path.
+#   orchestrator-r2-operator   non-internal bridge, host port mapping path.
 #                         Orchestrator only — runner and probe are NOT
 #                         attached. Dashboard reachability via host
 #                         loopback (127.0.0.1:4201) routes through this
 #                         bridge.
-#   harness-r2-runner     internal-eligible bridge, intra-container
+#   orchestrator-r2-runner     internal-eligible bridge, intra-container
 #                         traffic. Orchestrator + runner + probe attach.
 #                         R3 strict override flips ONLY this bridge to
 #                         internal:true so runner egress is severed
@@ -29,14 +29,14 @@
 #   orchestrator   — Node 24 container running server.js, dashboard at
 #                    http://127.0.0.1:4201 (loopback only). Listens on
 #                    0.0.0.0:4201 inside the container; the host's port
-#                    publishing pins it to loopback. HARNESS_TOKEN gates
+#                    publishing pins it to loopback. ORCHESTRATOR_TOKEN gates
 #                    the dashboard surface; runner subsystem (preview)
 #                    has its own Bearer-based auth. **Dual-homed**:
 #                    attached to both bridges so the dashboard reaches
 #                    the host AND the runner reaches the orchestrator.
 #   runner         — Node 24 container running harness-runner. Connects
 #                    to orchestrator via Docker DNS (http://orchestrator).
-#                    Attached ONLY to harness-r2-runner — never to the
+#                    Attached ONLY to orchestrator-r2-runner — never to the
 #                    operator bridge. /work/in is the (operator-supplied)
 #                    read-only mount point; /work/out is tmpfs (no
 #                    persistence, nothing written by the runner survives
@@ -74,25 +74,25 @@ services:
     environment:
       # HKDF IKM. derives jwtKey + ledgerKey with domain separation
       # (info=runner-jwt vs info=audit-ledger).
-      HARNESS_TOKEN: "${HARNESS_TOKEN:?HARNESS_TOKEN is required — copy .env.r2.example to .env.r2 and fill it in}"
+      ORCHESTRATOR_TOKEN: "${ORCHESTRATOR_TOKEN:?ORCHESTRATOR_TOKEN is required — copy .env.r2.example to .env.r2 and fill it in}"
       # preview = full subsystem on (HKDF-derived keys, runner registry,
       # routes mounted). off = subsystem dormant; routes 404.
-      HARNESS_REMOTE_MODE: "${HARNESS_REMOTE_MODE:-preview}"
+      ORCHESTRATOR_REMOTE_MODE: "${ORCHESTRATOR_REMOTE_MODE:-preview}"
       # Slice R2.5-c: hook execution bridge mode.
       # off (default) — broadcast-only (R1/R2 behavior).
       # report — sanitization runs, audit emits sanitized/rejected, NO dispatch.
       # dispatch — sanitized hooks forwarded to local executor methods
       #            (Pre/PostToolUse for Read/Grep/Glob, Stop, SubagentStart/Stop).
-      HARNESS_REMOTE_BRIDGE_MODE: "${HARNESS_REMOTE_BRIDGE_MODE:-off}"
+      ORCHESTRATOR_REMOTE_BRIDGE_MODE: "${ORCHESTRATOR_REMOTE_BRIDGE_MODE:-off}"
       # Bootstrap mapping: orchestrator looks up env var
-      # HARNESS_REMOTE_RUNNER_TOKEN_<sanitized-host>. Sanitize: replace
-      # any non-alnum with '_'. For HARNESS_HOST_IDENTITY=runner-r2-001
-      # the env var is HARNESS_REMOTE_RUNNER_TOKEN_runner_r2_001.
-      HARNESS_REMOTE_RUNNER_TOKEN_runner_r2_001: "${RUNNER_BOOTSTRAP_TOKEN:?RUNNER_BOOTSTRAP_TOKEN is required}"
+      # ORCHESTRATOR_REMOTE_RUNNER_TOKEN_<sanitized-host>. Sanitize: replace
+      # any non-alnum with '_'. For ORCHESTRATOR_HOST_IDENTITY=runner-r2-001
+      # the env var is ORCHESTRATOR_REMOTE_RUNNER_TOKEN_runner_r2_001.
+      ORCHESTRATOR_REMOTE_RUNNER_TOKEN_runner_r2_001: "${RUNNER_BOOTSTRAP_TOKEN:?RUNNER_BOOTSTRAP_TOKEN is required}"
       PORT: "4201"
-      # server.js: ALLOW_REMOTE = HARNESS_ALLOW_REMOTE === "1". Must be
+      # server.js: ALLOW_REMOTE = ORCHESTRATOR_ALLOW_REMOTE === "1". Must be
       # the literal string "1" — "true" / true / yes / on do NOT work.
-      HARNESS_ALLOW_REMOTE: "1"
+      ORCHESTRATOR_ALLOW_REMOTE: "1"
     ports:
       # Loopback-only publish — the only way for the host to reach the
       # dashboard is via 127.0.0.1:4201. Cross-LAN blocked.
@@ -106,9 +106,9 @@ services:
     networks:
       # R3-a: dual-homed. Operator bridge (host port path) + runner
       # bridge (intra-container talk to runner/probe). Strict override
-      # flips ONLY harness-r2-runner to internal:true.
-      - harness-r2-operator
-      - harness-r2-runner
+      # flips ONLY orchestrator-r2-runner to internal:true.
+      - orchestrator-r2-operator
+      - orchestrator-r2-runner
     volumes:
       # Persist the evidence ledger + run registry across container
       # restarts so audit chains survive an orchestrator bounce.
@@ -126,24 +126,24 @@ services:
       context: .
       dockerfile: Dockerfile.runner
     environment:
-      HARNESS_HOST_IDENTITY: "${HARNESS_HOST_IDENTITY:-runner-r2-001}"
-      HARNESS_BOOTSTRAP_TOKEN: "${RUNNER_BOOTSTRAP_TOKEN:?RUNNER_BOOTSTRAP_TOKEN is required}"
+      ORCHESTRATOR_HOST_IDENTITY: "${ORCHESTRATOR_HOST_IDENTITY:-runner-r2-001}"
+      ORCHESTRATOR_BOOTSTRAP_TOKEN: "${RUNNER_BOOTSTRAP_TOKEN:?RUNNER_BOOTSTRAP_TOKEN is required}"
       # Docker DNS resolves "orchestrator" to the orchestrator service IP.
-      HARNESS_ORCHESTRATOR_URL: "http://orchestrator:4201"
-      HARNESS_RUN_ID: "${HARNESS_RUN_ID:-rr-r2-eval-001}"
+      ORCHESTRATOR_ORCHESTRATOR_URL: "http://orchestrator:4201"
+      ORCHESTRATOR_RUN_ID: "${ORCHESTRATOR_RUN_ID:-rr-r2-eval-001}"
       # Pre-issued by scripts/r2-up.{sh,ps1}; written into .env.r2.
-      HARNESS_RUN_JWT: "${HARNESS_RUN_JWT:?HARNESS_RUN_JWT is required (run scripts/r2-up to issue)}"
-      HARNESS_SANDBOX_CLASS: "container-strict"
+      ORCHESTRATOR_RUN_JWT: "${ORCHESTRATOR_RUN_JWT:?ORCHESTRATOR_RUN_JWT is required (run scripts/r2-up to issue)}"
+      ORCHESTRATOR_SANDBOX_CLASS: "container-strict"
       # Slow heartbeat for eval — keeps logs readable. Real deployments
       # would tighten this.
-      HARNESS_HEARTBEAT_INTERVAL_MS: "5000"
+      ORCHESTRATOR_HEARTBEAT_INTERVAL_MS: "5000"
     depends_on:
       orchestrator:
         condition: service_healthy
     networks:
       # R3-a: runner-internal bridge ONLY. Never the operator bridge —
       # runner attached to operator would defeat egress isolation.
-      - harness-r2-runner
+      - orchestrator-r2-runner
     tmpfs:
       # MG1 §2.1: /work/out is tmpfs, sized + noexec. R2-5 verifies.
       - /work/out:rw,noexec,size=64m
@@ -169,7 +169,7 @@ services:
       # R3-a: probe sits where the runner sits, on the same internal-
       # eligible bridge. Tests run from the probe verify what a
       # workload would see, not what the orchestrator sees.
-      - harness-r2-runner
+      - orchestrator-r2-runner
     cap_drop: ["ALL"]
     security_opt:
       - "no-new-privileges:true"
@@ -180,16 +180,16 @@ networks:
   # (127.0.0.1:4201:4201 on the orchestrator) routes through here.
   # NOT touched by the strict override; dashboard reachability survives
   # strict mode.
-  harness-r2-operator:
-    name: harness-r2-operator-network
+  orchestrator-r2-operator:
+    name: orchestrator-r2-operator-network
     driver: bridge
 
   # R3-a: runner-internal bridge — eligible for `internal: true` via
   # the strict override. Orchestrator + runner + probe all attach;
   # intra-container traffic is unaffected by the internal flag (Docker
   # only severs the host-gateway NAT, not container-to-container).
-  harness-r2-runner:
-    name: harness-r2-runner-network
+  orchestrator-r2-runner:
+    name: orchestrator-r2-runner-network
     driver: bridge
     # R2-1 baseline — open egress (default Docker behavior). R2-4 +
     # R3-a strict variants via the override file flip this to
@@ -198,4 +198,4 @@ networks:
 
 volumes:
   r2-evidence:
-    name: harness-r2-evidence
+    name: orchestrator-r2-evidence

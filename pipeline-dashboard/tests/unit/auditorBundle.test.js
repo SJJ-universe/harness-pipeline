@@ -320,7 +320,7 @@ test("GOV-AUDIT-0: verifyBundle reports broken chain inside bundle", () => {
 });
 
 test("GOV-AUDIT-0: verifyBundle rejects unknown schema", () => {
-  const result = auditor.verifyBundle({ schema: "harness-junk/v0", entries: [] }, null);
+  const result = auditor.verifyBundle({ schema: "orchestrator-junk/v0", entries: [] }, null);
   assert.equal(result.ok, false);
   assert.equal(result.reason, "unknown_schema");
 });

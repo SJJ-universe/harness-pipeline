@@ -158,7 +158,7 @@ class ApprovalManager {
    *   for `approval_requested` + `approval_resolved` events. WS
    *   handler subscribes here.
    * @param {number} [opts.timeoutMs] — default per-request TTL.
-   *   Falls back to env `HARNESS_REMOTE_APPROVAL_TIMEOUT_MS`, then
+   *   Falls back to env `ORCHESTRATOR_REMOTE_APPROVAL_TIMEOUT_MS`, then
    *   to DEFAULT_APPROVAL_TIMEOUT_MS (30000).
    * @param {function} [opts.setTimeoutFn=setTimeout] — testable
    *   timer scheduling.
@@ -181,7 +181,7 @@ class ApprovalManager {
     // (Phase E1.5 D-spec Section 3 calls it out as configurable).
     let timeoutMs = opts.timeoutMs;
     if (typeof timeoutMs !== "number" || !Number.isFinite(timeoutMs) || timeoutMs <= 0) {
-      const envRaw = process.env.HARNESS_REMOTE_APPROVAL_TIMEOUT_MS;
+      const envRaw = process.env.ORCHESTRATOR_REMOTE_APPROVAL_TIMEOUT_MS;
       const envParsed = Number(envRaw);
       timeoutMs = (Number.isFinite(envParsed) && envParsed > 0) ? envParsed : DEFAULT_APPROVAL_TIMEOUT_MS;
     }

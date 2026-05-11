@@ -37,7 +37,7 @@ class SkillInjector {
     lines.push("");
     lines.push(`## Your Role`);
     lines.push(
-      `You are the critic for phase "${phase.id}" in an automated harness ` +
+      `You are the critic for phase "${phase.id}" in an automated orchestrator ` +
         `pipeline. Review the current state and report concrete issues — ` +
         `do not rewrite or apologize.`
     );

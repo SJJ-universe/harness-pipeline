@@ -1,7 +1,7 @@
 // Slice UI-H2 (Phase D / Phase E1.5, 2026-04-30) — horse state machine.
 //
 // Pure function that maps run state into a (laneIdx, displayState)
-// tuple the harness-track panel renders. Splitting the state out
+// tuple the orchestrator-track panel renders. Splitting the state out
 // from the DOM panel keeps the transition logic testable without a
 // browser + makes future variations (public-sector reduced-motion,
 // "policy gate timeline") additive rather than embedded.
@@ -17,7 +17,7 @@
 //                        Execute   → laneIdx 4  (Claude)
 //                        Verify    → laneIdx 5  (Verifier)
 //                        Done      → laneIdx 6  (System)
-//                      Aliases (the harness uses these in production):
+//                      Aliases (the orchestrator uses these in production):
 //                        plan / planning           → 0
 //                        critique / critic         → 1
 //                        revise / revision         → 2

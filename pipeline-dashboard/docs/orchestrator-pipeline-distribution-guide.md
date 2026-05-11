@@ -1,4 +1,4 @@
-# Harness Pipeline 배포용 통합 가이드
+# Orchestrator Pipeline 배포용 통합 가이드
 
 > 배포 문서 초안. 이 문서는 Markdown 원본으로 관리하고, 배포 시 PDF로 변환해 함께 제공할 수 있다.
 >
@@ -42,7 +42,7 @@
 
 ## 1. 문서의 목적
 
-이 문서는 Harness Pipeline을 처음 접하는 사람도 도구의 목적, 기능, 사용법, 보안 구조, 배포 방식, 감사 절차를 이해할 수 있도록 만든 통합 가이드다.
+이 문서는 Orchestrator Pipeline을 처음 접하는 사람도 도구의 목적, 기능, 사용법, 보안 구조, 배포 방식, 감사 절차를 이해할 수 있도록 만든 통합 가이드다.
 
 이 문서는 두 종류의 독자를 동시에 고려한다.
 
@@ -55,7 +55,7 @@
 
 ## 2. 한 줄 설명
 
-Harness Pipeline은 Claude Code와 Codex 같은 AI 개발 도구를 한 화면에서 실행, 관찰, 검토, 승인, 기록할 수 있게 해주는 AI 작업 관제 대시보드다.
+Orchestrator Pipeline은 Claude Code와 Codex 같은 AI 개발 도구를 한 화면에서 실행, 관찰, 검토, 승인, 기록할 수 있게 해주는 AI 작업 관제 대시보드다.
 
 더 쉽게 말하면 다음과 같다.
 
@@ -77,7 +77,7 @@ Claude Code나 Codex 같은 AI CLI 도구는 강력하다. 개발자는 터미�
 - 개인정보가 포함된 데이터가 AI에게 전달될 위험이 있다.
 - 공공기관이나 회사 내부망에서는 감사 기록과 실행 통제가 필요하다.
 
-Harness Pipeline은 이런 문제를 해결하기 위해 만들어졌다.
+Orchestrator Pipeline은 이런 문제를 해결하기 위해 만들어졌다.
 
 핵심 목표는 AI 모델 자체를 바꾸는 것이 아니다. AI가 하는 일을 사람이 이해하고 통제할 수 있도록 운영 구조를 만드는 것이다.
 
@@ -137,7 +137,7 @@ AI가 어떤 데이터를 봤고, 어떤 작업을 했고, 무엇이 차단되�
 
 CLI만 사용할 때는 AI가 출력하는 로그를 사람이 직접 읽어야 한다. 작업이 짧고 단순하다면 이 방식도 충분하다. 그러나 여러 파일을 수정하고, 테스트를 돌리고, 다른 AI에게 검토를 맡기고, 다시 수정하는 흐름이 길어지면 터미널 로그만으로는 현재 상태를 판단하기 어렵다. 무엇이 이미 끝났고, 무엇이 실패했으며, 어떤 판단이 아직 사람의 승인을 기다리는지 한눈에 보이지 않는다.
 
-Harness Pipeline은 이 문제를 화면 구조로 해결한다. Simple UI는 일반 사용자가 지금 필요한 정보만 보도록 카드 형태로 상태를 보여주고, Advanced UI는 개발자와 운영자가 run, agent, audit, approval, review session을 더 깊게 볼 수 있도록 구성된다. Harness Track은 작업 단계를 시각적으로 보여주며, Run Viewer는 끝난 작업을 나중에 다시 열어 실행 요약, 리뷰, 승인, 감사 로그를 함께 확인하게 해준다.
+Orchestrator Pipeline은 이 문제를 화면 구조로 해결한다. Simple UI는 일반 사용자가 지금 필요한 정보만 보도록 카드 형태로 상태를 보여주고, Advanced UI는 개발자와 운영자가 run, agent, audit, approval, review session을 더 깊게 볼 수 있도록 구성된다. Orchestrator Track은 작업 단계를 시각적으로 보여주며, Run Viewer는 끝난 작업을 나중에 다시 열어 실행 요약, 리뷰, 승인, 감사 로그를 함께 확인하게 해준다.
 
 즉 이 도구의 첫 번째 가치는 “AI가 무엇을 하고 있는지 보이는 것”이다. 보이는 작업은 설명할 수 있고, 설명할 수 있는 작업은 검토할 수 있으며, 검토할 수 있는 작업은 조직 안에서 운영할 수 있다.
 
@@ -145,13 +145,13 @@ Harness Pipeline은 이 문제를 화면 구조로 해결한다. Simple UI는 �
 
 Bash, Write, Edit 같은 작업은 시스템에 직접 영향을 줄 수 있다. 파일을 바꾸거나 명령을 실행하는 기능은 AI 개발 도구의 강력한 장점이지만, 동시에 가장 큰 위험 지점이다. 사람이 의도하지 않은 파일이 수정되거나, 내부 경로가 노출되거나, 삭제 명령이 잘못 실행되면 작은 실수가 큰 사고로 이어질 수 있다.
 
-Harness Pipeline은 이런 작업을 즉시 실행하지 않고 승인 카드로 멈춰 세운다. 승인 카드에는 어떤 도구가 요청되었는지, 어떤 인자가 전달되었는지, PII 탐지 결과가 있는지, 어떤 run에서 나온 요청인지 표시된다. 운영자는 허용 또는 거부를 선택할 수 있고, 시간 초과 시에는 기본적으로 안전한 방향으로 거부하도록 설계할 수 있다.
+Orchestrator Pipeline은 이런 작업을 즉시 실행하지 않고 승인 카드로 멈춰 세운다. 승인 카드에는 어떤 도구가 요청되었는지, 어떤 인자가 전달되었는지, PII 탐지 결과가 있는지, 어떤 run에서 나온 요청인지 표시된다. 운영자는 허용 또는 거부를 선택할 수 있고, 시간 초과 시에는 기본적으로 안전한 방향으로 거부하도록 설계할 수 있다.
 
 이 구조의 핵심은 AI를 불신하는 것이 아니라, 강한 권한을 가진 행동에 인간의 마지막 판단을 두는 것이다. 일반 사용자는 어려운 명령을 모두 이해하지 못해도 “위험 작업이 발생했다”는 사실을 알 수 있고, 개발자나 운영자는 정확한 요청 내용을 보고 판단할 수 있다.
 
 ### 5.3 한 AI의 결과를 다른 AI가 검토하게 한다
 
-AI 하나가 모든 문제를 완벽히 잡아내기는 어렵다. 한 모델은 구현을 빠르게 진행하지만 테스트 누락을 놓칠 수 있고, 다른 모델은 보안 위험이나 회귀 가능성을 더 날카롭게 짚을 수 있다. Harness Pipeline은 이 차이를 제품 기능으로 활용한다.
+AI 하나가 모든 문제를 완벽히 잡아내기는 어렵다. 한 모델은 구현을 빠르게 진행하지만 테스트 누락을 놓칠 수 있고, 다른 모델은 보안 위험이나 회귀 가능성을 더 날카롭게 짚을 수 있다. Orchestrator Pipeline은 이 차이를 제품 기능으로 활용한다.
 
 Review Relay는 Claude가 작성한 계획, 코드 변경, 결과 요약을 Codex에게 넘겨 비평하게 하고, 그 비평을 다시 Claude에게 돌려보내 수정에 반영할 수 있게 하는 흐름이다. 사용자는 두 개의 터미널을 직접 오가며 복사하고 붙여넣지 않아도 된다. Dual Agent Console은 Claude와 Codex의 흐름을 나란히 보여주고, review session은 어느 비평이 어떤 작업에 연결되는지 기록한다.
 
@@ -161,7 +161,7 @@ Review Relay는 Claude가 작성한 계획, 코드 변경, 결과 요약을 Code
 
 AI 작업에서 가장 민감한 문제 중 하나는 개인정보와 내부 정보가 의도치 않게 외부 provider로 전달되는 것이다. 특히 공공기관, 금융, 의료, 교육, 사내망 환경에서는 “편리하게 AI를 쓰는 것”보다 “어떤 데이터가 AI에게 전달되는지 통제할 수 있는가”가 먼저다.
 
-Harness Pipeline은 주민등록번호, 전화번호, 이메일, 카드번호, 사업자등록번호, 운전면허번호, 여권번호 등 한국 환경에서 자주 문제가 되는 개인정보 패턴을 탐지하고 마스킹한다. Inline Scan은 prompt가 AI에게 전달되기 전에 빠르게 검사하고, Deep File Scan은 파일 내용이나 첨부 데이터처럼 더 깊은 검사가 필요한 경계에서 동작한다.
+Orchestrator Pipeline은 주민등록번호, 전화번호, 이메일, 카드번호, 사업자등록번호, 운전면허번호, 여권번호 등 한국 환경에서 자주 문제가 되는 개인정보 패턴을 탐지하고 마스킹한다. Inline Scan은 prompt가 AI에게 전달되기 전에 빠르게 검사하고, Deep File Scan은 파일 내용이나 첨부 데이터처럼 더 깊은 검사가 필요한 경계에서 동작한다.
 
 표준 모드에서는 개인정보 탐지 결과를 경고로 처리할 수 있고, 공공기관 모드에서는 차단으로 처리할 수 있다. 중요한 점은 원문 개인정보를 감사 로그에 남기지 않는다는 것이다. 기록에는 탐지 유형, 차단 여부, 마스킹된 샘플, 정책 판단만 남겨 감사 가능성과 개인정보 최소화를 동시에 추구한다.
 
@@ -169,7 +169,7 @@ Harness Pipeline은 주민등록번호, 전화번호, 이메일, 카드번호, �
 
 조직에서 AI를 사용하려면 결과물만으로는 충분하지 않다. 누가 어떤 작업을 요청했는지, 어떤 도구가 실행되었는지, 어떤 요청이 승인되거나 거부되었는지, 개인정보가 탐지되었는지, 배포 파일이 검증되었는지를 나중에 설명할 수 있어야 한다.
 
-Harness Pipeline은 실행, 승인, 거부, 차단, 개인정보 탐지, 원격 hook, review session, 배포 검증 등의 이벤트를 감사 가능한 형태로 남긴다. Run Viewer는 특정 run의 기록을 화면에서 보여주고, Evidence Bundle은 감사관에게 제출할 수 있는 sealed JSON 봉투로 내보낼 수 있다. 오프라인 verifier는 이 봉투가 변조되지 않았는지 검증한다.
+Orchestrator Pipeline은 실행, 승인, 거부, 차단, 개인정보 탐지, 원격 hook, review session, 배포 검증 등의 이벤트를 감사 가능한 형태로 남긴다. Run Viewer는 특정 run의 기록을 화면에서 보여주고, Evidence Bundle은 감사관에게 제출할 수 있는 sealed JSON 봉투로 내보낼 수 있다. 오프라인 verifier는 이 봉투가 변조되지 않았는지 검증한다.
 
 이 감사 구조는 공공기관 배포에서 특히 중요하다. AI 사용이 문제가 되었을 때 “AI가 알아서 했다”는 말은 충분한 설명이 되지 않는다. 어떤 정책이 있었고, 어떤 요청이 차단되었고, 사람이 어떤 결정을 내렸는지 남아 있어야 한다.
 
@@ -179,7 +179,7 @@ Harness Pipeline은 실행, 승인, 거부, 차단, 개인정보 탐지, 원격 
 
 ### 6.1 실행 및 배포
 
-Harness Pipeline은 배포자가 복잡한 컨테이너 이미지를 요구하지 않고도 사용자에게 전달할 수 있도록 설계되었다. Windows에서는 `harness-start.bat`, macOS/Linux에서는 `harness-start.sh`가 진입점 역할을 한다. 사용자는 배포받은 폴더에서 실행 파일을 누르거나 명령을 실행하면 되고, 런처는 Node.js 버전 확인, 설치 모드 판단, 서버 시작, health check, 브라우저 오픈을 순서대로 처리한다.
+Orchestrator Pipeline은 배포자가 복잡한 컨테이너 이미지를 요구하지 않고도 사용자에게 전달할 수 있도록 설계되었다. Windows에서는 `orchestrator-start.bat`, macOS/Linux에서는 `orchestrator-start.sh`가 진입점 역할을 한다. 사용자는 배포받은 폴더에서 실행 파일을 누르거나 명령을 실행하면 되고, 런처는 Node.js 버전 확인, 설치 모드 판단, 서버 시작, health check, 브라우저 오픈을 순서대로 처리한다.
 
 배포 방식은 크게 두 가지다. 첫 번째는 release zip에 필요한 파일을 모두 담아 전달하는 방식이다. 이 경우 사용자는 압축을 풀고 바로 실행할 수 있다. 두 번째는 manifest 기반 bootstrap 방식이다. 이 방식에서는 작은 런처가 manifest를 읽고, 지정된 release zip을 내려받은 뒤 SHA256으로 무결성을 검증한다.
 
@@ -191,11 +191,11 @@ UI는 처음부터 두 종류의 사용자를 모두 고려한다. 일반 사용
 
 Simple UI는 카드 중심 화면이다. “지금 AI가 하는 일”, “승인 필요”, “최근 결과”, “연결 상태”, “보안 상태”처럼 사용자가 바로 판단해야 하는 항목을 전면에 둔다. Advanced UI는 개발자와 운영자를 위한 상세 화면이다. 작업 흐름, agent 상태, dual agent console, audit stream, approval card, settings/account panel을 함께 보여준다.
 
-Legacy mode는 기존 화면을 그대로 우회해 보여주는 호환 모드다. UI를 새로 도입하는 과정에서도 기존 운영 방식을 깨지 않도록 하기 위한 안전장치다. Harness Track은 작업 단계를 시각적으로 보여주는 장치이며, Run Viewer는 끝난 작업을 다시 열어 실행, 리뷰, 승인, 감사 기록을 확인하는 상세 화면이다.
+Legacy mode는 기존 화면을 그대로 우회해 보여주는 호환 모드다. UI를 새로 도입하는 과정에서도 기존 운영 방식을 깨지 않도록 하기 위한 안전장치다. Orchestrator Track은 작업 단계를 시각적으로 보여주는 장치이며, Run Viewer는 끝난 작업을 다시 열어 실행, 리뷰, 승인, 감사 기록을 확인하는 상세 화면이다.
 
 ### 6.3 AI 협업
 
-Harness Pipeline의 AI 협업 기능은 Claude와 Codex를 단순히 동시에 실행하는 수준을 목표로 하지 않는다. 핵심은 역할 분리다. Claude가 구현, 수정, 계획 작성을 맡고, Codex가 비평, 검토, 위험 분석, 대안 제시를 맡는 식으로 작업을 구성할 수 있다.
+Orchestrator Pipeline의 AI 협업 기능은 Claude와 Codex를 단순히 동시에 실행하는 수준을 목표로 하지 않는다. 핵심은 역할 분리다. Claude가 구현, 수정, 계획 작성을 맡고, Codex가 비평, 검토, 위험 분석, 대안 제시를 맡는 식으로 작업을 구성할 수 있다.
 
 Review session은 이 협업 흐름의 단위다. 운영자는 session을 만들고, Claude의 산출물을 Codex에게 보내 비평을 요청할 수 있다. Codex 응답에 대해 추가 질문을 던질 수 있으며, 충분한 검토가 끝나면 그 비평을 다시 Claude에게 넘겨 수정하도록 할 수 있다. 작업이 끝난 session은 archive하여 나중에 run viewer나 감사 흐름에서 추적할 수 있다.
 
@@ -203,7 +203,7 @@ Review session은 이 협업 흐름의 단위다. 운영자는 session을 만들
 
 ### 6.4 계정 및 프로필
 
-프로필 기능은 배포형 도구에서 매우 중요하다. 사용자가 개인 Claude/Codex 계정을 쓰는 경우와, 기관이 승인한 계정 또는 runner를 쓰는 경우는 보안 요구가 다르다. Harness Pipeline은 프로필을 통해 계정, credential, 실행 정책, deployment posture를 분리한다.
+프로필 기능은 배포형 도구에서 매우 중요하다. 사용자가 개인 Claude/Codex 계정을 쓰는 경우와, 기관이 승인한 계정 또는 runner를 쓰는 경우는 보안 요구가 다르다. Orchestrator Pipeline은 프로필을 통해 계정, credential, 실행 정책, deployment posture를 분리한다.
 
 사용자는 여러 프로필을 만들고 active profile을 선택할 수 있다. 프로필은 Claude와 Codex provider 설정, credential backend, public-sector 정책 여부, sandbox 요구사항 등을 담을 수 있다. 계정 연결 상태는 UI에서 테스트할 수 있으며, active run이 있는 동안 중요한 프로필 변경을 막는 정책도 적용할 수 있다.
 
@@ -231,7 +231,7 @@ Credential store는 profile store와 분리되어야 한다. 프로필은 “어
 
 ### 7.1 처음 실행
 
-일반 사용자는 복잡한 설치 절차를 알 필요가 없다. 배포자가 제공한 폴더를 열고, 운영체제에 맞는 시작 파일을 실행하면 된다. Windows 사용자는 `harness-start.bat`를 실행하고, macOS/Linux 사용자는 `harness-start.sh`를 실행한다.
+일반 사용자는 복잡한 설치 절차를 알 필요가 없다. 배포자가 제공한 폴더를 열고, 운영체제에 맞는 시작 파일을 실행하면 된다. Windows 사용자는 `orchestrator-start.bat`를 실행하고, macOS/Linux 사용자는 `orchestrator-start.sh`를 실행한다.
 
 런처는 내부적으로 Node.js 버전을 확인하고, 필요한 실행 파일이 있는지 확인한 뒤 대시보드 서버를 시작한다. 서버가 정상적으로 준비되면 브라우저가 자동으로 열리고, 사용자는 웹 화면에서 작업을 시작할 수 있다. 처음 실행한 사용자에게는 welcome/setup 안내가 표시되어 계정 연결, 프로필 선택, 보안 상태 확인 같은 기본 설정을 차례대로 진행하게 한다.
 
@@ -249,7 +249,7 @@ Credential store는 profile store와 분리되어야 한다. 프로필은 “어
 
 일반 사용자는 Simple UI에서 현재 상태를 먼저 확인한다. 보안 상태 카드가 정상인지, 연결 상태가 준비되었는지, 승인 대기 작업이 있는지 확인한 뒤 AI 작업을 시작한다. 작업은 Claude에게 맡길 수도 있고, 이미 작성된 결과나 계획을 Codex에게 검토시킬 수도 있다.
 
-중요한 점은 사용자가 모든 내부 로그를 직접 따라갈 필요가 없다는 것이다. Harness Track은 작업이 계획, 검토, 수정, 실행, 검증 중 어느 단계에 있는지 보여준다. 승인 카드가 나타나면 위험한 작업이 요청되었다는 뜻이므로, 사용자는 내용을 확인하고 허용 또는 거부를 선택한다.
+중요한 점은 사용자가 모든 내부 로그를 직접 따라갈 필요가 없다는 것이다. Orchestrator Track은 작업이 계획, 검토, 수정, 실행, 검증 중 어느 단계에 있는지 보여준다. 승인 카드가 나타나면 위험한 작업이 요청되었다는 뜻이므로, 사용자는 내용을 확인하고 허용 또는 거부를 선택한다.
 
 작업이 끝나면 최근 결과 카드에서 결과를 다시 열 수 있다. 여기서 단순한 성공/실패만 보는 것이 아니라 어떤 검토가 있었는지, 어떤 승인 요청이 있었는지, 보안 이벤트가 있었는지도 함께 확인할 수 있다.
 
@@ -267,11 +267,11 @@ Review 섹션에서는 Claude와 Codex 사이의 검토 흐름을 확인한다. 
 
 ### 8.1 개발자에게 이 도구가 주는 가치
 
-Harness Pipeline은 Claude Code나 Codex CLI를 대체하지 않는다. 두 도구를 더 안전하고 체계적으로 운영하기 위한 상위 레이어다.
+Orchestrator Pipeline은 Claude Code나 Codex CLI를 대체하지 않는다. 두 도구를 더 안전하고 체계적으로 운영하기 위한 상위 레이어다.
 
-개발자는 CLI를 직접 사용하는 데 익숙하다. 그래서 단순히 “예쁜 화면”만 제공한다면 이 도구를 쓸 이유가 약하다. Harness Pipeline이 개발자에게 주는 가치는 화면보다 운영 구조에 있다. Claude와 Codex의 역할을 분리하고, 구현과 비평의 반복 루프를 만들고, 위험 작업을 승인 게이트로 묶고, run 단위로 추적 가능한 기록을 남긴다.
+개발자는 CLI를 직접 사용하는 데 익숙하다. 그래서 단순히 “예쁜 화면”만 제공한다면 이 도구를 쓸 이유가 약하다. Orchestrator Pipeline이 개발자에게 주는 가치는 화면보다 운영 구조에 있다. Claude와 Codex의 역할을 분리하고, 구현과 비평의 반복 루프를 만들고, 위험 작업을 승인 게이트로 묶고, run 단위로 추적 가능한 기록을 남긴다.
 
-예를 들어 Claude에게 기능 구현을 맡긴 뒤 Codex에게 변경 위험을 비평하게 할 수 있다. Codex가 누락된 테스트, 잘못된 보안 가정, 회귀 가능성을 지적하면 그 비평을 다시 Claude에게 넘겨 수정하도록 할 수 있다. 이 흐름은 사람이 직접 두 터미널을 오가며 복사/붙여넣기해도 가능하지만, Harness Pipeline은 그것을 review session과 audit event로 구조화한다.
+예를 들어 Claude에게 기능 구현을 맡긴 뒤 Codex에게 변경 위험을 비평하게 할 수 있다. Codex가 누락된 테스트, 잘못된 보안 가정, 회귀 가능성을 지적하면 그 비평을 다시 Claude에게 넘겨 수정하도록 할 수 있다. 이 흐름은 사람이 직접 두 터미널을 오가며 복사/붙여넣기해도 가능하지만, Orchestrator Pipeline은 그것을 review session과 audit event로 구조화한다.
 
 또한 개발자는 profile 기반 계정 분리를 통해 개인 작업과 기관 작업을 분리할 수 있다. 원격 runner와 sandbox 기반 확장을 통해 로컬 PC가 아닌 통제된 환경에서 AI 작업을 실행하는 방향으로 확장할 수도 있다.
 
@@ -310,7 +310,7 @@ Dual Agent Console은 이 도구의 개발자 경험에서 가장 중요한 영�
 
 공공기관 모드는 AI가 로컬 PC나 내부 데이터를 임의로 다루지 못하게 하기 위한 정책 모드다.
 
-핵심은 “AI 사용을 금지하는 것”이 아니라 “통제 가능한 조건에서만 AI 사용을 허용하는 것”이다. 공공기관이나 사내망 환경에서는 사용자의 편의보다 정보보호, 개인정보 최소화, 감사 가능성, 배포 신뢰성이 우선한다. Harness Pipeline은 이러한 요구를 public-sector posture로 묶어 정책화한다.
+핵심은 “AI 사용을 금지하는 것”이 아니라 “통제 가능한 조건에서만 AI 사용을 허용하는 것”이다. 공공기관이나 사내망 환경에서는 사용자의 편의보다 정보보호, 개인정보 최소화, 감사 가능성, 배포 신뢰성이 우선한다. Orchestrator Pipeline은 이러한 요구를 public-sector posture로 묶어 정책화한다.
 
 공공기관 모드에서는 로컬 executor를 차단하고 sandbox workspace 또는 기관이 승인한 runner를 요구할 수 있다. prompt dispatch 전에는 개인정보 inline scan을 수행하고, 파일 import 경계에서는 deep scan을 수행한다. Bash, Write, Edit 같은 위험 도구는 승인 없이 실행되지 않으며, 중요한 판단은 audit ledger에 기록된다. 배포물 역시 manifest signature와 trust store를 통해 검증하는 흐름을 갖는다.
 
@@ -373,9 +373,9 @@ Advanced UI는 반복 작업과 문제 해결을 위한 화면이다. 개발자�
 
 이 화면은 정보 밀도가 높아야 하지만 무질서하면 안 된다. 작업 흐름, 실행 로그, 검토 세션, 승인 요청, 감사 이벤트가 서로 다른 의미를 갖기 때문에 영역별 구분이 중요하다. 특히 dual agent console은 Claude와 Codex를 단순히 나란히 보여주는 데서 끝나지 않고, review relay action을 수행할 수 있는 조작면이 되어야 한다.
 
-### 10.3 Harness Track
+### 10.3 Orchestrator Track
 
-Harness Track은 작업 단계를 시각적으로 보여준다. 애니메이션은 실제 작업 상태에 연결되어 있으며, 진행 상황을 임의로 꾸며내지 않는다.
+Orchestrator Track은 작업 단계를 시각적으로 보여준다. 애니메이션은 실제 작업 상태에 연결되어 있으며, 진행 상황을 임의로 꾸며내지 않는다.
 
 대표 단계:
 
@@ -387,7 +387,7 @@ Harness Track은 작업 단계를 시각적으로 보여준다. 애니메이션�
 - Verify
 - Done
 
-Harness Track의 목적은 사용자가 긴 작업 중에도 현재 위치를 잃지 않게 하는 것이다. AI 작업은 중간 출력이 많고, 때로는 멈춘 것처럼 보이기도 한다. Track은 작업이 계획 중인지, 비평 중인지, 수정 중인지, 검증 중인지 단계로 보여준다.
+Orchestrator Track의 목적은 사용자가 긴 작업 중에도 현재 위치를 잃지 않게 하는 것이다. AI 작업은 중간 출력이 많고, 때로는 멈춘 것처럼 보이기도 한다. Track은 작업이 계획 중인지, 비평 중인지, 수정 중인지, 검증 중인지 단계로 보여준다.
 
 애니메이션은 보조적 요소다. 시각적으로 매력적인 움직임은 사용자가 작업 진행을 체감하는 데 도움이 되지만, 실제 상태와 무관하게 움직이면 신뢰를 해친다. 따라서 Track은 가능한 한 실제 state machine과 연결되어야 하며, reduced-motion 환경이나 public-sector posture에서는 차분한 표현을 사용해야 한다.
 
@@ -444,7 +444,7 @@ Claude가 만든 계획이나 결과를 Codex에게 비평시키고, 그 비평�
 
 AI가 파일을 수정하거나 명령을 실행하는 것은 강력하지만 위험하다. 잘못된 명령은 파일을 삭제하거나, 보안 정보를 노출하거나, 시스템 상태를 바꿀 수 있다.
 
-Harness Pipeline은 이런 작업을 승인 카드로 멈춰 세운다.
+Orchestrator Pipeline은 이런 작업을 승인 카드로 멈춰 세운다.
 
 ### 12.2 승인 대상
 
@@ -477,7 +477,7 @@ Harness Pipeline은 이런 작업을 승인 카드로 멈춰 세운다.
 
 ### 13.1 탐지 목적
 
-AI에게 개인정보가 포함된 데이터를 보내면 조직과 기관에 큰 위험이 된다. Harness Pipeline은 prompt dispatch 전과 file import 경계에서 개인정보를 탐지한다.
+AI에게 개인정보가 포함된 데이터를 보내면 조직과 기관에 큰 위험이 된다. Orchestrator Pipeline은 prompt dispatch 전과 file import 경계에서 개인정보를 탐지한다.
 
 ### 13.2 탐지 대상 예시
 
@@ -517,7 +517,7 @@ AI에게 prompt를 보내기 전에 빠르게 검사한다.
 
 AI 작업은 결과만 중요한 것이 아니다. 누가 어떤 작업을 요청했고, 어떤 작업이 승인되었고, 무엇이 차단되었는지도 중요하다.
 
-Harness Pipeline은 이런 흐름을 audit ledger에 남긴다.
+Orchestrator Pipeline은 이런 흐름을 audit ledger에 남긴다.
 
 ### 14.2 기록되는 대표 이벤트
 
@@ -563,9 +563,9 @@ node scripts/verify-auditor-bundle.js bundle.json --key <hex>
 대표 구성:
 
 ```text
-harness-pipeline-<version>/
-  harness-start.bat
-  harness-start.sh
+orchestrator-pipeline-<version>/
+  orchestrator-start.bat
+  orchestrator-start.sh
   server.js
   start.js
   node_modules/
@@ -579,13 +579,13 @@ harness-pipeline-<version>/
 ### 15.2 Windows 실행
 
 ```powershell
-.\harness-start.bat
+.\orchestrator-start.bat
 ```
 
 ### 15.3 macOS/Linux 실행
 
 ```bash
-./harness-start.sh
+./orchestrator-start.sh
 ```
 
 ### 15.4 필수 조건
@@ -681,8 +681,8 @@ Exit codes:
 E3-F1 라운드가 마감되면:
 - `install-version.ps1` + `install-version.sh`가 SHA256 검증 직후에 signature 검증을 자동 수행 (수동 명령 불필요).
 - production posture에서 unsigned manifest = exit 37 (install 거부), 알 수 없는 keyId = exit 38.
-- dev escape `HARNESS_ALLOW_UNSIGNED_MANIFEST=1`은 standard 모드에서만 허용 + LOUD warning + audit chain 기록; public-sector 모드는 escape 무시.
-- trust-store path resolver는 `HARNESS_TRUST_STORE` env > `HARNESS_CONFIG_DIR/trust-store.json` > Windows AppData / Mac Library / Linux ~/.config 순서로 결정 — UI와 launcher가 같은 resolver 사용으로 single source of truth 보장.
+- dev escape `ORCHESTRATOR_ALLOW_UNSIGNED_MANIFEST=1`은 standard 모드에서만 허용 + LOUD warning + audit chain 기록; public-sector 모드는 escape 무시.
+- trust-store path resolver는 `ORCHESTRATOR_TRUST_STORE` env > `ORCHESTRATOR_CONFIG_DIR/trust-store.json` > Windows AppData / Mac Library / Linux ~/.config 순서로 결정 — UI와 launcher가 같은 resolver 사용으로 single source of truth 보장.
 
 ---
 
@@ -984,9 +984,9 @@ node scripts/sign-manifest.js verify --manifest manifest.json --trust-store keys
 
 ## 23. 자주 묻는 질문
 
-### Q1. Harness Pipeline은 Claude Code나 Codex를 대체하나요?
+### Q1. Orchestrator Pipeline은 Claude Code나 Codex를 대체하나요?
 
-아니다. Harness Pipeline은 Claude Code와 Codex를 더 안전하고 체계적으로 사용하기 위한 운영 대시보드다.
+아니다. Orchestrator Pipeline은 Claude Code와 Codex를 더 안전하고 체계적으로 사용하기 위한 운영 대시보드다.
 
 ### Q2. 일반 사용자도 사용할 수 있나요?
 
@@ -1044,7 +1044,7 @@ manifest의 SHA256과 Ed25519 signature를 검증한다. 기관 배포 시 trust
 
 ## 25. 용어 사전
 
-### Harness Pipeline
+### Orchestrator Pipeline
 
 AI 작업을 실행, 관찰, 검토, 승인, 기록하는 대시보드.
 
@@ -1095,13 +1095,13 @@ Claude와 Codex 사이의 검토 흐름을 묶는 세션.
 ### 26.1 Windows 실행
 
 ```powershell
-.\harness-start.bat
+.\orchestrator-start.bat
 ```
 
 ### 26.2 macOS/Linux 실행
 
 ```bash
-./harness-start.sh
+./orchestrator-start.sh
 ```
 
 ### 26.3 manifest key 생성
@@ -1149,7 +1149,7 @@ npm run scorecard:check
 Markdown 원본을 PDF로 변환할 때는 조직의 문서 표준에 맞는 도구를 사용한다. 예를 들어 `pandoc`이 설치되어 있다면 다음과 같이 변환할 수 있다.
 
 ```powershell
-pandoc docs/harness-pipeline-distribution-guide.md -o Harness-Pipeline-Guide.pdf
+pandoc docs/orchestrator-pipeline-distribution-guide.md -o Orchestrator-Pipeline-Guide.pdf
 ```
 
 PDF로 배포할 때도 Markdown 원본을 함께 보관하는 것을 권장한다.
@@ -1158,7 +1158,7 @@ PDF로 배포할 때도 Markdown 원본을 함께 보관하는 것을 권장한�
 
 ## 27. 부록: 오픈소스 구성과 라이선스 고지
 
-Harness Pipeline은 Node.js 기반 도구이며, 일부 기능은 오픈소스 라이브러리 위에 구축되어 있다. 배포 문서에는 어떤 오픈소스를 사용했는지, 어떤 라이선스가 적용되는지, 각 구성 요소가 어떤 역할을 하는지 명시하는 것이 좋다. 특히 공공기관이나 기업 배포에서는 기능 설명만큼이나 소프트웨어 구성 목록과 라이선스 고지가 중요하다.
+Orchestrator Pipeline은 Node.js 기반 도구이며, 일부 기능은 오픈소스 라이브러리 위에 구축되어 있다. 배포 문서에는 어떤 오픈소스를 사용했는지, 어떤 라이선스가 적용되는지, 각 구성 요소가 어떤 역할을 하는지 명시하는 것이 좋다. 특히 공공기관이나 기업 배포에서는 기능 설명만큼이나 소프트웨어 구성 목록과 라이선스 고지가 중요하다.
 
 이 절의 목록은 현재 `package-lock.json`에 고정된 npm dependency 기준이다. 버전 업데이트, dependency 추가, lockfile 재생성 이후에는 반드시 이 표를 다시 확인해야 한다.
 
@@ -1178,7 +1178,7 @@ Harness Pipeline은 Node.js 기반 도구이며, 일부 기능은 오픈소스 �
 
 직접 의존성은 `package.json`에 명시된 패키지다. 이 도구의 핵심 런타임 기능과 직접 연결되므로, 일반 사용자용 문서보다 개발자/운영자용 문서에서 조금 더 깊게 설명해야 한다.
 
-| 패키지 | 버전 | 라이선스 | Harness Pipeline에서의 역할 |
+| 패키지 | 버전 | 라이선스 | Orchestrator Pipeline에서의 역할 |
 |---|---:|---|---|
 | `express` | 5.2.1 | MIT | 대시보드 서버와 REST API를 제공한다. profile, review session, approval, audit, security scan 같은 HTTP endpoint의 기반이다. |
 | `ws` | 8.20.0 | MIT | WebSocket 실시간 통신을 담당한다. run 상태, agent 출력, review stream, approval 변화 같은 이벤트를 브라우저로 전달한다. |
@@ -1188,11 +1188,11 @@ Harness Pipeline은 Node.js 기반 도구이며, 일부 기능은 오픈소스 �
 
 `ws`는 실시간성을 제공한다. AI 작업은 긴 시간 동안 출력이 조금씩 흘러나오는 형태가 많다. HTTP polling만 사용하면 지연이 크고 서버 부담이 커질 수 있다. WebSocket은 runner 출력과 상태 변화를 즉시 UI에 전달해 “지금 AI가 무엇을 하고 있는지”를 사용자가 볼 수 있게 한다.
 
-`node-pty`는 Claude Code와 Codex 같은 CLI 도구를 대시보드 안으로 끌어오는 핵심 구성 요소다. 일반 child process와 달리 pty는 터미널 환경을 흉내 내므로, CLI 도구가 기대하는 입출력 방식과 더 잘 맞는다. 이 패키지는 편의 기능이 아니라 Harness Pipeline의 핵심 실행 브릿지에 해당한다.
+`node-pty`는 Claude Code와 Codex 같은 CLI 도구를 대시보드 안으로 끌어오는 핵심 구성 요소다. 일반 child process와 달리 pty는 터미널 환경을 흉내 내므로, CLI 도구가 기대하는 입출력 방식과 더 잘 맞는다. 이 패키지는 편의 기능이 아니라 Orchestrator Pipeline의 핵심 실행 브릿지에 해당한다.
 
 ### 27.3 전체 dependency inventory
 
-아래 표는 lockfile 기준 전체 npm dependency 목록이다. “역할”은 Harness Pipeline에서 직접 호출한다는 뜻이 아니라, 의존성 그래프 안에서 어떤 종류의 기능을 제공하는지 설명한 것이다.
+아래 표는 lockfile 기준 전체 npm dependency 목록이다. “역할”은 Orchestrator Pipeline에서 직접 호출한다는 뜻이 아니라, 의존성 그래프 안에서 어떤 종류의 기능을 제공하는지 설명한 것이다.
 
 | 패키지 | 버전 | 라이선스 | 역할 |
 |---|---:|---|---|
@@ -1287,7 +1287,7 @@ Harness Pipeline은 Node.js 기반 도구이며, 일부 기능은 오픈소스 �
 
 ## 결론
 
-Harness Pipeline은 AI를 더 편하게 쓰기 위한 단순 UI가 아니다.
+Orchestrator Pipeline은 AI를 더 편하게 쓰기 위한 단순 UI가 아니다.
 
 이 도구는 AI 작업을 사람이 이해할 수 있는 흐름으로 만들고, 위험한 행동을 승인 절차로 묶고, 개인정보와 감사 요구를 반영하며, Claude와 Codex가 서로 검토하는 작업 구조를 제공한다.
 

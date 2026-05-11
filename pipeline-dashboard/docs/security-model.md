@@ -2,11 +2,11 @@
 
 ## Trust Boundary
 
-This project is a single-user local harness by default. The trusted boundary is the local machine and the loopback network interface (`127.0.0.1`, `::1`, `::ffff:127.0.0.1`, the entire `127.0.0.0/8` block). Remote access is disabled unless `HARNESS_ALLOW_REMOTE=1` is set explicitly; the auth middleware rejects every non-loopback request even when `HARNESS_HOST=0.0.0.0`.
+This project is a single-user local orchestrator by default. The trusted boundary is the local machine and the loopback network interface (`127.0.0.1`, `::1`, `::ffff:127.0.0.1`, the entire `127.0.0.0/8` block). Remote access is disabled unless `ORCHESTRATOR_ALLOW_REMOTE=1` is set explicitly; the auth middleware rejects every non-loopback request even when `ORCHESTRATOR_HOST=0.0.0.0`.
 
 ## Token Auth
 
-State-changing HTTP methods (`POST`, `PUT`, `PATCH`, `DELETE`) require the `x-harness-token` header. The token comes from `HARNESS_TOKEN` (env) or `.harness/local-token` (auto-generated 32-byte hex on first boot, mode `0o600`, ignored by `.gitignore`). `safeEqual` uses `crypto.timingSafeEqual` so token comparison cannot be timed.
+State-changing HTTP methods (`POST`, `PUT`, `PATCH`, `DELETE`) require the `x-orchestrator-token` header. The token comes from `ORCHESTRATOR_TOKEN` (env) or `.harness/local-token` (auto-generated 32-byte hex on first boot, mode `0o600`, ignored by `.gitignore`). `safeEqual` uses `crypto.timingSafeEqual` so token comparison cannot be timed.
 
 The browser fetches the token from `/api/auth/token`, which is loopback-only. Non-loopback callers cannot reach this endpoint, preventing drive-by token disclosure from untrusted origins.
 
@@ -15,8 +15,8 @@ The browser fetches the token from `/api/auth/token`, which is loopback-only. No
 `server.js` runs `verifyWsConnection(req)` at the start of `wss.on("connection")` so BOTH the `/terminal` subpath and the pipeline event WebSocket follow the same policy:
 
 - loopback remote address → always pass (frictionless local dev)
-- non-loopback + `HARNESS_ALLOW_REMOTE=0` → close with code 1008 ("non-loopback ws disabled")
-- non-loopback + `HARNESS_ALLOW_REMOTE=1` → require valid `?token=…` query param AND (when present) a trusted `Origin` header (loopback or the configured host)
+- non-loopback + `ORCHESTRATOR_ALLOW_REMOTE=0` → close with code 1008 ("non-loopback ws disabled")
+- non-loopback + `ORCHESTRATOR_ALLOW_REMOTE=1` → require valid `?token=…` query param AND (when present) a trusted `Origin` header (loopback or the configured host)
 
 Before this slice the pipeline WS accepted any connection without an auth check, so a remote attacker on an opened-up dashboard could subscribe to broadcasts (tool calls, findings, checkpoints). That gap is closed.
 

@@ -1,6 +1,6 @@
 // Slice D1-b (Phase E1 productization, 2026-04-29) — profile registry.
 //
-// One profile = one "operator identity" the harness uses to launch
+// One profile = one "operator identity" the orchestrator uses to launch
 // Claude/Codex CLIs. A profile bundles:
 //   - id          — short safe handle ("personal", "work-laptop")
 //   - label       — human-readable name (UI display)
@@ -13,7 +13,7 @@
 //                      operator hits "Run")
 //   - createdAt / updatedAt — ISO 8601 timestamps for forensics
 //
-// File layout (`<HARNESS_CONFIG_DIR>/profiles.json`):
+// File layout (`<ORCHESTRATOR_CONFIG_DIR>/profiles.json`):
 //
 //   {
 //     "version": 1,
@@ -30,13 +30,13 @@
 //   *uses*, never the values. The launcher operator-guide tells
 //   operators they can safely include profiles.json in backups
 //   (no secret material). credentials.json is sensitive and
-//   excluded. Keeping the two side-by-side under HARNESS_CONFIG_DIR
+//   excluded. Keeping the two side-by-side under ORCHESTRATOR_CONFIG_DIR
 //   means a future "export-import" feature can ship the public side
 //   without leaking the private side.
 //
 // Concurrency model:
 //
-//   Single-orchestrator-writer. The harness orchestrator is the sole
+//   Single-orchestrator-writer. The orchestrator orchestrator is the sole
 //   process writing this file (no concurrent processes), so no file
 //   lock is needed. We DO use atomic temp→rename so a crash
 //   mid-write never corrupts the file.

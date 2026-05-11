@@ -7,7 +7,7 @@
 // Mode resolution priority (per §S sign-off decision 1):
 //   1. URL ?mode=simple|pro|legacy (legacy already redirected by
 //      server-side branch — never reaches this script)
-//   2. localStorage.getItem("harness:ui-mode")
+//   2. localStorage.getItem("orchestrator:ui-mode")
 //   3. Default "simple" (sign-off decision 1)
 //
 // CSP-compliant — this script lives in a separate file, not inline,
@@ -30,7 +30,7 @@
       if (qs === "advanced") return "pro";
     } catch (_) { /* defensive */ }
     try {
-      const ls = window.localStorage && window.localStorage.getItem("harness:ui-mode");
+      const ls = window.localStorage && window.localStorage.getItem("orchestrator:ui-mode");
       if (ls === "pro" || ls === "simple") return ls;
       if (ls === "advanced") return "pro";
     } catch (_) { /* defensive */ }
@@ -39,7 +39,7 @@
 
   function _persistMode(mode) {
     try {
-      window.localStorage && window.localStorage.setItem("harness:ui-mode", mode);
+      window.localStorage && window.localStorage.setItem("orchestrator:ui-mode", mode);
     } catch (_) { /* defensive — private browsing / quota / etc. */ }
   }
 
@@ -51,13 +51,13 @@
       if (qs === "0" || qs === "false") return false;
     } catch (_) { /* defensive */ }
     try {
-      const ls = window.localStorage && window.localStorage.getItem("harness:demo-mode");
+      const ls = window.localStorage && window.localStorage.getItem("orchestrator:demo-mode");
       return ls === "1" || ls === "true";
     } catch (_) { return false; }
   }
 
   // UI-P7: locale resolution defers to OrchestratorI18n which already owns
-  // the localStorage key (`harness:lang`) and the supported set
+  // the localStorage key (`orchestrator:lang`) and the supported set
   // (`["ko", "en"]`). Falling back to "ko" matches the i18n module's
   // own DEFAULT.
   function _resolveLocale() {
@@ -315,7 +315,7 @@
         },
         // UI-P7: locale toggle in the header → shell.setLocale → here.
         // We delegate persistence to OrchestratorI18n.setLang which writes
-        // `harness:lang` localStorage and dispatches the lang-changed
+        // `orchestrator:lang` localStorage and dispatches the lang-changed
         // CustomEvent that legacy panels also listen on.
         onLocaleChange: function (next) {
           try {

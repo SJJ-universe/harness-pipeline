@@ -2,7 +2,7 @@
 
 Date: 2026-04-27
 Status: Draft approved for spec write-up
-Scope: Monitoring-first UI redesign for the canonical harness dashboard at `pipeline-dashboard`
+Scope: Monitoring-first UI redesign for the canonical orchestrator dashboard at `pipeline-dashboard`
 
 ## 1. Why this exists
 
@@ -321,7 +321,7 @@ This UI spec is intentionally the front door to the next planning wave.
 
 This spec should become one of the canonical repo docs and drive updates to:
 
-- `docs/harness-architecture.md`
+- `docs/orchestrator-architecture.md`
 - `docs/scorecard.md`
 - a future UI/monitor architecture doc
 
@@ -341,7 +341,7 @@ That work becomes the first implementation slice rather than a separate design e
 
 The monitor contracts should reserve room for run origin, isolation class, and remote/container metadata so future remote mode does not force UI contract churn.
 
-### 10.5 Harness readiness / eval bundle
+### 10.5 Orchestrator readiness / eval bundle
 
 Once the monitor shell exists, readiness checks can explicitly score:
 

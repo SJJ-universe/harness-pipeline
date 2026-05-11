@@ -27,7 +27,7 @@ const { parseIntent, MAX_INPUT_LENGTH } = require("../runtime/intentParser");
 // same constant per process makes audit chain traversal predictable —
 // every chat_intent_proposed entry shares this runId so external
 // auditors can filter the chat trail in one query.
-const CHAT_AUDIT_RUN_ID = "harness-chat-intents";
+const CHAT_AUDIT_RUN_ID = "orchestrator-chat-intents";
 
 function createChatIntentRoutes({
   piiScanner = null,           // module exporting scanForPii(text, opts?)

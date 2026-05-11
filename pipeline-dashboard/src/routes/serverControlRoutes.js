@@ -27,10 +27,10 @@ function createServerControlRoutes({
   //   deploymentProfile  — D1-gov-1 resolveDeploymentProfile() result.
   //                        Frozen object with mode + flag posture.
   //   runnerRegistry     — R3-c. Used for activeRunnerCount.
-  //   bridgeMode         — R2.5 HARNESS_REMOTE_BRIDGE_MODE current value
+  //   bridgeMode         — R2.5 ORCHESTRATOR_REMOTE_BRIDGE_MODE current value
   //                        ("off" | "report" | "dispatch"). String only —
   //                        the route doesn't re-resolve env per request.
-  //   remoteMode         — R1 HARNESS_REMOTE_MODE current value
+  //   remoteMode         — R1 ORCHESTRATOR_REMOTE_MODE current value
   //                        ("off" | "preview" | "on"). Same string-only
   //                        contract as bridgeMode.
   //
@@ -119,11 +119,11 @@ function createServerControlRoutes({
       bridge,
       remote,
       // Slice UI-H1 (Phase D / E1.5, 2026-04-30): monitor shell mode
-      // default. Read from HARNESS_MONITOR_MODE env at request time.
+      // default. Read from ORCHESTRATOR_MONITOR_MODE env at request time.
       // Resolution priority on the client:
       //   URL ?mode= > localStorage > envDefault (this) > "simple"
       // Operators set this in the deployment env (e.g.,
-      // public-sector-secure deployments may want HARNESS_MONITOR_MODE=
+      // public-sector-secure deployments may want ORCHESTRATOR_MONITOR_MODE=
       // simple as default; power-user dev boxes may set "advanced").
       monitor: _summarizeMonitor(),
     });
@@ -139,12 +139,12 @@ function createServerControlRoutes({
 // having to defensively check `body.profile != null` first.
 
 // Slice UI-H1 (Phase D / Phase E1.5, 2026-04-30): monitor shell mode
-// default. Reads HARNESS_MONITOR_MODE env at request time and returns
+// default. Reads ORCHESTRATOR_MONITOR_MODE env at request time and returns
 // a normalized value. Garbage values fall through to "simple" (the
 // operator-friendly default per docs/ui-h-redesign-plan.md §2.2).
 function _summarizeMonitor() {
   const VALID = ["simple", "advanced", "legacy"];
-  const raw = String(process.env.HARNESS_MONITOR_MODE || "").trim().toLowerCase();
+  const raw = String(process.env.ORCHESTRATOR_MONITOR_MODE || "").trim().toLowerCase();
   const envDefault = VALID.includes(raw) ? raw : "simple";
   return { envDefault };
 }
@@ -182,7 +182,7 @@ function _summarizeDeployment(deploymentProfile) {
   // "is the field missing" vs "is the value falsy". When the dep
   // is null we return safe defaults that mean "treat as standard
   // mode, all fail-closed flags off" — this matches what the rest
-  // of the harness behaves like before D1-gov-1 wired in.
+  // of the orchestrator behaves like before D1-gov-1 wired in.
   if (!deploymentProfile) {
     return {
       mode: "standard",
@@ -210,7 +210,7 @@ function _summarizeDeployment(deploymentProfile) {
 }
 
 function _summarizeBridge(bridgeMode) {
-  // Mirrors HARNESS_REMOTE_BRIDGE_MODE values: off / report / dispatch.
+  // Mirrors ORCHESTRATOR_REMOTE_BRIDGE_MODE values: off / report / dispatch.
   // Anything unrecognized degrades to "off" so the UI shows safe
   // default rather than mystery-state.
   const allowed = new Set(["off", "report", "dispatch"]);

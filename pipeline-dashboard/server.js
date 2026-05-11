@@ -1,3 +1,12 @@
+// ORCHESTRATOR-RENAME-1 (2026-05-08): apply HARNESS_* → ORCHESTRATOR_*
+// env aliases as the very first thing the process does, BEFORE any
+// module reads process.env.ORCHESTRATOR_*. Without this, modules
+// loaded by the requires below would see ORCHESTRATOR_TOKEN as
+// undefined even though the operator's .env still uses ORCHESTRATOR_TOKEN.
+require("./src/runtime/envAlias").applyEnvAliases({
+  log: (msg) => { try { console.warn(msg); } catch (_) {} },
+});
+
 const { WebSocketServer } = require("ws");
 const http = require("http");
 const { execSync, exec } = require("child_process");
@@ -41,8 +50,8 @@ const { createTemplateStore } = require("./src/templates/templateStore");
 const { createAuthMiddleware, isLoopbackAddress, isLoopbackHost } = require("./src/security/auth");
 const { resolveInsideRoot } = require("./src/security/pathSandbox");
 // Slice P0 (Phase E, 2026-04-28): unified env filter for child-process spawns.
-// Used by PTY (allowKeys: ["HARNESS_TOKEN"]) and indirectly by claude-runner /
-// codex-runner (no allowKeys — HARNESS_TOKEN blocked from agent children).
+// Used by PTY (allowKeys: ["ORCHESTRATOR_TOKEN"]) and indirectly by claude-runner /
+// codex-runner (no allowKeys — ORCHESTRATOR_TOKEN blocked from agent children).
 const { filterSensitiveEnv } = require("./src/security/envFilter");
 const {
   validateCodexTrigger,
@@ -58,28 +67,28 @@ const { RunRegistry } = require("./src/runtime/runRegistry");
 const { EvidenceLedger } = require("./src/runtime/evidenceLedger");
 const { createApp } = require("./src/server/createApp");
 // Slice R1-h (Phase D R1, 2026-04-28): bring up the remote-runner subsystem
-// (RunnerRegistry + JWT key + ledger signing key) from HARNESS_REMOTE_MODE
-// + HARNESS_TOKEN. Returns null/disabled shape when mode="off" (default).
+// (RunnerRegistry + JWT key + ledger signing key) from ORCHESTRATOR_REMOTE_MODE
+// + ORCHESTRATOR_TOKEN. Returns null/disabled shape when mode="off" (default).
 const { setupRemoteRunner } = require("./src/server/remoteRunnerSetup");
 
 const APP_ROOT = __dirname;
 const REPO_ROOT = path.resolve(__dirname, "..");
 const BOOT_TIME = new Date().toISOString();
-const ALLOW_REMOTE = process.env.HARNESS_ALLOW_REMOTE === "1";
-const HOST = process.env.HOST || process.env.HARNESS_HOST || (ALLOW_REMOTE ? "0.0.0.0" : "127.0.0.1");
-const PORT = Number(process.env.PORT || process.env.HARNESS_PORT || 4201);
+const ALLOW_REMOTE = process.env.ORCHESTRATOR_ALLOW_REMOTE === "1";
+const HOST = process.env.HOST || process.env.ORCHESTRATOR_HOST || (ALLOW_REMOTE ? "0.0.0.0" : "127.0.0.1");
+const PORT = Number(process.env.PORT || process.env.ORCHESTRATOR_PORT || 4201);
 const MODE = ALLOW_REMOTE ? "remote" : "local";
 const auth = createAuthMiddleware({ repoRoot: REPO_ROOT, host: HOST, allowRemote: ALLOW_REMOTE });
 const runsDir = path.join(REPO_ROOT, "runs");
 const runRegistry = new RunRegistry({ rootDir: runsDir });
-// Slice R1-h: derive HARNESS_REMOTE_MODE + the two HKDF keys *before* the
+// Slice R1-h: derive ORCHESTRATOR_REMOTE_MODE + the two HKDF keys *before* the
 // evidence ledger is constructed so the ledger can be configured with its
 // signing key in one go (instead of mutating a half-built instance).
 const _remoteRunner = setupRemoteRunner();
 if (_remoteRunner.mode !== "off" && _remoteRunner.error === "token_missing") {
   console.warn(
-    "[remote-runner] HARNESS_REMOTE_MODE=" + _remoteRunner.mode +
-    " but HARNESS_TOKEN is missing — runner routes will 503.",
+    "[remote-runner] ORCHESTRATOR_REMOTE_MODE=" + _remoteRunner.mode +
+    " but ORCHESTRATOR_TOKEN is missing — runner routes will 503.",
   );
 }
 // Slice D1-f (Phase E1, 2026-04-29): defense-in-depth sanitizer that
@@ -103,11 +112,11 @@ const {
 } = require("./src/policy/deploymentProfile");
 
 // Slice S5-c (Phase 2 / SMART-5, 2026-05-05): production fail-closed
-// boot when HARNESS_DEPLOYMENT_PROFILE points at an unrecognized pack.
+// boot when ORCHESTRATOR_DEPLOYMENT_PROFILE points at an unrecognized pack.
 // Plan §S §S-SMART-5 v2 invariant: an operator typo (e.g. "publicsector"
 // vs. "public-sector") MUST surface at boot rather than silently
 // downgrade posture. Operators in dev/migration windows opt into the
-// legacy fall-back-to-standard behavior with HARNESS_POLICY_FAIL_OPEN=1
+// legacy fall-back-to-standard behavior with ORCHESTRATOR_POLICY_FAIL_OPEN=1
 // (handled inside resolveDeploymentProfile; this block only catches
 // the throw).
 let _deploymentProfile;
@@ -119,8 +128,8 @@ try {
     // the process is about to exit. The error message goes to stderr
     // so the operator sees it in launcher logs / docker logs.
     process.stderr.write(
-      `[harness] FATAL: ${err.message}\n` +
-      `[harness] Set HARNESS_POLICY_FAIL_OPEN=1 to fall back to standard with a warning.\n`,
+      `[orchestrator] FATAL: ${err.message}\n` +
+      `[orchestrator] Set ORCHESTRATOR_POLICY_FAIL_OPEN=1 to fall back to standard with a warning.\n`,
     );
     process.exit(1);
   }
@@ -129,7 +138,7 @@ try {
 
 const evidenceLedger = new EvidenceLedger({
   rootDir: runsDir,
-  // R1-c + R1-h: when remote mode is preview/on AND HARNESS_TOKEN is set,
+  // R1-c + R1-h: when remote mode is preview/on AND ORCHESTRATOR_TOKEN is set,
   // sign every appended entry. Existing unsigned entries in the JSONL files
   // continue to verify (verifyChain accepts the legacy shape).
   signingKey: _remoteRunner.ledgerKey,
@@ -143,7 +152,7 @@ const evidenceLedger = new EvidenceLedger({
 // reconstruct posture without re-reading env. Lands under the
 // "system" runId (same convention as policy_gate / runner_handshake
 // boot events). When resolveDeploymentProfile fell back via the
-// HARNESS_POLICY_FAIL_OPEN escape hatch, the row also carries
+// ORCHESTRATOR_POLICY_FAIL_OPEN escape hatch, the row also carries
 // `resolvedFromFallback:true` + `unknownRequested:<typo>` so the
 // audit trail captures the dev-escape decision.
 try {
@@ -184,10 +193,10 @@ const _runnerStaleMonitor = _remoteRunner.runnerRegistry
       registry: _remoteRunner.runnerRegistry,
       ledger: evidenceLedger,
       // intervalMs default = 30000ms = RunnerRegistry.heartbeatDropMs.
-      // Operators can tighten this via HARNESS_RUNNER_STALE_INTERVAL_MS
+      // Operators can tighten this via ORCHESTRATOR_RUNNER_STALE_INTERVAL_MS
       // for faster signal in deployments where a runner host failure
       // must be reflected in the chain quickly.
-      intervalMs: Number(process.env.HARNESS_RUNNER_STALE_INTERVAL_MS) || 30000,
+      intervalMs: Number(process.env.ORCHESTRATOR_RUNNER_STALE_INTERVAL_MS) || 30000,
     })
   : null;
 // Slice J (v5): indexRenderer injects a per-request nonce into every
@@ -198,7 +207,7 @@ const _runnerStaleMonitor = _remoteRunner.runnerRegistry
 //
 // Rollout: defaults to Report-Only so real-world violations surface via
 //   /api/csp-report before any production break. Promote via
-//   HARNESS_CSP_MODE=enforce once /api/csp-report is quiet.
+//   ORCHESTRATOR_CSP_MODE=enforce once /api/csp-report is quiet.
 const INDEX_HTML = fs.readFileSync(path.join(__dirname, "public", "index.html"), "utf-8");
 // Slice UI-P1-g (Phase 2 Round 3, 2026-04-30): preserve legacy view
 // for ?mode=legacy. The legacy DOM is the EXACT pre-port markup
@@ -222,9 +231,9 @@ function indexRenderer(req, res) {
 
   // Slice P (v6): default flipped to enforce after Slice O removed the
   // last 'unsafe-inline' dependency and SRI integrity hashes pin the CDN
-  // resources. Set HARNESS_CSP_MODE=report-only to roll back during
+  // resources. Set ORCHESTRATOR_CSP_MODE=report-only to roll back during
   // incident response.
-  const cspMode = process.env.HARNESS_CSP_MODE || "enforce";
+  const cspMode = process.env.ORCHESTRATOR_CSP_MODE || "enforce";
   const headerName = cspMode === "enforce"
     ? "Content-Security-Policy"
     : "Content-Security-Policy-Report-Only";
@@ -304,7 +313,7 @@ app.get("/api/auth/token", (req, res) => {
   if (!ALLOW_REMOTE && !isLoopbackAddress(req.socket.remoteAddress)) {
     return res.status(403).json({ error: "remote clients are disabled" });
   }
-  res.json({ token: auth.token, header: "x-harness-token" });
+  res.json({ token: auth.token, header: "x-orchestrator-token" });
 });
 
 app.get("/api/version", (req, res) => {
@@ -332,7 +341,7 @@ const { createRunsRoutes } = require("./src/routes/runsRoutes");
 const { createMonitorRoutes } = require("./src/routes/monitorRoutes");
 // Slice R1-h (Phase D R1, 2026-04-28): three-step handshake routes for
 // remote runners — /api/runner/handshake, /heartbeat, /hook. All routes
-// 404 when HARNESS_REMOTE_MODE === "off" (default), so this is dead-code
+// 404 when ORCHESTRATOR_REMOTE_MODE === "off" (default), so this is dead-code
 // in single-orchestrator deployments. Feature flag locked at boot.
 const { createRunnerRoutes } = require("./src/routes/runnerRoutes");
 // Slice SMART-0-b (Phase D Round UI-P / Phase 2 SMART arc, 2026-05-04):
@@ -452,7 +461,7 @@ const verifyWsConnection = createWsAuth({
 // Slice R1-e-2 (Phase D R1, 2026-04-28) — path-aware demux for runner WS.
 //
 // `/api/runner/events` upgrades use a fundamentally different auth model
-// than dashboard/terminal upgrades (per-run JWT instead of harness token,
+// than dashboard/terminal upgrades (per-run JWT instead of orchestrator token,
 // no loopback exception, etc.). Stuffing both policies into one
 // `verifyWsConnection` would either weaken the dashboard gate or break the
 // runner flow — see runnerWsAuth.js header for the rationale.
@@ -484,7 +493,7 @@ const handleRunnerWsConnection = createRunnerWsHandler({
   },
   // Slice R2.5-d: pass the runnerRegistry so the handler can mark
   // active-run on connect / unmark on close. Wrapped because
-  // _remoteRunner.runnerRegistry is null when HARNESS_REMOTE_MODE=off.
+  // _remoteRunner.runnerRegistry is null when ORCHESTRATOR_REMOTE_MODE=off.
   runnerRegistry: {
     markRunActive: (opts) => _remoteRunner.runnerRegistry
       && _remoteRunner.runnerRegistry.markRunActive(opts),
@@ -541,11 +550,11 @@ wss.on("connection", (ws, req) => {
       : "bash";
 
     // Slice P0 (Phase E, 2026-04-28): unified through src/security/envFilter
-    // (was inline regex pre-P0). PTY allows HARNESS_TOKEN to pass — operator
+    // (was inline regex pre-P0). PTY allows ORCHESTRATOR_TOKEN to pass — operator
     // may type `curl http://127.0.0.1:4201/api/...` from the terminal and
     // needs the token. All other sensitives (RUNNER_BOOTSTRAP_TOKEN,
     // ANTHROPIC_API_KEY, GITHUB_TOKEN, etc.) stay blocked.
-    const safeEnv = filterSensitiveEnv(process.env, { allowKeys: ["HARNESS_TOKEN"] });
+    const safeEnv = filterSensitiveEnv(process.env, { allowKeys: ["ORCHESTRATOR_TOKEN"] });
     const ptyProcess = pty.spawn(shell, [], {
       name: "xterm-color",
       cols: 120,
@@ -789,8 +798,8 @@ const sessionWatcher = new SessionWatcher(broadcast, path.resolve(__dirname, "..
 // ── Hook Router + Pipeline Executor (Phase 1 + 2 + 3 + 4) ──
 // Slice R2.5-c (Phase D R2.5): bridge mode comes from env. Default
 // "off" preserves R1/R2 broadcast-only behavior. Operators promote
-// via HARNESS_REMOTE_BRIDGE_MODE=report (validate-only, see audit
-// chain) and then HARNESS_REMOTE_BRIDGE_MODE=dispatch (forward
+// via ORCHESTRATOR_REMOTE_BRIDGE_MODE=report (validate-only, see audit
+// chain) and then ORCHESTRATOR_REMOTE_BRIDGE_MODE=dispatch (forward
 // sanitized hooks to the local executor's on{Pre,Post}Tool/onStop/
 // onSubagentStart/onSubagentStop methods).
 const { resolveBridgeMode } = require("./src/runtime/remoteHookBridgeContract");
@@ -812,12 +821,12 @@ const hookRouter = new HookRouter({
   deploymentProfile: _deploymentProfile,
 });
 // Slice N (v6): shared child-process semaphore across Codex + Claude so the
-// two runners can't collectively spawn more than HARNESS_CHILD_MAX processes
+// two runners can't collectively spawn more than ORCHESTRATOR_CHILD_MAX processes
 // at once. Queue depth broadcasts as `child_queue_depth` → dashboard.
 const { createChildSemaphore } = require("./src/runtime/childSemaphore");
 const childSemaphore = createChildSemaphore({
-  maxConcurrent: Number(process.env.HARNESS_CHILD_MAX || 2),
-  timeoutMs: Number(process.env.HARNESS_CHILD_QUEUE_TIMEOUT_MS || 30000),
+  maxConcurrent: Number(process.env.ORCHESTRATOR_CHILD_MAX || 2),
+  timeoutMs: Number(process.env.ORCHESTRATOR_CHILD_QUEUE_TIMEOUT_MS || 30000),
   broadcast,
 });
 // Slice S3 (Phase 3-S, 2026-04-27): child-process lifecycle registry.
@@ -829,9 +838,9 @@ const { createChildRegistry } = require("./src/runtime/childRegistry");
 const childRegistry = createChildRegistry({ broadcast });
 
 // Slice D1 (Phase E1, 2026-04-29): per-operator profile + credential
-// layer. `profileStore` persists profiles.json under HARNESS_CONFIG_DIR;
+// layer. `profileStore` persists profiles.json under ORCHESTRATOR_CONFIG_DIR;
 // `credentialStore` fronts the OS keychain (keytar) — falls back to
-// "none" backend when keytar is missing AND HARNESS_ALLOW_PLAINTEXT_SECRETS
+// "none" backend when keytar is missing AND ORCHESTRATOR_ALLOW_PLAINTEXT_SECRETS
 // isn't set (fail-closed default). Both are wired into ClaudeRunner +
 // CodexRunner below so profileSpawn engages on every spawn; profileRoutes
 // (mounted further down) exposes the HTTP surface.
@@ -851,13 +860,13 @@ const credentialStore = createCredentialStore({
 // Slice TRUST-STORE-0-d (Phase E Round 2, 2026-04-30): manifest-signing
 // trust store. The launcher install path (E3-F1) reads the file the
 // operator manages here. Resolver shared with the launcher so both
-// agree on path under any env (HARNESS_TRUST_STORE / HARNESS_CONFIG_DIR
+// agree on path under any env (ORCHESTRATOR_TRUST_STORE / ORCHESTRATOR_CONFIG_DIR
 // / OS default / portable install). Routes mounted further below.
 const { resolveTrustStorePath } = require("./src/runtime/trustStorePath");
 const { createTrustStore } = require("./src/runtime/trustStore");
 const _trustStoreResolved = resolveTrustStorePath({
   // Explicit installDir hint = REPO_ROOT so the portable-install
-  // fallback finds a bundled trust-store.json next to harness-start.
+  // fallback finds a bundled trust-store.json next to orchestrator-start.
   // The resolver's existing priority chain still honors env overrides.
   installDir: REPO_ROOT,
 });
@@ -887,7 +896,7 @@ const _reviewSessionManager = new ReviewSessionManager({
 
 // Slice RR0-a/b (Phase 2 / RELEASE-READY-0, 2026-05-05): central timeout
 // policy + activity-based watchdog. resolveTimeoutPolicy reads
-// HARNESS_TIMEOUT_PRESET / HARNESS_<field>_TIMEOUT_MS env + posture to
+// ORCHESTRATOR_TIMEOUT_PRESET / HARNESS_<field>_TIMEOUT_MS env + posture to
 // pick presets (interactive default; long_run / public_sector for
 // production deployments). The resolved policy supplies
 // defaultTimeoutMs to each runner. When the resolved preset is NOT
@@ -999,9 +1008,9 @@ const pipelineOrchestrator = new PipelineOrchestrator({
   // (fileConflictDetector.clear wiring on complete/reset/remove), and AB
   // (hook-adapter carve-out audit). The A0 hotfix that temporarily forced
   // the default down to 1 is now lifted — multi-run is safe by default
-  // again. Users can still pin to 1 with HARNESS_MAX_RUNS=1 for
+  // again. Users can still pin to 1 with ORCHESTRATOR_MAX_RUNS=1 for
   // single-active compat.
-  maxConcurrent: Number(process.env.HARNESS_MAX_RUNS || 3),
+  maxConcurrent: Number(process.env.ORCHESTRATOR_MAX_RUNS || 3),
   createExecutor: (runId) => new PipelineExecutor({
     broadcast,
     templates: pipelineTemplates,
@@ -1026,7 +1035,7 @@ const pipelineOrchestrator = new PipelineOrchestrator({
     // recorder derives a redacted summary (privacy-by-design schema
     // S4-a) and lands it in the evidence ledger as a
     // `run_memory_recorded` audit row. The opt-out env
-    // (HARNESS_RUN_MEMORY_DISABLE=1) is checked inside recordRunMemory
+    // (ORCHESTRATOR_RUN_MEMORY_DISABLE=1) is checked inside recordRunMemory
     // — if set, the call is a no-op. Public-sector posture triggers
     // PII redaction at write time. The PipelineExecutor wraps the
     // call in defensive try/catch so a recorder failure NEVER breaks
@@ -1123,7 +1132,7 @@ const generalRunRef = { active: null };
 // so the existing dashboard visualizes the cycle on the "default" template.
 //
 // Implementation note: Claude is invoked via `claude -p --bare` to avoid
-// re-entering the harness. Codex uses the same CodexRunner as the verify API.
+// re-entering the orchestrator. Codex uses the same CodexRunner as the verify API.
 //
 // Slice MB4-b (Phase D Round 2, 2026-04-27): runGeneralPipeline +
 // finalizeGeneralRun + buildPlannerPrompt/buildRefinerPrompt/buildCriticPrompt
@@ -1174,7 +1183,7 @@ app.use("/api", createMonitorRoutes({
   // reflect REAL remote state instead of the local-default placeholder.
   // R1-h built the registry; R1-a built the contract; R1-h2 closes the
   // production wiring gap caught by review. The registry is null when
-  // HARNESS_REMOTE_MODE=off (default), in which case _resolveOrigin
+  // ORCHESTRATOR_REMOTE_MODE=off (default), in which case _resolveOrigin
   // / _resolveRunners fall through to the local defaults — matching
   // the pre-R1-h2 behavior exactly.
   runnerProvider: _remoteRunner.runnerRegistry,
@@ -1318,7 +1327,7 @@ app.use("/api", createReviewSessionRoutes({
   deploymentProfile: _deploymentProfile,
   // Slice SMART-2-b (2026-05-05): pre-state policy gate audit emitter.
   // policy_gate_blocked / policy_gate_warn entries land in the same
-  // evidence ledger as the rest of the harness audit chain so a
+  // evidence ledger as the rest of the orchestrator audit chain so a
   // forensic auditor sees the gate decision alongside the dispatcher
   // verbs. Bound to evidenceLedger.append matching the dispatcher
   // wiring above.
@@ -1334,7 +1343,7 @@ app.use("/api", createReviewSessionRoutes({
 // + POST /api/audit/export). The seal key is the ledger's HMAC key
 // derived via HKDF info="audit-ledger" so the bundle inherits the
 // existing trust root. When the orchestrator runs in local-only mode
-// (no HARNESS_TOKEN configured for remote runners) the bundle still
+// (no ORCHESTRATOR_TOKEN configured for remote runners) the bundle still
 // ships unsealed — chain hashes alone are enough for an internal
 // auditor; sealed bundles are for cross-org / agency-to-agency
 // transmission.
@@ -1359,8 +1368,8 @@ app.use("/api", createRunMemoryRoutes({
 
 // Slice POL-b (Phase 2 / POLICY-UX-0, 2026-05-05): operator-facing
 // policy pack catalog. Read-only — pack changes still require server
-// restart (HARNESS_DEPLOYMENT_PROFILE env). The catalog returns:
-//   - currentPack: which pack the harness booted with
+// restart (ORCHESTRATOR_DEPLOYMENT_PROFILE env). The catalog returns:
+//   - currentPack: which pack the orchestrator booted with
 //   - packs: full rule shape for all 5 frozen packs
 //   - metadata.hardGatesEffectiveMode: POL-a runtime mode (env or pack)
 //   - metadata.runMemoryEffective: POL-a runtime opt-out resolution
@@ -1396,7 +1405,7 @@ function writeFastPolicy() {
         };
       }
     }
-    const dir = path.join(REPO_ROOT, ".harness");
+    const dir = path.join(REPO_ROOT, ".orchestrator");
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, "fast-policy.json"), JSON.stringify(policy, null, 2), "utf-8");
   } catch (_) {

@@ -6,7 +6,7 @@ const path = require("path");
 const { createCheckpointStore } = require("../../executor/checkpoint");
 
 function tempRoot() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), "harness-checkpoint-"));
+  return fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-checkpoint-"));
 }
 
 test("checkpoint store saves and loads active phase snapshot", () => {

@@ -23,7 +23,7 @@ const { createCheckpointStore } = require("../../executor/checkpoint");
 const { PipelineOrchestrator } = require("../../executor/pipeline-orchestrator");
 
 function mk({ maxConcurrent = 3 } = {}) {
-  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "harness-multirun-iso-"));
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-multirun-iso-"));
   const events = [];
   const broadcast = (e) => events.push(e);
   const templates = {
@@ -91,8 +91,8 @@ test("Slice Z — each non-default run writes to its own checkpoint file", () =>
   // Paths are per-run.
   const pathA = execA.checkpointStore.path;
   const pathB = execB.checkpointStore.path;
-  assert.equal(pathA, path.join(repoRoot, ".harness", "runs", "runA", "checkpoint.json"));
-  assert.equal(pathB, path.join(repoRoot, ".harness", "runs", "runB", "checkpoint.json"));
+  assert.equal(pathA, path.join(repoRoot, ".orchestrator", "runs", "runA", "checkpoint.json"));
+  assert.equal(pathB, path.join(repoRoot, ".orchestrator", "runs", "runB", "checkpoint.json"));
   assert.notEqual(pathA, pathB, "checkpoint paths must differ");
 
   // Round-trip save isolation.
@@ -134,7 +134,7 @@ test("Slice Z — default run keeps the legacy checkpoint path (singleton compat
   const execDefault = orchestrator.getActive();
   assert.equal(
     execDefault.checkpointStore.path,
-    path.join(repoRoot, ".harness", "pipeline-checkpoint.json"),
+    path.join(repoRoot, ".orchestrator", "pipeline-checkpoint.json"),
     "default run still uses .harness/pipeline-checkpoint.json"
   );
 });

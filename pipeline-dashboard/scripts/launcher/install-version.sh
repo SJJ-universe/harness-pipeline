@@ -61,9 +61,9 @@ fi
 
 # --- 2. Resolve data dir ------------------------------------------------
 if [[ -z "$DATA_DIR" ]]; then
-  if [[ -n "${HARNESS_DATA_DIR:-}" ]]; then
-    DATA_DIR="$HARNESS_DATA_DIR"
-    echo "[install-version] DataDir from HARNESS_DATA_DIR: $DATA_DIR"
+  if [[ -n "${ORCHESTRATOR_DATA_DIR:-}" ]]; then
+    DATA_DIR="$ORCHESTRATOR_DATA_DIR"
+    echo "[install-version] DataDir from ORCHESTRATOR_DATA_DIR: $DATA_DIR"
   elif [[ "$(uname)" == "Darwin" ]]; then
     DATA_DIR="$HOME/Library/Application Support/HarnessPipeline"
     echo "[install-version] DataDir default (macOS): $DATA_DIR"
@@ -78,7 +78,7 @@ VERSIONS_DIR="$DATA_DIR/versions"
 # --- 2.5. Enforce manifest URL trust scope (Slice D0-e) ------------------
 # Same rationale as install-version.ps1: the manifest fetch is the
 # unprotected step in the trust chain (no signature yet). https://-only
-# unless HARNESS_ALLOW_INSECURE_MANIFEST_URL=1 is explicitly set.
+# unless ORCHESTRATOR_ALLOW_INSECURE_MANIFEST_URL=1 is explicitly set.
 echo "[install-version] validating manifest URL scheme..."
 if ! node "$LAUNCHER_CLI" validate-manifest-url "$MANIFEST_URL"; then
   echo "[install-version] manifest URL rejected — refusing to fetch" >&2
@@ -124,17 +124,17 @@ echo "[install-version] manifest OK: version=$VERSION url=$ZIP_URL"
 #   unsigned + any mode        → FAIL 37 (default fail-closed)
 #   signed + unknown keyId     → FAIL 38 (operator must add the key)
 #   signed + trust-store missing → FAIL 37 (operator must place trust file)
-#   HARNESS_ALLOW_UNSIGNED_MANIFEST=1
+#   ORCHESTRATOR_ALLOW_UNSIGNED_MANIFEST=1
 #       standard mode → PASS with audit launcher_signature_bypass + LOUD warn
 #       public-sector → escape ignored → FAIL 37
 #
 # Audit lines emit to stdout with prefix `[launcher-signature]` so
-# harness-start.sh can capture and forward to a future server-side
+# orchestrator-start.sh can capture and forward to a future server-side
 # audit ingestion path.
 PUBLIC_SECTOR=0
-[[ "${HARNESS_DEPLOYMENT_PROFILE:-}" == "public-sector" ]] && PUBLIC_SECTOR=1
+[[ "${ORCHESTRATOR_DEPLOYMENT_PROFILE:-}" == "public-sector" ]] && PUBLIC_SECTOR=1
 ALLOW_UNSIGNED=0
-[[ "${HARNESS_ALLOW_UNSIGNED_MANIFEST:-}" == "1" ]] && ALLOW_UNSIGNED=1
+[[ "${ORCHESTRATOR_ALLOW_UNSIGNED_MANIFEST:-}" == "1" ]] && ALLOW_UNSIGNED=1
 # Public-sector mode IGNORES the dev escape (defense-in-depth).
 EFFECTIVE_ALLOW_UNSIGNED=0
 if [[ $ALLOW_UNSIGNED -eq 1 && $PUBLIC_SECTOR -eq 0 ]]; then
@@ -170,7 +170,7 @@ dev_escape_banner() {
   echo "============================================================" >&2
   echo "[launcher-signature] BYPASS — manifest signature not verified" >&2
   echo "  reason: $reason" >&2
-  echo "  HARNESS_ALLOW_UNSIGNED_MANIFEST=1 — proceeding without verify." >&2
+  echo "  ORCHESTRATOR_ALLOW_UNSIGNED_MANIFEST=1 — proceeding without verify." >&2
   echo "  This is dev-only. NEVER set this in production." >&2
   echo "============================================================" >&2
 }
@@ -188,7 +188,7 @@ if [[ $MANIFEST_SIGNED -eq 0 ]]; then
     echo "[install-version] signature gate: BYPASSED (dev escape)."
   else
     audit_line 'launcher_signature_failed' 'reason=signature_missing'
-    echo "[install-version] manifest is unsigned — production install requires a signed manifest. Set HARNESS_ALLOW_UNSIGNED_MANIFEST=1 to override (dev only)." >&2
+    echo "[install-version] manifest is unsigned — production install requires a signed manifest. Set ORCHESTRATOR_ALLOW_UNSIGNED_MANIFEST=1 to override (dev only)." >&2
     exit 37
   fi
 else
@@ -218,7 +218,7 @@ else
       echo "[install-version] signature gate: BYPASSED (dev escape, no trust store)."
     else
       audit_line 'launcher_signature_failed' "reason=trust_store_unavailable path=$TRUST_PATH"
-      echo "[install-version] trust store missing at $TRUST_PATH — set HARNESS_TRUST_STORE or place trust-store.json at that location." >&2
+      echo "[install-version] trust store missing at $TRUST_PATH — set ORCHESTRATOR_TRUST_STORE or place trust-store.json at that location." >&2
       exit 37
     fi
   else

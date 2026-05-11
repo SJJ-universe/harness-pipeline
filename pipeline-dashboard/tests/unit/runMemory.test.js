@@ -3,7 +3,7 @@
 // Privacy-by-design invariants pinned per plan §S §S-SMART-4 v2:
 //   1. TTL cleanup-friendly (records live in ledger as
 //      `run_memory_recorded` audit rows)
-//   2. Opt-out via HARNESS_RUN_MEMORY_DISABLE=1
+//   2. Opt-out via ORCHESTRATOR_RUN_MEMORY_DISABLE=1
 //   3. Per-field length caps (256/2K/4K/512/1K) — overflow truncate
 //      + truncated:true marker
 //   4. NO raw text persistence — sourceHash only (sha256 of canonical
@@ -25,7 +25,7 @@ const publicProfile = { publicSector: true };
 // ── Frozen vocabulary ───────────────────────────────────────────
 
 test("runMemory: SCHEMA constant", () => {
-  assert.equal(runMemory.SCHEMA, "harness-run-memory/v1");
+  assert.equal(runMemory.SCHEMA, "orchestrator-run-memory/v1");
 });
 
 test("runMemory: AUDIT_VERBS frozen", () => {
@@ -45,18 +45,18 @@ test("runMemory: FIELD_LIMITS frozen + correct caps", () => {
 
 // ── _isOptOut helper ────────────────────────────────────────────
 
-test("_isOptOut: HARNESS_RUN_MEMORY_DISABLE=1 → true", () => {
-  assert.equal(runMemory._isOptOut({ HARNESS_RUN_MEMORY_DISABLE: "1" }), true);
-  assert.equal(runMemory._isOptOut({ HARNESS_RUN_MEMORY_DISABLE: "true" }), true);
-  assert.equal(runMemory._isOptOut({ HARNESS_RUN_MEMORY_DISABLE: "yes" }), true);
-  assert.equal(runMemory._isOptOut({ HARNESS_RUN_MEMORY_DISABLE: "TRUE" }), true);
+test("_isOptOut: ORCHESTRATOR_RUN_MEMORY_DISABLE=1 → true", () => {
+  assert.equal(runMemory._isOptOut({ ORCHESTRATOR_RUN_MEMORY_DISABLE: "1" }), true);
+  assert.equal(runMemory._isOptOut({ ORCHESTRATOR_RUN_MEMORY_DISABLE: "true" }), true);
+  assert.equal(runMemory._isOptOut({ ORCHESTRATOR_RUN_MEMORY_DISABLE: "yes" }), true);
+  assert.equal(runMemory._isOptOut({ ORCHESTRATOR_RUN_MEMORY_DISABLE: "TRUE" }), true);
 });
 
 test("_isOptOut: missing / 0 / false → false", () => {
   assert.equal(runMemory._isOptOut({}), false);
-  assert.equal(runMemory._isOptOut({ HARNESS_RUN_MEMORY_DISABLE: "0" }), false);
-  assert.equal(runMemory._isOptOut({ HARNESS_RUN_MEMORY_DISABLE: "false" }), false);
-  assert.equal(runMemory._isOptOut({ HARNESS_RUN_MEMORY_DISABLE: "" }), false);
+  assert.equal(runMemory._isOptOut({ ORCHESTRATOR_RUN_MEMORY_DISABLE: "0" }), false);
+  assert.equal(runMemory._isOptOut({ ORCHESTRATOR_RUN_MEMORY_DISABLE: "false" }), false);
+  assert.equal(runMemory._isOptOut({ ORCHESTRATOR_RUN_MEMORY_DISABLE: "" }), false);
 });
 
 // ── _truncateField helper ───────────────────────────────────────
@@ -171,7 +171,7 @@ test("buildRunMemoryRecord: standard mode + clean inputs → no truncate, no red
   }, { deploymentProfile: standardProfile, clockFn: () => "2026-05-05T00:00:00Z" });
   assert.ok(Object.isFrozen(rec));
   assert.ok(Object.isFrozen(rec.fields));
-  assert.equal(rec.schema, "harness-run-memory/v1");
+  assert.equal(rec.schema, "orchestrator-run-memory/v1");
   assert.equal(rec.runId, "run-1");
   assert.equal(rec.recordedAt, "2026-05-05T00:00:00Z");
   assert.equal(rec.truncated, false);
@@ -325,7 +325,7 @@ test("recordRunMemory: opt-out env → recorded:false, reason:disabled_by_env", 
   const ledger = fakeLedger();
   const r = runMemory.recordRunMemory({
     runId: "r", inputs: {},
-    ledger, env: { HARNESS_RUN_MEMORY_DISABLE: "1" },
+    ledger, env: { ORCHESTRATOR_RUN_MEMORY_DISABLE: "1" },
     deploymentProfile: standardProfile,
   });
   assert.equal(r.recorded, false);

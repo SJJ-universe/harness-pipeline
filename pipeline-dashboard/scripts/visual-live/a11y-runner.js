@@ -14,8 +14,8 @@
 //     `{failed: true, failureReason}` recorded, loop continues.
 //   - Single-cell failure NEVER aborts the whole matrix.
 //
-// Manifest schema `harness-visual-a11y/v1` — distinct from capture's
-// `harness-visual-live/v1` and assert-runner's `harness-visual-assert/v1`
+// Manifest schema `orchestrator-visual-a11y/v1` — distinct from capture's
+// `orchestrator-visual-live/v1` and assert-runner's `orchestrator-visual-assert/v1`
 // so a future round can fuse all three into one workflow safely.
 //
 // Exit code:
@@ -124,7 +124,7 @@ function buildA11yManifest({ cells, base, capturedAt, browserVersion, totalElaps
     ),
   };
   return {
-    schema: "harness-visual-a11y/v1",
+    schema: "orchestrator-visual-a11y/v1",
     capturedAt,
     base,
     browser: { name: "chromium", version: browserVersion || null },

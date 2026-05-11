@@ -16,7 +16,7 @@ const {
   MAX_INSTRUCTION_LENGTH,
 } = require("../../src/runtime/reviewSessionManager");
 
-// ── Test harness ──────────────────────────────────────────────────
+// ── Test orchestrator ──────────────────────────────────────────────────
 
 function makeHarness(opts = {}) {
   let now = 1_000_000_000;

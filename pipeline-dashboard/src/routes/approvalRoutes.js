@@ -37,7 +37,7 @@
 //
 // Threat model:
 //
-//   - The auth middleware (loopback only + x-harness-token) is mounted
+//   - The auth middleware (loopback only + x-orchestrator-token) is mounted
 //     globally; an external caller cannot reach these routes. The
 //     route still defends against malformed bodies (deciderId/reason
 //     type checks) so a future relaxation of auth doesn't slip

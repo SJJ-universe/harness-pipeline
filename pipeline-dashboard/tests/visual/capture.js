@@ -135,7 +135,7 @@ function captureSnapshot() {
       "prod-actions-posture-badge",
     ]),
     legacyBannerCss:     extract.countCssClasses(sharedCss, [
-      "harness-legacy-banner",
+      "orchestrator-legacy-banner",
       "legacy-banner-body",
       "legacy-banner-message",
       "legacy-banner-cta",
@@ -151,7 +151,7 @@ function _capturePanelShapes() {
   // is temporarily broken — the test will still produce a useful
   // diff pointing at the failing panel.
   const productHeader        = require("../../public/js/monitor/panels/product-header");
-  const productOrchestratorTrack  = require("../../public/js/monitor/panels/product-harness-track");
+  const productOrchestratorTrack  = require("../../public/js/monitor/panels/product-orchestrator-track");
   const productPipelineRail  = require("../../public/js/monitor/panels/product-pipeline-rail");
   const productMonitorGrid   = require("../../public/js/monitor/panels/product-monitor-grid");
   const productDualTerminals = require("../../public/js/monitor/panels/product-dual-terminals");
@@ -164,7 +164,7 @@ function _capturePanelShapes() {
   // densest variant; simple is a strict subset gated by data-pro-only).
   const factories = [
     ["header",         productHeader],
-    ["harness-track",  productOrchestratorTrack],
+    ["orchestrator-track",  productOrchestratorTrack],
     ["pipeline-rail",  productPipelineRail],
     ["monitor-grid",   productMonitorGrid],
     ["dual-terminals", productDualTerminals],

@@ -380,9 +380,9 @@ The cap-movement candidates documented across rounds:
 
 | Cap | What proves it | Source closeouts |
 |---|---|---|
-| Public-sector readiness +1 | Operator runs harness for ≥1 working week with `HARNESS_DEPLOYMENT_PROFILE=public-sector`, daily probe snapshots committed, deployment-log filled, incident-ledger reflects real activity, feedback survey submitted, pack-info-card visibly shown 5-bullet requirements | FIELD-PILOT-0 + POL-UI-1 + EXTERNAL-REVIEW-0 |
+| Public-sector readiness +1 | Operator runs orchestrator for ≥1 working week with `ORCHESTRATOR_DEPLOYMENT_PROFILE=public-sector`, daily probe snapshots committed, deployment-log filled, incident-ledger reflects real activity, feedback survey submitted, pack-info-card visibly shown 5-bullet requirements | FIELD-PILOT-0 + POL-UI-1 + EXTERNAL-REVIEW-0 |
 | Testability +1 | EXR-a bundle exporter + EXR-b matrix structural tests + round-trajectory parser + verifiable sha256 chain + reviewer summary committed (this template) | EXR-a/b/c + EXR-d (this round) |
-| Safety +1 | HARNESS_HARD_GATES=1 + finance-high-privacy in production for ≥1 week + ledger samples showing `policy_gate_blocked` triggered + state-immutability verified end-to-end | SMART-2 + SMART-LV-0 + FIELD-PILOT-0 |
+| Safety +1 | ORCHESTRATOR_HARD_GATES=1 + finance-high-privacy in production for ≥1 week + ledger samples showing `policy_gate_blocked` triggered + state-immutability verified end-to-end | SMART-2 + SMART-LV-0 + FIELD-PILOT-0 |
 
 If the reviewer recommends a cap movement, cite the specific
 combination from this table — DON'T invent new cap definitions.

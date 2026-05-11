@@ -11,7 +11,7 @@ const crypto = require("crypto");
 const { hashBody, PINNED_URLS } = require("../../scripts/compute-sri");
 
 test("hashBody returns deterministic sha384-<base64> for a given buffer", () => {
-  const buf = Buffer.from("harness sri test");
+  const buf = Buffer.from("orchestrator sri test");
   const a = hashBody(buf);
   const b = hashBody(buf);
   assert.equal(a, b, "hash must be deterministic");

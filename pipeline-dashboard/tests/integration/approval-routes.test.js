@@ -50,7 +50,7 @@ test("R3-e-c: GET /api/approvals/pending returns empty list initially", async ()
   await withServer(async () => {
     const token = await getToken();
     const res = await fetch(`${BASE}/api/approvals/pending`, {
-      headers: { "x-harness-token": token },
+      headers: { "x-orchestrator-token": token },
     });
     assert.equal(res.status, 200);
     const body = await res.json();
@@ -77,7 +77,7 @@ test("R3-e-c: state-changing approval endpoints require token", async () => {
 test("R3-e-c: GET /pending is reachable without token (loopback bind = CSRF)", async () => {
   // Pattern matches every other GET endpoint in the codebase: read-only
   // surfaces are loopback-only by virtue of server bind to 127.0.0.1;
-  // only state-changing routes require x-harness-token. Fail-closed
+  // only state-changing routes require x-orchestrator-token. Fail-closed
   // for state changes, fail-open for reads — same shape as e.g.
   // /api/server/info, /api/profiles, /api/monitor/bootstrap.
   await withServer(async () => {
@@ -93,7 +93,7 @@ test("R3-e-c: POST /:id/grant on unknown id returns 404", async () => {
     const token = await getToken();
     const res = await fetch(`${BASE}/api/approvals/no-such-id/grant`, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-harness-token": token },
+      headers: { "content-type": "application/json", "x-orchestrator-token": token },
       body: JSON.stringify({ deciderId: "operator-1" }),
     });
     assert.equal(res.status, 404);
@@ -108,7 +108,7 @@ test("R3-e-c: POST /:id/deny on unknown id returns 404", async () => {
     const token = await getToken();
     const res = await fetch(`${BASE}/api/approvals/no-such-id/deny`, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-harness-token": token },
+      headers: { "content-type": "application/json", "x-orchestrator-token": token },
       body: JSON.stringify({ deciderId: "operator-1", reason: "no" }),
     });
     assert.equal(res.status, 404);
@@ -124,7 +124,7 @@ test("R3-e-c: POST /:id/grant validates body field types", async () => {
     // deciderId not a string
     let res = await fetch(`${BASE}/api/approvals/x/grant`, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-harness-token": token },
+      headers: { "content-type": "application/json", "x-orchestrator-token": token },
       body: JSON.stringify({ deciderId: 123 }),
     });
     assert.equal(res.status, 400);
@@ -134,7 +134,7 @@ test("R3-e-c: POST /:id/grant validates body field types", async () => {
     // reason not a string
     res = await fetch(`${BASE}/api/approvals/x/deny`, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-harness-token": token },
+      headers: { "content-type": "application/json", "x-orchestrator-token": token },
       body: JSON.stringify({ reason: { obj: "bad" } }),
     });
     assert.equal(res.status, 400);
@@ -144,7 +144,7 @@ test("R3-e-c: POST /:id/grant validates body field types", async () => {
     // deciderId way too long
     res = await fetch(`${BASE}/api/approvals/x/grant`, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-harness-token": token },
+      headers: { "content-type": "application/json", "x-orchestrator-token": token },
       body: JSON.stringify({ deciderId: "a".repeat(200) }),
     });
     assert.equal(res.status, 400);
@@ -154,7 +154,7 @@ test("R3-e-c: POST /:id/grant validates body field types", async () => {
     // reason way too long
     res = await fetch(`${BASE}/api/approvals/x/deny`, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-harness-token": token },
+      headers: { "content-type": "application/json", "x-orchestrator-token": token },
       body: JSON.stringify({ reason: "a".repeat(1024) }),
     });
     assert.equal(res.status, 400);

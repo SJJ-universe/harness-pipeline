@@ -16,7 +16,7 @@
 //
 // Stuffing both policies into one `verifyWsConnection` function would
 // either weaken the dashboard gate (allow non-loopback when a runJWT
-// is present) or break the runner flow (require harness-token on top of
+// is present) or break the runner flow (require orchestrator-token on top of
 // runJWT). Instead, server.js's connection handler demuxes on path and
 // hands the request to the right gate.
 //
@@ -88,13 +88,13 @@ function createRunnerWsAuth({ jwtKey = null, mode = "off" } = {}) {
       return { ok: false, code: 1008, reason: "JWT rejected", jwtReason: result.reason };
     }
 
-    const harness = (result.payload && result.payload.harness) || {};
+    const orchestrator = (result.payload && result.payload.orchestrator) || {};
     return {
       ok: true,
       runId,
-      hostIdentity: typeof harness.hostIdentity === "string" ? harness.hostIdentity : null,
-      runOrigin: typeof harness.runOrigin === "string" ? harness.runOrigin : null,
-      sandboxClass: typeof harness.sandboxClass === "string" ? harness.sandboxClass : null,
+      hostIdentity: typeof orchestrator.hostIdentity === "string" ? orchestrator.hostIdentity : null,
+      runOrigin: typeof orchestrator.runOrigin === "string" ? orchestrator.runOrigin : null,
+      sandboxClass: typeof orchestrator.sandboxClass === "string" ? orchestrator.sandboxClass : null,
       payload: result.payload,
     };
   }

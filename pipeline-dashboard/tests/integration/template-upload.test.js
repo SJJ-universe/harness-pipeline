@@ -20,7 +20,7 @@ const { start } = require("../../server");
 const PORT = 4321;
 const BASE = `http://127.0.0.1:${PORT}`;
 const REPO_ROOT = path.resolve(__dirname, "..", "..", "..");
-const CUSTOM_TEMPLATES_FILE = path.join(REPO_ROOT, ".harness", "templates.json");
+const CUSTOM_TEMPLATES_FILE = path.join(REPO_ROOT, ".orchestrator", "templates.json");
 
 async function waitForServer() {
   const started = Date.now();
@@ -62,7 +62,7 @@ function validTemplate(idSuffix = "experiment") {
 
 async function authHeader() {
   const { token } = await (await fetch(`${BASE}/api/auth/token`)).json();
-  return { "x-harness-token": token };
+  return { "x-orchestrator-token": token };
 }
 
 test("unauthenticated POST /api/pipeline/templates is rejected (401)", async () => {

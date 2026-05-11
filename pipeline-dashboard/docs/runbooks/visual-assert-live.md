@@ -100,7 +100,7 @@ echo "exit: $?"
 
 ```json
 {
-  "schema": "harness-visual-assert/v1",
+  "schema": "orchestrator-visual-assert/v1",
   "capturedAt": "2026-05-04T08:00:00.000Z",
   "base": "http://127.0.0.1:4799",
   "browser": { "name": "chromium", "version": "131.0.6778.69" },
@@ -235,7 +235,7 @@ PR-gating 시점: UI-P12 (a11y) 마감 후 fused workflow로 진입.
 
 | 다음 라운드 | UI-P11이 제공하는 것 |
 |---|---|
-| UI-P12 Accessibility | 같은 chromium harness + assertions catalog 패턴 — axe-core scan 추가 |
+| UI-P12 Accessibility | 같은 chromium orchestrator + assertions catalog 패턴 — axe-core scan 추가 |
 | UI-P13 Dead Button | 같은 server-boot + page.evaluate 패턴 — click + verify 추가 |
 
 ---

@@ -15,10 +15,10 @@
 //        signature path. The flag is honored even if the file doesn't exist
 //        (fail-closed semantics surface that mistake instead of silently
 //        falling through to OS default).
-//   2. env HARNESS_TRUST_STORE
+//   2. env ORCHESTRATOR_TRUST_STORE
 //        Direct env override. Useful for portable / USB-stick deployments
-//        where the operator points the harness at a single file.
-//   3. env HARNESS_CONFIG_DIR + "/trust-store.json"
+//        where the operator points the orchestrator at a single file.
+//   3. env ORCHESTRATOR_CONFIG_DIR + "/trust-store.json"
 //        When the operator has set a custom config dir (the pattern
 //        `configPaths.js` already supports for profile.json), the trust
 //        store rides the same dir. This keeps "all per-installation config
@@ -30,7 +30,7 @@
 //   5. Portable install fallback: <installDir>/trust-store.json
 //        Only when 4 doesn't exist AND the caller passed installDir.
 //        Use case: a portable distribution bundles trust-store.json next
-//        to the server.js / harness-start so a fresh USB-stick install
+//        to the server.js / orchestrator-start so a fresh USB-stick install
 //        works without any env setup.
 //
 // Steps 1–3 are *explicit operator choice* and are returned even if the
@@ -100,14 +100,14 @@ function resolveTrustStorePath(opts = {}) {
     return _result(cliFlag, SOURCES.CLI_FLAG);
   }
 
-  // 2. HARNESS_TRUST_STORE direct override
-  if (typeof env.HARNESS_TRUST_STORE === "string" && env.HARNESS_TRUST_STORE.length > 0) {
-    return _result(env.HARNESS_TRUST_STORE, SOURCES.ENV_TRUST_STORE);
+  // 2. ORCHESTRATOR_TRUST_STORE direct override
+  if (typeof env.ORCHESTRATOR_TRUST_STORE === "string" && env.ORCHESTRATOR_TRUST_STORE.length > 0) {
+    return _result(env.ORCHESTRATOR_TRUST_STORE, SOURCES.ENV_TRUST_STORE);
   }
 
-  // 3. HARNESS_CONFIG_DIR + filename
-  if (typeof env.HARNESS_CONFIG_DIR === "string" && env.HARNESS_CONFIG_DIR.length > 0) {
-    return _result(path.join(env.HARNESS_CONFIG_DIR, FILENAME), SOURCES.ENV_CONFIG_DIR);
+  // 3. ORCHESTRATOR_CONFIG_DIR + filename
+  if (typeof env.ORCHESTRATOR_CONFIG_DIR === "string" && env.ORCHESTRATOR_CONFIG_DIR.length > 0) {
+    return _result(path.join(env.ORCHESTRATOR_CONFIG_DIR, FILENAME), SOURCES.ENV_CONFIG_DIR);
   }
 
   // 4. OS-conventional default

@@ -1,6 +1,6 @@
 // Slice LV0-b (Phase 2 / SMART-LV-0, 2026-05-05) — live-verify probe
 // CLI surface tests. Verifies the operator-facing CLI without booting
-// the harness server (CONFIG exit path + help output).
+// the orchestrator server (CONFIG exit path + help output).
 //
 // Real probe behavior against a live server is the operator's job —
 // the integration test (LV0-a) covers all 6 SMART arc properties
@@ -48,8 +48,8 @@ test("LV0-b CLI: --help prints usage + exits 0", () => {
   const result = runProbe(["--help"]);
   assert.equal(result.status, 0);
   assert.match(result.stdout, /Usage: live-verify-smart-arc\.js/);
-  assert.match(result.stdout, /HARNESS_DEPLOYMENT_PROFILE=finance-high-privacy/);
-  assert.match(result.stdout, /HARNESS_HARD_GATES=1/);
+  assert.match(result.stdout, /ORCHESTRATOR_DEPLOYMENT_PROFILE=finance-high-privacy/);
+  assert.match(result.stdout, /ORCHESTRATOR_HARD_GATES=1/);
 });
 
 test("LV0-b CLI: -h short flag also prints usage", () => {
@@ -79,7 +79,7 @@ test("LV0-b CLI: --json output is valid JSON when server unreachable", () => {
   assert.equal(result.status, 2);
   // stdout should be parseable JSON evidence packet
   const evidence = JSON.parse(result.stdout);
-  assert.equal(evidence.schema, "harness-smart-lv-evidence/v1");
+  assert.equal(evidence.schema, "orchestrator-smart-lv-evidence/v1");
   assert.equal(evidence.verdict, "CONFIG");
   assert.ok(typeof evidence.runAt === "string");
 });

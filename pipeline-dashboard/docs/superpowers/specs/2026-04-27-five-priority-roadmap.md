@@ -6,7 +6,7 @@ Parent spec: `docs/superpowers/specs/2026-04-27-run-monitor-ui-hybrid-design.md`
 
 ## 1. Purpose
 
-This roadmap defines the next five planning priorities that should follow the run-monitor UI spec. The goal is to avoid treating the UI as an isolated redesign and instead use it as the front door to a better-documented, more observable, more testable harness.
+This roadmap defines the next five planning priorities that should follow the run-monitor UI spec. The goal is to avoid treating the UI as an isolated redesign and instead use it as the front door to a better-documented, more observable, more testable orchestrator.
 
 The five priorities are:
 
@@ -14,7 +14,7 @@ The five priorities are:
 2. Internal trace schema
 3. Agent Tree / Run Tree UI
 4. Remote sandbox RFC
-5. Harness readiness / eval bundle
+5. Orchestrator readiness / eval bundle
 
 This document assumes the run-monitor UI spec is the baseline design and that implementation work will proceed conservatively, with behavior-preserving slices and debug review after the spec-driven work is complete.
 
@@ -24,7 +24,7 @@ This document assumes the run-monitor UI spec is the baseline design and that im
 2. Contracts before rendering, so monitor UI work sits on stable semantics instead of ad-hoc event handling.
 3. Observability before remote execution, so future sandbox work does not outrun visibility.
 4. Eval gates throughout, not only at the end.
-5. Keep every step compatible with the current local-first harness.
+5. Keep every step compatible with the current local-first orchestrator.
 
 ## 3. Recommended execution order
 
@@ -45,7 +45,7 @@ The priorities should not be treated as five unrelated projects. They form a sta
 
 ### Wave D: Confidence and release gating
 
-5. Harness readiness / eval bundle
+5. Orchestrator readiness / eval bundle
 
 Recommended rule:
 
@@ -73,7 +73,7 @@ The UI spec, security reimplementation, multi-run model, and environment diagnos
 
 ### Suggested file targets
 
-- `docs/harness-architecture.md`
+- `docs/orchestrator-architecture.md`
 - `docs/security-model.md`
 - `docs/scorecard.md`
 - `docs/remote-mode-design.md`
@@ -254,7 +254,7 @@ Once run-monitoring and trace contracts exist, the next tempting step is remote 
 - `docs/remote-mode-design.md`
 - `docs/container-sandbox.md`
 - Optional new consolidator: `docs/remote-sandbox-rfc.md`
-- `docs/harness-architecture.md`
+- `docs/orchestrator-architecture.md`
 - `docs/trace-schema.md`
 
 ### Plan slices
@@ -286,11 +286,11 @@ Once run-monitoring and trace contracts exist, the next tempting step is remote 
 - Risk: turning an RFC into stealth implementation
   Mitigation: keep this priority documentation-only until explicit approval
 
-## 8. Priority 5: Harness readiness / eval bundle
+## 8. Priority 5: Orchestrator readiness / eval bundle
 
 ### Goal
 
-Create a repeatable readiness bundle that scores and verifies the harness as an operating system for runs, not only as a collection of tests.
+Create a repeatable readiness bundle that scores and verifies the orchestrator as an operating system for runs, not only as a collection of tests.
 
 ### Why now
 
@@ -315,7 +315,7 @@ The project already has strong unit and integration coverage, but the next wave 
 
 #### P5-A Rubric definition
 
-- Define what "ready" means for the harness at this stage.
+- Define what "ready" means for the orchestrator at this stage.
 
 #### P5-B Readiness report
 
@@ -331,7 +331,7 @@ The project already has strong unit and integration coverage, but the next wave 
 
 ### Exit criteria
 
-- The team can answer "is the harness ready for this next wave?" with more than raw test counts.
+- The team can answer "is the orchestrator ready for this next wave?" with more than raw test counts.
 - Regressions in monitor visibility or runtime observability fail a named readiness check, not just a vague manual review.
 
 ### Risks

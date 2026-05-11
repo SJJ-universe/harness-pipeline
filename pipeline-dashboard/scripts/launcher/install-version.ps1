@@ -36,7 +36,7 @@
     .\install-version.ps1 -ManifestUrl 'https://example.com/manifest.json' -WhatIf
 
   Optional parameters:
-    -DataDir   override %LOCALAPPDATA%\HarnessPipeline (HARNESS_DATA_DIR)
+    -DataDir   override %LOCALAPPDATA%\HarnessPipeline (ORCHESTRATOR_DATA_DIR)
     -Force     re-extract even if version dir already exists
     -WhatIf    print actions without performing them (PSv5 standard)
 #>
@@ -99,13 +99,13 @@ function Invoke-LauncherCliTolerant {
 }
 
 # --- 1. Resolve data dir + version dir layout ------------------------------
-# Prefer the explicit -DataDir parameter > HARNESS_DATA_DIR env > OS default.
+# Prefer the explicit -DataDir parameter > ORCHESTRATOR_DATA_DIR env > OS default.
 # Surfacing the resolution origin helps when an operator wonders why a USB
 # stick portable mode picked up a stale APPDATA path.
 if ([string]::IsNullOrEmpty($DataDir)) {
-    if ($env:HARNESS_DATA_DIR) {
-        $DataDir = $env:HARNESS_DATA_DIR
-        Write-Step "DataDir from HARNESS_DATA_DIR env: $DataDir"
+    if ($env:ORCHESTRATOR_DATA_DIR) {
+        $DataDir = $env:ORCHESTRATOR_DATA_DIR
+        Write-Step "DataDir from ORCHESTRATOR_DATA_DIR env: $DataDir"
     } else {
         $DataDir = Join-Path $env:LOCALAPPDATA 'HarnessPipeline'
         Write-Step "DataDir default %LOCALAPPDATA%\HarnessPipeline: $DataDir"
@@ -128,7 +128,7 @@ if (-not (Test-Path $VersionsDir)) {
 # MITM can swap the manifest entirely (URL + sha256) and the launcher
 # happily installs whatever zip the manifest now points at.
 #
-# `HARNESS_ALLOW_INSECURE_MANIFEST_URL=1` opens the door for dev/test
+# `ORCHESTRATOR_ALLOW_INSECURE_MANIFEST_URL=1` opens the door for dev/test
 # (file://, http://localhost). The CLI prints a loud warning when used.
 Write-Step "validating manifest URL scheme..."
 $urlCheck = Invoke-LauncherCli -CliArgs @('validate-manifest-url', $ManifestUrl)
@@ -187,15 +187,15 @@ Write-Step "manifest OK: version=$Version url=$ZipUrl"
 #   unsigned + any mode        → FAIL 37 (default fail-closed)
 #   signed + unknown keyId     → FAIL 38 (operator must add the key)
 #   signed + trust-store missing → FAIL 37 (operator must place trust file)
-#   HARNESS_ALLOW_UNSIGNED_MANIFEST=1
+#   ORCHESTRATOR_ALLOW_UNSIGNED_MANIFEST=1
 #       standard mode → PASS with audit launcher_signature_bypass + LOUD warn
 #       public-sector → escape ignored → FAIL 37
 #
 # Audit lines are emitted to stdout with the prefix `[launcher-signature]`
 # so harness-start.bat can capture and forward them; future server-side
 # audit ingestion can tail this stream.
-$publicSector = ($env:HARNESS_DEPLOYMENT_PROFILE -eq 'public-sector')
-$allowUnsigned = ($env:HARNESS_ALLOW_UNSIGNED_MANIFEST -eq '1')
+$publicSector = ($env:ORCHESTRATOR_DEPLOYMENT_PROFILE -eq 'public-sector')
+$allowUnsigned = ($env:ORCHESTRATOR_ALLOW_UNSIGNED_MANIFEST -eq '1')
 # Public-sector mode IGNORES the dev escape — defense-in-depth so a
 # misconfigured public-sector deployment cannot drift to standard
 # permissive behavior via env var.
@@ -226,7 +226,7 @@ function Write-DevEscapeBanner {
     Write-Host "============================================================" -ForegroundColor Yellow
     Write-Host "[launcher-signature] BYPASS — manifest signature not verified" -ForegroundColor Yellow
     Write-Host "  reason: $Reason" -ForegroundColor Yellow
-    Write-Host "  HARNESS_ALLOW_UNSIGNED_MANIFEST=1 — proceeding without verify." -ForegroundColor Yellow
+    Write-Host "  ORCHESTRATOR_ALLOW_UNSIGNED_MANIFEST=1 — proceeding without verify." -ForegroundColor Yellow
     Write-Host "  This is dev-only. NEVER set this in production." -ForegroundColor Yellow
     Write-Host "============================================================" -ForegroundColor Yellow
 }
@@ -244,7 +244,7 @@ if (-not $manifestHasSignature) {
         Write-Step 'signature gate: BYPASSED (dev escape).'
     } else {
         Write-AuditLine 'launcher_signature_failed' 'reason=signature_missing'
-        Write-Error "manifest is unsigned — production install requires a signed manifest. Set HARNESS_ALLOW_UNSIGNED_MANIFEST=1 to override (dev only)."
+        Write-Error "manifest is unsigned — production install requires a signed manifest. Set ORCHESTRATOR_ALLOW_UNSIGNED_MANIFEST=1 to override (dev only)."
         exit 37
     }
 } else {
@@ -280,7 +280,7 @@ if (-not $manifestHasSignature) {
             Write-Step 'signature gate: BYPASSED (dev escape, no trust store).'
         } else {
             Write-AuditLine 'launcher_signature_failed' "reason=trust_store_unavailable path=$($trustResolved.path)"
-            Write-Error "trust store missing at $($trustResolved.path) — set HARNESS_TRUST_STORE or place trust-store.json at that location."
+            Write-Error "trust store missing at $($trustResolved.path) — set ORCHESTRATOR_TRUST_STORE or place trust-store.json at that location."
             exit 37
         }
     } else {

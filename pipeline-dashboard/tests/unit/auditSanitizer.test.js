@@ -57,7 +57,7 @@ test("D1-f: returns a NEW object (never mutates input)", () => {
 
 test("D1-f: redacts values whose key name contains TOKEN/SECRET/KEY/PASSWORD/CREDENTIAL", () => {
   const input = {
-    HARNESS_TOKEN: "leak-token",
+    ORCHESTRATOR_TOKEN: "leak-token",
     ANTHROPIC_API_KEY: "leak-key",
     OPENAI_SECRET: "leak-secret",
     USER_PASSWORD: "leak-pwd",

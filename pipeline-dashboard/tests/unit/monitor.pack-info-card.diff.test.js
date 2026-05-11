@@ -138,7 +138,7 @@ const FINANCE_PACK = Object.freeze({
 
 function _makePayload(currentPack) {
   return {
-    schema: "harness-policy-pack/v1",
+    schema: "orchestrator-policy-pack/v1",
     currentPack,
     packs: [STANDARD_PACK, PUBLIC_SECTOR_PACK, FINANCE_PACK],
     metadata: {
@@ -342,7 +342,7 @@ test("POL-DIFF-1-a UI: alt-card with no rule diff has NO toggle (e.g. diff.chang
   const samePack = { ...STANDARD_PACK, modeId: "twin", isCurrent: false,
     description: "twin pack" };
   const payload = {
-    schema: "harness-policy-pack/v1",
+    schema: "orchestrator-policy-pack/v1",
     currentPack: "standard",
     packs: [STANDARD_PACK, samePack],
     metadata: {

@@ -40,7 +40,7 @@ const assert = require("node:assert/strict");
 const ko = require("../../public/js/i18n/ko");
 const en = require("../../public/js/i18n/en");
 
-// Extract placeholder names from a template value. The harness's
+// Extract placeholder names from a template value. The orchestrator's
 // OrchestratorI18n.t() interpolation regex is /\{(\w+)\}/g — this MUST
 // match that semantics or the test will give false confidence.
 const PLACEHOLDER_RE = /\{(\w+)\}/g;
@@ -185,7 +185,7 @@ test("I18N-PARITY-1-a: placeholder set has no entries with mixed-case anomalies"
 
 test("I18N-PARITY-1-a: ≥80% of keys have actually-translated values (sanity)", () => {
   // Some keys legitimately use proper nouns or codes that don't
-  // translate (e.g. "Codex CLI" / "harness-policy-pack/v1").
+  // translate (e.g. "Codex CLI" / "orchestrator-policy-pack/v1").
   // But if ko === en for >20% of keys, something is off (probably
   // an English-only block accidentally synced into ko).
   let identical = 0;
@@ -253,7 +253,7 @@ test("I18N-PARITY-1-a: anchor — findSuspiciousBraces detects typos but not val
 });
 
 test("I18N-PARITY-1-a: total key count is large enough to be a meaningful gate (≥200)", () => {
-  // The harness has accumulated many i18n keys across rounds (was
+  // The orchestrator has accumulated many i18n keys across rounds (was
   // 221 at I18N-PARITY-1-a authoring). The 200 floor is the "block
   // deletion" canary — if a future change drops below 200, an
   // entire feature's i18n block was likely deleted accidentally.

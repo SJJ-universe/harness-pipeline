@@ -3,7 +3,7 @@
 // Slice LIVE-EVIDENCE-COLLECTOR (Phase 2 v2 follow-up, 2026-05-05) —
 // aggregator that reads the two committed probe-output files
 // from docs/reports/ and emits a single sealed bundle with the
-// schema harness-live-evidence-bundle/v1 (locked in
+// schema orchestrator-live-evidence-bundle/v1 (locked in
 // docs/live-evidence-schema.md §4).
 //
 // This mechanizes the manual §5 aggregation step from
@@ -44,9 +44,9 @@
 //   2  CONFIG — could not find any evidence files, or could not
 //      write the bundle (filesystem / arg error)
 //
-// Bundle schema (harness-live-evidence-bundle/v1):
+// Bundle schema (orchestrator-live-evidence-bundle/v1):
 //   {
-//     schema: "harness-live-evidence-bundle/v1",
+//     schema: "orchestrator-live-evidence-bundle/v1",
 //     createdAt: ISO,
 //     verdict: "PASS" | "FAIL" | "INCOMPLETE",
 //     summary: {
@@ -65,8 +65,8 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
-const SCHEMA_BUNDLE = "harness-live-evidence-bundle/v1";
-const SCHEMA_SMART_ARC = "harness-smart-lv-evidence/v1";
+const SCHEMA_BUNDLE = "orchestrator-live-evidence-bundle/v1";
+const SCHEMA_SMART_ARC = "orchestrator-smart-lv-evidence/v1";
 const SCHEMA_REVIEW_RELAY = "live-verify-review-relay/v1";
 
 const REPORTS_DEFAULT = path.resolve(__dirname, "..", "docs", "reports");

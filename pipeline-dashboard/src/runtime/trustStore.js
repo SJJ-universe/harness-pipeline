@@ -10,7 +10,7 @@
 // File layout (`<resolveTrustStorePath().path>`):
 //
 //   {
-//     "schema": "harness-release-trust/v1",
+//     "schema": "orchestrator-release-trust/v1",
 //     "keys": [
 //       { keyId: "...", publicKeyDerBase64: "...", label: "Release 2026", addedAt: "..." }
 //     ],
@@ -41,7 +41,7 @@
 //
 // Concurrency model:
 //
-//   Single-orchestrator-writer (same as profileStore.js). The harness
+//   Single-orchestrator-writer (same as profileStore.js). The orchestrator
 //   process is the sole writer of trust-store.json. Atomic temp→
 //   rename guards against crash-mid-write corruption.
 //
@@ -62,7 +62,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
 
-const SCHEMA_VERSION = "harness-release-trust/v1";
+const SCHEMA_VERSION = "orchestrator-release-trust/v1";
 
 // Ed25519 SPKI DER is exactly 44 bytes: 12-byte ASN.1 header (SubjectPublicKeyInfo
 // with OID 1.3.101.112) + 32-byte raw public key. Anything else means the input

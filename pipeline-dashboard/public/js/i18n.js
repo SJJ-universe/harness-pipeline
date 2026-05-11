@@ -6,7 +6,7 @@
 //   2. Browser auto-assign — `window.OrchestratorI18n = { ... }` plus a default
 //      language load from localStorage.
 //
-// Locale source: ko.js / en.js populate `window.HARNESS_I18N.{ko,en}`
+// Locale source: ko.js / en.js populate `window.ORCHESTRATOR_I18N.{ko,en}`
 // BEFORE this module loads. In Node tests, consumers pass their own tables
 // via `setTables({ ko: {...}, en: {...} })`.
 //
@@ -23,14 +23,14 @@
 })(typeof window !== "undefined" ? window : globalThis, function () {
   const SUPPORTED = ["ko", "en"];
   const DEFAULT = "ko";
-  const STORAGE_KEY = "harness:lang";
+  const STORAGE_KEY = "orchestrator:lang";
 
   let _lang = DEFAULT;
   let _tables = null;
 
   function _globalTables() {
     const g = typeof window !== "undefined" ? window : globalThis;
-    return g.HARNESS_I18N || {};
+    return g.ORCHESTRATOR_I18N || {};
   }
 
   function setTables(tables) {
@@ -84,7 +84,7 @@
       applyDom();
       try {
         document.dispatchEvent(
-          new CustomEvent("harness:lang-changed", { detail: { lang: next } })
+          new CustomEvent("orchestrator:lang-changed", { detail: { lang: next } })
         );
       } catch (_) { /* old browsers without CustomEvent constructor */ }
     }

@@ -95,7 +95,7 @@ function createPipelineRoutes({
     }
   });
 
-  router.get("/skills/harness/:type", (req, res) => {
+  router.get("/skills/orchestrator/:type", (req, res) => {
     res.json(getSkillsForHarness(req.params.type));
   });
 

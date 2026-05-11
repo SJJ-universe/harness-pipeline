@@ -1,7 +1,7 @@
 // Slice READINESS-BOOT-FAILURE-CONFIG (Phase 2 v2 follow-up, 2026-05-05) —
 // verify that scripts/readiness-report.js fails fast with a CONFIG-tier
-// exit (exit 4) when the harness server cannot be spawned. The
-// HARNESS_READINESS_FORCE_BOOT_ERROR env hook makes the test
+// exit (exit 4) when the orchestrator server cannot be spawned. The
+// ORCHESTRATOR_READINESS_FORCE_BOOT_ERROR env hook makes the test
 // deterministic without depending on platform sandbox behavior.
 
 "use strict";
@@ -27,7 +27,7 @@ function runReadiness(args, envExtra = {}) {
 // ── Default behavior: spawn failure → exit 4 + JSON CONFIG ─────
 
 test("BOOT-FAILURE-CONFIG: forced EPERM produces exit 4 + configError JSON", () => {
-  const r = runReadiness(["--json"], { HARNESS_READINESS_FORCE_BOOT_ERROR: "EPERM" });
+  const r = runReadiness(["--json"], { ORCHESTRATOR_READINESS_FORCE_BOOT_ERROR: "EPERM" });
   assert.equal(r.status, 4,
     "exit code must be 4 (CONFIG) — got " + r.status);
   const out = JSON.parse(r.stdout);
@@ -46,14 +46,14 @@ test("BOOT-FAILURE-CONFIG: forced EPERM produces exit 4 + configError JSON", () 
 });
 
 test("BOOT-FAILURE-CONFIG: forced EACCES classifies as permission_denied", () => {
-  const r = runReadiness(["--json"], { HARNESS_READINESS_FORCE_BOOT_ERROR: "EACCES" });
+  const r = runReadiness(["--json"], { ORCHESTRATOR_READINESS_FORCE_BOOT_ERROR: "EACCES" });
   assert.equal(r.status, 4);
   const out = JSON.parse(r.stdout);
   assert.equal(out.boot.cause, "permission_denied");
 });
 
 test("BOOT-FAILURE-CONFIG: forced ENOENT classifies as node_binary_missing", () => {
-  const r = runReadiness(["--json"], { HARNESS_READINESS_FORCE_BOOT_ERROR: "ENOENT" });
+  const r = runReadiness(["--json"], { ORCHESTRATOR_READINESS_FORCE_BOOT_ERROR: "ENOENT" });
   assert.equal(r.status, 4);
   const out = JSON.parse(r.stdout);
   assert.equal(out.boot.cause, "node_binary_missing");
@@ -61,7 +61,7 @@ test("BOOT-FAILURE-CONFIG: forced ENOENT classifies as node_binary_missing", () 
 });
 
 test("BOOT-FAILURE-CONFIG: forced unknown error code classifies as spawn_rejected", () => {
-  const r = runReadiness(["--json"], { HARNESS_READINESS_FORCE_BOOT_ERROR: "ESOMETHINGWEIRD" });
+  const r = runReadiness(["--json"], { ORCHESTRATOR_READINESS_FORCE_BOOT_ERROR: "ESOMETHINGWEIRD" });
   assert.equal(r.status, 4);
   const out = JSON.parse(r.stdout);
   assert.equal(out.boot.cause, "spawn_rejected");
@@ -70,7 +70,7 @@ test("BOOT-FAILURE-CONFIG: forced unknown error code classifies as spawn_rejecte
 // ── Human-readable mode ──────────────────────────────────────
 
 test("BOOT-FAILURE-CONFIG: human mode emits CONFIG header to stderr", () => {
-  const r = runReadiness([], { HARNESS_READINESS_FORCE_BOOT_ERROR: "EPERM" });
+  const r = runReadiness([], { ORCHESTRATOR_READINESS_FORCE_BOOT_ERROR: "EPERM" });
   assert.equal(r.status, 4);
   // stderr carries the CONFIG narrative — stdout stays clean for parsers
   assert.match(r.stderr, /CONFIG/);
@@ -78,14 +78,14 @@ test("BOOT-FAILURE-CONFIG: human mode emits CONFIG header to stderr", () => {
   assert.match(r.stderr, /일반 로컬 터미널 또는 CI에서는 정상 동작/);
   assert.match(r.stderr, /What to do/);
   // Anchor: no normal score table on stdout
-  assert.doesNotMatch(r.stdout, /Harness Readiness Report/);
+  assert.doesNotMatch(r.stdout, /Orchestrator Readiness Report/);
 });
 
 // ── --allow-static-fallback restores legacy behavior ─────────
 
 test("BOOT-FAILURE-CONFIG: --allow-static-fallback returns normal-tier exit", () => {
   const r = runReadiness(["--allow-static-fallback", "--json"],
-    { HARNESS_READINESS_FORCE_BOOT_ERROR: "EPERM" });
+    { ORCHESTRATOR_READINESS_FORCE_BOOT_ERROR: "EPERM" });
   // Static-only score is 9/18 → tier 2 (internal-only).
   assert.equal(r.status, 2,
     "fallback to static must produce a normal-tier exit (2), got " + r.status);
@@ -103,7 +103,7 @@ test("BOOT-FAILURE-CONFIG: --no-spawn ignores the forced-error env", () => {
   // With --no-spawn we never call bootHarness, so the forced error
   // env is irrelevant. Score should be the static 9/18.
   const r = runReadiness(["--no-spawn", "--json"],
-    { HARNESS_READINESS_FORCE_BOOT_ERROR: "EPERM" });
+    { ORCHESTRATOR_READINESS_FORCE_BOOT_ERROR: "EPERM" });
   assert.equal(r.status, 2,
     "--no-spawn must produce static-tier exit, got " + r.status);
   const out = JSON.parse(r.stdout);
@@ -116,7 +116,7 @@ test("BOOT-FAILURE-CONFIG: --no-spawn ignores the forced-error env", () => {
 
 test("BOOT-FAILURE-CONFIG: CONFIG run completes quickly (no static-fallback overhead)", () => {
   const start = Date.now();
-  const r = runReadiness(["--json"], { HARNESS_READINESS_FORCE_BOOT_ERROR: "EPERM" });
+  const r = runReadiness(["--json"], { ORCHESTRATOR_READINESS_FORCE_BOOT_ERROR: "EPERM" });
   const elapsed = Date.now() - start;
   assert.equal(r.status, 4);
   // CONFIG path should NOT spend time on category scoring. The

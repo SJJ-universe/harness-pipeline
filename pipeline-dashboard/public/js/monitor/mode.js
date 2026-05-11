@@ -5,7 +5,7 @@
 // (per docs/ui-h-redesign-plan.md §2.2):
 //
 //   1. URL `?mode=` query param           (operator-explicit per visit)
-//   2. localStorage "harness.monitor.mode" (operator-saved preference)
+//   2. localStorage "orchestrator.monitor.mode" (operator-saved preference)
 //   3. envDefault from /api/server/info   (deployment-time policy)
 //   4. "simple"                            (operator-friendly fallback)
 //
@@ -31,7 +31,7 @@
   const MODES = Object.freeze(["simple", "advanced", "legacy"]);
 
   const DEFAULT_MODE = "simple";
-  const STORAGE_KEY = "harness.monitor.mode";
+  const STORAGE_KEY = "orchestrator.monitor.mode";
 
   /**
    * @param {string|*} value

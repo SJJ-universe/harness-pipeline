@@ -46,14 +46,14 @@ test("state-changing APIs require token and validate event schema", async () => 
 
     const unknown = await fetch(`${BASE}/api/event`, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-harness-token": token },
+      headers: { "content-type": "application/json", "x-orchestrator-token": token },
       body: JSON.stringify({ type: "unknown_event", data: {} }),
     });
     assert.equal(unknown.status, 400);
 
     const accepted = await fetch(`${BASE}/api/event`, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-harness-token": token },
+      headers: { "content-type": "application/json", "x-orchestrator-token": token },
       body: JSON.stringify({ type: "phase_update", data: { phase: "A" } }),
     });
     assert.equal(accepted.status, 200);
@@ -66,7 +66,7 @@ test("context load blocks paths outside the repo root", async () => {
     const outside = process.env.USERPROFILE || process.env.HOME || path.parse(APP_ROOT).root;
     const res = await fetch(`${BASE}/api/context/load`, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-harness-token": token },
+      headers: { "content-type": "application/json", "x-orchestrator-token": token },
       body: JSON.stringify({ filePath: outside }),
     });
     assert.equal(res.status, 403);

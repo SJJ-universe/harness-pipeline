@@ -96,13 +96,13 @@ test("hydrateMonitorStore calls the default URL and forwards headers", async () 
     store,
     normalize,
     fetchImpl: _fetch,
-    headers: { "x-harness-token": "abc" },
+    headers: { "x-orchestrator-token": "abc" },
   });
   const call = _fetch.lastCall();
   assert.equal(call.url, "/api/monitor/bootstrap");
   assert.equal(call.opts.method, "GET");
   assert.equal(call.opts.headers.Accept, "application/json");
-  assert.equal(call.opts.headers["x-harness-token"], "abc");
+  assert.equal(call.opts.headers["x-orchestrator-token"], "abc");
 });
 
 test("hydrateMonitorStore uses a custom URL when provided", async () => {
@@ -289,12 +289,12 @@ test("hydrateRunDetail forwards custom headers + custom URL prefix", async () =>
   await hydrateRunDetail({
     store, runId: "x",
     fetchImpl: _fetch,
-    headers: { "x-harness-token": "abc" },
+    headers: { "x-orchestrator-token": "abc" },
     urlPrefix: "/custom/runs/",
   });
   const call = _fetch.lastCall();
   assert.equal(call.url, "/custom/runs/x");
-  assert.equal(call.opts.headers["x-harness-token"], "abc");
+  assert.equal(call.opts.headers["x-orchestrator-token"], "abc");
 });
 
 test("hydrateRunDetail on 404 clears the cached detail and throws", async () => {

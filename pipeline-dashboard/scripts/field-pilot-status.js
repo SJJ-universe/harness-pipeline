@@ -4,10 +4,10 @@
 //
 // Purpose
 // ───────
-// Operators running the harness in production (any pack) need a way
+// Operators running the orchestrator in production (any pack) need a way
 // to capture "did anything go wrong today" as evidence for the
 // FIELD-PILOT-0 1-week regression-free run gate. This script reads
-// the running harness server's audit chain + readiness + posture,
+// the running orchestrator server's audit chain + readiness + posture,
 // produces a JSON status snapshot, and writes it to
 // docs/reports/<date>-field-pilot-day.json (or appends to a
 // per-pilot ledger).
@@ -53,7 +53,7 @@
 //   2  INCIDENT
 //   3  CONFIG (server unreachable / no token)
 //
-// The output JSON schema is harness-field-pilot-status/v1 — a
+// The output JSON schema is orchestrator-field-pilot-status/v1 — a
 // reviewer can grep across pilot deployments to compare day-by-day
 // health.
 
@@ -71,9 +71,9 @@ const ANSI = {
   reset:  process.env.NO_COLOR ? "" : "\x1b[0m",
 };
 
-const SCHEMA = "harness-field-pilot-status/v1";
+const SCHEMA = "orchestrator-field-pilot-status/v1";
 
-// Audit verbs the harness ships (frozen — anything not in this set
+// Audit verbs the orchestrator ships (frozen — anything not in this set
 // is flagged as an anomaly).
 const KNOWN_AUDIT_VERBS = Object.freeze(new Set([
   // SMART-2/3/4/5
@@ -208,7 +208,7 @@ Exit codes:
   2  INCIDENT   — investigation required (chain tampering / signature fail / key rejection)
   3  CONFIG     — server unreachable / no token
 
-Schema: harness-field-pilot-status/v1
+Schema: orchestrator-field-pilot-status/v1
 Output: <evidence-dir>/<label>-field-pilot-status.json
 `);
 }
@@ -221,7 +221,7 @@ async function http(args, method, url, token) {
     method,
     headers: {
       Accept: "application/json",
-      ...(token ? { "x-harness-token": token } : {}),
+      ...(token ? { "x-orchestrator-token": token } : {}),
     },
   };
   const ctrl = new AbortController();
@@ -241,10 +241,10 @@ async function http(args, method, url, token) {
 }
 
 async function fetchToken() {
-  if (process.env.HARNESS_TOKEN) return process.env.HARNESS_TOKEN;
+  if (process.env.ORCHESTRATOR_TOKEN) return process.env.ORCHESTRATOR_TOKEN;
   const candidates = [
-    path.resolve(__dirname, "..", ".harness", "local-token"),
-    path.resolve(__dirname, "..", "..", ".harness", "local-token"),
+    path.resolve(__dirname, "..", ".orchestrator", "local-token"),
+    path.resolve(__dirname, "..", "..", ".orchestrator", "local-token"),
   ];
   for (const p of candidates) {
     try {
@@ -330,7 +330,7 @@ async function main() {
   // 2. Auth
   const token = await fetchToken();
   if (!token) {
-    step(args, "auth token", "INCIDENT", "no .harness/local-token + no HARNESS_TOKEN env");
+    step(args, "auth token", "INCIDENT", "no .harness/local-token + no ORCHESTRATOR_TOKEN env");
     evidence.verdict = "CONFIG";
     return _emitAndExit(args, evidence, 3);
   }

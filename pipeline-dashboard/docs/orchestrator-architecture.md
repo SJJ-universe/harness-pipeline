@@ -1,8 +1,8 @@
-# Harness Architecture
+# Orchestrator Architecture
 
 ## Runtime Shape
 
-The dashboard is a local-first harness. `server.js` still owns process bootstrapping and WebSocket wiring, but post-Phase-2.5 / Phase-3-S the pipeline domain runs through an orchestrator over a per-run executor map, and security/lifecycle layers each live in their own module.
+The dashboard is a local-first orchestrator. `server.js` still owns process bootstrapping and WebSocket wiring, but post-Phase-2.5 / Phase-3-S the pipeline domain runs through an orchestrator over a per-run executor map, and security/lifecycle layers each live in their own module.
 
 | Layer | Owner module | Responsibility |
 |---|---|---|
@@ -18,7 +18,7 @@ The dashboard is a local-first harness. `server.js` still owns process bootstrap
 
 ## Multi-run model (Phase 2.5)
 
-`PipelineOrchestrator` owns a `Map<runId, PipelineExecutor>` with `maxConcurrent = HARNESS_MAX_RUNS` (default 3, set 1 for legacy single-active behaviour). Every executor receives:
+`PipelineOrchestrator` owns a `Map<runId, PipelineExecutor>` with `maxConcurrent = ORCHESTRATOR_MAX_RUNS` (default 3, set 1 for legacy single-active behaviour). Every executor receives:
 
 - its own `PipelineState` instance — findings / metrics / phase metadata cannot bleed across runs
 - its own `checkpointStore` — runId `"default"` keeps the legacy `.harness/pipeline-checkpoint.json` path (zero migration); other runIds use `.harness/runs/{runId}/checkpoint.json`
@@ -30,8 +30,8 @@ The hook router resolves an incoming payload to a runId (`session_id` → `agent
 
 ## Security layer (Phase 3-S)
 
-- **Loopback default** — `HARNESS_HOST=127.0.0.1`. `HARNESS_ALLOW_REMOTE=1` opens the door but `requireTrustedOrigin` still rejects non-loopback remote addresses unless explicitly enabled.
-- **Token gate** — `HARNESS_TOKEN` (env or `.harness/local-token`, mode 0o600). State-changing HTTP methods plus non-loopback WebSocket upgrades require it; loopback bypasses for frictionless local dev.
+- **Loopback default** — `ORCHESTRATOR_HOST=127.0.0.1`. `ORCHESTRATOR_ALLOW_REMOTE=1` opens the door but `requireTrustedOrigin` still rejects non-loopback remote addresses unless explicitly enabled.
+- **Token gate** — `ORCHESTRATOR_TOKEN` (env or `.harness/local-token`, mode 0o600). State-changing HTTP methods plus non-loopback WebSocket upgrades require it; loopback bypasses for frictionless local dev.
 - **WS upgrade auth** — `verifyWsConnection` in `server.js` covers BOTH `/terminal` and pipeline event WebSockets, applying the same loopback / token / origin policy.
 - **Path sandbox** — `pathSandbox.resolveInsideRoot` runs realpath + symlink resolution + Windows-only case-insensitive containment double-check. Used by `/api/context/*`, `getSkillContent`, and the per-run checkpoint paths.
 - **Schema slug enforcement** — `validateCodexTrigger.triggerId` matches `^[a-zA-Z0-9._-]+$` so the value cannot become a path-traversal payload when interpolated into `codex-trigger-${triggerId}-${ts}.md`.
@@ -39,7 +39,7 @@ The hook router resolves an incoming payload to a runId (`session_id` → `agent
 
 ## Child-process lifecycle (Phase 2.5 N + Phase 3-S S3-a)
 
-- `childSemaphore` (max `HARNESS_CHILD_MAX`, default 2) gates concurrent Codex/Claude spawns. Acquire/release/timeout broadcasts as `child_queue_depth`.
+- `childSemaphore` (max `ORCHESTRATOR_CHILD_MAX`, default 2) gates concurrent Codex/Claude spawns. Acquire/release/timeout broadcasts as `child_queue_depth`.
 - `childRegistry` registers each spawn (`child_registered` broadcast) and unregisters on `close`/`error` (`child_unregistered`). `gracefulShutdown` sends `SIGTERM` to every active child, waits 1s, then `SIGKILL`s holdouts before `process.exit(0)`. No more orphaned 120s+ Codex critique processes.
 
 ## Phase Policy
@@ -48,7 +48,7 @@ The default template starts with Phase A as read-only discovery. Phase A allows 
 
 ## Hook Flow
 
-Claude hook commands call `hooks/harness-hook.js`, which posts to `/api/hook` with the `x-harness-token` header and the configured `HARNESS_HOST` / `HARNESS_PORT`. `HookRouter` records stats, optionally samples payloads under `HARNESS_SAMPLE_HOOKS=1`, extracts context usage, and delegates phase events to the orchestrator-resolved `PipelineExecutor`. SubagentStart/Stop hooks open a `SubRun` inside the active run for per-agent tool / metric tracking.
+Claude hook commands call `hooks/orchestrator-hook.js`, which posts to `/api/hook` with the `x-orchestrator-token` header and the configured `ORCHESTRATOR_HOST` / `ORCHESTRATOR_PORT`. `HookRouter` records stats, optionally samples payloads under `ORCHESTRATOR_SAMPLE_HOOKS=1`, extracts context usage, and delegates phase events to the orchestrator-resolved `PipelineExecutor`. SubagentStart/Stop hooks open a `SubRun` inside the active run for per-agent tool / metric tracking.
 
 `SessionWatcher` starts only when the server starts listening and stops when the server closes — prevents tests and imported modules from leaking watcher intervals.
 

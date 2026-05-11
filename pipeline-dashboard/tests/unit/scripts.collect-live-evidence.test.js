@@ -2,7 +2,7 @@
 // behavior + structure tests for scripts/collect-live-evidence.js.
 //
 // The script aggregates two probe-output files into a single
-// sealed bundle (schema harness-live-evidence-bundle/v1, locked
+// sealed bundle (schema orchestrator-live-evidence-bundle/v1, locked
 // in docs/live-evidence-schema.md §4). These tests verify:
 //   1. Script-file invariants (header, slice tag, npm registration).
 //   2. Behavior with explicit --smart-arc + --review-relay paths
@@ -28,8 +28,8 @@ const PACKAGE_JSON = path.join(REPO_ROOT, "package.json");
 
 function read(p) { return fs.readFileSync(p, "utf-8"); }
 
-const SCHEMA_BUNDLE = "harness-live-evidence-bundle/v1";
-const SCHEMA_SMART_ARC = "harness-smart-lv-evidence/v1";
+const SCHEMA_BUNDLE = "orchestrator-live-evidence-bundle/v1";
+const SCHEMA_SMART_ARC = "orchestrator-smart-lv-evidence/v1";
 const SCHEMA_REVIEW_RELAY = "live-verify-review-relay/v1";
 
 // ── Fixture helpers ──────────────────────────────────────────
@@ -244,7 +244,7 @@ test("LIVE-EVIDENCE-COLLECTOR: schema mismatch → component absent + INCOMPLETE
   const tmp = mktmp();
   // Wrong schema for the smart-arc slot
   const wrong = writeFixture(tmp, "fix-wrong.json", {
-    schema: "harness-something-else/v1",
+    schema: "orchestrator-something-else/v1",
     verdict: "PASS",
   });
   const rr = writeFixture(tmp, "fix-review-relay.json", reviewRelayFixture("PASS"));

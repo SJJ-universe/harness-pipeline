@@ -4,7 +4,7 @@
 // Usage:
 //   node scripts/verify-auditor-bundle.js <bundle.json>
 //   node scripts/verify-auditor-bundle.js <bundle.json> --key <hex>
-//   HARNESS_AUDIT_KEY=<hex> node scripts/verify-auditor-bundle.js <bundle.json>
+//   ORCHESTRATOR_AUDIT_KEY=<hex> node scripts/verify-auditor-bundle.js <bundle.json>
 //
 // Exit codes:
 //   0  bundle PASSES (chain valid, hashes match, seal verifies if sealKey provided)
@@ -12,7 +12,7 @@
 //   2  config error (file missing, malformed JSON, etc.)
 //
 // What this verifier checks (offline, no network):
-//   1. Schema is "harness-auditor-bundle/v1"
+//   1. Schema is "orchestrator-auditor-bundle/v1"
 //   2. entriesHash recomputes to the published value
 //   3. chainHash recomputes to the published value
 //   4. Internal chain validity (bundle.chain.valid !== false)
@@ -33,7 +33,7 @@ const { verifyBundle } = require("../src/runtime/auditorBundle");
 function _readKey(args) {
   const idx = args.indexOf("--key");
   if (idx >= 0 && idx + 1 < args.length) return args[idx + 1];
-  if (process.env.HARNESS_AUDIT_KEY) return process.env.HARNESS_AUDIT_KEY;
+  if (process.env.ORCHESTRATOR_AUDIT_KEY) return process.env.ORCHESTRATOR_AUDIT_KEY;
   return null;
 }
 
@@ -43,7 +43,7 @@ function main(argv) {
     process.stdout.write([
       "Usage: node scripts/verify-auditor-bundle.js <bundle.json> [--key <hex>]",
       "",
-      "Pass HARNESS_AUDIT_KEY=<hex> via env if you prefer not to expose the key in argv.",
+      "Pass ORCHESTRATOR_AUDIT_KEY=<hex> via env if you prefer not to expose the key in argv.",
       "",
       "Exit codes:",
       "  0   bundle verified — chain valid + hashes match + (optional) seal verifies",

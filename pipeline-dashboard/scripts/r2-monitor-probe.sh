@@ -49,7 +49,7 @@ docker_exec() {
 ORCH=harness-orchestrator-r2
 RUNNER=harness-runner-r2
 DASH_BASE=http://127.0.0.1:4201
-DASH_TOKEN="$HARNESS_TOKEN"
+DASH_TOKEN="$ORCHESTRATOR_TOKEN"
 
 pass=0; fail=0
 report() {
@@ -78,15 +78,15 @@ else
     let r=""; process.stdin.on("data",c=>r+=c);
     process.stdin.on("end",()=>{
       try { const j = JSON.parse(r);
-        const found = (j.runners||[]).some(x => x.hostIdentity === process.env.HARNESS_HOST_IDENTITY);
+        const found = (j.runners||[]).some(x => x.hostIdentity === process.env.ORCHESTRATOR_HOST_IDENTITY);
         process.stdout.write(found ? "yes" : "no");
       } catch (_) { process.stdout.write("parse-error"); }
     });
   ')
   if [[ "$hostFound" == "yes" ]]; then
-    report PASS "/api/monitor/bootstrap.runners[] contains $HARNESS_HOST_IDENTITY"
+    report PASS "/api/monitor/bootstrap.runners[] contains $ORCHESTRATOR_HOST_IDENTITY"
   else
-    report FAIL "/api/monitor/bootstrap.runners[] missing $HARNESS_HOST_IDENTITY (got: $hostFound)"
+    report FAIL "/api/monitor/bootstrap.runners[] missing $ORCHESTRATOR_HOST_IDENTITY (got: $hostFound)"
   fi
 fi
 
@@ -96,9 +96,9 @@ fi
 echo "[r2-monitor-probe] launching in-runner WS probe (15s lifetime)…"
 docker_exec -w /app -d "$RUNNER" node -e '
   const { WebSocket } = require("ws");
-  const wsUrl = process.env.HARNESS_ORCHESTRATOR_URL.replace(/^http/, "ws")
-    + "/api/runner/events?runId=" + encodeURIComponent(process.env.HARNESS_RUN_ID)
-    + "&token=" + encodeURIComponent(process.env.HARNESS_RUN_JWT);
+  const wsUrl = process.env.ORCHESTRATOR_ORCHESTRATOR_URL.replace(/^http/, "ws")
+    + "/api/runner/events?runId=" + encodeURIComponent(process.env.ORCHESTRATOR_RUN_ID)
+    + "&token=" + encodeURIComponent(process.env.ORCHESTRATOR_RUN_JWT);
   const ws = new WebSocket(wsUrl);
   ws.on("message", (m) => {
     try { const f = JSON.parse(m); if (f.type === "hello") {
@@ -119,15 +119,15 @@ remoteChildFound=$(printf '%s' "$boot2" | node -e '
   let r=""; process.stdin.on("data",c=>r+=c);
   process.stdin.on("end",()=>{
     try { const j = JSON.parse(r);
-      const found = (j.activeChildren||[]).some(c => c.remote === true && c.runId === process.env.HARNESS_RUN_ID);
+      const found = (j.activeChildren||[]).some(c => c.remote === true && c.runId === process.env.ORCHESTRATOR_RUN_ID);
       process.stdout.write(found ? "yes" : "no");
     } catch (_) { process.stdout.write("parse-error"); }
   });
 ')
 if [[ "$remoteChildFound" == "yes" ]]; then
-  report PASS "/api/monitor/bootstrap.activeChildren[] has remote child for $HARNESS_RUN_ID"
+  report PASS "/api/monitor/bootstrap.activeChildren[] has remote child for $ORCHESTRATOR_RUN_ID"
 else
-  report FAIL "/api/monitor/bootstrap.activeChildren[] missing remote=true entry for $HARNESS_RUN_ID"
+  report FAIL "/api/monitor/bootstrap.activeChildren[] missing remote=true entry for $ORCHESTRATOR_RUN_ID"
 fi
 
 # ── Anchor 3: per-run detail.origin ─────────────────────────────────

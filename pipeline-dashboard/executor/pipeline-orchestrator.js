@@ -1,5 +1,5 @@
 // Slice S (v6) — PipelineOrchestrator: wraps one-or-more PipelineExecutor
-// instances so the harness can someday handle multiple concurrent runs
+// instances so the orchestrator can someday handle multiple concurrent runs
 // without touching the hook router / route handlers / UI every time.
 //
 // Phase 1 (this slice) ships in **single-active compat mode**: exactly one

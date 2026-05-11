@@ -55,8 +55,8 @@ fi
 # --- 1. Resolve current version (from marker if not provided) ----------
 if [[ -z "$CURRENT_VERSION" ]]; then
   if [[ -z "$DATA_DIR" ]]; then
-    if [[ -n "${HARNESS_DATA_DIR:-}" ]]; then
-      DATA_DIR="$HARNESS_DATA_DIR"
+    if [[ -n "${ORCHESTRATOR_DATA_DIR:-}" ]]; then
+      DATA_DIR="$ORCHESTRATOR_DATA_DIR"
     elif [[ "$(uname)" == "Darwin" ]]; then
       DATA_DIR="$HOME/Library/Application Support/HarnessPipeline"
     else

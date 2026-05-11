@@ -33,7 +33,7 @@ const jwt = require("../../src/security/jwt");
 
 function startOrchestrator({ token = "e2e-token", bootstrapMap = {}, ledgerDir = null } = {}) {
   const setup = setupRemoteRunner({
-    env: { HARNESS_REMOTE_MODE: "preview", HARNESS_TOKEN: token },
+    env: { ORCHESTRATOR_REMOTE_MODE: "preview", ORCHESTRATOR_TOKEN: token },
   });
 
   // Inject test-controlled bootstrap mapping by replacing the registry's
@@ -88,16 +88,16 @@ function startOrchestrator({ token = "e2e-token", bootstrapMap = {}, ledgerDir =
   });
 }
 
-function buildToken(runId, key, harness = {}) {
+function buildToken(runId, key, orchestrator = {}) {
   return jwt.issue({
     runId,
     key,
     runDurationMs: 60_000,
-    harness: {
+    orchestrator: {
       runOrigin: "container-remote",
       sandboxClass: "container-strict",
       hostIdentity: "runner-e2e",
-      ...harness,
+      ...orchestrator,
     },
   });
 }
@@ -196,7 +196,7 @@ test("R1-e-3 E2E: forged runJWT (different signing key) → ws closes 1008, agen
   });
   // Forge a JWT with a different key — orchestrator must reject the WS upgrade.
   const otherSetup = setupRemoteRunner({
-    env: { HARNESS_REMOTE_MODE: "preview", HARNESS_TOKEN: "completely-different-token" },
+    env: { ORCHESTRATOR_REMOTE_MODE: "preview", ORCHESTRATOR_TOKEN: "completely-different-token" },
   });
   const forgedJwt = buildToken("rr-forge", otherSetup.jwtKey);
 

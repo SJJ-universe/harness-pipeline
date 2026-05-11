@@ -5,11 +5,11 @@
 // concerns end-to-end:
 //
 //   G1  workspace boundary closed by default
-//       Default env (HARNESS_REMOTE_MODE unset) → every runner route 404s.
+//       Default env (ORCHESTRATOR_REMOTE_MODE unset) → every runner route 404s.
 //       This is the "fail-closed" posture MG1 §10.1 promises.
 //
 //   G3-tier1  network egress with rootless-preview Tier 1
-//       HARNESS_REMOTE_MODE=preview + HARNESS_TOKEN set → routes accept a
+//       ORCHESTRATOR_REMOTE_MODE=preview + ORCHESTRATOR_TOKEN set → routes accept a
 //       valid bootstrap, return a runnerToken, and the runnerToken
 //       successfully verifies on the heartbeat. Tier 1 = no nftables
 //       enforcement; the orchestrator still controls the *contract*.
@@ -87,7 +87,7 @@ function makeTempLedgerDir() {
 
 // ── G1: workspace boundary closed by default ──────────────────────
 
-test("R1-h G1: HARNESS_REMOTE_MODE unset → /api/runner/handshake 404s", async () => {
+test("R1-h G1: ORCHESTRATOR_REMOTE_MODE unset → /api/runner/handshake 404s", async () => {
   const setup = setupRemoteRunner({ env: {} });
   const { port, close } = await startApp({
     runnerRegistry: setup.runnerRegistry,
@@ -124,17 +124,17 @@ test("R1-h G1: default → /api/runner/heartbeat and /api/runner/hook also 404",
 
 // ── G3-tier1: preview mode + valid bootstrap ──────────────────────
 
-test("R1-h G3-tier1: preview + HARNESS_TOKEN → handshake → heartbeat round-trip", async () => {
+test("R1-h G3-tier1: preview + ORCHESTRATOR_TOKEN → handshake → heartbeat round-trip", async () => {
   const TOKEN = "test-ikm-for-r1h-integration-aaa";
   const setup = setupRemoteRunner({
-    env: { HARNESS_REMOTE_MODE: "preview", HARNESS_TOKEN: TOKEN },
+    env: { ORCHESTRATOR_REMOTE_MODE: "preview", ORCHESTRATOR_TOKEN: TOKEN },
   });
 
   // Inject a known bootstrap via env-driven default. RunnerRegistry's
-  // default bootstrapTokenFor reads HARNESS_REMOTE_RUNNER_TOKEN_<host>
+  // default bootstrapTokenFor reads ORCHESTRATOR_REMOTE_RUNNER_TOKEN_<host>
   // from process.env, so we set + clean up.
-  const oldBootstrap = process.env["HARNESS_REMOTE_RUNNER_TOKEN_runner_a"];
-  process.env["HARNESS_REMOTE_RUNNER_TOKEN_runner_a"] = "bootstrap-aaa";
+  const oldBootstrap = process.env["ORCHESTRATOR_REMOTE_RUNNER_TOKEN_runner_a"];
+  process.env["ORCHESTRATOR_REMOTE_RUNNER_TOKEN_runner_a"] = "bootstrap-aaa";
 
   try {
     const { port, close } = await startApp({ ...setup });
@@ -157,18 +157,18 @@ test("R1-h G3-tier1: preview + HARNESS_TOKEN → handshake → heartbeat round-t
       await close();
     } finally { /* server already closed */ }
   } finally {
-    if (oldBootstrap === undefined) delete process.env["HARNESS_REMOTE_RUNNER_TOKEN_runner_a"];
-    else process.env["HARNESS_REMOTE_RUNNER_TOKEN_runner_a"] = oldBootstrap;
+    if (oldBootstrap === undefined) delete process.env["ORCHESTRATOR_REMOTE_RUNNER_TOKEN_runner_a"];
+    else process.env["ORCHESTRATOR_REMOTE_RUNNER_TOKEN_runner_a"] = oldBootstrap;
   }
 });
 
 test("R1-h G3-tier1: bad bootstrap → 401 with reason=bootstrap_invalid", async () => {
   const TOKEN = "test-ikm-for-r1h-integration-bbb";
   const setup = setupRemoteRunner({
-    env: { HARNESS_REMOTE_MODE: "preview", HARNESS_TOKEN: TOKEN },
+    env: { ORCHESTRATOR_REMOTE_MODE: "preview", ORCHESTRATOR_TOKEN: TOKEN },
   });
-  const oldBootstrap = process.env["HARNESS_REMOTE_RUNNER_TOKEN_runner_b"];
-  process.env["HARNESS_REMOTE_RUNNER_TOKEN_runner_b"] = "the-correct-one";
+  const oldBootstrap = process.env["ORCHESTRATOR_REMOTE_RUNNER_TOKEN_runner_b"];
+  process.env["ORCHESTRATOR_REMOTE_RUNNER_TOKEN_runner_b"] = "the-correct-one";
 
   try {
     const { port, close } = await startApp({ ...setup });
@@ -180,15 +180,15 @@ test("R1-h G3-tier1: bad bootstrap → 401 with reason=bootstrap_invalid", async
       assert.equal(r.body.reason, "bootstrap_invalid");
     } finally { await close(); }
   } finally {
-    if (oldBootstrap === undefined) delete process.env["HARNESS_REMOTE_RUNNER_TOKEN_runner_b"];
-    else process.env["HARNESS_REMOTE_RUNNER_TOKEN_runner_b"] = oldBootstrap;
+    if (oldBootstrap === undefined) delete process.env["ORCHESTRATOR_REMOTE_RUNNER_TOKEN_runner_b"];
+    else process.env["ORCHESTRATOR_REMOTE_RUNNER_TOKEN_runner_b"] = oldBootstrap;
   }
 });
 
 test("R1-h G3-tier1: /hook accepts a valid runJWT and acknowledges (R1-e wires routeRemote)", async () => {
   const TOKEN = "test-ikm-for-r1h-jwt-flow-ccc";
   const setup = setupRemoteRunner({
-    env: { HARNESS_REMOTE_MODE: "preview", HARNESS_TOKEN: TOKEN },
+    env: { ORCHESTRATOR_REMOTE_MODE: "preview", ORCHESTRATOR_TOKEN: TOKEN },
   });
 
   // Forge a runJWT for runId="rr-9" using the same key the route will verify with.
@@ -196,7 +196,7 @@ test("R1-h G3-tier1: /hook accepts a valid runJWT and acknowledges (R1-e wires r
     runId: "rr-9",
     key: setup.jwtKey,
     runDurationMs: 60_000,
-    harness: { runOrigin: "container-remote", sandboxClass: "container-strict", hostIdentity: "runner-a" },
+    orchestrator: { runOrigin: "container-remote", sandboxClass: "container-strict", hostIdentity: "runner-a" },
   });
 
   const { port, close } = await startApp({ ...setup });
@@ -212,12 +212,12 @@ test("R1-h G3-tier1: /hook accepts a valid runJWT and acknowledges (R1-e wires r
 
 test("R1-h G3-tier1: /hook with invalid JWT → 401 reason=signature", async () => {
   const setup = setupRemoteRunner({
-    env: { HARNESS_REMOTE_MODE: "preview", HARNESS_TOKEN: "real-token-here" },
+    env: { ORCHESTRATOR_REMOTE_MODE: "preview", ORCHESTRATOR_TOKEN: "real-token-here" },
   });
 
   // Forge a JWT signed with a *different* key — must be rejected.
   const otherSetup = setupRemoteRunner({
-    env: { HARNESS_REMOTE_MODE: "preview", HARNESS_TOKEN: "different-token" },
+    env: { ORCHESTRATOR_REMOTE_MODE: "preview", ORCHESTRATOR_TOKEN: "different-token" },
   });
   const forged = jwt.issue({
     runId: "rr-9",
@@ -241,13 +241,13 @@ test("R1-h G3-tier1: /hook with invalid JWT → 401 reason=signature", async () 
 test("R1-h: handshake success + failure both append signed audit entries", async () => {
   const TOKEN = "ledger-audit-test-token-xyz";
   const setup = setupRemoteRunner({
-    env: { HARNESS_REMOTE_MODE: "preview", HARNESS_TOKEN: TOKEN },
+    env: { ORCHESTRATOR_REMOTE_MODE: "preview", ORCHESTRATOR_TOKEN: TOKEN },
   });
   const tmp = makeTempLedgerDir();
   const ledger = new EvidenceLedger({ rootDir: tmp, signingKey: setup.ledgerKey });
 
-  const oldBootstrap = process.env["HARNESS_REMOTE_RUNNER_TOKEN_audit_host"];
-  process.env["HARNESS_REMOTE_RUNNER_TOKEN_audit_host"] = "real-bootstrap";
+  const oldBootstrap = process.env["ORCHESTRATOR_REMOTE_RUNNER_TOKEN_audit_host"];
+  process.env["ORCHESTRATOR_REMOTE_RUNNER_TOKEN_audit_host"] = "real-bootstrap";
 
   try {
     const { port, close } = await startApp({ ...setup, ledger });
@@ -259,12 +259,12 @@ test("R1-h: handshake success + failure both append signed audit entries", async
       assert.equal(ok.status, 200);
 
       // Failure path (different host so it's a clean reject — bad bootstrap)
-      process.env["HARNESS_REMOTE_RUNNER_TOKEN_audit_host_2"] = "right-thing-1";
+      process.env["ORCHESTRATOR_REMOTE_RUNNER_TOKEN_audit_host_2"] = "right-thing-1";
       const fail = await postJson(port, "/api/runner/handshake",
         { hostIdentity: "audit_host_2" },
         { Authorization: "Bearer wrong-thing-1" });  // same length as "right-thing-1"
       assert.equal(fail.status, 401);
-      delete process.env["HARNESS_REMOTE_RUNNER_TOKEN_audit_host_2"];
+      delete process.env["ORCHESTRATOR_REMOTE_RUNNER_TOKEN_audit_host_2"];
 
       // Both calls should have generated entries on the system ledger.
       // EvidenceLedger writes to <rootDir>/<runId>/ledger.jsonl.
@@ -282,8 +282,8 @@ test("R1-h: handshake success + failure both append signed audit entries", async
       assert.equal(v.valid, true, "chain verify must succeed: " + (v.reason || ""));
     } finally { await close(); }
   } finally {
-    if (oldBootstrap === undefined) delete process.env["HARNESS_REMOTE_RUNNER_TOKEN_audit_host"];
-    else process.env["HARNESS_REMOTE_RUNNER_TOKEN_audit_host"] = oldBootstrap;
+    if (oldBootstrap === undefined) delete process.env["ORCHESTRATOR_REMOTE_RUNNER_TOKEN_audit_host"];
+    else process.env["ORCHESTRATOR_REMOTE_RUNNER_TOKEN_audit_host"] = oldBootstrap;
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 });
@@ -293,10 +293,10 @@ test("R1-h: handshake success + failure both append signed audit entries", async
 test("R1-h G7-adj: claim → release leaves registry clean (idempotent + reassign-safe done in R1-d boost)", async () => {
   const TOKEN = "g7-adj-token-ddd";
   const setup = setupRemoteRunner({
-    env: { HARNESS_REMOTE_MODE: "preview", HARNESS_TOKEN: TOKEN },
+    env: { ORCHESTRATOR_REMOTE_MODE: "preview", ORCHESTRATOR_TOKEN: TOKEN },
   });
-  const oldBootstrap = process.env["HARNESS_REMOTE_RUNNER_TOKEN_runner_g7"];
-  process.env["HARNESS_REMOTE_RUNNER_TOKEN_runner_g7"] = "boot-g7";
+  const oldBootstrap = process.env["ORCHESTRATOR_REMOTE_RUNNER_TOKEN_runner_g7"];
+  process.env["ORCHESTRATOR_REMOTE_RUNNER_TOKEN_runner_g7"] = "boot-g7";
 
   try {
     const { port, close } = await startApp({ ...setup });
@@ -317,7 +317,7 @@ test("R1-h G7-adj: claim → release leaves registry clean (idempotent + reassig
       assert.equal(setup.runnerRegistry._hostFor("rr-77"), null);
     } finally { await close(); }
   } finally {
-    if (oldBootstrap === undefined) delete process.env["HARNESS_REMOTE_RUNNER_TOKEN_runner_g7"];
-    else process.env["HARNESS_REMOTE_RUNNER_TOKEN_runner_g7"] = oldBootstrap;
+    if (oldBootstrap === undefined) delete process.env["ORCHESTRATOR_REMOTE_RUNNER_TOKEN_runner_g7"];
+    else process.env["ORCHESTRATOR_REMOTE_RUNNER_TOKEN_runner_g7"] = oldBootstrap;
   }
 });

@@ -1,4 +1,4 @@
-# Operator Guide — harness-start launcher (Phase E1, D0)
+# Operator Guide — orchestrator-start launcher (Phase E1, D0)
 
 > **Trust scope (Phase E plan §O-D0):** the launcher in this slice is for
 > **internal / private distribution only**. SHA256 trust-on-first-use proves
@@ -8,8 +8,8 @@
 > run release zips received through a trusted internal channel.**
 
 This guide tells an operator how to launch the dashboard from a packaged
-release — double-clicking `harness-start.bat` on Windows, or running
-`./harness-start.sh` on macOS / Linux.
+release — double-clicking `orchestrator-start.bat` on Windows, or running
+`./orchestrator-start.sh` on macOS / Linux.
 
 For developers running from a checked-out repo, the same launcher works in
 "dev mode" (it auto-detects `server.js` next to itself).
@@ -19,13 +19,13 @@ For developers running from a checked-out repo, the same launcher works in
 ## 1. What the launcher does
 
 ```
-operator opens harness-start.bat (or .sh)
+operator opens orchestrator-start.bat (or .sh)
    │
    ├── 1. Detects Node.js on PATH (errors if absent)
    │
    ├── 2. Picks a mode:
    │     ─ dev mode      : server.js exists alongside → launch directly
-   │     ─ installer mode : server.js absent + HARNESS_MANIFEST_URL set
+   │     ─ installer mode : server.js absent + ORCHESTRATOR_MANIFEST_URL set
    │                       → fetch manifest → SHA256-verify zip → extract
    │
    ├── 3. (installer only) Validates the runtime against minNodeVersion
@@ -39,7 +39,7 @@ operator opens harness-start.bat (or .sh)
    ├── 6. Polls /api/health for ≤10s, 1s ticks
    │
    └── 7. Opens default browser at http://127.0.0.1:4201
-         (skipped when HARNESS_NO_BROWSER=1)
+         (skipped when ORCHESTRATOR_NO_BROWSER=1)
 ```
 
 The supervisor stays running after the launcher exits. To stop the server,
@@ -53,9 +53,9 @@ use the dashboard's "Restart / Shutdown" controls or `taskkill /im node.exe`
 ### Scenario A — operator unzips a full release locally
 
 ```
-harness-pipeline-1.1.0/
-├── harness-start.bat        ← double-click this
-├── harness-start.sh
+orchestrator-pipeline-1.1.0/
+├── orchestrator-start.bat        ← double-click this
+├── orchestrator-start.sh
 ├── server.js
 ├── start.js
 ├── node_modules/            (~70 MB; pre-installed)
@@ -81,14 +81,14 @@ Set the manifest URL once (per-machine env var or alongside the .bat /
 
 ```powershell
 # Windows (PowerShell)
-$env:HARNESS_MANIFEST_URL = 'https://example.internal/manifest.json'
-.\harness-start.bat
+$env:ORCHESTRATOR_MANIFEST_URL = 'https://example.internal/manifest.json'
+.\orchestrator-start.bat
 ```
 
 ```bash
 # macOS / Linux
-export HARNESS_MANIFEST_URL='https://example.internal/manifest.json'
-./harness-start.sh
+export ORCHESTRATOR_MANIFEST_URL='https://example.internal/manifest.json'
+./orchestrator-start.sh
 ```
 
 The launcher delegates to `install-version.ps1` / `install-version.sh`,
@@ -109,26 +109,26 @@ which:
 
 | Variable | Purpose | Default |
 | --- | --- | --- |
-| `HARNESS_DATA_DIR` | Override the data directory (versions, logs, runs). Set this to `D:\harness-portable` to install onto a USB stick. | Win: `%LOCALAPPDATA%\HarnessPipeline` · macOS: `~/Library/Application Support/HarnessPipeline` · Linux: `~/.local/share/HarnessPipeline` |
-| `HARNESS_CONFIG_DIR` | Override the config directory (profiles.json — Phase E1 D1+). | Win: `%APPDATA%\HarnessPipeline\config` · macOS: `~/Library/Application Support/HarnessPipeline/config` · Linux: `~/.config/HarnessPipeline` |
-| `HARNESS_MANIFEST_URL` | Manifest URL for installer-mode bootstrap. **Required when `server.js` is absent.** Must use `https://` unless `HARNESS_ALLOW_INSECURE_MANIFEST_URL=1` is also set. | (unset) |
-| `HARNESS_ALLOW_INSECURE_MANIFEST_URL` | Set to `1` to permit `http://`, `file://`, etc. for the manifest URL. **Dev/test only — never enable in production.** Loud stderr warning each time. | (unset → https only) |
-| `HARNESS_PORT` | Dashboard port. | `4201` |
-| `HARNESS_HOST` | Dashboard bind address. | `127.0.0.1` |
-| `HARNESS_NO_BROWSER` | Set to `1` to skip browser auto-open (CI / headless). | (unset → opens browser) |
+| `ORCHESTRATOR_DATA_DIR` | Override the data directory (versions, logs, runs). Set this to `D:\orchestrator-portable` to install onto a USB stick. | Win: `%LOCALAPPDATA%\HarnessPipeline` · macOS: `~/Library/Application Support/HarnessPipeline` · Linux: `~/.local/share/HarnessPipeline` |
+| `ORCHESTRATOR_CONFIG_DIR` | Override the config directory (profiles.json — Phase E1 D1+). | Win: `%APPDATA%\HarnessPipeline\config` · macOS: `~/Library/Application Support/HarnessPipeline/config` · Linux: `~/.config/HarnessPipeline` |
+| `ORCHESTRATOR_MANIFEST_URL` | Manifest URL for installer-mode bootstrap. **Required when `server.js` is absent.** Must use `https://` unless `ORCHESTRATOR_ALLOW_INSECURE_MANIFEST_URL=1` is also set. | (unset) |
+| `ORCHESTRATOR_ALLOW_INSECURE_MANIFEST_URL` | Set to `1` to permit `http://`, `file://`, etc. for the manifest URL. **Dev/test only — never enable in production.** Loud stderr warning each time. | (unset → https only) |
+| `ORCHESTRATOR_PORT` | Dashboard port. | `4201` |
+| `ORCHESTRATOR_HOST` | Dashboard bind address. | `127.0.0.1` |
+| `ORCHESTRATOR_NO_BROWSER` | Set to `1` to skip browser auto-open (CI / headless). | (unset → opens browser) |
 
 ### Portable mode (USB stick)
 
 On Windows:
 
 ```powershell
-$env:HARNESS_DATA_DIR = 'D:\harness-portable'
-.\harness-start.bat
+$env:ORCHESTRATOR_DATA_DIR = 'D:\orchestrator-portable'
+.\orchestrator-start.bat
 ```
 
 The dashboard's logs / runs / installed versions all live under
-`D:\harness-portable\`. Move the USB stick to another machine with the
-same Node.js and the harness keeps working.
+`D:\orchestrator-portable\`. Move the USB stick to another machine with the
+same Node.js and the orchestrator keeps working.
 
 ---
 
@@ -173,7 +173,7 @@ which release zip belongs to which version:
 {
   "version": "1.1.0",
   "publishedAt": "2026-05-15T09:00:00Z",
-  "url": "https://example.internal/releases/harness-pipeline-1.1.0.zip",
+  "url": "https://example.internal/releases/orchestrator-pipeline-1.1.0.zip",
   "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
   "minNodeVersion": "24.0.0"
 }
@@ -215,14 +215,14 @@ Treat as a security signal:
    compromised channel) and compare. If both still mismatch, the
    manifest URL itself may have been tampered with.
 
-### "HARNESS_MANIFEST_URL not set — cannot fetch"
+### "ORCHESTRATOR_MANIFEST_URL not set — cannot fetch"
 
 The launcher is in installer mode (no `server.js` next to it) but no
 manifest URL is configured. Either:
 
 1. Re-run from a directory containing `server.js` (the dev/full-zip
    case), **or**
-2. Set `HARNESS_MANIFEST_URL=<https url>` and re-run.
+2. Set `ORCHESTRATOR_MANIFEST_URL=<https url>` and re-run.
 
 ### "Server did not respond within 10s"
 
@@ -236,7 +236,7 @@ Common causes:
 - Port `4201` already taken **by an unrelated service** → the launcher
   intentionally refuses to declare success unless the response carries
   `"app": "HarnessPipeline"` (Phase E1 D0-e port-squat defense). Either
-  free the port or set `HARNESS_PORT=<other>` and retry.
+  free the port or set `ORCHESTRATOR_PORT=<other>` and retry.
 - Port `4201` already taken **by another HarnessPipeline instance** →
   the launcher correctly detects this via `verify-health` and opens
   the browser instead of starting a second server.
@@ -271,7 +271,7 @@ trust scope changes between Phase E1 (now) and Phase E3 Release Hygiene:
 
 - **Today (Phase E1):** SHA256 trust-on-first-use only. Authenticity
   comes from the trusted distribution channel through which the
-  operator received `harness-start.bat`/`.sh`.
+  operator received `orchestrator-start.bat`/`.sh`.
 - **Phase E3 (planned):** manifest signing — either GPG or
   Sigstore/cosign-style keyless, decided in the Phase E3 RFC. After
   E3 lands, the launcher will refuse to extract zips whose manifest

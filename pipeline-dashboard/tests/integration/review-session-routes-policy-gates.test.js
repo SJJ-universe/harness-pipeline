@@ -7,7 +7,7 @@
 //   2. Single audit emit: hard block emits exactly ONE policy_gate_blocked
 //      audit entry; dispatcher's *_failed audit must NOT cascade.
 //   3. Warn mode default: PII detected under standard posture without
-//      HARNESS_HARD_GATES=1 → 200 + warn audit + dispatcher proceeds.
+//      ORCHESTRATOR_HARD_GATES=1 → 200 + warn audit + dispatcher proceeds.
 //   4. Public-sector + warn: PII detected → 200 + warn audit (operator
 //      dashboard renders toast; runner-side GOV-PII-0 is the safety net).
 //   5. Public-sector + hard: PII detected → 409 + blocked audit + state
@@ -54,9 +54,9 @@ async function withServer({
 } = {}, fn) {
   // Save + override env so resolveGateMode() reads the right value
   // for the duration of this test.
-  const savedHardGates = process.env.HARNESS_HARD_GATES;
-  if (hardGates) process.env.HARNESS_HARD_GATES = "1";
-  else delete process.env.HARNESS_HARD_GATES;
+  const savedHardGates = process.env.ORCHESTRATOR_HARD_GATES;
+  if (hardGates) process.env.ORCHESTRATOR_HARD_GATES = "1";
+  else delete process.env.ORCHESTRATOR_HARD_GATES;
 
   try {
     const audit = recordingAudit();
@@ -92,8 +92,8 @@ async function withServer({
       await new Promise((r) => server.close(r));
     }
   } finally {
-    if (savedHardGates === undefined) delete process.env.HARNESS_HARD_GATES;
-    else process.env.HARNESS_HARD_GATES = savedHardGates;
+    if (savedHardGates === undefined) delete process.env.ORCHESTRATOR_HARD_GATES;
+    else process.env.ORCHESTRATOR_HARD_GATES = savedHardGates;
   }
 }
 
@@ -399,8 +399,8 @@ test("S2-b: missing instruction body field → gate NOT_APPLICABLE", async () =>
 
 test("S2-b: WITHOUT auditFn, blocked decision still 409 (audit silently dropped)", async () => {
   // Build server without auditFn dep
-  const savedHardGates = process.env.HARNESS_HARD_GATES;
-  process.env.HARNESS_HARD_GATES = "1";
+  const savedHardGates = process.env.ORCHESTRATOR_HARD_GATES;
+  process.env.ORCHESTRATOR_HARD_GATES = "1";
   try {
     const manager = new ReviewSessionManager({});
     const codexRunner = fakeRunner();
@@ -432,14 +432,14 @@ test("S2-b: WITHOUT auditFn, blocked decision still 409 (audit silently dropped)
       await new Promise((r) => server.close(r));
     }
   } finally {
-    if (savedHardGates === undefined) delete process.env.HARNESS_HARD_GATES;
-    else process.env.HARNESS_HARD_GATES = savedHardGates;
+    if (savedHardGates === undefined) delete process.env.ORCHESTRATOR_HARD_GATES;
+    else process.env.ORCHESTRATOR_HARD_GATES = savedHardGates;
   }
 });
 
 test("S2-b: auditFn that THROWS does not break the route", async () => {
-  const savedHardGates = process.env.HARNESS_HARD_GATES;
-  delete process.env.HARNESS_HARD_GATES;  // warn mode
+  const savedHardGates = process.env.ORCHESTRATOR_HARD_GATES;
+  delete process.env.ORCHESTRATOR_HARD_GATES;  // warn mode
   try {
     const manager = new ReviewSessionManager({});
     const codexRunner = fakeRunner();
@@ -471,8 +471,8 @@ test("S2-b: auditFn that THROWS does not break the route", async () => {
       await new Promise((r) => server.close(r));
     }
   } finally {
-    if (savedHardGates === undefined) delete process.env.HARNESS_HARD_GATES;
-    else process.env.HARNESS_HARD_GATES = savedHardGates;
+    if (savedHardGates === undefined) delete process.env.ORCHESTRATOR_HARD_GATES;
+    else process.env.ORCHESTRATOR_HARD_GATES = savedHardGates;
   }
 });
 

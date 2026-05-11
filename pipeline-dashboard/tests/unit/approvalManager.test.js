@@ -29,11 +29,11 @@ const {
   DEFAULT_APPROVAL_TIMEOUT_MS,
 } = require("../../src/runtime/remoteHookBridgeContract");
 
-// ── Test harness ───────────────────────────────────────────────────
+// ── Test orchestrator ───────────────────────────────────────────────────
 
 /**
  * Build a manager whose timer + clock are explicitly controllable.
- * Returns the manager + a `harness` object with helpers to fire
+ * Returns the manager + a `orchestrator` object with helpers to fire
  * timers and capture audit/broadcast calls.
  */
 function makeHarness(opts = {}) {
@@ -195,45 +195,45 @@ test("ApprovalManager accepts no opts (uses defaults)", () => {
   // Default audit/broadcast are no-ops; nothing observable to assert.
 });
 
-test("ApprovalManager honors HARNESS_REMOTE_APPROVAL_TIMEOUT_MS env", () => {
+test("ApprovalManager honors ORCHESTRATOR_REMOTE_APPROVAL_TIMEOUT_MS env", () => {
   // Save + restore env so the test is order-independent.
-  const saved = process.env.HARNESS_REMOTE_APPROVAL_TIMEOUT_MS;
+  const saved = process.env.ORCHESTRATOR_REMOTE_APPROVAL_TIMEOUT_MS;
   try {
-    process.env.HARNESS_REMOTE_APPROVAL_TIMEOUT_MS = "12345";
+    process.env.ORCHESTRATOR_REMOTE_APPROVAL_TIMEOUT_MS = "12345";
     const h = makeHarness({});
     // Issue a request without per-call timeoutMs — should use env value.
     h.manager.request({ hook: "PreToolUse", tool: "Bash", args: { command: "x" } });
     const list = h.manager.list();
     assert.equal(list[0].timeoutMs, 12345);
   } finally {
-    if (saved === undefined) delete process.env.HARNESS_REMOTE_APPROVAL_TIMEOUT_MS;
-    else process.env.HARNESS_REMOTE_APPROVAL_TIMEOUT_MS = saved;
+    if (saved === undefined) delete process.env.ORCHESTRATOR_REMOTE_APPROVAL_TIMEOUT_MS;
+    else process.env.ORCHESTRATOR_REMOTE_APPROVAL_TIMEOUT_MS = saved;
   }
 });
 
 test("ApprovalManager rejects garbage env values, falling back to default", () => {
-  const saved = process.env.HARNESS_REMOTE_APPROVAL_TIMEOUT_MS;
+  const saved = process.env.ORCHESTRATOR_REMOTE_APPROVAL_TIMEOUT_MS;
   try {
-    process.env.HARNESS_REMOTE_APPROVAL_TIMEOUT_MS = "not-a-number";
+    process.env.ORCHESTRATOR_REMOTE_APPROVAL_TIMEOUT_MS = "not-a-number";
     const h = makeHarness({});
     h.manager.request({ hook: "PreToolUse", tool: "Bash", args: { command: "x" } });
     assert.equal(h.manager.list()[0].timeoutMs, DEFAULT_APPROVAL_TIMEOUT_MS);
   } finally {
-    if (saved === undefined) delete process.env.HARNESS_REMOTE_APPROVAL_TIMEOUT_MS;
-    else process.env.HARNESS_REMOTE_APPROVAL_TIMEOUT_MS = saved;
+    if (saved === undefined) delete process.env.ORCHESTRATOR_REMOTE_APPROVAL_TIMEOUT_MS;
+    else process.env.ORCHESTRATOR_REMOTE_APPROVAL_TIMEOUT_MS = saved;
   }
 });
 
 test("ApprovalManager rejects negative env timeout (defense)", () => {
-  const saved = process.env.HARNESS_REMOTE_APPROVAL_TIMEOUT_MS;
+  const saved = process.env.ORCHESTRATOR_REMOTE_APPROVAL_TIMEOUT_MS;
   try {
-    process.env.HARNESS_REMOTE_APPROVAL_TIMEOUT_MS = "-100";
+    process.env.ORCHESTRATOR_REMOTE_APPROVAL_TIMEOUT_MS = "-100";
     const h = makeHarness({});
     h.manager.request({ hook: "PreToolUse", tool: "Bash", args: { command: "x" } });
     assert.equal(h.manager.list()[0].timeoutMs, DEFAULT_APPROVAL_TIMEOUT_MS);
   } finally {
-    if (saved === undefined) delete process.env.HARNESS_REMOTE_APPROVAL_TIMEOUT_MS;
-    else process.env.HARNESS_REMOTE_APPROVAL_TIMEOUT_MS = saved;
+    if (saved === undefined) delete process.env.ORCHESTRATOR_REMOTE_APPROVAL_TIMEOUT_MS;
+    else process.env.ORCHESTRATOR_REMOTE_APPROVAL_TIMEOUT_MS = saved;
   }
 });
 
@@ -605,15 +605,15 @@ test("_resolveInternal called with garbage resolution coerces to cancelled (defe
 test("default timeout matches DEFAULT_APPROVAL_TIMEOUT_MS contract", () => {
   const m = new ApprovalManager();
   // Bypass env override to confirm the constructor falls back.
-  const saved = process.env.HARNESS_REMOTE_APPROVAL_TIMEOUT_MS;
+  const saved = process.env.ORCHESTRATOR_REMOTE_APPROVAL_TIMEOUT_MS;
   try {
-    delete process.env.HARNESS_REMOTE_APPROVAL_TIMEOUT_MS;
+    delete process.env.ORCHESTRATOR_REMOTE_APPROVAL_TIMEOUT_MS;
     const m2 = new ApprovalManager();
     // Issue a request, observe the timeout value.
-    const harness = makeHarness();
-    harness.manager.request({ hook: "PreToolUse", tool: "Bash", args: { command: "x" } });
-    assert.equal(harness.manager.list()[0].timeoutMs, DEFAULT_APPROVAL_TIMEOUT_MS);
+    const orchestrator = makeHarness();
+    orchestrator.manager.request({ hook: "PreToolUse", tool: "Bash", args: { command: "x" } });
+    assert.equal(orchestrator.manager.list()[0].timeoutMs, DEFAULT_APPROVAL_TIMEOUT_MS);
   } finally {
-    if (saved !== undefined) process.env.HARNESS_REMOTE_APPROVAL_TIMEOUT_MS = saved;
+    if (saved !== undefined) process.env.ORCHESTRATOR_REMOTE_APPROVAL_TIMEOUT_MS = saved;
   }
 });

@@ -107,7 +107,7 @@ function _makeDoc() {
 function _makePacksPayload(opts) {
   const o = opts || {};
   return {
-    schema: "harness-policy-pack/v1",
+    schema: "orchestrator-policy-pack/v1",
     currentPack: o.currentPack || "standard",
     packs: o.packs || [
       {

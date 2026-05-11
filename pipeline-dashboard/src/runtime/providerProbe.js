@@ -101,7 +101,7 @@ const RUNNER_CONFIG = Object.freeze({
     authArgs: ["auth", "status"],
     // Minimal call: `-p --bare --max-tokens 1 "<single token>"`.
     // --bare strips hooks/auto-discovery so the call doesn't re-enter
-    // the harness; --max-tokens 1 caps spend at the absolute minimum.
+    // the orchestrator; --max-tokens 1 caps spend at the absolute minimum.
     minimalCallArgs: ["-p", "--bare", "--max-tokens", "1", "ok"],
     accountLabelRegex: /(?:Logged in as|Account|Authenticated as)[:\s]+(\S+)/i,
   }),
@@ -425,7 +425,7 @@ async function _composeProfileEnv({ parentEnv, profile, profileStore, credential
   if (!profile && !profileStore) {
     // No profile — fall back to filtered parent env. Useful when the
     // operator wants "is the CLI authenticated under whatever it
-    // already has on disk" without going through the harness's
+    // already has on disk" without going through the orchestrator's
     // profile system.
     return { env: filterSensitiveEnv(parentEnv) };
   }

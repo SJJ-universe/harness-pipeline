@@ -26,9 +26,9 @@
 //   - Per-adapter try/catch → a single broken adapter doesn't break
 //     the whole snapshot; sources.<id>.errored marks which one failed
 //
-// Schema: harness-decision-context/v1
+// Schema: orchestrator-decision-context/v1
 //   {
-//     schema: "harness-decision-context/v1",
+//     schema: "orchestrator-decision-context/v1",
 //     timestamp: ISO,
 //     booleans: { 8 documented flags, all default false },
 //     counts:   { numeric counters, all default 0 },
@@ -38,7 +38,7 @@
 
 "use strict";
 
-const SCHEMA = "harness-decision-context/v1";
+const SCHEMA = "orchestrator-decision-context/v1";
 
 // Frozen list of boolean flags. DO NOT add/remove without updating
 // every consumer + their tests.

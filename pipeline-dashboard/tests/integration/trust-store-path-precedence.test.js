@@ -54,20 +54,20 @@ test("TRUST-STORE-PATH-IT: full 5-step precedence chain in one connected walk", 
   fs.mkdirSync(osDefaultDir, { recursive: true });
   const osDefaultPath = path.join(osDefaultDir, FILENAME);
   fs.writeFileSync(osDefaultPath,
-    '{"schema":"harness-release-trust/v1","keys":[]}');
+    '{"schema":"orchestrator-release-trust/v1","keys":[]}');
 
   const installDir = path.join(dir, "install");
   fs.mkdirSync(installDir, { recursive: true });
   const portablePath = path.join(installDir, FILENAME);
   fs.writeFileSync(portablePath,
-    '{"schema":"harness-release-trust/v1","keys":[]}');
+    '{"schema":"orchestrator-release-trust/v1","keys":[]}');
 
   // ── Step 1: --trust-store flag wins over EVERY other input ──
   let r = resolveTrustStorePath({
     cliFlag: "/cli-flag-path",
     env: {
-      HARNESS_TRUST_STORE: "/env-direct-path",
-      HARNESS_CONFIG_DIR: "/env-config-dir",
+      ORCHESTRATOR_TRUST_STORE: "/env-direct-path",
+      ORCHESTRATOR_CONFIG_DIR: "/env-config-dir",
       APPDATA: appdataDir,
     },
     installDir,
@@ -78,11 +78,11 @@ test("TRUST-STORE-PATH-IT: full 5-step precedence chain in one connected walk", 
     "step 1: cliFlag must outrank every other input");
   assert.equal(r.path, "/cli-flag-path");
 
-  // ── Step 2: drop --trust-store; HARNESS_TRUST_STORE wins ────
+  // ── Step 2: drop --trust-store; ORCHESTRATOR_TRUST_STORE wins ────
   r = resolveTrustStorePath({
     env: {
-      HARNESS_TRUST_STORE: "/env-direct-path",
-      HARNESS_CONFIG_DIR: "/env-config-dir",
+      ORCHESTRATOR_TRUST_STORE: "/env-direct-path",
+      ORCHESTRATOR_CONFIG_DIR: "/env-config-dir",
       APPDATA: appdataDir,
     },
     installDir,
@@ -90,13 +90,13 @@ test("TRUST-STORE-PATH-IT: full 5-step precedence chain in one connected walk", 
     homedir: dir,
   });
   assert.equal(r.source, SOURCES.ENV_TRUST_STORE,
-    "step 2: HARNESS_TRUST_STORE must outrank config-dir + os-default + portable");
+    "step 2: ORCHESTRATOR_TRUST_STORE must outrank config-dir + os-default + portable");
   assert.equal(r.path, "/env-direct-path");
 
-  // ── Step 3: drop HARNESS_TRUST_STORE; HARNESS_CONFIG_DIR wins ──
+  // ── Step 3: drop ORCHESTRATOR_TRUST_STORE; ORCHESTRATOR_CONFIG_DIR wins ──
   r = resolveTrustStorePath({
     env: {
-      HARNESS_CONFIG_DIR: "/env-config-dir",
+      ORCHESTRATOR_CONFIG_DIR: "/env-config-dir",
       APPDATA: appdataDir,
     },
     installDir,
@@ -104,7 +104,7 @@ test("TRUST-STORE-PATH-IT: full 5-step precedence chain in one connected walk", 
     homedir: dir,
   });
   assert.equal(r.source, SOURCES.ENV_CONFIG_DIR,
-    "step 3: HARNESS_CONFIG_DIR must outrank os-default + portable");
+    "step 3: ORCHESTRATOR_CONFIG_DIR must outrank os-default + portable");
   assert.equal(r.path, path.join("/env-config-dir", FILENAME));
 
   // ── Step 4: drop env vars; OS-default wins over portable
@@ -136,7 +136,7 @@ test("TRUST-STORE-PATH-IT: full 5-step precedence chain in one connected walk", 
   const installDir2 = path.join(dir2, "install");
   fs.mkdirSync(installDir2, { recursive: true });
   fs.writeFileSync(path.join(installDir2, FILENAME),
-    '{"schema":"harness-release-trust/v1","keys":[]}');
+    '{"schema":"orchestrator-release-trust/v1","keys":[]}');
 
   r = resolveTrustStorePath({
     env: { APPDATA: appdataDir2 },
@@ -221,7 +221,7 @@ test("TRUST-STORE-PATH-IT: OS-default path varies by platform (Windows / macOS /
 
 test("TRUST-STORE-PATH-IT: result object is frozen so callers can't mutate the source", () => {
   const r = resolveTrustStorePath({
-    env: { HARNESS_TRUST_STORE: "/some/path" },
+    env: { ORCHESTRATOR_TRUST_STORE: "/some/path" },
     platform: "linux",
     homedir: os.tmpdir(),
   });
@@ -247,7 +247,7 @@ test("TRUST-STORE-PATH-IT: docs/fixtures/trust-store-example.json parses + match
   const result = loadTrustStore(data);
   assert.equal(result.ok, true,
     "fixture must satisfy manifestSigner.loadTrustStore() — schema + keys[].shape");
-  assert.equal(result.trustStore.schema, "harness-release-trust/v1");
+  assert.equal(result.trustStore.schema, "orchestrator-release-trust/v1");
   assert.ok(Array.isArray(result.trustStore.keys));
   assert.ok(result.trustStore.keys.length >= 1,
     "fixture must show at least one example key entry for documentation");

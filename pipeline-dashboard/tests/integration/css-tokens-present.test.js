@@ -1,6 +1,6 @@
 // Slice UI-H0 (Phase D / Phase E1.5, 2026-04-30) — CSS token presence test.
 //
-// Verifies that the design-token layer at public/css/harness-shell.css
+// Verifies that the design-token layer at public/css/orchestrator-shell.css
 // declares every `--hsh-*` token the UI-H sub-rounds consume. Catches
 // regressions where someone removes a token but a panel still
 // references it (the panel would silently fall back to hex defaults
@@ -18,9 +18,9 @@ const assert = require("node:assert/strict");
 const fs = require("fs");
 const path = require("path");
 
-const CSS_PATH = path.resolve(__dirname, "..", "..", "public", "css", "harness-shell.css");
+const CSS_PATH = path.resolve(__dirname, "..", "..", "public", "css", "orchestrator-shell.css");
 // Slice UI-P1 (2026-04-30): legacy DOM moved to index.legacy.html.
-// This test verifies the legacy shell still loads harness-shell.css —
+// This test verifies the legacy shell still loads orchestrator-shell.css —
 // product shell uses style.product.css covered separately.
 const INDEX_PATH = path.resolve(__dirname, "..", "..", "public", "index.legacy.html");
 
@@ -34,26 +34,26 @@ function readIndexHtml() {
 
 // ── 1. File presence + load order in index.html ─────────────────────
 
-test("UI-H0: harness-shell.css is loaded by index.html BEFORE style.css", () => {
+test("UI-H0: orchestrator-shell.css is loaded by index.html BEFORE style.css", () => {
   const html = readIndexHtml();
-  const hshIdx = html.indexOf('href="css/harness-shell.css"');
+  const hshIdx = html.indexOf('href="css/orchestrator-shell.css"');
   const styleIdx = html.indexOf('href="style.css"');
   const monitorIdx = html.indexOf('href="style.monitor.css"');
 
-  assert.notEqual(hshIdx, -1, "index.html must reference css/harness-shell.css");
+  assert.notEqual(hshIdx, -1, "index.html must reference css/orchestrator-shell.css");
   assert.notEqual(styleIdx, -1, "index.html must reference style.css (legacy)");
   assert.notEqual(monitorIdx, -1, "index.html must reference style.monitor.css");
   // Token layer loads first so subsequent stylesheets can consume `--hsh-*`.
   assert.ok(hshIdx < styleIdx,
-    "harness-shell.css must load BEFORE style.css for cascade");
+    "orchestrator-shell.css must load BEFORE style.css for cascade");
   assert.ok(hshIdx < monitorIdx,
-    "harness-shell.css must load BEFORE style.monitor.css for cascade");
+    "orchestrator-shell.css must load BEFORE style.monitor.css for cascade");
 });
 
-test("UI-H0: harness-shell.css file exists + non-empty", () => {
-  assert.ok(fs.existsSync(CSS_PATH), "public/css/harness-shell.css must exist");
+test("UI-H0: orchestrator-shell.css file exists + non-empty", () => {
+  assert.ok(fs.existsSync(CSS_PATH), "public/css/orchestrator-shell.css must exist");
   const css = readCss();
-  assert.ok(css.length > 1000, "harness-shell.css is suspiciously small");
+  assert.ok(css.length > 1000, "orchestrator-shell.css is suspiciously small");
 });
 
 // ── 2. Token presence — every declared token category ──────────────
@@ -119,7 +119,7 @@ for (const [category, tokens] of Object.entries(REQUIRED_TOKENS)) {
     for (const tok of tokens) {
       // Match `--hsh-name:` (with optional whitespace before `:`)
       const re = new RegExp(`${tok.replace(/-/g, "\\-")}\\s*:`);
-      assert.ok(re.test(css), `token ${tok} missing from harness-shell.css`);
+      assert.ok(re.test(css), `token ${tok} missing from orchestrator-shell.css`);
     }
   });
 }
@@ -177,7 +177,7 @@ test("UI-H0: utility classes declared for panel adoption", () => {
     // CSS class declaration pattern: `.classname {` or `.classname,`
     // or `.classname:` (modifier). Just check the literal substring.
     assert.ok(css.includes(cls),
-      `utility class ${cls} missing from harness-shell.css`);
+      `utility class ${cls} missing from orchestrator-shell.css`);
   }
 });
 
@@ -186,11 +186,11 @@ test("UI-H0: utility classes declared for panel adoption", () => {
 test("UI-H0: no Google Fonts import (no fonts.googleapis.com / fonts.gstatic.com)", () => {
   const css = readCss();
   assert.ok(!css.includes("fonts.googleapis.com"),
-    "harness-shell.css must NOT import from fonts.googleapis.com");
+    "orchestrator-shell.css must NOT import from fonts.googleapis.com");
   assert.ok(!css.includes("fonts.gstatic.com"),
-    "harness-shell.css must NOT import from fonts.gstatic.com");
+    "orchestrator-shell.css must NOT import from fonts.gstatic.com");
   assert.ok(!css.includes("@import"),
-    "harness-shell.css must NOT use @import (CSP-friendly)");
+    "orchestrator-shell.css must NOT use @import (CSP-friendly)");
   // Index.html: also no Google Fonts.
   const html = readIndexHtml();
   assert.ok(!html.includes("fonts.googleapis.com"),

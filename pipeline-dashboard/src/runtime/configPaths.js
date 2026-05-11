@@ -1,6 +1,6 @@
 // Slice D0-a (Phase E1 productization, 2026-04-28) — OS-aware config paths.
 //
-// Single source of truth for "where does the harness store its config /
+// Single source of truth for "where does the orchestrator store its config /
 // data / runs / version installs". Every Phase E module that needs to
 // read/write per-installation state goes through `resolve()`.
 //
@@ -10,7 +10,7 @@
 //     (non-roaming), macOS uses ~/Library/Application Support/, Linux
 //     follows XDG (`~/.config/...`, `~/.local/share/...`). Inline in
 //     server.js would mean three platform branches scattered.
-//   - Portable mode: HARNESS_CONFIG_DIR + HARNESS_DATA_DIR env overrides
+//   - Portable mode: ORCHESTRATOR_CONFIG_DIR + ORCHESTRATOR_DATA_DIR env overrides
 //     let an operator put everything on a USB stick or a per-user
 //     wrapper. Centralizing makes the override one read.
 //   - Test isolation: tests can pass synthetic paths via the env
@@ -65,8 +65,8 @@ function resolve(opts = {}) {
   const homedir = opts.homedir || os.homedir();
 
   // Step 1: explicit env overrides win.
-  const envConfig = env.HARNESS_CONFIG_DIR;
-  const envData = env.HARNESS_DATA_DIR;
+  const envConfig = env.ORCHESTRATOR_CONFIG_DIR;
+  const envData = env.ORCHESTRATOR_DATA_DIR;
 
   // Step 2: OS defaults.
   let osDefaultConfig;

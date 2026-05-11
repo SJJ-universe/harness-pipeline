@@ -15,7 +15,7 @@
 - 13 deterministic in-process tests exercising the full SMART arc:
   | Property | Module | Test count |
   |---|---|---|
-  | 1. HARNESS_HARD_GATES env | policyGates.resolveGateMode | 2 |
+  | 1. ORCHESTRATOR_HARD_GATES env | policyGates.resolveGateMode | 2 |
   | 2. finance-high-privacy pack auto-applies hard rules | deploymentProfile + policyPackRegistry | 2 |
   | 3. Hard gate block on PII | policyGates.gatePiiBlock | 2 |
   | 4. Run memory redaction at write | runMemory.recordRunMemory | 2 |

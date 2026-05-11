@@ -33,8 +33,8 @@
   --prod-bg-header:     #0C0D10;   /* 52px header bg */
   --prod-bg-rail:       #0F1013;   /* pipeline rail bg */
   --prod-bg-card:       #101115;   /* monitor cards */
-  --prod-bg-track-top:  #0F1013;   /* harness track gradient top */
-  --prod-bg-track-bot:  #07080A;   /* harness track gradient bottom */
+  --prod-bg-track-top:  #0F1013;   /* orchestrator track gradient top */
+  --prod-bg-track-bot:  #07080A;   /* orchestrator track gradient bottom */
   --prod-bg-terminal:   #08090B;   /* terminal body */
   --prod-bg-terminal-bar: #0C0D10; /* terminal tab bar */
 
@@ -330,7 +330,7 @@ html, body {
   border-color: rgba(229, 91, 91, 0.3);
 }
 
-/* ── Harness Track (92px) ── */
+/* ── Orchestrator Track (92px) ── */
 
 .prod-track {
   position: relative;
@@ -783,7 +783,7 @@ html, body {
 /* ================================================================
  * UI-P2: Visual Parity Pass — panel internals (Phase 2 Round 3)
  *
- * Reference HTML at sj-harness-dashboard/dashboard/*.jsx renders
+ * Reference HTML at sj-orchestrator-dashboard/dashboard/*.jsx renders
  * rich card bodies with specific layouts. UI-P1 only painted the
  * panel containers; UI-P2 ports the internal layouts pixel-by-pixel
  * so a desktop screenshot of /?mode=pro matches the reference.

@@ -48,7 +48,7 @@ docker_exec() {
 ORCH=harness-orchestrator-r2
 RUNNER=harness-runner-r2
 DASH_BASE=http://127.0.0.1:4201
-DASH_TOKEN="$HARNESS_TOKEN"
+DASH_TOKEN="$ORCHESTRATOR_TOKEN"
 
 pass=0; fail=0
 report() {
@@ -115,9 +115,9 @@ esac
 echo "[r2-lifecycle] running 3 sequential agent_started/agent_stopped cycles…"
 docker_exec -w /app "$RUNNER" node -e '
   const { WebSocket } = require("ws");
-  const wsUrl = process.env.HARNESS_ORCHESTRATOR_URL.replace(/^http/, "ws")
-    + "/api/runner/events?runId=" + encodeURIComponent(process.env.HARNESS_RUN_ID)
-    + "&token=" + encodeURIComponent(process.env.HARNESS_RUN_JWT);
+  const wsUrl = process.env.ORCHESTRATOR_ORCHESTRATOR_URL.replace(/^http/, "ws")
+    + "/api/runner/events?runId=" + encodeURIComponent(process.env.ORCHESTRATOR_RUN_ID)
+    + "&token=" + encodeURIComponent(process.env.ORCHESTRATOR_RUN_JWT);
   const ws = new WebSocket(wsUrl);
   let cycle = 0;
   ws.on("message", (m) => {

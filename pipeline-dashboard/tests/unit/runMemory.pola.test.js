@@ -1,7 +1,7 @@
 // Slice POL-a (Phase 2 / POLICY-UX-0, 2026-05-05) — recordRunMemory
 // + _isOptOut consult deploymentProfile.runMemoryEnabled.
 //
-// Pre-POL-a: env HARNESS_RUN_MEMORY_DISABLE was the only opt-out.
+// Pre-POL-a: env ORCHESTRATOR_RUN_MEMORY_DISABLE was the only opt-out.
 // Post-POL-a: pack.runMemoryEnabled === false ALSO disables writes.
 // All 5 SMART-5 packs ship with runMemoryEnabled=true today, but a
 // future "minimal-debug" pack could disable memory at the rule level.
@@ -27,7 +27,7 @@ function fakeLedger() {
 test("POL-a _isOptOut: env disable=1 + pack runMemoryEnabled=true → opt out (env wins)", () => {
   assert.equal(
     runMemory._isOptOut(
-      { HARNESS_RUN_MEMORY_DISABLE: "1" },
+      { ORCHESTRATOR_RUN_MEMORY_DISABLE: "1" },
       { runMemoryEnabled: true },
     ),
     true,
@@ -57,7 +57,7 @@ test("POL-a _isOptOut: env unset + pack runMemoryEnabled=true → record", () =>
 test("POL-a _isOptOut: env disable + pack runMemoryEnabled=false → opt out (both agree)", () => {
   assert.equal(
     runMemory._isOptOut(
-      { HARNESS_RUN_MEMORY_DISABLE: "1" },
+      { ORCHESTRATOR_RUN_MEMORY_DISABLE: "1" },
       { runMemoryEnabled: false },
     ),
     true,
@@ -73,7 +73,7 @@ test("POL-a _isOptOut: env true / yes / TRUE all opt out (regardless of pack)", 
   for (const v of ["true", "yes", "TRUE", "1"]) {
     assert.equal(
       runMemory._isOptOut(
-        { HARNESS_RUN_MEMORY_DISABLE: v },
+        { ORCHESTRATOR_RUN_MEMORY_DISABLE: v },
         { runMemoryEnabled: true },
       ),
       true,
@@ -118,11 +118,11 @@ test("POL-a recordRunMemory: env opt-out beats pack runMemoryEnabled=true", () =
     runId: "pol-a-run-C",
     inputs: { goal: "x" },
     ledger,
-    env: { HARNESS_RUN_MEMORY_DISABLE: "1" },
+    env: { ORCHESTRATOR_RUN_MEMORY_DISABLE: "1" },
     deploymentProfile: { runMemoryEnabled: true },
   });
   assert.equal(r.recorded, false,
-    "operator HARNESS_RUN_MEMORY_DISABLE wins over pack");
+    "operator ORCHESTRATOR_RUN_MEMORY_DISABLE wins over pack");
   assert.equal(ledger.calls.length, 0);
 });
 
@@ -146,7 +146,7 @@ test("POL-a backwards-compat: recordRunMemory without deploymentProfile uses sta
 test("POL-a SCENARIO: hypothetical 'minimal-debug' pack disables memory entirely", () => {
   // A future pack with runMemoryEnabled=false would disable run
   // memory writes for that deployment. Operators don't have to set
-  // HARNESS_RUN_MEMORY_DISABLE — the pack handles it.
+  // ORCHESTRATOR_RUN_MEMORY_DISABLE — the pack handles it.
   const ledger = fakeLedger();
   const minimalDebugPack = {
     publicSector: false,

@@ -17,7 +17,7 @@ const path = require("path");
 const { createCheckpointStore } = require("../../executor/checkpoint");
 
 function mkRepoRoot() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), "harness-ckpt-perrun-"));
+  return fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-ckpt-perrun-"));
 }
 
 function sampleActive(id) {
@@ -40,7 +40,7 @@ test("default (no runId) → legacy path .harness/pipeline-checkpoint.json", () 
   const store = createCheckpointStore({ repoRoot });
   assert.equal(
     store.path,
-    path.join(repoRoot, ".harness", "pipeline-checkpoint.json"),
+    path.join(repoRoot, ".orchestrator", "pipeline-checkpoint.json"),
     "no runId keeps the legacy path"
   );
 });
@@ -50,7 +50,7 @@ test('runId="default" → same legacy path (singleton compat)', () => {
   const store = createCheckpointStore({ repoRoot, runId: "default" });
   assert.equal(
     store.path,
-    path.join(repoRoot, ".harness", "pipeline-checkpoint.json"),
+    path.join(repoRoot, ".orchestrator", "pipeline-checkpoint.json"),
     'runId="default" is treated as singleton and keeps the legacy path'
   );
 });
@@ -61,11 +61,11 @@ test('non-default runId → .harness/runs/{runId}/checkpoint.json', () => {
   const storeB = createCheckpointStore({ repoRoot, runId: "session-xyz" });
   assert.equal(
     storeA.path,
-    path.join(repoRoot, ".harness", "runs", "runA", "checkpoint.json")
+    path.join(repoRoot, ".orchestrator", "runs", "runA", "checkpoint.json")
   );
   assert.equal(
     storeB.path,
-    path.join(repoRoot, ".harness", "runs", "session-xyz", "checkpoint.json")
+    path.join(repoRoot, ".orchestrator", "runs", "session-xyz", "checkpoint.json")
   );
 });
 
@@ -91,7 +91,7 @@ test("save/load round-trip is isolated between runIds", () => {
 
 test("non-default runId auto-creates the .harness/runs/{runId}/ directory on save", () => {
   const repoRoot = mkRepoRoot();
-  const runDir = path.join(repoRoot, ".harness", "runs", "fresh");
+  const runDir = path.join(repoRoot, ".orchestrator", "runs", "fresh");
   assert.equal(fs.existsSync(runDir), false, "directory does not exist before save");
 
   const store = createCheckpointStore({ repoRoot, runId: "fresh" });

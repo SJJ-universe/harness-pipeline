@@ -10,7 +10,7 @@ const { createMonitorStore } = require("../../public/js/monitor/store");
 
 function _validSnapshot() {
   return {
-    schema: "harness-decision-context/v1",
+    schema: "orchestrator-decision-context/v1",
     timestamp: "2026-05-04T00:00:00.000Z",
     booleans: {
       hasPii: false, approvalPending: true, codexReviewMissing: false,
@@ -48,7 +48,7 @@ test("SMART-0-c store: setDecisionContext with valid snapshot populates slice", 
   const snap = _validSnapshot();
   store.setDecisionContext(snap);
   const out = store.snapshot().decisionContext;
-  assert.equal(out.schema, "harness-decision-context/v1");
+  assert.equal(out.schema, "orchestrator-decision-context/v1");
   assert.equal(out.timestamp, "2026-05-04T00:00:00.000Z");
   assert.equal(out.booleans.approvalPending, true);
   assert.equal(out.counts.pendingApprovals, 2);
@@ -147,7 +147,7 @@ test("SMART-0-c store: setDecisionContext can be called repeatedly (overwrite se
 test("SMART-0-c store: missing booleans/counts/posture/sources sub-block becomes null", () => {
   const store = createMonitorStore();
   store.setDecisionContext({
-    schema: "harness-decision-context/v1",
+    schema: "orchestrator-decision-context/v1",
     timestamp: "2026-05-04T00:00:00.000Z",
     // booleans intentionally missing
   });

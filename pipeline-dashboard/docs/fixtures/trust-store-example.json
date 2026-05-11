@@ -4,7 +4,7 @@
   "_comment_3": "An operator deploying a real harness installation populates this file via the TRUST-STORE-0 UI or `node scripts/sign-manifest.js add-key` (planned).",
   "_comment_4": "The file lives at the path returned by scripts/launcher/trust-store-path.js resolveTrustStorePath().",
   "_comment_5": "Schema reference: docs/live-evidence-schema.md does NOT cover this — see src/security/manifestSigner.js loadTrustStore() for the validator.",
-  "schema": "harness-release-trust/v1",
+  "schema": "orchestrator-release-trust/v1",
   "keys": [
     {
       "keyId": "example-deployer-2026Q2",

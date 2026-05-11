@@ -23,7 +23,7 @@ const { createFileConflictDetector } = require("../../src/runtime/fileConflictDe
 const { HookRouter } = require("../../executor/hook-router");
 
 function mk({ maxConcurrent = 3 } = {}) {
-  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "harness-conflict-cleanup-"));
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-conflict-cleanup-"));
   const events = [];
   const broadcast = (e) => events.push(e);
   const templates = {

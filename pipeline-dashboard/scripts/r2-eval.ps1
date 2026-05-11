@@ -71,7 +71,7 @@ if ($runnerState -eq 'running') {
 Write-Host "[r2-eval] waiting up to 30s for runner_handshake_ok + runner_ws_connected ledger entries..."
 $deadline = (Get-Date).AddSeconds(30)
 $handshakeLedger = '/app/runs/system/ledger.jsonl'
-$wsLedger = "/app/runs/$($env:HARNESS_RUN_ID)/ledger.jsonl"
+$wsLedger = "/app/runs/$($env:ORCHESTRATOR_RUN_ID)/ledger.jsonl"
 $sawHandshake = $false
 $sawWs = $false
 while ((Get-Date) -lt $deadline) {
@@ -94,14 +94,14 @@ while ((Get-Date) -lt $deadline) {
 }
 
 if ($sawHandshake) {
-    Report 'PASS' "evidence chain has runner_handshake_ok for $($env:HARNESS_RUN_ID)"
+    Report 'PASS' "evidence chain has runner_handshake_ok for $($env:ORCHESTRATOR_RUN_ID)"
 } else {
-    Report 'FAIL' "evidence chain MISSING runner_handshake_ok for $($env:HARNESS_RUN_ID)"
+    Report 'FAIL' "evidence chain MISSING runner_handshake_ok for $($env:ORCHESTRATOR_RUN_ID)"
 }
 if ($sawWs) {
-    Report 'PASS' "evidence chain has runner_ws_connected for $($env:HARNESS_RUN_ID)"
+    Report 'PASS' "evidence chain has runner_ws_connected for $($env:ORCHESTRATOR_RUN_ID)"
 } else {
-    Report 'FAIL' "evidence chain MISSING runner_ws_connected for $($env:HARNESS_RUN_ID)"
+    Report 'FAIL' "evidence chain MISSING runner_ws_connected for $($env:ORCHESTRATOR_RUN_ID)"
 }
 
 Write-Host ""

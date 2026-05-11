@@ -2,7 +2,7 @@
 
 **Slice END-USER-DEPLOY-POLISH (Phase 2 v2 follow-up, 2026-05-05)**
 
-이 문서는 Harness Pipeline을 **처음 사용하는 일반 사용자**를 위한
+이 문서는 Orchestrator Pipeline을 **처음 사용하는 일반 사용자**를 위한
 Korean-primary 안내서입니다. 개발자가 아닌 분도 이 문서만 따라가면
 설치 → 첫 실행 → Claude/Codex 연결 → 첫 작업까지 마칠 수 있도록
 설계되었습니다.
@@ -15,7 +15,7 @@ Korean-primary 안내서입니다. 개발자가 아닌 분도 이 문서만 따�
 
 ## §1 이 도구가 무엇인가요?
 
-Harness Pipeline은 **AI 코딩 도구를 안전하게 감독하는 대시보드**입니다.
+Orchestrator Pipeline은 **AI 코딩 도구를 안전하게 감독하는 대시보드**입니다.
 
 - Claude나 Codex 같은 AI에게 코드 작업을 부탁하면, 그 AI가 어떤
   파일을 읽고 어떤 명령을 실행하는지 **실시간으로 보여줍니다**.
@@ -40,7 +40,7 @@ Harness Pipeline은 **AI 코딩 도구를 안전하게 감독하는 대시보드
 | 인터넷 연결 | 권장 | 첫 실행 시 npm 의존성 확인. 이후에는 오프라인에서도 동작합니다. |
 
 > **중요**: Harness는 사용자의 **Claude나 Codex 비밀번호를 받지
-> 않습니다.** 로그인은 각 AI 도구의 공식 흐름을 따릅니다. Harness
+> 않습니다.** 로그인은 각 AI 도구의 공식 흐름을 따릅니다. Orchestrator
 > 화면에서 비밀번호 입력을 요구하는 일은 없습니다.
 
 ---
@@ -53,14 +53,14 @@ Harness Pipeline은 **AI 코딩 도구를 안전하게 감독하는 대시보드
 
 ### §3.2 더블클릭으로 실행
 
-`harness-start.bat` 파일을 **더블클릭**하세요. 검은색 명령 프롬프트
+`orchestrator-start.bat` 파일을 **더블클릭**하세요. 검은색 명령 프롬프트
 창이 뜨면서 다음과 같은 메시지가 차례로 나타납니다:
 
 ```
-[harness-start] Node v24.x.x detected.
-[harness-start] dev mode: launching from C:\Tools\HarnessPipeline\
-[harness-start] starting supervisor (node start.js)...
-[harness-start] server up at http://127.0.0.1:4201
+[orchestrator-start] Node v24.x.x detected.
+[orchestrator-start] dev mode: launching from C:\Tools\HarnessPipeline\
+[orchestrator-start] starting supervisor (node start.js)...
+[orchestrator-start] server up at http://127.0.0.1:4201
 ```
 
 마지막 줄이 보이면 자동으로 브라우저가 열려서 대시보드 화면이
@@ -70,7 +70,7 @@ Harness Pipeline은 **AI 코딩 도구를 안전하게 감독하는 대시보드
 
 브라우저에 다음 화면이 보이면 성공입니다:
 
-- 상단에 "Harness Pipeline" 제목
+- 상단에 "Orchestrator Pipeline" 제목
 - 가운데에 4개의 카드 (AI 작업 중 / 승인 필요 / 최근 작업 / Claude·Codex 연결됨)
 - 우측 상단에 현재 시간과 서버 상태
 
@@ -89,7 +89,7 @@ Harness Pipeline은 **AI 코딩 도구를 안전하게 감독하는 대시보드
 2. LTS 버전 다운로드 (24.x 이상)
 3. 설치 마법사를 끝까지 따라가기 (기본 옵션이면 충분)
 4. 컴퓨터 재시작 (PATH 갱신을 위해)
-5. `harness-start.bat` 다시 더블클릭
+5. `orchestrator-start.bat` 다시 더블클릭
 
 ### §4.2 "server did not respond within 10s" 메시지
 
@@ -104,10 +104,10 @@ Harness Pipeline은 **AI 코딩 도구를 안전하게 감독하는 대시보드
    ```
    netstat -ano | findstr :4201
    ```
-3. 다른 포트로 실행하려면 `harness-start.bat` 실행 전에:
+3. 다른 포트로 실행하려면 `orchestrator-start.bat` 실행 전에:
    ```
-   set HARNESS_PORT=4301
-   harness-start.bat
+   set ORCHESTRATOR_PORT=4301
+   orchestrator-start.bat
    ```
 
 ### §4.3 브라우저가 안 열리거나 빈 페이지가 나옴
@@ -155,7 +155,7 @@ codex --version    # 설치 확인
 codex login        # 로그인
 ```
 
-> **이 단계에서 Harness 화면은 비밀번호를 묻지 않습니다.**
+> **이 단계에서 Orchestrator 화면은 비밀번호를 묻지 않습니다.**
 > Test 버튼은 단순히 "CLI가 설치되어 있고 로그인되어 있는지"
 > 확인할 뿐입니다. 비밀번호는 Anthropic / OpenAI 공식 화면에서만
 > 입력합니다.
@@ -216,9 +216,9 @@ Harness가 자동으로 차단하는 것들:
 | 상황 | 어디서 도움받기 |
 | --- | --- |
 | 위 §4의 해결책으로 안 풀림 | 명령 프롬프트의 빨간색 오류 메시지를 그대로 캡처해서 운영자에게 전달. |
-| Claude/Codex 자체가 작동 안 함 | Claude는 https://docs.anthropic.com/, Codex는 https://platform.openai.com/docs/ 에 문의. Harness 문제가 아닙니다. |
+| Claude/Codex 자체가 작동 안 함 | Claude는 https://docs.anthropic.com/, Codex는 https://platform.openai.com/docs/ 에 문의. Orchestrator 문제가 아닙니다. |
 | 승인 카드의 결정이 어려움 | 명령 내용이 이해가 안 되면 거부하세요. 거부는 안전한 기본값입니다. 다시 부탁하면 같은 작업을 새로 시도합니다. |
-| 더 자세한 기능 안내 | [`../harness-pipeline-distribution-guide.md`](../harness-pipeline-distribution-guide.md) — 운영자용 통합 가이드. |
+| 더 자세한 기능 안내 | [`../orchestrator-pipeline-distribution-guide.md`](../orchestrator-pipeline-distribution-guide.md) — 운영자용 통합 가이드. |
 | 보안/감사 관련 질문 | [`../security-model.md`](../security-model.md) + [`../public-sector-hardening-plan.md`](../public-sector-hardening-plan.md). |
 
 ---
@@ -227,7 +227,7 @@ Harness가 자동으로 차단하는 것들:
 
 이 문서는 첫 실행에 필요한 최소한만 다뤘습니다. 더 알아보려면:
 
-- **운영자 가이드**: [`../operator-guide.md`](../operator-guide.md) — `harness-start` launcher의 모든 옵션 설명.
+- **운영자 가이드**: [`../operator-guide.md`](../operator-guide.md) — `orchestrator-start` launcher의 모든 옵션 설명.
 - **배포 전 점검**: [`deployment-readiness.md`](deployment-readiness.md) — 새 버전을 받았을 때의 확인 사항.
 - **현장 시험**: [`field-pilot-deployment-log.md`](field-pilot-deployment-log.md) — 일주일 사용 기록 템플릿.
 - **AI 협업 흐름**: [`live-verify-review-relay.md`](live-verify-review-relay.md) — Claude → Codex 검토 → Claude 흐름 상세.

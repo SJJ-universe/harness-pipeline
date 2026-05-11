@@ -424,7 +424,7 @@ test("UI-H4: public-sector ALLOWS follow-up target=codex (read-only critique)", 
 
 // ── Token gating (full server boot) ─────────────────────────────
 
-test("UI-H4: state-changing routes require x-harness-token", async () => {
+test("UI-H4: state-changing routes require x-orchestrator-token", async () => {
   await withServer(async () => {
     // POST /review-sessions without token → 401
     const res = await fetch(`${BASE}/api/review-sessions`, {
@@ -446,7 +446,7 @@ test("UI-H4: state-changing routes succeed with token", async () => {
     const token = await getToken();
     const res = await fetch(`${BASE}/api/review-sessions`, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-harness-token": token },
+      headers: { "content-type": "application/json", "x-orchestrator-token": token },
       body: JSON.stringify({ label: "Test from server boot" }),
     });
     assert.equal(res.status, 201);

@@ -1,7 +1,7 @@
 // PipelineAdapter — runtime pipeline mutation (Phase 4)
 //
 // Inspects the active pipeline + accumulated PipelineState and decides whether
-// to mutate the template mid-run. Mutations let the harness react to reality
+// to mutate the template mid-run. Mutations let the orchestrator react to reality
 // instead of blindly walking a static phase list.
 //
 // Mutation types returned by a rule:

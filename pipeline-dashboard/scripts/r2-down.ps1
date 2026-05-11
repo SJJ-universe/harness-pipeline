@@ -24,11 +24,11 @@ if (Test-Path $EnvFile) {
     }
 }
 foreach ($pair in @(
-    @('HARNESS_TOKEN','down-only-noop'),
+    @('ORCHESTRATOR_TOKEN','down-only-noop'),
     @('RUNNER_BOOTSTRAP_TOKEN','down-only-noop'),
-    @('HARNESS_RUN_JWT','down-only-noop'),
-    @('HARNESS_HOST_IDENTITY','runner-r2-001'),
-    @('HARNESS_RUN_ID','rr-r2-eval-001'))) {
+    @('ORCHESTRATOR_RUN_JWT','down-only-noop'),
+    @('ORCHESTRATOR_HOST_IDENTITY','runner-r2-001'),
+    @('ORCHESTRATOR_RUN_ID','rr-r2-eval-001'))) {
     if (-not [Environment]::GetEnvironmentVariable($pair[0], 'Process')) {
         [Environment]::SetEnvironmentVariable($pair[0], $pair[1], 'Process')
     }

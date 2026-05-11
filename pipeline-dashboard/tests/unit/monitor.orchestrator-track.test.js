@@ -1,4 +1,4 @@
-// Slice UI-H2 (Phase D / Phase E1.5, 2026-04-30) — harness-track panel tests.
+// Slice UI-H2 (Phase D / Phase E1.5, 2026-04-30) — orchestrator-track panel tests.
 //
 // Drives the panel against the same DOM stub the project uses elsewhere.
 // State machine itself is independently tested in
@@ -11,7 +11,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const orchestratorTrack = require("../../public/js/monitor/panels/harness-track");
+const orchestratorTrack = require("../../public/js/monitor/panels/orchestrator-track");
 const { createMonitorStore } = require("../../public/js/monitor/store");
 
 // ── DOM stub ──────────────────────────────────────────────────────
@@ -74,12 +74,12 @@ function makeRoot() { return makeStubElement("div"); }
 
 // ── Construction guards ──────────────────────────────────────────
 
-test("UI-H2: harness-track.create throws without root", () => {
+test("UI-H2: orchestrator-track.create throws without root", () => {
   assert.throws(() => orchestratorTrack.create({ store: createMonitorStore() }),
     /root must be an element/);
 });
 
-test("UI-H2: harness-track.create throws without store", () => {
+test("UI-H2: orchestrator-track.create throws without store", () => {
   assert.throws(() => orchestratorTrack.create({ root: makeRoot(), doc: makeStubDoc() }),
     /store must be a OrchestratorMonitorStore/);
 });
@@ -93,7 +93,7 @@ test("UI-H2: empty store → 7 lanes + waiting state", () => {
 
   // ARIA contract
   assert.equal(root.attributes.role, "region");
-  assert.equal(root.attributes["aria-label"], "Harness pipeline track");
+  assert.equal(root.attributes["aria-label"], "Orchestrator pipeline track");
   assert.equal(root.attributes["aria-live"], "polite");
 
   // 7 lane cells

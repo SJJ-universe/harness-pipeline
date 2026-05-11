@@ -2,7 +2,7 @@
 //
 // Pins down which env keys leak vs. stay. The test fixture mirrors the
 // real-world scenario described in the P0 plan: a parent shell with
-// HARNESS_TOKEN, RUNNER_BOOTSTRAP_TOKEN, ANTHROPIC_API_KEY, OPENAI_API_KEY,
+// ORCHESTRATOR_TOKEN, RUNNER_BOOTSTRAP_TOKEN, ANTHROPIC_API_KEY, OPENAI_API_KEY,
 // GITHUB_TOKEN, AWS_SECRET_ACCESS_KEY, NPM_TOKEN exposed alongside
 // benign vars (PATH, HOME, LANG, USERPROFILE).
 //
@@ -19,7 +19,7 @@ const { filterSensitiveEnv, SENSITIVE_KEY_RE } = require("../../src/security/env
 
 const REAL_WORLD_PARENT_ENV = Object.freeze({
   // Sensitive — must be removed by default.
-  HARNESS_TOKEN: "harness-32-byte-hex...",
+  ORCHESTRATOR_TOKEN: "orchestrator-32-byte-hex...",
   RUNNER_BOOTSTRAP_TOKEN: "bootstrap-runner-001",
   ANTHROPIC_API_KEY: "sk-ant-...",
   OPENAI_API_KEY: "sk-...",
@@ -41,20 +41,20 @@ const REAL_WORLD_PARENT_ENV = Object.freeze({
   LANG: "ko_KR.UTF-8",
   TMP: "/tmp",
   NODE_ENV: "production",
-  HARNESS_PORT: "4201",
-  HARNESS_HOST: "127.0.0.1",
-  HARNESS_DEBUG: "1",
-  HARNESS_REMOTE_MODE: "preview",
+  ORCHESTRATOR_PORT: "4201",
+  ORCHESTRATOR_HOST: "127.0.0.1",
+  ORCHESTRATOR_DEBUG: "1",
+  ORCHESTRATOR_REMOTE_MODE: "preview",
   // Edge case: name doesn't match the regex.
   SOME_PUBLIC_VAR: "ok",
 });
 
 // ── default behavior (no opts) ─────────────────────────────────────
 
-test("P0: filterSensitiveEnv removes HARNESS_TOKEN by default (Claude/Codex spawn path)", () => {
+test("P0: filterSensitiveEnv removes ORCHESTRATOR_TOKEN by default (Claude/Codex spawn path)", () => {
   const out = filterSensitiveEnv(REAL_WORLD_PARENT_ENV);
-  assert.equal(out.HARNESS_TOKEN, undefined,
-    "HARNESS_TOKEN must NOT leak to Claude/Codex children");
+  assert.equal(out.ORCHESTRATOR_TOKEN, undefined,
+    "ORCHESTRATOR_TOKEN must NOT leak to Claude/Codex children");
 });
 
 test("P0: filterSensitiveEnv removes runner subsystem tokens", () => {
@@ -96,10 +96,10 @@ test("P0: filterSensitiveEnv preserves benign env vars", () => {
   assert.equal(out.LANG, "ko_KR.UTF-8");
   assert.equal(out.TMP, "/tmp");
   assert.equal(out.NODE_ENV, "production");
-  assert.equal(out.HARNESS_PORT, "4201");
-  assert.equal(out.HARNESS_HOST, "127.0.0.1");
-  assert.equal(out.HARNESS_DEBUG, "1");
-  assert.equal(out.HARNESS_REMOTE_MODE, "preview");
+  assert.equal(out.ORCHESTRATOR_PORT, "4201");
+  assert.equal(out.ORCHESTRATOR_HOST, "127.0.0.1");
+  assert.equal(out.ORCHESTRATOR_DEBUG, "1");
+  assert.equal(out.ORCHESTRATOR_REMOTE_MODE, "preview");
   assert.equal(out.SOME_PUBLIC_VAR, "ok");
 });
 
@@ -107,19 +107,19 @@ test("P0: filterSensitiveEnv does NOT mutate the source env (shallow copy)", () 
   const src = { ...REAL_WORLD_PARENT_ENV };
   filterSensitiveEnv(src);
   // src must still have all keys intact.
-  assert.equal(src.HARNESS_TOKEN, "harness-32-byte-hex...");
+  assert.equal(src.ORCHESTRATOR_TOKEN, "orchestrator-32-byte-hex...");
   assert.equal(src.PATH, "/usr/local/bin:/usr/bin");
 });
 
 // ── allowKeys (PTY path) ───────────────────────────────────────────
 
-test("P0: filterSensitiveEnv allowKeys preserves HARNESS_TOKEN (PTY path)", () => {
-  // server.js's PTY spawn passes `allowKeys: ["HARNESS_TOKEN"]` because
+test("P0: filterSensitiveEnv allowKeys preserves ORCHESTRATOR_TOKEN (PTY path)", () => {
+  // server.js's PTY spawn passes `allowKeys: ["ORCHESTRATOR_TOKEN"]` because
   // the operator may type `curl http://127.0.0.1:4201/api/...` from the
   // terminal and needs the token in the env. Other secrets stay blocked.
-  const out = filterSensitiveEnv(REAL_WORLD_PARENT_ENV, { allowKeys: ["HARNESS_TOKEN"] });
-  assert.equal(out.HARNESS_TOKEN, "harness-32-byte-hex...",
-    "HARNESS_TOKEN must be preserved when explicitly allow-listed");
+  const out = filterSensitiveEnv(REAL_WORLD_PARENT_ENV, { allowKeys: ["ORCHESTRATOR_TOKEN"] });
+  assert.equal(out.ORCHESTRATOR_TOKEN, "orchestrator-32-byte-hex...",
+    "ORCHESTRATOR_TOKEN must be preserved when explicitly allow-listed");
   // Other sensitives remain dropped.
   assert.equal(out.RUNNER_BOOTSTRAP_TOKEN, undefined);
   assert.equal(out.ANTHROPIC_API_KEY, undefined);
@@ -128,9 +128,9 @@ test("P0: filterSensitiveEnv allowKeys preserves HARNESS_TOKEN (PTY path)", () =
 
 test("P0: filterSensitiveEnv allowKeys with multiple entries", () => {
   const out = filterSensitiveEnv(REAL_WORLD_PARENT_ENV, {
-    allowKeys: ["HARNESS_TOKEN", "ANTHROPIC_API_KEY"],
+    allowKeys: ["ORCHESTRATOR_TOKEN", "ANTHROPIC_API_KEY"],
   });
-  assert.equal(out.HARNESS_TOKEN, "harness-32-byte-hex...");
+  assert.equal(out.ORCHESTRATOR_TOKEN, "orchestrator-32-byte-hex...");
   assert.equal(out.ANTHROPIC_API_KEY, "sk-ant-...");
   // Not in allow list → dropped.
   assert.equal(out.OPENAI_API_KEY, undefined);
@@ -146,7 +146,7 @@ test("P0: filterSensitiveEnv extraDrop removes specified non-pattern keys", () =
   assert.equal(out.SOME_PUBLIC_VAR, undefined);
   assert.equal(out.NODE_ENV, undefined);
   // Pattern matches still removed.
-  assert.equal(out.HARNESS_TOKEN, undefined);
+  assert.equal(out.ORCHESTRATOR_TOKEN, undefined);
   // Other benign preserved.
   assert.equal(out.PATH, "/usr/local/bin:/usr/bin");
 });
@@ -155,10 +155,10 @@ test("P0: filterSensitiveEnv extraDrop applies before allowKeys (extraDrop wins)
   // If a key is in BOTH extraDrop AND allowKeys, extraDrop wins (defense
   // in depth — explicit drop is operator intent).
   const out = filterSensitiveEnv(REAL_WORLD_PARENT_ENV, {
-    extraDrop: ["HARNESS_TOKEN"],
-    allowKeys: ["HARNESS_TOKEN"],
+    extraDrop: ["ORCHESTRATOR_TOKEN"],
+    allowKeys: ["ORCHESTRATOR_TOKEN"],
   });
-  assert.equal(out.HARNESS_TOKEN, undefined,
+  assert.equal(out.ORCHESTRATOR_TOKEN, undefined,
     "extraDrop must override allowKeys");
 });
 
@@ -190,19 +190,19 @@ test("P0: SENSITIVE_KEY_RE matches expected names + rejects benign", () => {
     assert.ok(SENSITIVE_KEY_RE.test(sensitive), `expected ${sensitive} to match`);
   }
   for (const benign of ["PATH", "HOME", "LANG", "USERPROFILE", "NODE_ENV",
-                         "HARNESS_PORT", "HARNESS_HOST", "DEBUG", "TMP"]) {
+                         "ORCHESTRATOR_PORT", "ORCHESTRATOR_HOST", "DEBUG", "TMP"]) {
     assert.ok(!SENSITIVE_KEY_RE.test(benign), `expected ${benign} to NOT match`);
   }
 });
 
-// ── HARNESS_DEBUG false-positive negative test ─────────────────────
+// ── ORCHESTRATOR_DEBUG false-positive negative test ─────────────────────
 
-test("P0: HARNESS_DEBUG is preserved (does not match KEY/TOKEN/SECRET pattern)", () => {
+test("P0: ORCHESTRATOR_DEBUG is preserved (does not match KEY/TOKEN/SECRET pattern)", () => {
   // Sanity check: the regex shouldn't be too aggressive.
-  // HARNESS_DEBUG, HARNESS_PORT, HARNESS_HOST, HARNESS_REMOTE_MODE all benign.
+  // ORCHESTRATOR_DEBUG, ORCHESTRATOR_PORT, ORCHESTRATOR_HOST, ORCHESTRATOR_REMOTE_MODE all benign.
   const out = filterSensitiveEnv(REAL_WORLD_PARENT_ENV);
-  assert.equal(out.HARNESS_DEBUG, "1");
-  assert.equal(out.HARNESS_PORT, "4201");
-  assert.equal(out.HARNESS_HOST, "127.0.0.1");
-  assert.equal(out.HARNESS_REMOTE_MODE, "preview");
+  assert.equal(out.ORCHESTRATOR_DEBUG, "1");
+  assert.equal(out.ORCHESTRATOR_PORT, "4201");
+  assert.equal(out.ORCHESTRATOR_HOST, "127.0.0.1");
+  assert.equal(out.ORCHESTRATOR_REMOTE_MODE, "preview");
 });

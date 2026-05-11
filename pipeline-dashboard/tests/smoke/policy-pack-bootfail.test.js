@@ -1,9 +1,9 @@
 // Slice S5-c (Phase 2 / SMART-5, 2026-05-05) — server-boot fail-closed smoke.
 //
-// Plan §S §S-SMART-5 v2 invariant: an unknown HARNESS_DEPLOYMENT_PROFILE
+// Plan §S §S-SMART-5 v2 invariant: an unknown ORCHESTRATOR_DEPLOYMENT_PROFILE
 // in production (default) MUST cause server.js to exit 1 at boot,
 // not silently fall back to standard. The escape hatch
-// HARNESS_POLICY_FAIL_OPEN=1 reverts to legacy fallback behavior.
+// ORCHESTRATOR_POLICY_FAIL_OPEN=1 reverts to legacy fallback behavior.
 //
 // Both behaviors are asserted via child_process spawn so the
 // process.exit(1) path is observable end-to-end (unit tests already
@@ -50,8 +50,8 @@ function spawnServerWithEnv(envOverrides) {
       // SMART-5 cares about.
       ...process.env,
       // Make boot fast: skip browser open, disable remote runner
-      // entirely (HARNESS_REMOTE_MODE=off is the default).
-      HARNESS_NO_BROWSER: "1",
+      // entirely (ORCHESTRATOR_REMOTE_MODE=off is the default).
+      ORCHESTRATOR_NO_BROWSER: "1",
       // Force a fresh port-free state — server.js listens on
       // 0 = ephemeral when start() is called, but we never call
       // start() so this just keeps env tidy.
@@ -66,7 +66,7 @@ function spawnServerWithEnv(envOverrides) {
 
 test("S5-c: server boots cleanly under known pack 'standard' (sanity)", () => {
   const result = spawnServerWithEnv({
-    HARNESS_DEPLOYMENT_PROFILE: "standard",
+    ORCHESTRATOR_DEPLOYMENT_PROFILE: "standard",
   });
   assert.equal(result.status, 0, `expected exit 0, got ${result.status}: ${result.stderr}`);
   assert.match(result.stdout, /BOOT_OK/);
@@ -74,7 +74,7 @@ test("S5-c: server boots cleanly under known pack 'standard' (sanity)", () => {
 
 test("S5-c: server boots cleanly under known pack 'public-sector'", () => {
   const result = spawnServerWithEnv({
-    HARNESS_DEPLOYMENT_PROFILE: "public-sector",
+    ORCHESTRATOR_DEPLOYMENT_PROFILE: "public-sector",
   });
   assert.equal(result.status, 0, `expected exit 0, got ${result.status}: ${result.stderr}`);
   assert.match(result.stdout, /BOOT_OK/);
@@ -82,7 +82,7 @@ test("S5-c: server boots cleanly under known pack 'public-sector'", () => {
 
 test("S5-c: server boots cleanly under known pack 'finance-high-privacy'", () => {
   const result = spawnServerWithEnv({
-    HARNESS_DEPLOYMENT_PROFILE: "finance-high-privacy",
+    ORCHESTRATOR_DEPLOYMENT_PROFILE: "finance-high-privacy",
   });
   assert.equal(result.status, 0, `expected exit 0, got ${result.status}: ${result.stderr}`);
   assert.match(result.stdout, /BOOT_OK/);
@@ -90,7 +90,7 @@ test("S5-c: server boots cleanly under known pack 'finance-high-privacy'", () =>
 
 test("S5-c: server boots cleanly under known pack 'offline-internal-network'", () => {
   const result = spawnServerWithEnv({
-    HARNESS_DEPLOYMENT_PROFILE: "offline-internal-network",
+    ORCHESTRATOR_DEPLOYMENT_PROFILE: "offline-internal-network",
   });
   assert.equal(result.status, 0, `expected exit 0, got ${result.status}: ${result.stderr}`);
   assert.match(result.stdout, /BOOT_OK/);
@@ -98,15 +98,15 @@ test("S5-c: server boots cleanly under known pack 'offline-internal-network'", (
 
 test("S5-c: server boots cleanly under known pack 'developer-lab'", () => {
   const result = spawnServerWithEnv({
-    HARNESS_DEPLOYMENT_PROFILE: "developer-lab",
+    ORCHESTRATOR_DEPLOYMENT_PROFILE: "developer-lab",
   });
   assert.equal(result.status, 0, `expected exit 0, got ${result.status}: ${result.stderr}`);
   assert.match(result.stdout, /BOOT_OK/);
 });
 
-test("S5-c: unset HARNESS_DEPLOYMENT_PROFILE → boots as standard (backward compat)", () => {
+test("S5-c: unset ORCHESTRATOR_DEPLOYMENT_PROFILE → boots as standard (backward compat)", () => {
   const result = spawnServerWithEnv({
-    HARNESS_DEPLOYMENT_PROFILE: "",
+    ORCHESTRATOR_DEPLOYMENT_PROFILE: "",
   });
   assert.equal(result.status, 0, `expected exit 0, got ${result.status}: ${result.stderr}`);
   assert.match(result.stdout, /BOOT_OK/);
@@ -114,38 +114,38 @@ test("S5-c: unset HARNESS_DEPLOYMENT_PROFILE → boots as standard (backward com
 
 // ── Fail-closed boot ──────────────────────────────────────────────
 
-test("S5-c: typo'd HARNESS_DEPLOYMENT_PROFILE='publicsector' → exit 1 + FATAL stderr", () => {
+test("S5-c: typo'd ORCHESTRATOR_DEPLOYMENT_PROFILE='publicsector' → exit 1 + FATAL stderr", () => {
   const result = spawnServerWithEnv({
-    HARNESS_DEPLOYMENT_PROFILE: "publicsector",
+    ORCHESTRATOR_DEPLOYMENT_PROFILE: "publicsector",
   });
   assert.equal(result.status, 1, `expected exit 1 (fail-closed), got ${result.status}`);
   assert.ok(!/BOOT_OK/.test(result.stdout), "BOOT_OK must NOT print when fail-closed");
   // FATAL message + remediation hint should be on stderr
   assert.match(result.stderr, /FATAL/);
-  assert.match(result.stderr, /Unknown HARNESS_DEPLOYMENT_PROFILE/);
-  assert.match(result.stderr, /HARNESS_POLICY_FAIL_OPEN=1/);
+  assert.match(result.stderr, /Unknown ORCHESTRATOR_DEPLOYMENT_PROFILE/);
+  assert.match(result.stderr, /ORCHESTRATOR_POLICY_FAIL_OPEN=1/);
 });
 
-test("S5-c: gibberish HARNESS_DEPLOYMENT_PROFILE → exit 1", () => {
+test("S5-c: gibberish ORCHESTRATOR_DEPLOYMENT_PROFILE → exit 1", () => {
   const result = spawnServerWithEnv({
-    HARNESS_DEPLOYMENT_PROFILE: "completely-not-a-pack",
+    ORCHESTRATOR_DEPLOYMENT_PROFILE: "completely-not-a-pack",
   });
   assert.equal(result.status, 1);
 });
 
-test("S5-c: typo + HARNESS_POLICY_FAIL_OPEN=1 → boots as standard (legacy escape)", () => {
+test("S5-c: typo + ORCHESTRATOR_POLICY_FAIL_OPEN=1 → boots as standard (legacy escape)", () => {
   const result = spawnServerWithEnv({
-    HARNESS_DEPLOYMENT_PROFILE: "publicsector",
-    HARNESS_POLICY_FAIL_OPEN: "1",
+    ORCHESTRATOR_DEPLOYMENT_PROFILE: "publicsector",
+    ORCHESTRATOR_POLICY_FAIL_OPEN: "1",
   });
   assert.equal(result.status, 0, `expected exit 0 with escape, got ${result.status}: ${result.stderr}`);
   assert.match(result.stdout, /BOOT_OK/);
 });
 
-test("S5-c: typo + HARNESS_POLICY_FAIL_OPEN=0 → exit 1 (escape NOT enabled)", () => {
+test("S5-c: typo + ORCHESTRATOR_POLICY_FAIL_OPEN=0 → exit 1 (escape NOT enabled)", () => {
   const result = spawnServerWithEnv({
-    HARNESS_DEPLOYMENT_PROFILE: "publicsector",
-    HARNESS_POLICY_FAIL_OPEN: "0",
+    ORCHESTRATOR_DEPLOYMENT_PROFILE: "publicsector",
+    ORCHESTRATOR_POLICY_FAIL_OPEN: "0",
   });
   assert.equal(result.status, 1, `escape should NOT enable on '0', got ${result.status}`);
 });

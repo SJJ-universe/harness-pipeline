@@ -52,7 +52,7 @@ on a desktop viewport (1366×768). For each visible+enabled button:
 Catches "looks clickable but does nothing" UX failures.
 
 Options:
-  --port <n>                Server port (default 4799 or HARNESS_VISUAL_LIVE_PORT)
+  --port <n>                Server port (default 4799 or ORCHESTRATOR_VISUAL_LIVE_PORT)
   --out-dir <path>          Output directory for manifest.json
                             (default docs/reports/<YYYY-MM-DD>-ui-p13-buttons/)
   --label <text>            Optional label suffix for the directory name

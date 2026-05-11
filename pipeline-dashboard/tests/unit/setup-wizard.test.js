@@ -71,7 +71,7 @@ function stubPrompt(answers) {
 }
 
 function tmpDir(t) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "harness-wiz-test-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-wiz-test-"));
   t.after(() => {
     try { fs.rmSync(dir, { recursive: true, force: true }); } catch (_) {}
   });
@@ -161,32 +161,32 @@ test("D2-d: parseArgs — multiple flags compose", () => {
 // ─────────────────────────────────────────────────────────────────
 
 test("D2-d: resolveTrack — flag wins over env", () => {
-  assert.equal(wizard.resolveTrack({ mode: "standard" }, { HARNESS_DEPLOYMENT_PROFILE: "public-sector" }), "standard");
+  assert.equal(wizard.resolveTrack({ mode: "standard" }, { ORCHESTRATOR_DEPLOYMENT_PROFILE: "public-sector" }), "standard");
   assert.equal(wizard.resolveTrack({ mode: "public-sector" }, {}), "public-sector");
 });
 
 test("D2-d: resolveTrack — env reflected when no flag", () => {
-  assert.equal(wizard.resolveTrack({}, { HARNESS_DEPLOYMENT_PROFILE: "public-sector" }), "public-sector");
+  assert.equal(wizard.resolveTrack({}, { ORCHESTRATOR_DEPLOYMENT_PROFILE: "public-sector" }), "public-sector");
 });
 
 test("D2-d: resolveTrack — default = standard", () => {
   assert.equal(wizard.resolveTrack({}, {}), "standard");
-  assert.equal(wizard.resolveTrack({}, { HARNESS_DEPLOYMENT_PROFILE: "" }), "standard");
+  assert.equal(wizard.resolveTrack({}, { ORCHESTRATOR_DEPLOYMENT_PROFILE: "" }), "standard");
 });
 
 test("D2-d: resolveBaseUrl — flag > env > default", () => {
-  assert.equal(wizard.resolveBaseUrl({ baseUrl: "http://flag" }, { HARNESS_BASE_URL: "http://env" }), "http://flag");
-  assert.equal(wizard.resolveBaseUrl({}, { HARNESS_BASE_URL: "http://env" }), "http://env");
+  assert.equal(wizard.resolveBaseUrl({ baseUrl: "http://flag" }, { ORCHESTRATOR_BASE_URL: "http://env" }), "http://flag");
+  assert.equal(wizard.resolveBaseUrl({}, { ORCHESTRATOR_BASE_URL: "http://env" }), "http://env");
   assert.equal(wizard.resolveBaseUrl({}, {}), "http://127.0.0.1:4201");
 });
 
 test("D2-d: resolveToken — flag > env > token file > null", (t) => {
   const dir = tmpDir(t);
-  fs.mkdirSync(path.join(dir, ".harness"), { recursive: true });
-  fs.writeFileSync(path.join(dir, ".harness", "local-token"), "from-file\n");
+  fs.mkdirSync(path.join(dir, ".orchestrator"), { recursive: true });
+  fs.writeFileSync(path.join(dir, ".orchestrator", "local-token"), "from-file\n");
 
-  assert.equal(wizard.resolveToken({ token: "flag" }, { HARNESS_TOKEN: "env" }, dir), "flag");
-  assert.equal(wizard.resolveToken({}, { HARNESS_TOKEN: "env" }, dir), "env");
+  assert.equal(wizard.resolveToken({ token: "flag" }, { ORCHESTRATOR_TOKEN: "env" }, dir), "flag");
+  assert.equal(wizard.resolveToken({}, { ORCHESTRATOR_TOKEN: "env" }, dir), "env");
   assert.equal(wizard.resolveToken({}, {}, dir), "from-file");
 
   // No file in this dir → null.
@@ -196,8 +196,8 @@ test("D2-d: resolveToken — flag > env > token file > null", (t) => {
 
 test("D2-d: resolveToken — empty file → null (operator never sees empty token)", (t) => {
   const dir = tmpDir(t);
-  fs.mkdirSync(path.join(dir, ".harness"), { recursive: true });
-  fs.writeFileSync(path.join(dir, ".harness", "local-token"), "   \n  \n");
+  fs.mkdirSync(path.join(dir, ".orchestrator"), { recursive: true });
+  fs.writeFileSync(path.join(dir, ".orchestrator", "local-token"), "   \n  \n");
   assert.equal(wizard.resolveToken({}, {}, dir), null);
 });
 
@@ -205,7 +205,7 @@ test("D2-d: resolveToken — empty file → null (operator never sees empty toke
 //  postJson
 // ─────────────────────────────────────────────────────────────────
 
-test("D2-d: postJson — sends x-harness-token header + JSON body", async () => {
+test("D2-d: postJson — sends x-orchestrator-token header + JSON body", async () => {
   const fetchImpl = stubFetch([
     { matcher: () => true, response: { status: 200, body: { ok: true } } },
   ]);
@@ -221,7 +221,7 @@ test("D2-d: postJson — sends x-harness-token header + JSON body", async () => 
   assert.equal(r.body.ok, true);
   assert.equal(fetchImpl.calls[0].url, "http://h/api/x");
   assert.equal(fetchImpl.calls[0].opts.method, "POST");
-  assert.equal(fetchImpl.calls[0].opts.headers["x-harness-token"], "secret-token");
+  assert.equal(fetchImpl.calls[0].opts.headers["x-orchestrator-token"], "secret-token");
   assert.equal(JSON.parse(fetchImpl.calls[0].opts.body).a, 1);
 });
 
@@ -250,7 +250,7 @@ test("D2-d: postJson — strips trailing slash on baseUrl", async () => {
 test("D2-d: main --help → exit 0 with help text", async () => {
   const out = await captureOutput(() => wizard.main(["--help"], {}));
   assert.equal(out.result, 0);
-  assert.match(out.stdout, /harness setup wizard/);
+  assert.match(out.stdout, /orchestrator setup wizard/);
   assert.match(out.stdout, /--public-sector/);
 });
 
@@ -266,11 +266,11 @@ test("D2-d: main unknown arg → exit 3 with error to stderr", async () => {
   assert.match(out.stderr, /unknown argument/);
 });
 
-test("D2-d: main no token + no .harness file → exit 2 with actionable message", async (t) => {
+test("D2-d: main no token + no .orchestrator file → exit 2 with actionable message", async (t) => {
   const dir = tmpDir(t);
   const out = await captureOutput(() => wizard.main([], {}, { repoRoot: dir }));
   assert.equal(out.result, 2);
-  assert.match(out.stderr, /no HARNESS_TOKEN/i);
+  assert.match(out.stderr, /no ORCHESTRATOR_TOKEN/i);
   assert.match(out.stderr, /local-token|--token/);
 });
 
@@ -280,8 +280,8 @@ test("D2-d: main no token + no .harness file → exit 2 with actionable message"
 
 test("D2-d: main standard track happy path → finalize success", async (t) => {
   const repoRoot = tmpDir(t);
-  fs.mkdirSync(path.join(repoRoot, ".harness"), { recursive: true });
-  fs.writeFileSync(path.join(repoRoot, ".harness", "local-token"), "test-token");
+  fs.mkdirSync(path.join(repoRoot, ".orchestrator"), { recursive: true });
+  fs.writeFileSync(path.join(repoRoot, ".orchestrator", "local-token"), "test-token");
 
   const wsDir = tmpDir(t);
 
@@ -316,7 +316,7 @@ test("D2-d: main standard track happy path → finalize success", async (t) => {
   // Standard track prompts the operator for:
   //   1. profile id        (default "personal")
   //   2. profile label     (default "Personal")
-  //   3. workspace path    (default OS-specific home/harness-workspace)
+  //   3. workspace path    (default OS-specific home/orchestrator-workspace)
   //   4. test claude?      (confirm, default true → false to skip)
   //   5. test codex?       (confirm only if codex CLI found, default false → false)
   //   6. set active?       (confirm, default true)
@@ -341,8 +341,8 @@ test("D2-d: main standard track happy path → finalize success", async (t) => {
 
 test("D2-d: main standard track — node version too old → exit 2", async (t) => {
   const repoRoot = tmpDir(t);
-  fs.mkdirSync(path.join(repoRoot, ".harness"), { recursive: true });
-  fs.writeFileSync(path.join(repoRoot, ".harness", "local-token"), "test-token");
+  fs.mkdirSync(path.join(repoRoot, ".orchestrator"), { recursive: true });
+  fs.writeFileSync(path.join(repoRoot, ".orchestrator", "local-token"), "test-token");
 
   const fetchImpl = stubFetch((url) => {
     if (url.endsWith("/probe-node")) {
@@ -363,8 +363,8 @@ test("D2-d: main standard track — node version too old → exit 2", async (t) 
 
 test("D2-d: main standard track — server unreachable → exit 2 with actionable message", async (t) => {
   const repoRoot = tmpDir(t);
-  fs.mkdirSync(path.join(repoRoot, ".harness"), { recursive: true });
-  fs.writeFileSync(path.join(repoRoot, ".harness", "local-token"), "test-token");
+  fs.mkdirSync(path.join(repoRoot, ".orchestrator"), { recursive: true });
+  fs.writeFileSync(path.join(repoRoot, ".orchestrator", "local-token"), "test-token");
 
   const fetchImpl = () => Promise.reject(new Error("ECONNREFUSED 127.0.0.1:4201"));
   const promptImpl = stubPrompt([]);
@@ -382,8 +382,8 @@ test("D2-d: main standard track — server unreachable → exit 2 with actionabl
 
 test("D2-d: main public-sector happy path → finalize agency profile", async (t) => {
   const repoRoot = tmpDir(t);
-  fs.mkdirSync(path.join(repoRoot, ".harness"), { recursive: true });
-  fs.writeFileSync(path.join(repoRoot, ".harness", "local-token"), "test-token");
+  fs.mkdirSync(path.join(repoRoot, ".orchestrator"), { recursive: true });
+  fs.writeFileSync(path.join(repoRoot, ".orchestrator", "local-token"), "test-token");
 
   const fetchImpl = stubFetch((url, opts) => {
     if (url.endsWith("/probe-node")) {
@@ -436,8 +436,8 @@ test("D2-d: main public-sector happy path → finalize agency profile", async (t
 
 test("D2-d: main public-sector — sandbox NOT acknowledged → exit 1 (operator abort)", async (t) => {
   const repoRoot = tmpDir(t);
-  fs.mkdirSync(path.join(repoRoot, ".harness"), { recursive: true });
-  fs.writeFileSync(path.join(repoRoot, ".harness", "local-token"), "test-token");
+  fs.mkdirSync(path.join(repoRoot, ".orchestrator"), { recursive: true });
+  fs.writeFileSync(path.join(repoRoot, ".orchestrator", "local-token"), "test-token");
 
   const fetchImpl = stubFetch((url) => {
     if (url.endsWith("/probe-node")) {
@@ -465,8 +465,8 @@ test("D2-d: main public-sector — sandbox NOT acknowledged → exit 1 (operator
 
 test("D2-d: main public-sector — release NOT acknowledged → exit 1", async (t) => {
   const repoRoot = tmpDir(t);
-  fs.mkdirSync(path.join(repoRoot, ".harness"), { recursive: true });
-  fs.writeFileSync(path.join(repoRoot, ".harness", "local-token"), "test-token");
+  fs.mkdirSync(path.join(repoRoot, ".orchestrator"), { recursive: true });
+  fs.writeFileSync(path.join(repoRoot, ".orchestrator", "local-token"), "test-token");
 
   const fetchImpl = stubFetch((url) => {
     if (url.endsWith("/probe-node")) {
@@ -493,10 +493,10 @@ test("D2-d: main public-sector — release NOT acknowledged → exit 1", async (
 //  Track override via flag overrides env
 // ─────────────────────────────────────────────────────────────────
 
-test("D2-d: --standard flag overrides HARNESS_DEPLOYMENT_PROFILE=public-sector env", async (t) => {
+test("D2-d: --standard flag overrides ORCHESTRATOR_DEPLOYMENT_PROFILE=public-sector env", async (t) => {
   const repoRoot = tmpDir(t);
-  fs.mkdirSync(path.join(repoRoot, ".harness"), { recursive: true });
-  fs.writeFileSync(path.join(repoRoot, ".harness", "local-token"), "tok");
+  fs.mkdirSync(path.join(repoRoot, ".orchestrator"), { recursive: true });
+  fs.writeFileSync(path.join(repoRoot, ".orchestrator", "local-token"), "tok");
 
   const fetchImpl = stubFetch((url) => {
     if (url.endsWith("/probe-node")) {
@@ -510,7 +510,7 @@ test("D2-d: --standard flag overrides HARNESS_DEPLOYMENT_PROFILE=public-sector e
   const promptImpl = stubPrompt([]);
 
   const out = await captureOutput(() =>
-    wizard.main(["--standard"], { HARNESS_DEPLOYMENT_PROFILE: "public-sector" }, { repoRoot, fetchImpl, promptImpl }),
+    wizard.main(["--standard"], { ORCHESTRATOR_DEPLOYMENT_PROFILE: "public-sector" }, { repoRoot, fetchImpl, promptImpl }),
   );
   // Standard track header should appear (even though it then fails
   // on Node version), proving the flag override worked.

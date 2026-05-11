@@ -34,8 +34,8 @@ test("UI-H1: DEFAULT_MODE is 'simple' (operator-friendly fallback)", () => {
   assert.equal(DEFAULT_MODE, "simple");
 });
 
-test("UI-H1: STORAGE_KEY is namespaced 'harness.monitor.mode'", () => {
-  assert.equal(STORAGE_KEY, "harness.monitor.mode");
+test("UI-H1: STORAGE_KEY is namespaced 'orchestrator.monitor.mode'", () => {
+  assert.equal(STORAGE_KEY, "orchestrator.monitor.mode");
 });
 
 // ── _validateMode ──────────────────────────────────────────────────

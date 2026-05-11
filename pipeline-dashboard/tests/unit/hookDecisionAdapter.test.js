@@ -2,7 +2,7 @@
 //
 // These tests lock the critical invariant: denyToolUse() MUST emit both the
 // legacy `decision: "block"` shape AND the modern
-// `hookSpecificOutput.permissionDecision: "deny"` shape so that the harness
+// `hookSpecificOutput.permissionDecision: "deny"` shape so that the orchestrator
 // is forward- and backward-compatible with Claude Code hook versions.
 
 const test = require("node:test");

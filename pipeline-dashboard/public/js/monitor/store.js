@@ -679,7 +679,7 @@
       // Validate schema marker so a stray response shape doesn't
       // pollute the slice. The route always emits this constant.
       if (!input || typeof input !== "object" ||
-          input.schema !== "harness-decision-context/v1") {
+          input.schema !== "orchestrator-decision-context/v1") {
         return snapshot();
       }
       // Defensive shallow clone of each sub-block. Inner objects
@@ -931,9 +931,9 @@
     function setPolicyPacks(payload) {
       // payload shape: route response from GET /api/policy-packs
       // schema check — defensive against foreign payloads (e.g., a
-      // stale cached response from a different harness version).
+      // stale cached response from a different orchestrator version).
       if (!payload || typeof payload !== "object") return snapshot();
-      if (payload.schema !== "harness-policy-pack/v1") return snapshot();
+      if (payload.schema !== "orchestrator-policy-pack/v1") return snapshot();
       // Idempotent: same payload by deep-equal → no publish (avoid
       // notify-churn on identical 30s polls).
       const next = {

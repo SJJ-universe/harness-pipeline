@@ -16,7 +16,7 @@
 //   pipeline phase:  120 s (2 min)
 //   child queue:      30 s
 //
-// In production deployments — especially when HARNESS_DEPLOYMENT_PROFILE
+// In production deployments — especially when ORCHESTRATOR_DEPLOYMENT_PROFILE
 // is public-sector or finance-high-privacy — operators legitimately run
 // 10-minute+ pipelines (long Codex critiques, large Claude patches,
 // review sessions with multiple back-and-forths). The 120 s default
@@ -32,7 +32,7 @@
 //   long_run
 //     codex 20 min / claude 30 min / phase 20 min / queue 5 min
 //     For batch / overnight / large-codebase scenarios. Operators
-//     opt in via HARNESS_TIMEOUT_PRESET=long_run.
+//     opt in via ORCHESTRATOR_TIMEOUT_PRESET=long_run.
 //
 //   public_sector
 //     codex 30 min / claude 45 min / phase 30 min / queue 2 min
@@ -44,10 +44,10 @@
 //     explicitly picked another preset via env).
 //
 // Per-field env overrides ALWAYS win over preset:
-//   HARNESS_CODEX_TIMEOUT_MS
-//   HARNESS_CLAUDE_TIMEOUT_MS
-//   HARNESS_PHASE_TIMEOUT_MS
-//   HARNESS_CHILD_QUEUE_TIMEOUT_MS
+//   ORCHESTRATOR_CODEX_TIMEOUT_MS
+//   ORCHESTRATOR_CLAUDE_TIMEOUT_MS
+//   ORCHESTRATOR_PHASE_TIMEOUT_MS
+//   ORCHESTRATOR_CHILD_QUEUE_TIMEOUT_MS
 //
 // Override env values are clamped to [MIN_TIMEOUT_MS, MAX_TIMEOUT_MS]
 // to refuse pathological values (0 / negative / 10-billion-ms).
@@ -67,7 +67,7 @@
 
 "use strict";
 
-const SCHEMA = "harness-timeout-policy/v1";
+const SCHEMA = "orchestrator-timeout-policy/v1";
 
 // Bounds for env override sanity. 100 ms is below any real-world
 // dispatch; 4 hours covers the longest legitimately expected pipeline.
@@ -157,7 +157,7 @@ const PRESET_IDS = Object.freeze(Object.keys(PRESETS).sort());
 
 function _resolvePresetId(env, deploymentProfile) {
   // env override beats everything
-  const requested = env.HARNESS_TIMEOUT_PRESET;
+  const requested = env.ORCHESTRATOR_TIMEOUT_PRESET;
   if (typeof requested === "string" && requested.length > 0) {
     if (PRESETS[requested]) return requested;
     // Unknown explicit preset — fall through to deployment profile
@@ -190,7 +190,7 @@ function _coerceOverride(raw, fallback) {
  *
  * Precedence (high → low):
  *   1. HARNESS_<field>_TIMEOUT_MS (per-field override, clamped)
- *   2. HARNESS_TIMEOUT_PRESET (named preset)
+ *   2. ORCHESTRATOR_TIMEOUT_PRESET (named preset)
  *   3. deploymentProfile.publicSector → public_sector
  *   4. interactive (backward-compat default)
  *
@@ -212,7 +212,7 @@ function _coerceOverride(raw, fallback) {
  *     childQueueTimeoutMs: boolean,
  *   }>,
  *   sources: {
- *     resolvedFromEnv: boolean,        // explicit HARNESS_TIMEOUT_PRESET picked
+ *     resolvedFromEnv: boolean,        // explicit ORCHESTRATOR_TIMEOUT_PRESET picked
  *     resolvedFromPosture: boolean,    // deploymentProfile.publicSector picked
  *   },
  * }>}
@@ -225,14 +225,14 @@ function resolveTimeoutPolicy(opts = {}) {
   const preset = PRESETS[presetId];
 
   // Per-field overrides
-  const codexOverride = _coerceOverride(env.HARNESS_CODEX_TIMEOUT_MS, null);
-  const claudeOverride = _coerceOverride(env.HARNESS_CLAUDE_TIMEOUT_MS, null);
-  const phaseOverride = _coerceOverride(env.HARNESS_PHASE_TIMEOUT_MS, null);
-  const queueOverride = _coerceOverride(env.HARNESS_CHILD_QUEUE_TIMEOUT_MS, null);
+  const codexOverride = _coerceOverride(env.ORCHESTRATOR_CODEX_TIMEOUT_MS, null);
+  const claudeOverride = _coerceOverride(env.ORCHESTRATOR_CLAUDE_TIMEOUT_MS, null);
+  const phaseOverride = _coerceOverride(env.ORCHESTRATOR_PHASE_TIMEOUT_MS, null);
+  const queueOverride = _coerceOverride(env.ORCHESTRATOR_CHILD_QUEUE_TIMEOUT_MS, null);
 
-  const explicitPreset = typeof env.HARNESS_TIMEOUT_PRESET === "string"
-    && env.HARNESS_TIMEOUT_PRESET.length > 0
-    && PRESETS[env.HARNESS_TIMEOUT_PRESET];
+  const explicitPreset = typeof env.ORCHESTRATOR_TIMEOUT_PRESET === "string"
+    && env.ORCHESTRATOR_TIMEOUT_PRESET.length > 0
+    && PRESETS[env.ORCHESTRATOR_TIMEOUT_PRESET];
 
   return Object.freeze({
     schema: SCHEMA,

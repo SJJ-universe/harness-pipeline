@@ -44,7 +44,7 @@ prefer many DEGRADED entries to a few inflated INCIDENT entries.
 |---|---|---|
 | `info` | Notable but expected. Ledger entry exists for traceability only. | First time `policy_gate_warn` fires for a new pack — expected, just record once. |
 | `degraded` | The operator could continue working but something deviated. | Codex critique took 22 min (long but completed); idle warning fired at 75% then resolved. |
-| `incident` | Something the operator could not recover from without intervention. | `claim_verification_failed` audit entry; trust-store key removal returned 500; harness server crashed. |
+| `incident` | Something the operator could not recover from without intervention. | `claim_verification_failed` audit entry; trust-store key removal returned 500; orchestrator server crashed. |
 | `critical` | Safety boundary breach or data integrity at risk — halt the pilot. | `trust_store_private_key_rejected` was bypassed; PII reached a runner unsanitized; signed-manifest gate was bypassed in production. |
 
 **Critical entries halt the pilot.** Open the incident, page the operator

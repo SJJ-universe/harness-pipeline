@@ -457,7 +457,7 @@ class ReviewSpawnDispatcher {
       ? `\n${preset.severityTagInstruction}`
       : ("\nProvide a structured critique. Use severity tags " +
          "[critical] / [high] / [medium] / [low] for each finding so " +
-         "the harness can attribute counts back to the review session.");
+         "the orchestrator can attribute counts back to the review session.");
 
     return `${presetHeader}${labelLine}\nFocus: ${instruction}\n${planLine}${severityLine}`;
   }

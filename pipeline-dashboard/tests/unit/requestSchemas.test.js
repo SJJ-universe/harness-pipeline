@@ -18,7 +18,7 @@ test("validateContextLoad requires filePath", () => {
 });
 
 test("validateGeneralRun clamps maxIterations", () => {
-  const result = validateGeneralRun({ task: "build a harness", maxIterations: 99 });
+  const result = validateGeneralRun({ task: "build a orchestrator", maxIterations: 99 });
   assert.equal(result.maxIterations, 5);
 });
 

@@ -6,7 +6,7 @@
 // the reviewer needs to walk?" — not "is the prose perfect?". Future
 // edits to wording are expected; section deletions or renames are not.
 //
-// The matrix is the bridge between what the harness CLAIMS and what
+// The matrix is the bridge between what the orchestrator CLAIMS and what
 // we BUILT + how it's VERIFIED. Reviewers walk it row-by-row; if a
 // section disappears, sampling is incomplete. These tests exist to
 // fail fast when that happens.
@@ -61,7 +61,7 @@ test("EXR-b matrix: cross-references the EXR-a bundle script", () => {
   const md = readMatrix();
   assert.match(md, /external-review-bundle\.js/,
     "should reference scripts/external-review-bundle.js");
-  assert.match(md, /harness-external-review-bundle\/v1/,
+  assert.match(md, /orchestrator-external-review-bundle\/v1/,
     "should reference the bundle frozen schema");
 });
 
@@ -194,7 +194,7 @@ test("EXR-b matrix: Category 6 covers all 6 SMART arc properties (P3..P6 + POL-a
 test("EXR-b matrix: Category 7 covers FP-a probe + 4 runbook templates + canary", () => {
   const md = readMatrix();
   assert.match(md, /field-pilot-status\.js/);
-  assert.match(md, /harness-field-pilot-status\/v1/);
+  assert.match(md, /orchestrator-field-pilot-status\/v1/);
   assert.match(md, /KNOWN_AUDIT_VERBS/);
   assert.match(md, /unknownVerbs/);
   assert.match(md, /field-pilot-runbooks\.test\.js/);

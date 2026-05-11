@@ -1,4 +1,4 @@
-# Harness Pipeline Reference Guide Authoring Plan
+# Orchestrator Pipeline Reference Guide Authoring Plan
 
 **Slice AUTHORING-BLUEPRINT-COMMIT (Phase 2 v2 follow-up, 2026-05-05)** —
 this document was previously untracked author-local material and was
@@ -6,9 +6,9 @@ reviewed (secret/factual scan) and committed in this slice. It is a
 forward-looking blueprint for a future GUIDE-* round series, not a
 finished reference book.
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use `content-production` for prose drafting and `writing-plans` for task-by-task execution. This document is the source blueprint for turning the current Harness Pipeline documentation into a beginner-friendly, developer-useful, public-sector-ready reference book. Follow the checklist structure exactly and keep claim labels current.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use `content-production` for prose drafting and `writing-plans` for task-by-task execution. This document is the source blueprint for turning the current Orchestrator Pipeline documentation into a beginner-friendly, developer-useful, public-sector-ready reference book. Follow the checklist structure exactly and keep claim labels current.
 
-**Goal:** Produce a textbook-grade Markdown/PDF guide that explains what Harness Pipeline is, why it exists, how ordinary users use it, how developers operate it, how public-sector security is enforced, and how deployment evidence is collected.
+**Goal:** Produce a textbook-grade Markdown/PDF guide that explains what Orchestrator Pipeline is, why it exists, how ordinary users use it, how developers operate it, how public-sector security is enforced, and how deployment evidence is collected.
 
 **Architecture:** The guide must be layered. Each major topic starts with a plain-language beginner explanation, then adds operator workflow, developer internals, security/audit notes, and verification commands. The guide must distinguish implemented behavior from live-evidence requirements and future roadmap items.
 
@@ -22,7 +22,7 @@ The guide must reflect the project state at the time this plan was written.
 
 ### 1.1 Repository State
 
-- Workspace root: the `pipeline-dashboard/` directory at the top of the harness-pipeline checkout (machine-specific path elided).
+- Workspace root: the `pipeline-dashboard/` directory at the top of the orchestrator-pipeline checkout (machine-specific path elided).
 - Current branch (at time of writing): `master`
 - Remote status during inspection: `master...origin/master`
 - Worktree during inspection: clean
@@ -55,8 +55,8 @@ Use these as source material before writing or revising prose.
 | File | Role |
 |---|---|
 | `docs/scorecard.md` | Canonical maturity trajectory and implemented round summaries |
-| `docs/harness-pipeline-distribution-guide.md` | Existing deployment-oriented guide |
-| `docs/harness-pipeline-reference-guide-draft.md` | Existing reference-guide skeleton |
+| `docs/orchestrator-pipeline-distribution-guide.md` | Existing deployment-oriented guide |
+| `docs/orchestrator-pipeline-reference-guide-draft.md` | Existing reference-guide skeleton |
 | `docs/visual-contract-governance.md` | UI regression and visual governance policy |
 | `docs/runbooks/field-pilot-deployment-log.md` | Field pilot daily log template |
 | `docs/runbooks/field-pilot-incident-ledger.md` | Incident ledger template |
@@ -88,21 +88,21 @@ Known caveat: during the 2026-05-05 inspection, `visual:check` passed, but `scor
 
 Every version of the guide must converge on this explanation:
 
-> Harness Pipeline does not replace Claude Code or Codex. It adds an operation, control, collaboration, safety, and evidence layer around them. It turns AI CLI work from an invisible terminal session into a visible, reviewable, approvable, auditable workflow.
+> Orchestrator Pipeline does not replace Claude Code or Codex. It adds an operation, control, collaboration, safety, and evidence layer around them. It turns AI CLI work from an invisible terminal session into a visible, reviewable, approvable, auditable workflow.
 
 Use this thesis repeatedly, in different levels of difficulty.
 
 ### 2.1 One-Sentence Explanation for Ordinary Users
 
-Harness Pipeline is a dashboard that lets you connect Claude and Codex, watch what they are doing, ask one AI to review the other AI's work, approve risky actions before they happen, and keep a trustworthy record of the whole process.
+Orchestrator Pipeline is a dashboard that lets you connect Claude and Codex, watch what they are doing, ask one AI to review the other AI's work, approve risky actions before they happen, and keep a trustworthy record of the whole process.
 
 ### 2.2 One-Sentence Explanation for Developers
 
-Harness Pipeline is an orchestration and governance layer for AI coding CLIs, with profile-based spawning, dual-agent review relay, policy gates, PII scanning, run memory, audit ledgers, signed distribution, and visual/readiness verification.
+Orchestrator Pipeline is an orchestration and governance layer for AI coding CLIs, with profile-based spawning, dual-agent review relay, policy gates, PII scanning, run memory, audit ledgers, signed distribution, and visual/readiness verification.
 
 ### 2.3 One-Sentence Explanation for Public-Sector Buyers
 
-Harness Pipeline makes AI-assisted work deployable in constrained environments by enforcing sandbox-first execution, PII-aware gates, institution-specific policy packs, signed/offline distribution, and evidence bundles suitable for audit review.
+Orchestrator Pipeline makes AI-assisted work deployable in constrained environments by enforcing sandbox-first execution, PII-aware gates, institution-specific policy packs, signed/offline distribution, and evidence bundles suitable for audit review.
 
 ### 2.4 What the Tool Is Not
 
@@ -113,7 +113,7 @@ The guide must clearly state:
 - It is not an automatic guarantee that AI output is correct.
 - It is not a real-time token accounting system.
 - It is not a substitute for institutional security review.
-- It does not ask users to paste Claude/Codex passwords into Harness.
+- It does not ask users to paste Claude/Codex passwords into Orchestrator.
 
 ---
 
@@ -154,7 +154,7 @@ Required beginner sections:
 - What is Claude Code?
 - What is Codex?
 - Why would I use two AI tools together?
-- What does Harness add?
+- What does Orchestrator add?
 - What happens when I press approve?
 - Why did the tool block something?
 - Where do I see the result?
@@ -277,11 +277,11 @@ The final guide should be larger than the current three guide files. The followi
 
 ### Part 0. Foundations
 
-Purpose: explain the engineering ideas behind Harness Pipeline before diving into the product.
+Purpose: explain the engineering ideas behind Orchestrator Pipeline before diving into the product.
 
 Chapters:
 
-1. What is a harness?
+1. What is a orchestrator?
 2. Control loops and gates
 3. Isolation and trust boundaries
 4. Observability and audit logs
@@ -297,7 +297,7 @@ Revision requirement:
 
 - Keep the theoretical depth.
 - Add more beginner summaries at the start of every chapter.
-- Make every theory chapter point to a concrete Harness feature.
+- Make every theory chapter point to a concrete Orchestrator feature.
 
 ### Part 1. Product Definition
 
@@ -305,10 +305,10 @@ Purpose: explain what the tool is and why it deserves to exist.
 
 Chapters:
 
-1. Harness Pipeline in one page
+1. Orchestrator Pipeline in one page
 2. Why plain CLI usage is not enough
-3. What Harness adds over Claude Code alone
-4. What Harness adds over Codex alone
+3. What Orchestrator adds over Claude Code alone
+4. What Orchestrator adds over Codex alone
 5. Why two-agent review matters
 6. Who should use it
 7. Who should not use it yet
@@ -316,7 +316,7 @@ Chapters:
 
 Required conclusion:
 
-> The practical value of Harness Pipeline is not that it makes AI magical. Its value is that it makes AI work visible, controlled, reviewable, repeatable, and auditable.
+> The practical value of Orchestrator Pipeline is not that it makes AI magical. Its value is that it makes AI work visible, controlled, reviewable, repeatable, and auditable.
 
 Source:
 
@@ -333,7 +333,7 @@ Chapters:
 2. Running the batch file
 3. Opening the dashboard
 4. Connecting Claude and Codex accounts
-5. What Harness will never ask you for
+5. What Orchestrator will never ask you for
 6. Simple mode overview
 7. First task walkthrough
 8. What to do when setup is incomplete
@@ -341,8 +341,8 @@ Chapters:
 
 Must include:
 
-- Claude/Codex login is done through their own CLI/auth flows, not by giving Harness a password.
-- Harness can guide and detect status, but should not collect provider credentials directly.
+- Claude/Codex login is done through their own CLI/auth flows, not by giving Orchestrator a password.
+- Orchestrator can guide and detect status, but should not collect provider credentials directly.
 - First-run CTA behavior from UI-FirstRun and RELEASE-READY-0.
 
 Source:
@@ -359,7 +359,7 @@ Chapters:
 1. Simple, Pro, and Legacy modes
 2. Product Shell layout
 3. Header and status indicators
-4. Harness Track animation and progress meaning
+4. Orchestrator Track animation and progress meaning
 5. Pipeline rail
 6. Monitor cards
 7. Dual agent console
@@ -421,7 +421,7 @@ Chapters:
 3. Exact tuple binding
 4. Timeout and fail-closed approval
 5. Policy gate modes: warn vs hard
-6. `HARNESS_HARD_GATES`
+6. `ORCHESTRATOR_HARD_GATES`
 7. State immutability on block
 8. Audit events for approvals and gates
 
@@ -520,11 +520,11 @@ Must include:
 
 Source:
 
-- `harness-start.bat`
-- `harness-start.sh`
+- `orchestrator-start.bat`
+- `orchestrator-start.sh`
 - `scripts/launcher/launcher-cli.js`
 - `scripts/sign-manifest.js`
-- `docs/harness-pipeline-distribution-guide.md`
+- `docs/orchestrator-pipeline-distribution-guide.md`
 
 ### Part 9. Long-Running Tasks and Reliability
 
@@ -651,7 +651,7 @@ Source:
 
 - `package.json`
 - `package-lock.json`
-- `docs/harness-pipeline-distribution-guide.md`
+- `docs/orchestrator-pipeline-distribution-guide.md`
 
 ### Part 13. Troubleshooting and FAQ
 
@@ -818,7 +818,7 @@ The next writer should not attempt the entire book in one commit. Use these roun
 **Files:**
 
 - Create: `docs/guide-claim-register.md`
-- Modify: `docs/harness-pipeline-reference-guide-draft.md`
+- Modify: `docs/orchestrator-pipeline-reference-guide-draft.md`
 
 **Required content:**
 
@@ -848,7 +848,7 @@ The next writer should not attempt the entire book in one commit. Use these roun
 - Why it exists
 - What users need before starting
 - How account connection works
-- What Harness will never ask for
+- What Orchestrator will never ask for
 - First successful run story
 
 **Acceptance:**
@@ -985,7 +985,7 @@ node scripts/readiness-report.js --json
 If guide changes touch code examples or command names, also run targeted `rg` checks.
 
 ```powershell
-rg -n "HARNESS_HARD_GATES|HARNESS_DEPLOYMENT_PROFILE|HARNESS_TIMEOUT_PRESET|live-verify-smart-arc|field-pilot-status" docs
+rg -n "ORCHESTRATOR_HARD_GATES|ORCHESTRATOR_DEPLOYMENT_PROFILE|ORCHESTRATOR_TIMEOUT_PRESET|live-verify-smart-arc|field-pilot-status" docs
 rg -n "real-time token|token usage|officially endorsed|guarantee" docs
 ```
 
@@ -1034,7 +1034,7 @@ Gaps:
 - Needs recommendation cards, presets, policy packs, run memory, timeout/watchdog, and field pilot chapters.
 - Must align approval timeout discussion with central timeout policy so readers do not confuse approval TTL with runner task timeout.
 
-### 11.4 `docs/harness-pipeline-distribution-guide.md`
+### 11.4 `docs/orchestrator-pipeline-distribution-guide.md`
 
 Strengths:
 
@@ -1048,7 +1048,7 @@ Gaps:
 - Needs stronger fail-closed language for unsigned production manifest.
 - Needs a field-pilot/external-review chapter.
 
-### 11.5 `docs/harness-pipeline-reference-guide-draft.md`
+### 11.5 `docs/orchestrator-pipeline-reference-guide-draft.md`
 
 Strengths:
 

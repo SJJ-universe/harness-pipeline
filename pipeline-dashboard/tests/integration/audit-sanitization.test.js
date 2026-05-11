@@ -22,7 +22,7 @@ const { EvidenceLedger } = require("../../src/runtime/evidenceLedger");
 const { sanitizeAuditData } = require("../../src/security/auditSanitizer");
 
 function tmpDir(t) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "harness-d1f-test-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-d1f-test-"));
   t.after(() => {
     try { fs.rmSync(dir, { recursive: true, force: true }); } catch (_) {}
   });

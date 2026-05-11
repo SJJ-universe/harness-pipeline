@@ -2,7 +2,7 @@
 // Engine. First consumer of SMART-0 decisionContext.
 //
 // Maps the 8-boolean / 5-count / posture snapshot from
-// `harness-decision-context/v1` to a prioritized list of
+// `orchestrator-decision-context/v1` to a prioritized list of
 // recommendation cards rendered in simple shell.
 //
 // Why frozen rules + pure derive:
@@ -274,7 +274,7 @@ function _interpolate(template, params) {
  * Run all rules against decisionContext + return prioritized
  * recommendations.
  *
- * @param {object} ctx       harness-decision-context/v1 snapshot
+ * @param {object} ctx       orchestrator-decision-context/v1 snapshot
  *                            (or null/undefined → empty result)
  * @param {object} [opts]
  *   @param {Set<string>} [opts.dismissedIds]
