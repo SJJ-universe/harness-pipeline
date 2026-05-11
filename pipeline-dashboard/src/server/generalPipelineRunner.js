@@ -84,20 +84,23 @@ function createGeneralPipelineRunner({
   // ── finalizeGeneralRun (broadcast + summary builder). ──
 
   // AGENT-DESKTOP-0-broadcast-runid (2026-05-07): wrap an event in a
-  // payload that includes runId. The product-shell legacy-bridge
-  // requires data.runId on every lifecycle event (pipeline_start,
-  // phase_update, pipeline_complete, etc.) — without it the bridge
-  // returns false at line 127 and the event never reaches the store,
-  // so panels never re-render. The dashboard logged 4 backend bug
-  // fixes (shell:true / stdin / --bare / sentinel) all working —
-  // claude returned ok=true textLen=2528 — but UI stayed frozen.
-  // Adding runId here makes the bridge upsertRun(runId, partial) call
-  // succeed, which is what panels subscribe to.
+  // payload tagged with the ORCHESTRATION runId. The product-shell
+  // legacy-bridge requires data.runId on every lifecycle event
+  // (pipeline_start, phase_update, pipeline_complete, etc.).
+  //
+  // PLS-0-followup (2026-05-08): ALWAYS overwrite data.runId. The
+  // inner runners (codex-runner, claude-runner) each generate their
+  // OWN runId via runRegistry.start (e.g. "codex-1778...-cf2f..."),
+  // and those leak through events like codex_progress + codex_started.
+  // From the dashboard's point of view there is only one orchestration
+  // run (gr-XXX); the inner ids are an implementation detail. Without
+  // this overwrite, the bridge synthesizes a session keyed by
+  // codex-XXX (not gr-XXX), so the synthetic stream never connects to
+  // the harness-track panel's selectedRunId → STAGE 1/7 PLAN forever
+  // even though phase_update events update the orchestration run
+  // correctly. Forcing the overwrite collapses the two id spaces.
   function _withRunId(event, runId) {
     if (!event || typeof event !== "object") return event;
-    if (event.data && typeof event.data === "object" && event.data.runId) {
-      return event;  // already has runId — leave untouched
-    }
     return {
       ...event,
       data: { ...(event.data || {}), runId },
@@ -266,6 +269,13 @@ function createGeneralPipelineRunner({
         phaseId: "C",
         iteration,
         source: "general-pipeline",
+        // PLS-0-followup: tag codex_progress emits with our orchestration
+        // runId so the dashboard's bridge groups the live stream with
+        // the rest of this run's events (pipeline_start, phase_update,
+        // pipeline_complete). Without this the synthetic session is
+        // keyed by the codex-runner's internal id (codex-XXX-XXX) and
+        // never attaches to the harness-track panel.
+        broadcastRunId: runId,
       });
 
       const findings = critiqueResult.findings || [];

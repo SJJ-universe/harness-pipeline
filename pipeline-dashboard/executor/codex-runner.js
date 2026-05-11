@@ -180,6 +180,20 @@ class CodexRunner {
       // close emits manager.recordCritiqueReceived(reviewSessionId,
       // {summary}). All wrapped in try/catch — never break the spawn.
       reviewSessionId = null,
+      // PLS-0-followup (2026-05-08): optional ORCHESTRATION runId.
+      // When set, the codex_progress broadcast uses THIS as data.runId
+      // instead of the runner's internal runRegistry id. The product
+      // shell's bridge keys synthetic streaming sessions on data.runId,
+      // and the orchestration layer (generalPipelineRunner) needs them
+      // to share a key with its other lifecycle events (pipeline_start,
+      // phase_update, etc.) so harness-track + monitor-grid pick up the
+      // same run. Without this, the bridge synthesizes one session per
+      // codex invocation (codex-XXX) that's disconnected from the
+      // orchestration run (gr-XXX), and the live tail card can't
+      // attach to the active run. The internal runRegistry id is
+      // unchanged — it stays the audit / lifecycle id for this codex
+      // invocation specifically.
+      broadcastRunId = null,
     } = opts;
     return new Promise((resolve) => {
       // Slice D1-d (Phase E1, 2026-04-29): wrap the body in an async
@@ -351,7 +365,12 @@ class CodexRunner {
               this.broadcast({
                 type: "codex_progress",
                 data: {
-                  runId,
+                  // PLS-0-followup: prefer the orchestration runId so
+                  // the dashboard groups this stream with the same run
+                  // it shows in harness-track. Fall back to the inner
+                  // runRegistry id when there's no orchestration layer
+                  // (legacy / direct-codex callers).
+                  runId: broadcastRunId || runId,
                   phase: phaseId,
                   iteration,
                   source,

@@ -229,6 +229,26 @@
         // upsertRun can't normally fail; defensive only.
       }
 
+      // PLS-0-followup (2026-05-08): when a brand-new pipeline run
+      // arrives, also flip selectedRunId so the harness-track + horse
+      // panels start showing it. Without this the store keeps a stale
+      // selectedRunId (often the bootstrap "default" placeholder),
+      // selectActiveRunId returns the wrong run, and the panels never
+      // animate even though the new run's phaseIdx is being updated
+      // correctly underneath. Only fire on pipeline_start to avoid
+      // hijacking the operator's manual selection mid-run.
+      if (type === "pipeline_start" && typeof store.selectRun === "function") {
+        try {
+          const _curSel = (store.snapshot && store.snapshot().selectedRunId) || null;
+          // Re-select if nothing is selected, or if the prior selection
+          // is the bootstrap placeholder ("default"), or simply not the
+          // run that just started.
+          if (_curSel == null || _curSel === "default" || _curSel !== runId) {
+            store.selectRun(runId);
+          }
+        } catch (_) { /* defensive */ }
+      }
+
       // Slice RR0-c: when a run completes / resets, sweep its
       // runner-activity entries so the long-running task card stops
       // showing stale warnings. The watchdog itself emits no
