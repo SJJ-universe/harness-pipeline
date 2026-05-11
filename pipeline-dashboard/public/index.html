@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  index.html — SJ Harness product shell (Slice UI-P1, Phase 2 Round 3, 2026-04-30).
+  index.html — SJ Orchestrator product shell (Slice UI-P1, Phase 2 Round 3, 2026-04-30).
 
   This is the NEW first-paint experience. The visual shape is ported
   from the reference HTML at the operator's design-source folder
@@ -35,7 +35,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SJ Harness Engine</title>
+  <title>SJ Orchestrator</title>
   <!-- Reference-derived design tokens (UI-P1-c). Pixel polish lands in UI-P2. -->
   <link rel="stylesheet" href="style.product.css" />
 </head>
@@ -46,7 +46,7 @@
        the entire 5-region shell into this div. No legacy DOM lives
        in this file — operators who want the legacy view use
        /?mode=legacy which the server routes to index.legacy.html. -->
-  <div id="product-shell-root" role="main" aria-label="SJ Harness Dashboard"></div>
+  <div id="product-shell-root" role="main" aria-label="SJ Orchestrator Dashboard"></div>
 
   <!-- ────────────────────────────────────────────────────────────
        Core runtime (shared with legacy view)
@@ -84,11 +84,11 @@
        Product shell + panels (UI-P1)
        ──────────────────────────────────────────────────────────── -->
   <!-- UI-P5-a: pure selector module. Each panel reads
-       window.HarnessProductShellData at create() time so the panels
+       window.OrchestratorProductShellData at create() time so the panels
        stay testable with stub selectors injected via opts.dataSelectors. -->
   <script src="js/monitor/product-shell-data.js"></script>
   <!-- UI-P6: review-relay HTTP client. Loaded BEFORE product-shell
-       so product-shell-init.js can resolve window.HarnessReviewSessionClient
+       so product-shell-init.js can resolve window.OrchestratorReviewSessionClient
        and pass it into the dual-terminals action row. Backwards-compat:
        if this script is missing, the action row is omitted and the
        terminals stay in mock-only view. -->
@@ -96,7 +96,7 @@
   <script src="js/monitor/panels/product-header.js"></script>
   <!-- UI-P3-b: horse rider sprite player. Must load BEFORE
        product-harness-track.js because the track resolves
-       window.HarnessProductHorseRider at create() time. -->
+       window.OrchestratorProductHorseRider at create() time. -->
   <script src="js/monitor/panels/product-horse-rider.js"></script>
   <script src="js/monitor/panels/product-harness-track.js"></script>
   <script src="js/monitor/panels/product-pipeline-rail.js"></script>
@@ -105,14 +105,14 @@
   <!-- AGENT-DESKTOP-0-c (2026-05-06): chat panel.
        Mounted by product-shell.js below the workspace as a sticky
        bottom strip. Loads after the existing panels so the shell
-       module sees window.HarnessProductChatPanel during mount. -->
+       module sees window.OrchestratorProductChatPanel during mount. -->
   <script src="js/monitor/panels/product-chat-panel.js"></script>
   <script src="js/monitor/shells/product-shell.js"></script>
 
   <!-- ────────────────────────────────────────────────────────────
        PRODUCT-SHELL-WIRING (Phase 2 v2 follow-up, 2026-05-06)
        Action surface — must load BEFORE product-shell-init.js so
-       window.HarnessShellActions exists when the dispatcher map is
+       window.OrchestratorShellActions exists when the dispatcher map is
        built. focus-trap is consumed by general-pipeline-modal's
        lazy-DOM mode (operator types task → modal opens here without
        app.js, so the trap install lives in this script chain).

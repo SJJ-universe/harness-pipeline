@@ -87,7 +87,7 @@ test("UI-H3: dual-agent-console.create throws without root", () => {
 
 test("UI-H3: dual-agent-console.create throws without store", () => {
   assert.throws(() => dualConsole.create({ root: makeRoot(), doc: makeStubDoc() }),
-    /store must be a HarnessMonitorStore/);
+    /store must be a OrchestratorMonitorStore/);
 });
 
 // ── Initial render ───────────────────────────────────────────────

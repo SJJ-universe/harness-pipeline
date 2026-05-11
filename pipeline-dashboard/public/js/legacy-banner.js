@@ -10,7 +10,7 @@
 //   - Wires the dismiss button. On click: drops the banner element +
 //     writes the storage key. The CTA link is plain `<a href="/">`,
 //     so it works without JS — no listener needed there.
-//   - Re-runs HarnessI18n.applyDom() on the banner element when the
+//   - Re-runs OrchestratorI18n.applyDom() on the banner element when the
 //     KO/EN toggle fires `harness:lang-changed`, so the message and
 //     CTA labels swap in place.
 //
@@ -24,7 +24,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessLegacyBanner = api;
+  if (typeof window !== "undefined") root.OrchestratorLegacyBanner = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
   "use strict";
 
@@ -67,7 +67,7 @@
     const _storage = opts.storage
       || (typeof localStorage !== "undefined" ? localStorage : null);
     const i18n = opts.i18n
-      || (typeof window !== "undefined" && window.HarnessI18n)
+      || (typeof window !== "undefined" && window.OrchestratorI18n)
       || null;
 
     if (!_doc || typeof _doc.getElementById !== "function") {
@@ -120,7 +120,7 @@
     }
 
     // Re-run i18n.applyDom on locale change so message/CTA labels swap
-    // in place (HarnessI18n dispatches harness:lang-changed on setLang).
+    // in place (OrchestratorI18n dispatches harness:lang-changed on setLang).
     if (typeof _doc.addEventListener === "function") {
       _doc.addEventListener("harness:lang-changed", function () {
         try {

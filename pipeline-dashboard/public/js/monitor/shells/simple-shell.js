@@ -17,7 +17,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessMonitorSimpleShell = api;
+  if (typeof window !== "undefined") root.OrchestratorMonitorSimpleShell = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
 
   function _resolvePanel(panels, key, globalName) {
@@ -94,12 +94,12 @@
 
     // UI-H8 banner (above the grid). Hidden when a profile is active.
     // Resolves via panels.welcomeOverlay first; falls back to
-    // window.HarnessMonitorWelcomeOverlay (browser) or
-    // globalThis.HarnessMonitorWelcomeOverlay. Tests that don't want
+    // window.OrchestratorMonitorWelcomeOverlay (browser) or
+    // globalThis.OrchestratorMonitorWelcomeOverlay. Tests that don't want
     // this card simply don't inject it AND don't require its module —
     // node --test isolates each file in its own process so globalThis
     // is clean per file.
-    _mount("welcomeOverlay", "HarnessMonitorWelcomeOverlay", overlayMount, {
+    _mount("welcomeOverlay", "OrchestratorMonitorWelcomeOverlay", overlayMount, {
       onOpenSetupWizard,
       onCreatePersonal,
       onOpenSettings,
@@ -121,7 +121,7 @@
     firstRunMount.className = "ss-first-run-mount";
     root.appendChild(firstRunMount);
 
-    _mount("nextActionCard", "HarnessNextActionCard", firstRunMount, {
+    _mount("nextActionCard", "OrchestratorNextActionCard", firstRunMount, {
       i18n,
       onCta: function (ctaId, meta) {
         if (typeof onFirstRunCta === "function") {
@@ -165,7 +165,7 @@
     recsMount.className = "ss-recs-mount";
     root.appendChild(recsMount);
 
-    _mount("recommendationsCard", "HarnessRecommendationsCard", recsMount, {
+    _mount("recommendationsCard", "OrchestratorRecommendationsCard", recsMount, {
       i18n,
       onCta: function (ctaId, opts) {
         if (typeof onSmartCta === "function") {
@@ -204,12 +204,12 @@
     // bridge fetches /api/policy-packs once at boot — packs are frozen
     // for the life of the server, so polling is wasted work). Tests that
     // don't want this card simply don't inject panels.packInfo and don't
-    // expose HarnessPackInfoCard on globalThis.
+    // expose OrchestratorPackInfoCard on globalThis.
     const packInfoMount = _doc.createElement("div");
     packInfoMount.className = "ss-pack-info-mount";
     root.appendChild(packInfoMount);
 
-    _mount("packInfo", "HarnessPackInfoCard", packInfoMount, {
+    _mount("packInfo", "OrchestratorPackInfoCard", packInfoMount, {
       i18n,
       onCta: function (_ctaId, _meta) {
         // Reserved seam — pack-info-card today has no CTAs but future
@@ -218,17 +218,17 @@
     });
 
     // Card 1: 지금 AI가 하는 일
-    _mount("nowDoing", "HarnessMonitorNowDoingCard", _makeCell());
+    _mount("nowDoing", "OrchestratorMonitorNowDoingCard", _makeCell());
     // Card 2: 승인 필요
-    _mount("pendingApprovals", "HarnessMonitorPendingApprovalsCard", _makeCell(), {
+    _mount("pendingApprovals", "OrchestratorMonitorPendingApprovalsCard", _makeCell(), {
       onClick: onApprovalsClick,
     });
     // Card 3: 최근 결과 (clickable rows when onSelectRun is wired)
-    _mount("recentResults", "HarnessMonitorRecentResultsCard", _makeCell(), {
+    _mount("recentResults", "OrchestratorMonitorRecentResultsCard", _makeCell(), {
       onSelectRun,
     });
     // Card 4: Claude / Codex 연결 상태
-    _mount("connectionStatus", "HarnessMonitorConnectionStatusCard", _makeCell(), {
+    _mount("connectionStatus", "OrchestratorMonitorConnectionStatusCard", _makeCell(), {
       onOpenSettings,
     });
 

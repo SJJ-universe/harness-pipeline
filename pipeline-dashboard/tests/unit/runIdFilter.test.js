@@ -1,4 +1,4 @@
-// Slice AA-1 (Phase 2.5) — HarnessRunIdFilter.shouldSkip pure-function tests.
+// Slice AA-1 (Phase 2.5) — OrchestratorRunIdFilter.shouldSkip pure-function tests.
 //
 // This is the unit-level proof that the AA-1 filter correctly routes events
 // to / away from the currently-focused run tab, including the "global

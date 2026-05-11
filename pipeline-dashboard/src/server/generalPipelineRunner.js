@@ -145,7 +145,7 @@ function createGeneralPipelineRunner({
           ? [{ phase: "general", node: "orchestrator", message: reason || "failed" }]
           : [],
         duration,
-        harnessId: "general-plan",
+        orchestratorId: "general-plan",
       },
     }, runId));
     return { verdict, iterations: iterations || 0, durationMs: duration, plan };

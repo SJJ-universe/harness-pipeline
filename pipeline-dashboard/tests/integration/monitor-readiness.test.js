@@ -6,7 +6,7 @@
 //   monitor opt-in → hydrate → run select → filter → pin → inspector
 //
 // All in-memory: a real Express test instance hosting createMonitorRoutes
-// + a real HarnessMonitorStore + real normalizer + real hydrate +
+// + a real OrchestratorMonitorStore + real normalizer + real hydrate +
 // stub fetch wrapped around the test server. No browser needed.
 //
 // Why an integration test instead of unit-only? Because the readiness

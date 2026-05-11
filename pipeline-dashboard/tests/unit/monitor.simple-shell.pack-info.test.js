@@ -166,7 +166,7 @@ test("POL-UI-1-a shell: forwards a callable onCta seam to pack-info-card", () =>
 test("POL-UI-1-a shell: tolerates pack-info-card NOT being injected (missing panel)", () => {
   const doc = _makeDoc();
   const store = createMonitorStore();
-  // No panels.packInfo — and no globalThis.HarnessPackInfoCard
+  // No panels.packInfo — and no globalThis.OrchestratorPackInfoCard
   // (Node test process is clean per file). Shell must not throw.
   assert.doesNotThrow(() => {
     shell.mount({ root: doc.body, store, doc });

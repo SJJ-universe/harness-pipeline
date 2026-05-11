@@ -3,7 +3,7 @@
   "_description": "UI-P9 visual contract baseline. Updated via `npm run visual:update`. Drift requires explicit operator review of the JSON diff in the PR.",
   "indexHtml": {
     "lang": "ko",
-    "title": "SJ Harness Engine",
+    "title": "SJ Orchestrator",
     "metaCharset": "UTF-8",
     "stylesheets": [
       "style.product.css"
@@ -45,7 +45,7 @@
   },
   "indexLegacyHtml": {
     "lang": "ko",
-    "title": "SJ Harness Engine — Legacy",
+    "title": "SJ Orchestrator — Legacy",
     "metaCharset": "UTF-8",
     "stylesheets": [
       "css/harness-shell.css",

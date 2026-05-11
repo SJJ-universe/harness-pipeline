@@ -16,7 +16,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessRunTabBar = api;
+  if (typeof window !== "undefined") root.OrchestratorRunTabBar = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
   const DEFAULT_RUN_ID = "default";
 

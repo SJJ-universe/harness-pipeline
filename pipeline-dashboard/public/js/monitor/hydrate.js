@@ -1,18 +1,18 @@
-// Slice MA2 (Phase D, 2026-04-27) — HarnessMonitorHydrate.
+// Slice MA2 (Phase D, 2026-04-27) — OrchestratorMonitorHydrate.
 //
-// Bridges /api/monitor/bootstrap into HarnessMonitorStore. DOM-free + UMD
+// Bridges /api/monitor/bootstrap into OrchestratorMonitorStore. DOM-free + UMD
 // so Node tests can drive it with a stub fetch implementation, and the
-// browser shell (MA3) can call `HarnessMonitorHydrate.hydrate({...})`
+// browser shell (MA3) can call `OrchestratorMonitorHydrate.hydrate({...})`
 // during mount without pulling in any framework.
 //
 // Contract:
 //   hydrateMonitorStore({ store, normalize, fetchImpl, url, headers })
 //     → Promise<{ snapshot, raw }>
 //
-//   - store      : HarnessMonitorStore instance (required)
+//   - store      : OrchestratorMonitorStore instance (required)
 //   - normalize  : function(rawEvent) → envelope or null (required)
 //                  supplied by the caller so this module stays decoupled
-//                  from HarnessMonitorNormalizer's exact require path.
+//                  from OrchestratorMonitorNormalizer's exact require path.
 //   - fetchImpl  : optional fetch override (defaults to global fetch).
 //                  Tests inject a stub; the browser uses window.fetch.
 //   - url        : optional override (defaults to /api/monitor/bootstrap).
@@ -36,7 +36,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessMonitorHydrate = api;
+  if (typeof window !== "undefined") root.OrchestratorMonitorHydrate = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
   const DEFAULT_URL = "/api/monitor/bootstrap";
 
@@ -48,7 +48,7 @@
     headers = {},
   } = {}) {
     if (!store || typeof store.setServerSummary !== "function") {
-      throw new Error("hydrateMonitorStore: `store` must be a HarnessMonitorStore instance");
+      throw new Error("hydrateMonitorStore: `store` must be a OrchestratorMonitorStore instance");
     }
     if (typeof normalize !== "function") {
       throw new Error("hydrateMonitorStore: `normalize` must be a function");
@@ -125,7 +125,7 @@
   // hydrateRunDetail({ store, runId, fetchImpl, headers, urlPrefix })
   //   → Promise<{ snapshot, raw }>
   //
-  //   - store     : HarnessMonitorStore instance (required)
+  //   - store     : OrchestratorMonitorStore instance (required)
   //   - runId     : string (required) — the run to fetch
   //   - fetchImpl : optional fetch override
   //   - headers   : optional headers
@@ -149,7 +149,7 @@
     urlPrefix = RUN_DETAIL_PREFIX,
   } = {}) {
     if (!store || typeof store.setRunDetail !== "function") {
-      throw new Error("hydrateRunDetail: `store` must be a HarnessMonitorStore instance");
+      throw new Error("hydrateRunDetail: `store` must be a OrchestratorMonitorStore instance");
     }
     if (typeof runId !== "string" || runId.length === 0) {
       throw new Error("hydrateRunDetail: `runId` is required");

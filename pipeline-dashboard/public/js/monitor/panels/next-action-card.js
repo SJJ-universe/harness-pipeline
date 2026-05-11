@@ -27,7 +27,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessNextActionCard = api;
+  if (typeof window !== "undefined") root.OrchestratorNextActionCard = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
 
   // Allow Node-test loading the firstRunClassifier without circular
@@ -42,18 +42,18 @@
         return _classifierFactory;
       } catch (_) { /* fall through to globalThis */ }
     }
-    if (typeof globalThis !== "undefined" && globalThis.HarnessFirstRunClassifier) {
-      _classifierFactory = globalThis.HarnessFirstRunClassifier;
+    if (typeof globalThis !== "undefined" && globalThis.OrchestratorFirstRunClassifier) {
+      _classifierFactory = globalThis.OrchestratorFirstRunClassifier;
       return _classifierFactory;
     }
     throw new Error(
       "next-action-card: firstRunClassifier not available — ensure " +
       "src/runtime/firstRunClassifier.js is loaded in the page or " +
-      "registered on globalThis.HarnessFirstRunClassifier",
+      "registered on globalThis.OrchestratorFirstRunClassifier",
     );
   }
 
-  // i18n keys per state — caller is responsible for HarnessI18n
+  // i18n keys per state — caller is responsible for OrchestratorI18n
   // injection. Fallback strings are Korean (production locale).
   const STATE_COPY = {
     "no-profile": {

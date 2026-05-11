@@ -116,7 +116,7 @@ const makeStubDoc = () => ({
 });
 const makeRoot = () => makeStubElement("div");
 
-// Build a mutable i18n stub that mirrors HarnessI18n.t/getLang/setLang.
+// Build a mutable i18n stub that mirrors OrchestratorI18n.t/getLang/setLang.
 function makeI18nStub(initialLang = "ko") {
   let lang = initialLang;
   return {

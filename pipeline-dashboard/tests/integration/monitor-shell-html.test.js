@@ -111,7 +111,7 @@ test("index.html contains the opt-in init script (inline, auto-nonced by indexRe
   assert.ok(initBlock, "inline init script with monitor-shell-root reference");
   assert.match(initBlock[0], /\?monitor=1|monitor.*=.*"1"|searchParams\.get\("monitor"\)/);
   assert.match(initBlock[0], /harnessMonitor/, "localStorage gate present");
-  assert.match(initBlock[0], /HarnessMonitorLayout/, "init calls into the layout module");
+  assert.match(initBlock[0], /OrchestratorMonitorLayout/, "init calls into the layout module");
 });
 
 test("init script bails out cleanly when neither opt-in flag is set", () => {

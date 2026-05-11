@@ -37,7 +37,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessMonitorRunViewer = api;
+  if (typeof window !== "undefined") root.OrchestratorMonitorRunViewer = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
 
   function _formatTime(value) {

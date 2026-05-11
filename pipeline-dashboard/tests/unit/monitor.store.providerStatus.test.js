@@ -8,18 +8,18 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const { createMonitorStore } = require("../../public/js/monitor/store");
-const HarnessMonitorStore = { create: createMonitorStore };
+const OrchestratorMonitorStore = { create: createMonitorStore };
 
 // ── setProviderStatus action ────────────────────────────────────
 
 test("UI-FirstRun store: setProviderStatus exists in returned API", () => {
-  const store = HarnessMonitorStore.create();
+  const store = OrchestratorMonitorStore.create();
   assert.equal(typeof store.setProviderStatus, "function",
     "store API must expose setProviderStatus");
 });
 
 test("UI-FirstRun store: setProviderStatus on empty state creates accountStatus shell", () => {
-  const store = HarnessMonitorStore.create();
+  const store = OrchestratorMonitorStore.create();
   // Initial: accountStatus is null
   assert.equal(store.snapshot().accountStatus, null);
   store.setProviderStatus({
@@ -36,7 +36,7 @@ test("UI-FirstRun store: setProviderStatus on empty state creates accountStatus 
 });
 
 test("UI-FirstRun store: setProviderStatus preserves other accountStatus blocks", () => {
-  const store = HarnessMonitorStore.create();
+  const store = OrchestratorMonitorStore.create();
   store.setAccountStatus({
     profile: { count: 1, activeId: "personal" },
     deployment: { publicSector: false },
@@ -51,7 +51,7 @@ test("UI-FirstRun store: setProviderStatus preserves other accountStatus blocks"
 });
 
 test("UI-FirstRun store: setProviderStatus partial input merges (preserves untouched runner)", () => {
-  const store = HarnessMonitorStore.create();
+  const store = OrchestratorMonitorStore.create();
   store.setProviderStatus({
     claude: { installed: true, authenticated: true },
     codex: { installed: true, authenticated: false },
@@ -68,7 +68,7 @@ test("UI-FirstRun store: setProviderStatus partial input merges (preserves untou
 });
 
 test("UI-FirstRun store: setProviderStatus(null) clears the slice", () => {
-  const store = HarnessMonitorStore.create();
+  const store = OrchestratorMonitorStore.create();
   store.setProviderStatus({ claude: { installed: true, authenticated: true } });
   assert.ok(store.snapshot().accountStatus.providerStatus);
   store.setProviderStatus(null);
@@ -76,7 +76,7 @@ test("UI-FirstRun store: setProviderStatus(null) clears the slice", () => {
 });
 
 test("UI-FirstRun store: setProviderStatus(non-object) is a no-op", () => {
-  const store = HarnessMonitorStore.create();
+  const store = OrchestratorMonitorStore.create();
   store.setProviderStatus({ claude: { installed: true, authenticated: true } });
   const before = store.snapshot().accountStatus;
   store.setProviderStatus(42);
@@ -87,7 +87,7 @@ test("UI-FirstRun store: setProviderStatus(non-object) is a no-op", () => {
 });
 
 test("UI-FirstRun store: setProviderStatus publishes (subscribers notified)", () => {
-  const store = HarnessMonitorStore.create();
+  const store = OrchestratorMonitorStore.create();
   let publishCount = 0;
   store.subscribe(() => { publishCount += 1; });
   const before = publishCount;
@@ -97,7 +97,7 @@ test("UI-FirstRun store: setProviderStatus publishes (subscribers notified)", ()
 });
 
 test("UI-FirstRun store: setAccountStatus preserves providerStatus when not in input", () => {
-  const store = HarnessMonitorStore.create();
+  const store = OrchestratorMonitorStore.create();
   store.setProviderStatus({ claude: { installed: true, authenticated: true } });
   // /api/server/info polling refreshes profile/deployment but doesn't
   // include providerStatus — must not wipe the slice.
@@ -111,7 +111,7 @@ test("UI-FirstRun store: setAccountStatus preserves providerStatus when not in i
 });
 
 test("UI-FirstRun store: snapshot defensively copies providerStatus", () => {
-  const store = HarnessMonitorStore.create();
+  const store = OrchestratorMonitorStore.create();
   store.setProviderStatus({
     claude: { installed: true, authenticated: true, version: "1.0.0" },
   });
@@ -128,7 +128,7 @@ test("UI-FirstRun store: snapshot defensively copies providerStatus", () => {
 });
 
 test("UI-FirstRun store: mutating snapshot.providerStatus does not affect store", () => {
-  const store = HarnessMonitorStore.create();
+  const store = OrchestratorMonitorStore.create();
   store.setProviderStatus({ claude: { installed: true, authenticated: true } });
   const snap = store.snapshot();
   // Caller mutates the snapshot
@@ -142,7 +142,7 @@ test("UI-FirstRun store: mutating snapshot.providerStatus does not affect store"
 });
 
 test("UI-FirstRun store: setAccountStatus({providerStatus: null}) clears it explicitly", () => {
-  const store = HarnessMonitorStore.create();
+  const store = OrchestratorMonitorStore.create();
   store.setProviderStatus({ claude: { installed: true, authenticated: true } });
   store.setAccountStatus({ providerStatus: null });
   const ac = store.snapshot().accountStatus;
@@ -151,7 +151,7 @@ test("UI-FirstRun store: setAccountStatus({providerStatus: null}) clears it expl
 });
 
 test("UI-FirstRun store: setAccountStatus({providerStatus: {...}}) replaces (not merges)", () => {
-  const store = HarnessMonitorStore.create();
+  const store = OrchestratorMonitorStore.create();
   store.setProviderStatus({
     claude: { installed: true, authenticated: true },
     codex: { installed: true, authenticated: true },

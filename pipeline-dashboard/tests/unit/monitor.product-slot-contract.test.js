@@ -21,7 +21,7 @@ const assert = require("node:assert/strict");
 
 const productShell = require("../../public/js/monitor/shells/product-shell");
 const productHeader = require("../../public/js/monitor/panels/product-header");
-const productHarnessTrack = require("../../public/js/monitor/panels/product-harness-track");
+const productOrchestratorTrack = require("../../public/js/monitor/panels/product-harness-track");
 const productPipelineRail = require("../../public/js/monitor/panels/product-pipeline-rail");
 const productMonitorGrid = require("../../public/js/monitor/panels/product-monitor-grid");
 const productDualTerminals = require("../../public/js/monitor/panels/product-dual-terminals");
@@ -131,7 +131,7 @@ const makeRoot = () => makeStubElement("div");
 test("UI-P4 contract: every panel root carries data-region with documented value", () => {
   const checks = [
     { name: "header", factory: productHeader, region: "header" },
-    { name: "harness-track", factory: productHarnessTrack, region: "harness-track" },
+    { name: "harness-track", factory: productOrchestratorTrack, region: "harness-track" },
     { name: "pipeline-rail", factory: productPipelineRail, region: "pipeline-rail" },
     { name: "monitor-grid", factory: productMonitorGrid, region: "monitor-grid" },
     { name: "dual-terminals", factory: productDualTerminals, region: "dual-terminals" },
@@ -447,7 +447,7 @@ test("UI-P4 contract: header indicators carry data-indicator + nested slot", () 
 test("UI-P4 contract: harness-track lanes carry data-lane-index 0..6 + gate flag", () => {
   const root = makeRoot();
   const store = createMonitorStore();
-  productHarnessTrack.create({ root, store, doc: makeStubDoc() });
+  productOrchestratorTrack.create({ root, store, doc: makeStubDoc() });
   for (let i = 0; i < 7; i++) {
     const lane = root._findOneByAttr("data-lane-index", String(i));
     assert.ok(lane, `lane index ${i} must exist`);
@@ -460,7 +460,7 @@ test("UI-P4 contract: harness-track lanes carry data-lane-index 0..6 + gate flag
 test("UI-P4 contract: harness-track exposes status-pill + horse mount slots", () => {
   const root = makeRoot();
   const store = createMonitorStore();
-  productHarnessTrack.create({ root, store, doc: makeStubDoc() });
+  productOrchestratorTrack.create({ root, store, doc: makeStubDoc() });
   assert.ok(root._findOneByAttr("data-track-slot", "status-pill"));
   assert.ok(root._findOneByAttr("data-track-slot", "horse"));
   assert.ok(root._findOneByAttr("data-track-slot", "lanes"));
@@ -516,7 +516,7 @@ test("PRODUCT-SHELL-WIRING: shutdown lives in the pro-only cluster (NOT always v
 test("runtime contract: harness-track suppresses 'current' lane + horse + stage pill when allowMockData=false and no live run", () => {
   const root = makeRoot();
   const store = createMonitorStore();
-  const handle = productHarnessTrack.create({
+  const handle = productOrchestratorTrack.create({
     root,
     store,
     doc: makeStubDoc(),
@@ -551,7 +551,7 @@ test("runtime contract: harness-track suppresses 'current' lane + horse + stage 
 test("runtime contract: harness-track preserves galloping affordance in demo mode (allowMockData=true)", () => {
   const root = makeRoot();
   const store = createMonitorStore();
-  const handle = productHarnessTrack.create({
+  const handle = productOrchestratorTrack.create({
     root,
     store,
     doc: makeStubDoc(),

@@ -36,7 +36,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessProductShell = api;
+  if (typeof window !== "undefined") root.OrchestratorProductShell = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
 
   // Frozen Array — Object.freeze on a Set doesn't seal its internal
@@ -66,7 +66,7 @@
    *
    * @param {object} opts
    * @param {HTMLElement} opts.root - mount point (typically #product-shell-root)
-   * @param {object} opts.store - HarnessMonitorStore instance
+   * @param {object} opts.store - OrchestratorMonitorStore instance
    * @param {string} [opts.mode="simple"] - "simple" | "pro"
    * @param {object} [opts.doc] - document injection for tests
    * @param {object} [opts.panels] - override factories for tests
@@ -78,25 +78,25 @@
    */
   function mount(opts) {
     if (!opts || typeof opts !== "object") {
-      throw new Error("HarnessProductShell.mount: opts required");
+      throw new Error("OrchestratorProductShell.mount: opts required");
     }
     const root = opts.root;
     if (!root || typeof root.appendChild !== "function") {
-      throw new Error("HarnessProductShell.mount: root must be an element");
+      throw new Error("OrchestratorProductShell.mount: root must be an element");
     }
     const store = opts.store;
     if (!store || typeof store.subscribe !== "function") {
-      throw new Error("HarnessProductShell.mount: store must be a HarnessMonitorStore");
+      throw new Error("OrchestratorProductShell.mount: store must be a OrchestratorMonitorStore");
     }
     const _doc = opts.doc || (typeof document !== "undefined" ? document : null);
     if (!_doc || typeof _doc.createElement !== "function") {
-      throw new Error("HarnessProductShell.mount: no document available");
+      throw new Error("OrchestratorProductShell.mount: no document available");
     }
 
     let mode = _coerceMode(opts.mode);
     // UI-P7: track locale alongside mode. The shell only forwards the
     // value to panels via setLocale + initial opts; the actual i18n
-    // table lookup lives in HarnessI18n / per-panel _t() helpers.
+    // table lookup lives in OrchestratorI18n / per-panel _t() helpers.
     let locale = (opts.locale === "en") ? "en" : "ko";
     // Runtime product shell must not show the reference/mock page by
     // accident. Tests and visual-baseline capture omit this option so
@@ -111,20 +111,20 @@
     // subscriptions, the shell owns the layout skeleton.
     const panels = opts.panels || {};
     const headerFactory = panels.header
-      || (typeof window !== "undefined" && window.HarnessProductHeader && window.HarnessProductHeader.create);
+      || (typeof window !== "undefined" && window.OrchestratorProductHeader && window.OrchestratorProductHeader.create);
     const trackFactory = panels.track
-      || (typeof window !== "undefined" && window.HarnessProductHarnessTrack && window.HarnessProductHarnessTrack.create);
+      || (typeof window !== "undefined" && window.OrchestratorProductTrack && window.OrchestratorProductTrack.create);
     const railFactory = panels.rail
-      || (typeof window !== "undefined" && window.HarnessProductPipelineRail && window.HarnessProductPipelineRail.create);
+      || (typeof window !== "undefined" && window.OrchestratorProductPipelineRail && window.OrchestratorProductPipelineRail.create);
     const gridFactory = panels.grid
-      || (typeof window !== "undefined" && window.HarnessProductMonitorGrid && window.HarnessProductMonitorGrid.create);
+      || (typeof window !== "undefined" && window.OrchestratorProductMonitorGrid && window.OrchestratorProductMonitorGrid.create);
     const terminalsFactory = panels.terminals
-      || (typeof window !== "undefined" && window.HarnessProductDualTerminals && window.HarnessProductDualTerminals.create);
+      || (typeof window !== "undefined" && window.OrchestratorProductDualTerminals && window.OrchestratorProductDualTerminals.create);
     // AGENT-DESKTOP-0-c (2026-05-06): chat panel factory. Optional —
     // if the script tag failed to load OR tests don't pass a stub,
     // the chat region simply renders empty (gracefully degraded).
     const chatFactory = (panels && panels.chat)
-      || (typeof window !== "undefined" && window.HarnessProductChatPanel && window.HarnessProductChatPanel.create);
+      || (typeof window !== "undefined" && window.OrchestratorProductChatPanel && window.OrchestratorProductChatPanel.create);
 
     // Build skeleton DOM. The class names map 1:1 to style.product.css.
     // Each region carries data-region so UI-P5 wiring + visual
@@ -183,7 +183,7 @@
     // "metrics" ...) via their `onActionClick` callback. The shell owns
     // a single `_dispatch(actionId, payload)` closure that routes each
     // id to a handler from `opts.actionHandlers` (the action map). The
-    // init script wires `window.HarnessShellActions.createDefaultHandlers()`
+    // init script wires `window.OrchestratorShellActions.createDefaultHandlers()`
     // as the default; tests inject a stub map for isolated assertions.
     //
     // No global delegated listener — every panel still owns its own
@@ -253,7 +253,7 @@
     handles.header = _mountPanel(headerFactory, headerMount, "header", {
       onModeChange(next) { setMode(next); },
       // UI-P7: locale toggle in the header bubbles up through the shell
-      // so the init script can persist it via HarnessI18n.setLang AND
+      // so the init script can persist it via OrchestratorI18n.setLang AND
       // re-broadcast to every panel via setLocale().
       onLocaleChange(next) { setLocale(next); },
       // PRODUCT-SHELL-WIRING: route header action buttons (metrics,
@@ -318,7 +318,7 @@
     //      dual-terminals — others ignore until they need translatable
     //      strings)
     //   3. fires opts.onLocaleChange so the init script can persist
-    //      the choice via HarnessI18n.setLang (writes harness:lang
+    //      the choice via OrchestratorI18n.setLang (writes harness:lang
     //      localStorage key + dispatches harness:lang-changed)
     function setLocale(next) {
       const coerced = (next === "en") ? "en" : "ko";

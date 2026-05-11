@@ -16,14 +16,14 @@
 //   #harness-status   — optional secondary label updated by setState/
 //                       setStatusText
 //
-// This module ships as UMD — browser loads it as window.HarnessHorseAnimation,
+// This module ships as UMD — browser loads it as window.OrchestratorHorseAnimation,
 // but Node tests can require() it too (they get the functions back, though
 // rendering is a no-op without a DOM).
 
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessHorseAnimation = api;
+  if (typeof window !== "undefined") root.OrchestratorHorseAnimation = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
   const P = 3;
   function _px(x, y, c) {

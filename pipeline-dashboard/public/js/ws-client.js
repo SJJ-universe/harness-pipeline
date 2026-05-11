@@ -1,6 +1,6 @@
 // Slice K (v5) — WebSocket client with auto-reconnect, extracted from app.js.
 //
-// UMD following the window.HarnessXxx convention used by toast / focus-trap
+// UMD following the window.OrchestratorXxx convention used by toast / focus-trap
 // / i18n. Keeps the dashboard's connection & reconnect lifecycle in one
 // self-contained surface so regressions in that area are easy to pinpoint.
 //
@@ -17,7 +17,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessWsClient = api;
+  if (typeof window !== "undefined") root.OrchestratorWsClient = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
   // Injectable for tests — Node tests replace this with a mock constructor.
   function _WebSocket() {

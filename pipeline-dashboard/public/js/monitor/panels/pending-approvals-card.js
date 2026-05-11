@@ -6,7 +6,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessMonitorPendingApprovalsCard = api;
+  if (typeof window !== "undefined") root.OrchestratorMonitorPendingApprovalsCard = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
 
   function create({ root, store, doc, onClick } = {}) {

@@ -1,4 +1,4 @@
-// Slice MA5 (Phase D, 2026-04-27) — HarnessMonitorTimeline.
+// Slice MA5 (Phase D, 2026-04-27) — OrchestratorMonitorTimeline.
 //
 // Centre-workspace bottom region: chronological list of recent events
 // from the store, filtered to the focused run + global events. Clicking
@@ -30,7 +30,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessMonitorTimeline = api;
+  if (typeof window !== "undefined") root.OrchestratorMonitorTimeline = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
   const MAX_DISPLAY = 50;
 
@@ -76,7 +76,7 @@
       throw new Error("timeline.create: root must be an element");
     }
     if (!store || typeof store.subscribe !== "function" || typeof store.snapshot !== "function") {
-      throw new Error("timeline.create: store must be a HarnessMonitorStore");
+      throw new Error("timeline.create: store must be a OrchestratorMonitorStore");
     }
     const _doc = doc || (typeof document !== "undefined" ? document : null);
     if (!_doc || typeof _doc.createElement !== "function") {

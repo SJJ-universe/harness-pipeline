@@ -112,7 +112,7 @@ const makeStubDoc = () => ({
 });
 const makeRoot = () => makeStubElement("div");
 
-// Spy client mirroring HarnessReviewSessionClient surface
+// Spy client mirroring OrchestratorReviewSessionClient surface
 function makeSpyClient() {
   const calls = {
     createSession: [], sendToCodex: [], followUp: [],

@@ -1,4 +1,4 @@
-// Slice D3-d (Phase E1.5, 2026-04-29) — HarnessMonitorSettingsAccounts.
+// Slice D3-d (Phase E1.5, 2026-04-29) — OrchestratorMonitorSettingsAccounts.
 //
 // Operator-facing modal panel for profile management. Closes the loop
 // between D2 (setup-wizard collects + finalize creates profiles) and
@@ -37,7 +37,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessMonitorSettingsAccounts = api;
+  if (typeof window !== "undefined") root.OrchestratorMonitorSettingsAccounts = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
 
   const TOAST_TTL_MS = 4000;
@@ -100,7 +100,7 @@
       throw new Error("settings-accounts.create: root must be an element");
     }
     if (!store || typeof store.subscribe !== "function" || typeof store.snapshot !== "function") {
-      throw new Error("settings-accounts.create: store must be a HarnessMonitorStore");
+      throw new Error("settings-accounts.create: store must be a OrchestratorMonitorStore");
     }
     const _doc = doc || (typeof document !== "undefined" ? document : null);
     if (!_doc || typeof _doc.createElement !== "function") {

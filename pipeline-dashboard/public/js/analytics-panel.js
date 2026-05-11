@@ -22,7 +22,7 @@
     module.exports = api;
   }
   if (typeof window !== "undefined") {
-    root.HarnessAnalyticsPanel = api;
+    root.OrchestratorAnalyticsPanel = api;
   }
 })(typeof window !== "undefined" ? window : globalThis, function () {
   const STATE = {

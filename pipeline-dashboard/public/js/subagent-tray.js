@@ -19,8 +19,8 @@
     module.exports = api;
   }
   if (typeof window !== "undefined") {
-    root.HarnessSubagentTray = api.install({ doc: document, win: window });
-    root.HarnessSubagentTray.SubagentTrayState = api.SubagentTrayState;
+    root.OrchestratorSubagentTray = api.install({ doc: document, win: window });
+    root.OrchestratorSubagentTray.SubagentTrayState = api.SubagentTrayState;
   }
 })(typeof window !== "undefined" ? window : globalThis, function () {
   const DEFAULT_MAX_VISIBLE = 8;

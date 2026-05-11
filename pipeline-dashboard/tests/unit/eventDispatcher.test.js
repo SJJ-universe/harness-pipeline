@@ -1,4 +1,4 @@
-// Slice R (v6) — HarnessEventDispatcher unit tests.
+// Slice R (v6) — OrchestratorEventDispatcher unit tests.
 //
 // Pure registry module. No DOM dependency.
 

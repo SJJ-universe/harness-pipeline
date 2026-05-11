@@ -6,7 +6,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessMonitorRecentResultsCard = api;
+  if (typeof window !== "undefined") root.OrchestratorMonitorRecentResultsCard = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
 
   const MAX_ROWS = 3;

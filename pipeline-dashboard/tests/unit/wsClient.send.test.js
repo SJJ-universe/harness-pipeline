@@ -1,4 +1,4 @@
-// Slice AA-2 (Phase 2.5) — HarnessWsClient.send() unit tests.
+// Slice AA-2 (Phase 2.5) — OrchestratorWsClient.send() unit tests.
 //
 // The tab switch flow (app.js onSelect) uses `_wsClient.send(...)` to ask
 // the server for a run-scoped replay. Send must:

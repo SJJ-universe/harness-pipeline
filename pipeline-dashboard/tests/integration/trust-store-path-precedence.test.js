@@ -50,7 +50,7 @@ test("TRUST-STORE-PATH-IT: full 5-step precedence chain in one connected walk", 
   // wins over portable when os-default exists" can be exercised.
   const dir = tmpDir();
   const appdataDir = path.join(dir, "AppData", "Roaming");
-  const osDefaultDir = path.join(appdataDir, "HarnessPipeline");
+  const osDefaultDir = path.join(appdataDir, "OrchestratorPipeline");
   fs.mkdirSync(osDefaultDir, { recursive: true });
   const osDefaultPath = path.join(osDefaultDir, FILENAME);
   fs.writeFileSync(osDefaultPath,
@@ -130,7 +130,7 @@ test("TRUST-STORE-PATH-IT: full 5-step precedence chain in one connected walk", 
   // Build a fresh isolated env where OS-default file is ABSENT.
   const dir2 = tmpDir();
   const appdataDir2 = path.join(dir2, "AppData", "Roaming");
-  // Deliberately do NOT create HarnessPipeline/trust-store.json
+  // Deliberately do NOT create OrchestratorPipeline/trust-store.json
   // under appdataDir2 — the resolver should fall through to
   // portable.
   const installDir2 = path.join(dir2, "install");
@@ -185,7 +185,7 @@ test("TRUST-STORE-PATH-IT: OS-default path varies by platform (Windows / macOS /
     homedir: dir,
   });
   assert.equal(r.source, SOURCES.OS_DEFAULT);
-  assert.match(r.path, /AppData[\\/]+Roaming[\\/]+HarnessPipeline[\\/]+trust-store\.json$/);
+  assert.match(r.path, /AppData[\\/]+Roaming[\\/]+OrchestratorPipeline[\\/]+trust-store\.json$/);
 
   // macOS
   r = resolveTrustStorePath({
@@ -194,7 +194,7 @@ test("TRUST-STORE-PATH-IT: OS-default path varies by platform (Windows / macOS /
     homedir: dir,
   });
   assert.equal(r.source, SOURCES.OS_DEFAULT);
-  assert.match(r.path, /Library[\\/]+Application Support[\\/]+HarnessPipeline[\\/]+trust-store\.json$/);
+  assert.match(r.path, /Library[\\/]+Application Support[\\/]+OrchestratorPipeline[\\/]+trust-store\.json$/);
 
   // Linux + XDG_CONFIG_HOME set
   r = resolveTrustStorePath({
@@ -203,7 +203,7 @@ test("TRUST-STORE-PATH-IT: OS-default path varies by platform (Windows / macOS /
     homedir: dir,
   });
   assert.equal(r.source, SOURCES.OS_DEFAULT);
-  assert.match(r.path, /xdg[\\/]+HarnessPipeline[\\/]+trust-store\.json$/);
+  assert.match(r.path, /xdg[\\/]+OrchestratorPipeline[\\/]+trust-store\.json$/);
 
   // Linux + XDG_CONFIG_HOME unset → ~/.config
   r = resolveTrustStorePath({
@@ -212,7 +212,7 @@ test("TRUST-STORE-PATH-IT: OS-default path varies by platform (Windows / macOS /
     homedir: dir,
   });
   assert.equal(r.source, SOURCES.OS_DEFAULT);
-  assert.match(r.path, /\.config[\\/]+HarnessPipeline[\\/]+trust-store\.json$/);
+  assert.match(r.path, /\.config[\\/]+OrchestratorPipeline[\\/]+trust-store\.json$/);
 
   fs.rmSync(dir, { recursive: true, force: true });
 });

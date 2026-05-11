@@ -85,7 +85,7 @@ test (`i18n.coverage.test.js`) fails immediately if either is missing.
 ## §3 Placeholders
 
 Templated values use `{name}` syntax. Substitution is done by
-`HarnessI18n.t(key, params)`.
+`OrchestratorI18n.t(key, params)`.
 
 **Regex**: `/\{(\w+)\}/g` — letters, digits, underscores only.
 
@@ -93,11 +93,11 @@ Templated values use `{name}` syntax. Substitution is done by
 ```js
 // Single placeholder
 "smart.rec.resolveApprovals.title": "승인 요청 {count}개 대기 중"
-HarnessI18n.t("...", { count: 3 })  // → "승인 요청 3개 대기 중"
+OrchestratorI18n.t("...", { count: 3 })  // → "승인 요청 3개 대기 중"
 
 // Multiple placeholders
 "policyPack.altDiff.fromHeader": "현재 ({label})"
-HarnessI18n.t("...", { label: "Standard" })  // → "현재 (Standard)"
+OrchestratorI18n.t("...", { label: "Standard" })  // → "현재 (Standard)"
 ```
 
 **Rules** (enforced by `i18n.placeholder-parity.test.js`):
@@ -220,7 +220,7 @@ The harness today supports `ko` + `en` only. If a future round adds
    specific script (Japanese kana / kanji ranges, Chinese CJK
    ranges)
 5. Update `public/js/i18n.js` to load the new locale and expose
-   `HarnessI18n.setLocale("ja")`
+   `OrchestratorI18n.setLocale("ja")`
 
 This is a **structural change**, not a key-add — coordinate with
 the test contract owners before shipping.
@@ -247,7 +247,7 @@ These mistakes are caught by the tests but are easy to make:
 - `tests/unit/i18n.coverage.test.js` (Slice I, v5)
 - `tests/unit/i18n.placeholder-parity.test.js` (I18N-PARITY-1-a)
 - `tests/unit/i18n.translation-quality.test.js` (I18N-PARITY-2-a)
-- `public/js/i18n.js` — runtime `HarnessI18n.t()` implementation
+- `public/js/i18n.js` — runtime `OrchestratorI18n.t()` implementation
 - `public/js/i18n/ko.js` — Korean table
 - `public/js/i18n/en.js` — English table
 

@@ -25,7 +25,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessProductHarnessTrack = api;
+  if (typeof window !== "undefined") root.OrchestratorProductTrack = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
 
   // Mock stages — UI-P5 replaces with store-derived phase list from
@@ -43,15 +43,15 @@
 
   function create(opts) {
     if (!opts || typeof opts !== "object") {
-      throw new Error("HarnessProductHarnessTrack.create: opts required");
+      throw new Error("OrchestratorProductTrack.create: opts required");
     }
     const root = opts.root;
     const _doc = opts.doc || (typeof document !== "undefined" ? document : null);
-    if (!root || !_doc) throw new Error("HarnessProductHarnessTrack.create: root + doc required");
+    if (!root || !_doc) throw new Error("OrchestratorProductTrack.create: root + doc required");
 
     const store = opts.store || null;
     const selectors = opts.dataSelectors
-      || (typeof window !== "undefined" && window.HarnessProductShellData)
+      || (typeof window !== "undefined" && window.OrchestratorProductShellData)
       || null;
 
     // Runtime guard against the page looking like a running demo when
@@ -169,8 +169,8 @@
       if (horseMounted) return;
       const horseRiderFactory = opts.horseRider
         || (typeof window !== "undefined"
-            && window.HarnessProductHorseRider
-            && window.HarnessProductHorseRider.create);
+            && window.OrchestratorProductHorseRider
+            && window.OrchestratorProductHorseRider.create);
       if (typeof horseRiderFactory === "function") {
         try {
           horseHandle = horseRiderFactory({

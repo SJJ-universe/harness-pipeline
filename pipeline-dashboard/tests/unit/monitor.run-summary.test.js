@@ -1,4 +1,4 @@
-// Slice MA4 (Phase D, 2026-04-27) — HarnessMonitorRunSummary unit tests.
+// Slice MA4 (Phase D, 2026-04-27) — OrchestratorMonitorRunSummary unit tests.
 //
 // Hand-rolled DOM stub. The summary is a "selected run detail card" with
 // a header (id + status pill) and a definition list of metadata, plus an
@@ -282,7 +282,7 @@ test("create throws on bad inputs", () => {
   const store = createMonitorStore();
   const doc = makeDoc();
   assert.throws(() => create({ store, doc }), /root must be an element/);
-  assert.throws(() => create({ root: doc.createElement("div"), doc }), /store must be a HarnessMonitorStore/);
+  assert.throws(() => create({ root: doc.createElement("div"), doc }), /store must be a OrchestratorMonitorStore/);
   assert.throws(
     () => create({ root: doc.createElement("div"), store, doc: {} }),
     /no document available/

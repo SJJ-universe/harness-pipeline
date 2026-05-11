@@ -26,7 +26,7 @@
 //
 // Module shape: UMD — same load pattern as firstRunClassifier
 // (Node `require` + browser `<script>` registering globalThis
-// HarnessRecommendationEngine). Tests can require it directly.
+// OrchestratorRecommendationEngine). Tests can require it directly.
 
 "use strict";
 
@@ -36,7 +36,7 @@
     module.exports = api;
   }
   if (typeof root !== "undefined") {
-    root.HarnessRecommendationEngine = api;
+    root.OrchestratorRecommendationEngine = api;
   }
 })(typeof window !== "undefined" ? window : (typeof globalThis !== "undefined" ? globalThis : this),
    function () {

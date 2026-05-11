@@ -1,4 +1,4 @@
-// Slice MB4-a + MC2 (Phase D Round 2 + 2.5, 2026-04-27) — HarnessMonitorLegacyBridge.
+// Slice MB4-a + MC2 (Phase D Round 2 + 2.5, 2026-04-27) — OrchestratorMonitorLegacyBridge.
 //
 // Without this bridge the monitor store is a snapshot frozen at the
 // moment hydrateMonitorStore returned. The legacy WebSocket stream
@@ -8,9 +8,9 @@
 //
 // The bridge fixes that with three cheap mechanisms:
 //
-//   1. Tap into HarnessEventDispatcher (MB4-a addition) — every event
+//   1. Tap into OrchestratorEventDispatcher (MB4-a addition) — every event
 //      app.js receives is mirrored to a wildcard tap. The tap normalizes
-//      via HarnessMonitorNormalizer and pushes to store.pushEvent. No
+//      via OrchestratorMonitorNormalizer and pushes to store.pushEvent. No
 //      changes to app.js's existing routing.
 //
 //   2. Periodic /api/server/info refresh — server summary + active
@@ -45,7 +45,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessMonitorLegacyBridge = api;
+  if (typeof window !== "undefined") root.OrchestratorMonitorLegacyBridge = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
   const DEFAULT_REFRESH_MS = 5000;
   const DEFAULT_INFO_URL = "/api/server/info";
@@ -62,7 +62,7 @@
   function install({
     store,
     normalize,
-    dispatcher = null,           // window.HarnessEventDispatcher in browser
+    dispatcher = null,           // window.OrchestratorEventDispatcher in browser
     fetchImpl = null,            // window.fetch in browser
     setIntervalFn = null,        // setInterval in browser
     clearIntervalFn = null,      // clearInterval in browser
@@ -73,13 +73,13 @@
     headers = {},
   } = {}) {
     if (!store || typeof store.pushEvent !== "function") {
-      throw new Error("legacyBridge.install: store must be a HarnessMonitorStore");
+      throw new Error("legacyBridge.install: store must be a OrchestratorMonitorStore");
     }
     if (typeof normalize !== "function") {
       throw new Error("legacyBridge.install: normalize must be a function");
     }
     const _dispatcher = dispatcher
-      || (typeof globalThis !== "undefined" && globalThis.HarnessEventDispatcher);
+      || (typeof globalThis !== "undefined" && globalThis.OrchestratorEventDispatcher);
     const _fetch = fetchImpl
       || (typeof fetch === "function" ? fetch : null);
     const _setInterval = setIntervalFn

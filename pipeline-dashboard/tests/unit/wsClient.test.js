@@ -1,4 +1,4 @@
-// Slice K (v5) — HarnessWsClient unit tests.
+// Slice K (v5) — OrchestratorWsClient unit tests.
 //
 // We don't need a real WebSocket — the module accepts a WebSocketCtor hook
 // so tests can inject a mock that lets us drive onopen/onmessage/onclose/

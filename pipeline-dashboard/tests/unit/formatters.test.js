@@ -1,4 +1,4 @@
-// Slice AC (Phase 2.5) — HarnessFormatters unit tests.
+// Slice AC (Phase 2.5) — OrchestratorFormatters unit tests.
 //
 // Covers the pure string helpers extracted from app.js. Node has no DOM,
 // so escapeHtml() takes the manual-replace fallback path here; the

@@ -38,7 +38,7 @@
 const path = require("node:path");
 const os = require("node:os");
 
-const APP_NAME = "HarnessPipeline";
+const APP_NAME = "OrchestratorPipeline";
 
 /**
  * Resolve OS-appropriate config + data directories. Reads env overrides

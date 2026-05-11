@@ -35,7 +35,7 @@ function setupClient({ originalFetch }) {
   const warnings = [];
   const win = {
     HARNESS_TOKEN: null,
-    HarnessToast: { show: (opts) => { toasts.push(opts); return "t1"; } },
+    OrchestratorToast: { show: (opts) => { toasts.push(opts); return "t1"; } },
     // api-client captures `window.fetch.bind(window)` at IIFE time, so this
     // must be a real function that works with .bind and then gets replaced
     // when the IIFE returns.

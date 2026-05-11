@@ -63,7 +63,7 @@ test("UI-P1 routing: ?mode=legacy serves preserved index.legacy.html + ?mode=sim
     const legacy = await fetch(`${BASE}/?mode=legacy`);
     assert.equal(legacy.status, 200);
     const legacyHtml = await legacy.text();
-    assert.match(legacyHtml, /SJ Harness Engine — Legacy/i);
+    assert.match(legacyHtml, /SJ Orchestrator — Legacy/i);
     assert.ok(legacyHtml.includes("monitor-shell-root") || legacyHtml.includes("skip-link"));
     assert.equal(legacyHtml.includes("product-shell-root"), false,
       "legacy view must NOT contain product-shell-root mount",

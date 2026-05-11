@@ -12,12 +12,12 @@
 // small and the behavior is unit-testable in Node (no DOM required).
 //
 // This module ships as UMD: Node tests `require()` it, the browser picks
-// it up as `window.HarnessRunIdFilter`.
+// it up as `window.OrchestratorRunIdFilter`.
 
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessRunIdFilter = api;
+  if (typeof window !== "undefined") root.OrchestratorRunIdFilter = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
   /**
    * Return true when the event should be skipped for the currently-focused

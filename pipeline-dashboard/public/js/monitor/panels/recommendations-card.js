@@ -21,7 +21,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessRecommendationsCard = api;
+  if (typeof window !== "undefined") root.OrchestratorRecommendationsCard = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
 
   // ── Engine resolver (Node + browser) ────────────────────────
@@ -35,12 +35,12 @@
         return _engine;
       } catch (_) { /* fall through to globalThis */ }
     }
-    if (typeof globalThis !== "undefined" && globalThis.HarnessRecommendationEngine) {
-      _engine = globalThis.HarnessRecommendationEngine;
+    if (typeof globalThis !== "undefined" && globalThis.OrchestratorRecommendationEngine) {
+      _engine = globalThis.OrchestratorRecommendationEngine;
       return _engine;
     }
     throw new Error(
-      "recommendations-card: HarnessRecommendationEngine not available — " +
+      "recommendations-card: OrchestratorRecommendationEngine not available — " +
       "ensure public/js/runtime/recommendationEngine.js is loaded before " +
       "this script (or registered on globalThis).",
     );

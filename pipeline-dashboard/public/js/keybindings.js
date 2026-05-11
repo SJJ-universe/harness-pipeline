@@ -19,7 +19,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessKeybindings = api;
+  if (typeof window !== "undefined") root.OrchestratorKeybindings = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
   const SEQUENCE_TIMEOUT_MS = 1000;
 

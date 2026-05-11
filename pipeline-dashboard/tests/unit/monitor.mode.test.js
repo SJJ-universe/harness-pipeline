@@ -9,7 +9,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const HarnessMonitorMode = require("../../public/js/monitor/mode");
+const OrchestratorMonitorMode = require("../../public/js/monitor/mode");
 const {
   MODES,
   DEFAULT_MODE,
@@ -20,7 +20,7 @@ const {
   _validateMode,
   _readUrlMode,
   _readStorageMode,
-} = HarnessMonitorMode;
+} = OrchestratorMonitorMode;
 
 // ── Constants ──────────────────────────────────────────────────────
 

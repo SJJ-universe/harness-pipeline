@@ -8,13 +8,13 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessMonitorNowDoingCard = api;
+  if (typeof window !== "undefined") root.OrchestratorMonitorNowDoingCard = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
 
   function _resolveSM() {
     try { return require("../horse-state-machine"); } catch (_) {}
-    if (typeof window !== "undefined" && window.HarnessHorseStateMachine) {
-      return window.HarnessHorseStateMachine;
+    if (typeof window !== "undefined" && window.OrchestratorHorseStateMachine) {
+      return window.OrchestratorHorseStateMachine;
     }
     return null;
   }

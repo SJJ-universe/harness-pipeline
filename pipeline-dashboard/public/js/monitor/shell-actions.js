@@ -25,7 +25,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessShellActions = api;
+  if (typeof window !== "undefined") root.OrchestratorShellActions = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
 
   function _resolveWin(opts) {
@@ -78,7 +78,7 @@
     const win = _resolveWin(opts);
     const doc = _resolveDoc(opts);
     const toastFn = opts && opts.toastFn;
-    const modalApi = (win && win.HarnessGeneralPipelineModal) || null;
+    const modalApi = (win && win.OrchestratorGeneralPipelineModal) || null;
     if (!modalApi || typeof modalApi.install !== "function") {
       _toast(toastFn, {
         message: "모달 모듈을 로드할 수 없습니다 (general-pipeline-modal)",
@@ -86,7 +86,7 @@
       });
       return;
     }
-    const trapApi = win && win.HarnessFocusTrap;
+    const trapApi = win && win.OrchestratorFocusTrap;
     const installFocusTrap = (trapApi && typeof trapApi.trap === "function")
       ? trapApi.trap
       : null;

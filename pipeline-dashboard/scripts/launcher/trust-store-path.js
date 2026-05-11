@@ -24,9 +24,9 @@
 //        store rides the same dir. This keeps "all per-installation config
 //        in one place" for the operator who needs to back up or migrate.
 //   4. OS-conventional default:
-//        Windows: %APPDATA%/HarnessPipeline/trust-store.json
-//        macOS:   ~/Library/Application Support/HarnessPipeline/trust-store.json
-//        Linux:   ${XDG_CONFIG_HOME:-~/.config}/HarnessPipeline/trust-store.json
+//        Windows: %APPDATA%/OrchestratorPipeline/trust-store.json
+//        macOS:   ~/Library/Application Support/OrchestratorPipeline/trust-store.json
+//        Linux:   ${XDG_CONFIG_HOME:-~/.config}/OrchestratorPipeline/trust-store.json
 //   5. Portable install fallback: <installDir>/trust-store.json
 //        Only when 4 doesn't exist AND the caller passed installDir.
 //        Use case: a portable distribution bundles trust-store.json next
@@ -61,7 +61,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const os = require("node:os");
 
-const APP_NAME = "HarnessPipeline";
+const APP_NAME = "OrchestratorPipeline";
 const FILENAME = "trust-store.json";
 
 // Frozen so a future caller can't mutate the source vocabulary. The

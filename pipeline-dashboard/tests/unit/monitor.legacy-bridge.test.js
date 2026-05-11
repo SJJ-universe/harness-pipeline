@@ -1,4 +1,4 @@
-// Slice MB4-a (Phase D Round 2, 2026-04-27) — HarnessMonitorLegacyBridge tests.
+// Slice MB4-a (Phase D Round 2, 2026-04-27) — OrchestratorMonitorLegacyBridge tests.
 //
 // Drives install() with stub dispatcher + stub fetch + manual interval
 // control (so we don't actually wait 5s in tests). Verifies the two

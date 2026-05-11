@@ -23,9 +23,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SJ Harness Engine — Legacy</title>
+  <title>SJ Orchestrator — Legacy</title>
   <!-- Slice UI-H0 (Phase D / Phase E1.5, 2026-04-30): design-token
-       layer for the SJ Harness Dashboard mockup integration. Loads
+       layer for the SJ Orchestrator Dashboard mockup integration. Loads
        BEFORE style.css + style.monitor.css so every selector can
        consume `--hsh-*` custom properties. Tokens are additive —
        backwards-compatible with existing `var(--bg-card, #161b22)`-
@@ -53,8 +53,8 @@
        only owns the dismiss flow + locale re-application.
 
        Korean copy ships baked-in so the first paint always shows
-       something even before HarnessI18n loads. data-i18n attributes
-       update the text once HarnessI18n.applyDom() runs (or on KO/EN
+       something even before OrchestratorI18n loads. data-i18n attributes
+       update the text once OrchestratorI18n.applyDom() runs (or on KO/EN
        toggle). -->
   <div id="harness-legacy-banner" class="harness-legacy-banner"
        role="region"
@@ -85,7 +85,7 @@
           <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
         </svg>
       </div>
-      <h1 data-i18n="header.title">SJ 하네스 엔진</h1>
+      <h1 data-i18n="header.title">SJ 오케스트레이터</h1>
       <span class="badge" id="status-badge" data-i18n="status.idle">대기</span>
     </div>
     <div class="header-right">
@@ -403,12 +403,12 @@
   <script src="js/dom.js"></script>
   <!-- Slice I (v5): i18n tables + module. ko/en populate window.HARNESS_I18N
        before i18n.js reads it. Load order: ko → en → i18n → (panels that
-       call HarnessI18n.t()). app.js calls applyDom() after DOM ready. -->
+       call OrchestratorI18n.t()). app.js calls applyDom() after DOM ready. -->
   <script src="js/i18n/ko.js"></script>
   <script src="js/i18n/en.js"></script>
   <script src="js/i18n.js"></script>
   <!-- UI-P8: legacy-view deprecation banner controller. Loads AFTER
-       i18n.js so HarnessI18n.applyDom() can translate the banner
+       i18n.js so OrchestratorI18n.applyDom() can translate the banner
        subtree on first paint + on KO/EN toggle. Auto-installs when
        DOMContentLoaded fires (the script's UMD factory checks
        readyState). -->
@@ -417,7 +417,7 @@
        the legacy handleEvent switch can delegate to it. Also available to
        every panel for registering new runId/tab-scoped handlers. -->
   <script src="js/event-dispatcher.js"></script>
-  <!-- toast.js must load before api-client + app.js so the HarnessToast
+  <!-- toast.js must load before api-client + app.js so the OrchestratorToast
        singleton is ready when those modules call showToast(). -->
   <script src="js/toast.js"></script>
   <!-- Slice D: subagent tray wiring also needs to be live before app.js
@@ -431,7 +431,7 @@
   <script src="js/run-id-filter.js"></script>
   <!-- Slice AC (Phase 2.5, v6): harness horse animation (pixel art +
        gallop loop + state machine) extracted from app.js. Must load
-       before app.js so window.HarnessHorseAnimation is ready when the
+       before app.js so window.OrchestratorHorseAnimation is ready when the
        first setHorseState() call fires. -->
   <script src="js/horse-animation.js"></script>
   <!-- Slice AC (Phase 2.5, v6): pure formatters (escapeHtml / shortPath /
@@ -452,7 +452,7 @@
        No hard dep on app.js; app.js wires the #btn-open-analytics binding. -->
   <script src="js/analytics-panel.js"></script>
   <!-- Slice K (v5): WebSocket client extracted from app.js. Must load
-       BEFORE app.js so connectWS() finds window.HarnessWsClient at init. -->
+       BEFORE app.js so connectWS() finds window.OrchestratorWsClient at init. -->
   <script src="js/ws-client.js"></script>
   <script src="js/api-client.js"></script>
   <!-- Slice MB4-c (Phase D Round 2): terminal init + general-pipeline
@@ -484,26 +484,26 @@
   <script src="js/monitor/normalizer.js"></script>
   <script src="js/monitor/hydrate.js"></script>
   <!-- Slice MB4-a (Phase D Round 2): legacy-bridge wires the live WS
-       event stream + /api/server/info polling into HarnessMonitorStore
+       event stream + /api/server/info polling into OrchestratorMonitorStore
        so the monitor shell isn't a snapshot frozen at hydrate time.
-       Picked up by layout.js as window.HarnessMonitorLegacyBridge. -->
+       Picked up by layout.js as window.OrchestratorMonitorLegacyBridge. -->
   <script src="js/monitor/legacy-bridge.js"></script>
   <script src="js/monitor/panels/global-bar.js"></script>
   <!-- Slice MA4: left-rail run list + centre-workspace summary panels.
        Same UMD pattern as global-bar; layout.js looks them up on
-       window.HarnessMonitor{RunTree,RunSummary} when mounting. -->
+       window.OrchestratorMonitor{RunTree,RunSummary} when mounting. -->
   <script src="js/monitor/panels/run-tree.js"></script>
   <script src="js/monitor/panels/run-summary.js"></script>
   <!-- Slice MA5: timeline (centre bottom) + inspector (right) +
        bottom-dock (raw event log). All three are looked up by layout.js
-       on window.HarnessMonitor{Timeline,Inspector,BottomDock}. -->
+       on window.OrchestratorMonitor{Timeline,Inspector,BottomDock}. -->
   <script src="js/monitor/panels/timeline.js"></script>
   <script src="js/monitor/panels/inspector.js"></script>
   <script src="js/monitor/panels/bottom-dock.js"></script>
   <!-- Slice MA6: agent-tree panel — sits below run-tree in the left
        rail, lists childRegistry data + active subagents derived from
        the events ring. Picked up by layout.js as
-       window.HarnessMonitorAgentTree. -->
+       window.OrchestratorMonitorAgentTree. -->
   <script src="js/monitor/panels/agent-tree.js"></script>
   <!-- Slice D3-d (Phase E1.5, 2026-04-29): operator-facing accounts modal.
        Mounted by layout.js into a hidden region; toggled by the
@@ -518,7 +518,7 @@
        foundation. mode.js resolves URL ?mode= > localStorage >
        envDefault > "simple"; mode-toggle panel lets the operator
        switch via pill buttons. Loaded BEFORE layout.js so the init
-       script can read HarnessMonitorMode.resolveMode synchronously. -->
+       script can read OrchestratorMonitorMode.resolveMode synchronously. -->
   <script src="js/monitor/mode.js"></script>
   <script src="js/monitor/panels/mode-toggle.js"></script>
   <!-- Slice UI-H2 (Phase D / Phase E1.5, 2026-04-30): Harness Track
@@ -536,7 +536,7 @@
   <!-- Slice UI-H7-b (Phase D / Phase E1.5, 2026-04-30): review-session
        HTTP client. Powers the dual-agent-console action row. Loaded
        BEFORE dual-agent-console so the panel can find
-       window.HarnessReviewSessionClient. -->
+       window.OrchestratorReviewSessionClient. -->
   <script src="js/monitor/review-session-client.js"></script>
   <script src="js/monitor/panels/dual-agent-console.js"></script>
   <!-- Slice UI-H5 (Phase D / Phase E1.5, 2026-04-30): security-status
@@ -559,7 +559,7 @@
   <script src="js/monitor/panels/run-viewer.js"></script>
   <!-- Slice UI-FirstRun-c (Phase D Round UI-P, 2026-05-04): "지금 해야 할 일" card.
        Loaded BEFORE simple-shell so the panel constructor is registered on
-       window.HarnessNextActionCard when simple-shell.mount() runs. The card
+       window.OrchestratorNextActionCard when simple-shell.mount() runs. The card
        module also lazy-requires firstRunClassifier; in browser that resolves
        via the script tag above (not the require path which is Node-only). -->
   <script src="js/runtime/firstRunClassifier.js"></script>
@@ -567,7 +567,7 @@
   <!-- Slice SMART-1-c (Phase 2 SMART arc, 2026-05-04): Recommendations card.
        First UI consumer of SMART-0 decisionContext + SMART-1 recommendation
        engine. recommendationEngine.js MUST load before recommendations-card.js
-       because the panel resolves the engine via globalThis.HarnessRecommendationEngine. -->
+       because the panel resolves the engine via globalThis.OrchestratorRecommendationEngine. -->
   <script src="js/runtime/recommendationEngine.js"></script>
   <script src="js/monitor/panels/recommendations-card.js"></script>
   <!-- Slice POL-UI-1-a (Phase 2 v2 follow-up, 2026-05-05): Pack-info card.
@@ -576,7 +576,7 @@
        applicable) + restart hint + collapsible alternatives. Reads from
        store.policyPacks slice (POL-c plumbed; legacy-bridge fetches once
        at boot). MUST load before simple-shell.js so the constructor is
-       registered on window.HarnessPackInfoCard. -->
+       registered on window.OrchestratorPackInfoCard. -->
   <script src="js/monitor/panels/pack-info-card.js"></script>
   <script src="js/monitor/shells/simple-shell.js"></script>
   <script src="js/monitor/layout.js"></script>
@@ -600,14 +600,14 @@
 
       var rootEl = document.getElementById("monitor-shell-root");
       if (!rootEl) return;
-      if (typeof window.HarnessMonitorStore === "undefined"
-          || typeof window.HarnessMonitorNormalizer === "undefined"
-          || typeof window.HarnessMonitorLayout === "undefined") {
+      if (typeof window.OrchestratorMonitorStore === "undefined"
+          || typeof window.OrchestratorMonitorNormalizer === "undefined"
+          || typeof window.OrchestratorMonitorLayout === "undefined") {
         console.warn("[monitor] required modules missing — skipping init");
         return;
       }
 
-      var store = window.HarnessMonitorStore.createMonitorStore();
+      var store = window.OrchestratorMonitorStore.createMonitorStore();
 
       // Slice UI-H1: resolve shell mode (URL > localStorage > envDefault
       // > "simple"). The envDefault arrives via /api/server/info's
@@ -618,8 +618,8 @@
       // to "simple" (operator-friendly default per the plan).
       var resolvedMode = "simple";
       try {
-        if (window.HarnessMonitorMode && typeof window.HarnessMonitorMode.resolveMode === "function") {
-          resolvedMode = window.HarnessMonitorMode.resolveMode({
+        if (window.OrchestratorMonitorMode && typeof window.OrchestratorMonitorMode.resolveMode === "function") {
+          resolvedMode = window.OrchestratorMonitorMode.resolveMode({
             location: window.location,
             storage: window.localStorage,
             // envDefault: TBD — bridge fills it in async, doesn't
@@ -628,13 +628,13 @@
         }
       } catch (_) { resolvedMode = "simple"; }
 
-      var handle = window.HarnessMonitorLayout.mount({
+      var handle = window.OrchestratorMonitorLayout.mount({
         root: rootEl,
         store: store,
-        normalize: window.HarnessMonitorNormalizer.normalize,
+        normalize: window.OrchestratorMonitorNormalizer.normalize,
         mode: resolvedMode,
       });
-      window.__HarnessMonitor = { store: store, handle: handle, mode: resolvedMode };
+      window.__OrchestratorMonitor = { store: store, handle: handle, mode: resolvedMode };
     } catch (e) {
       try { console.error("[monitor] init failed:", e && e.message ? e.message : e); } catch (_) {}
     }

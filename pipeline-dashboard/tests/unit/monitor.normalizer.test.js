@@ -1,4 +1,4 @@
-// Slice MA1 (Phase D, 2026-04-27) — HarnessMonitorNormalizer unit tests.
+// Slice MA1 (Phase D, 2026-04-27) — OrchestratorMonitorNormalizer unit tests.
 //
 // The normalizer translates raw broadcast events into the canonical
 // envelope `{ type, runId, ts, scope, summary, payload }`. These tests

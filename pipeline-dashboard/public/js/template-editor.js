@@ -11,7 +11,7 @@
 // crib a built-in template as a starting skeleton.
 
 (function () {
-  const el = window.HarnessDom && window.HarnessDom.el;
+  const el = window.OrchestratorDom && window.OrchestratorDom.el;
   if (!el) return; // dom.js is required — fail quietly in unusual test harnesses
 
   const state = {
@@ -32,8 +32,8 @@
 
   function _toast(opts) {
     try {
-      if (window.HarnessToast && typeof window.HarnessToast.show === "function") {
-        return window.HarnessToast.show(opts);
+      if (window.OrchestratorToast && typeof window.OrchestratorToast.show === "function") {
+        return window.OrchestratorToast.show(opts);
       }
     } catch (_) {}
     return null;
@@ -253,7 +253,7 @@
     });
   }
 
-  window.HarnessTemplateEditor = { open, close, onRegistryReloaded };
+  window.OrchestratorTemplateEditor = { open, close, onRegistryReloaded };
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", _bindEvents);

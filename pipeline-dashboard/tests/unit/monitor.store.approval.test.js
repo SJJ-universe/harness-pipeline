@@ -16,7 +16,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const HarnessMonitorStore = require("../../public/js/monitor/store.js");
+const OrchestratorMonitorStore = require("../../public/js/monitor/store.js");
 
 function makeRequest(overrides = {}) {
   return {
@@ -40,7 +40,7 @@ function makeRequest(overrides = {}) {
 // ── snapshot shape ─────────────────────────────────────────────────
 
 test("UX-2-a: fresh store snapshot exposes empty pendingApprovals array", () => {
-  const store = HarnessMonitorStore.createMonitorStore();
+  const store = OrchestratorMonitorStore.createMonitorStore();
   const snap = store.snapshot();
   assert.ok(Array.isArray(snap.pendingApprovals));
   assert.equal(snap.pendingApprovals.length, 0);
@@ -49,7 +49,7 @@ test("UX-2-a: fresh store snapshot exposes empty pendingApprovals array", () => 
 // ── upsertApproval ─────────────────────────────────────────────────
 
 test("UX-2-a: upsertApproval registers a pending request", () => {
-  const store = HarnessMonitorStore.createMonitorStore();
+  const store = OrchestratorMonitorStore.createMonitorStore();
   store.upsertApproval(makeRequest());
   const snap = store.snapshot();
   assert.equal(snap.pendingApprovals.length, 1);
@@ -59,7 +59,7 @@ test("UX-2-a: upsertApproval registers a pending request", () => {
 });
 
 test("UX-2-a: upsertApproval ignores invalid input", () => {
-  const store = HarnessMonitorStore.createMonitorStore();
+  const store = OrchestratorMonitorStore.createMonitorStore();
   // Garbage inputs — no-ops
   store.upsertApproval(null);
   store.upsertApproval(undefined);
@@ -71,7 +71,7 @@ test("UX-2-a: upsertApproval ignores invalid input", () => {
 });
 
 test("UX-2-a: upsertApproval defensive-copies args + piiContext", () => {
-  const store = HarnessMonitorStore.createMonitorStore();
+  const store = OrchestratorMonitorStore.createMonitorStore();
   const args = { command: "echo hi" };
   const piiContext = {
     hasPii: true,
@@ -95,7 +95,7 @@ test("UX-2-a: upsertApproval defensive-copies args + piiContext", () => {
 });
 
 test("UX-2-a: upsertApproval with same approvalId overwrites in place", () => {
-  const store = HarnessMonitorStore.createMonitorStore();
+  const store = OrchestratorMonitorStore.createMonitorStore();
   store.upsertApproval(makeRequest({ argsSummary: "echo hi" }));
   store.upsertApproval(makeRequest({ argsSummary: "echo hi (updated)" }));
   const snap = store.snapshot();
@@ -104,7 +104,7 @@ test("UX-2-a: upsertApproval with same approvalId overwrites in place", () => {
 });
 
 test("UX-2-a: snapshot pendingApprovals sorted by requestedAt (oldest-first)", () => {
-  const store = HarnessMonitorStore.createMonitorStore();
+  const store = OrchestratorMonitorStore.createMonitorStore();
   store.upsertApproval(makeRequest({ approvalId: "newer", requestedAt: 2000 }));
   store.upsertApproval(makeRequest({ approvalId: "older", requestedAt: 1000 }));
   store.upsertApproval(makeRequest({ approvalId: "middle", requestedAt: 1500 }));
@@ -114,7 +114,7 @@ test("UX-2-a: snapshot pendingApprovals sorted by requestedAt (oldest-first)", (
 });
 
 test("UX-2-a: piiContext absent yields piiContext:null on snapshot", () => {
-  const store = HarnessMonitorStore.createMonitorStore();
+  const store = OrchestratorMonitorStore.createMonitorStore();
   store.upsertApproval(makeRequest({ piiContext: null }));
   assert.equal(store.snapshot().pendingApprovals[0].piiContext, null);
 });
@@ -122,7 +122,7 @@ test("UX-2-a: piiContext absent yields piiContext:null on snapshot", () => {
 // ── resolveApproval ────────────────────────────────────────────────
 
 test("UX-2-a: resolveApproval clears the pending entry", () => {
-  const store = HarnessMonitorStore.createMonitorStore();
+  const store = OrchestratorMonitorStore.createMonitorStore();
   store.upsertApproval(makeRequest({ approvalId: "appr-1" }));
   store.upsertApproval(makeRequest({ approvalId: "appr-2", requestedAt: 2000 }));
   store.resolveApproval("appr-1");
@@ -133,14 +133,14 @@ test("UX-2-a: resolveApproval clears the pending entry", () => {
 });
 
 test("UX-2-a: resolveApproval is a no-op for unknown id", () => {
-  const store = HarnessMonitorStore.createMonitorStore();
+  const store = OrchestratorMonitorStore.createMonitorStore();
   store.upsertApproval(makeRequest());
   store.resolveApproval("not-a-real-id");
   assert.equal(store.snapshot().pendingApprovals.length, 1);
 });
 
 test("UX-2-a: resolveApproval ignores garbage input", () => {
-  const store = HarnessMonitorStore.createMonitorStore();
+  const store = OrchestratorMonitorStore.createMonitorStore();
   store.upsertApproval(makeRequest());
   store.resolveApproval(null);
   store.resolveApproval(undefined);
@@ -152,7 +152,7 @@ test("UX-2-a: resolveApproval ignores garbage input", () => {
 // ── clearApprovals ─────────────────────────────────────────────────
 
 test("UX-2-a: clearApprovals empties the slice", () => {
-  const store = HarnessMonitorStore.createMonitorStore();
+  const store = OrchestratorMonitorStore.createMonitorStore();
   store.upsertApproval(makeRequest({ approvalId: "a" }));
   store.upsertApproval(makeRequest({ approvalId: "b" }));
   store.upsertApproval(makeRequest({ approvalId: "c" }));
@@ -161,7 +161,7 @@ test("UX-2-a: clearApprovals empties the slice", () => {
 });
 
 test("UX-2-a: clearApprovals on empty slice is a stable no-op", () => {
-  const store = HarnessMonitorStore.createMonitorStore();
+  const store = OrchestratorMonitorStore.createMonitorStore();
   store.clearApprovals();
   assert.equal(store.snapshot().pendingApprovals.length, 0);
 });
@@ -169,7 +169,7 @@ test("UX-2-a: clearApprovals on empty slice is a stable no-op", () => {
 // ── reset() also clears pendingApprovals ──────────────────────────
 
 test("UX-2-a: reset() empties the slice (via freshState)", () => {
-  const store = HarnessMonitorStore.createMonitorStore();
+  const store = OrchestratorMonitorStore.createMonitorStore();
   store.upsertApproval(makeRequest());
   assert.equal(store.snapshot().pendingApprovals.length, 1);
   store.reset();
@@ -179,7 +179,7 @@ test("UX-2-a: reset() empties the slice (via freshState)", () => {
 // ── snapshot is a defensive copy ──────────────────────────────────
 
 test("UX-2-a: snapshot mutation does not leak into store state", () => {
-  const store = HarnessMonitorStore.createMonitorStore();
+  const store = OrchestratorMonitorStore.createMonitorStore();
   store.upsertApproval(makeRequest());
   const snap1 = store.snapshot();
   // Mutate the snapshot's array
@@ -200,7 +200,7 @@ test("UX-2-a: snapshot mutation does not leak into store state", () => {
 // ── publish lifecycle ─────────────────────────────────────────────
 
 test("UX-2-a: subscribers fire on upsert / resolve / clear", () => {
-  const store = HarnessMonitorStore.createMonitorStore();
+  const store = OrchestratorMonitorStore.createMonitorStore();
   let lastLen = -1;
   store.subscribe((s) => { lastLen = s.pendingApprovals.length; });
 
@@ -218,7 +218,7 @@ test("UX-2-a: subscribers fire on upsert / resolve / clear", () => {
 });
 
 test("UX-2-a: invalid actions do NOT publish (avoid spurious renders)", () => {
-  const store = HarnessMonitorStore.createMonitorStore();
+  const store = OrchestratorMonitorStore.createMonitorStore();
   let publishes = 0;
   store.subscribe(() => { publishes += 1; });
 

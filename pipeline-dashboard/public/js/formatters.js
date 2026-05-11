@@ -5,7 +5,7 @@
 // into a UMD module lets Node tests exercise them directly, and lets
 // app.js shrink without losing any behavior.
 //
-// Public API (via window.HarnessFormatters):
+// Public API (via window.OrchestratorFormatters):
 //   escapeHtml(str)                  — escape for innerHTML interpolation
 //   shortPath(p)                     — last 2 path segments, POSIX/Win both
 //   formatHMS(ts)                    — HH:MM:SS for a timestamp
@@ -17,7 +17,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessFormatters = api;
+  if (typeof window !== "undefined") root.OrchestratorFormatters = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
   function escapeHtml(str) {
     // Use the DOM when it's available (browser) — document.createElement

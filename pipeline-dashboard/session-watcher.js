@@ -442,7 +442,7 @@ class SessionWatcher {
     this.broadcast({
       type: "pipeline_complete",
       data: {
-        harnessId: this.currentTemplate,
+        orchestratorId: this.currentTemplate,
         auto: true,
         toolsUsed: [...new Set(this.toolHistory)],
       },

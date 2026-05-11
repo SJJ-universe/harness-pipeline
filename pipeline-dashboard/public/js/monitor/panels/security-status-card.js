@@ -22,7 +22,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessMonitorSecurityStatusCard = api;
+  if (typeof window !== "undefined") root.OrchestratorMonitorSecurityStatusCard = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
 
   function create({ root, store, doc } = {}) {
@@ -30,7 +30,7 @@
       throw new Error("security-status-card.create: root must be an element");
     }
     if (!store || typeof store.subscribe !== "function" || typeof store.snapshot !== "function") {
-      throw new Error("security-status-card.create: store must be a HarnessMonitorStore");
+      throw new Error("security-status-card.create: store must be a OrchestratorMonitorStore");
     }
     const _doc = doc || (typeof document !== "undefined" ? document : null);
     if (!_doc || typeof _doc.createElement !== "function") {

@@ -3,7 +3,7 @@
 // Top header band of the product shell. Mirrors the reference HTML's
 // Header layout pixel-by-pixel:
 //
-//   ◇ SJ Harness · v2.4.0 · [실행 중]    [일반사용자|전문사용자]    ・・・    [서버 ONLINE] [Codex READY] [KO|EN] [메트릭] [히스토리] [Codex 검증] [서버 종료]
+//   ◇ SJ Orchestrator · v2.4.0 · [실행 중]    [일반사용자|전문사용자]    ・・・    [서버 ONLINE] [Codex READY] [KO|EN] [메트릭] [히스토리] [Codex 검증] [서버 종료]
 //
 // Section 7 sign-off decisions wired here:
 //   - Status pill syncs to run state (대기 중 / 실행 중 / 중단됨)  ← #4
@@ -13,7 +13,7 @@
 //   - Status pill: TODO P5 — read store.runs[selectedRunId]?.status
 //   - 서버 indicator: TODO P5 — read store.serverInfo
 //   - Codex indicator: TODO P5 — read store.accountStatus.profile.codex
-//   - KO/EN: hooks HarnessI18n.setLocale() (existing module)
+//   - KO/EN: hooks OrchestratorI18n.setLocale() (existing module)
 //   - 메트릭/히스토리: opens existing UI-H modals (UI-P5 wires)
 //   - 서버 종료: POST /api/server/control/shutdown (existing endpoint;
 //     wired in P5 with confirm dialog)
@@ -24,13 +24,13 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessProductHeader = api;
+  if (typeof window !== "undefined") root.OrchestratorProductHeader = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
 
   const VERSION = "v2.5.0"; // bumped each phase release; UI-P1 ships with this
 
   // UI-P7: status pill variants now carry i18n key + Korean fallback.
-  // Header's _t() helper picks the i18n translation when HarnessI18n
+  // Header's _t() helper picks the i18n translation when OrchestratorI18n
   // is loaded (browser); Node tests fall through to the fallback so
   // the existing assertions on Korean text continue to pass.
   const STATUS_VARIANTS = Object.freeze({
@@ -72,19 +72,19 @@
 
   function create(opts) {
     if (!opts || typeof opts !== "object") {
-      throw new Error("HarnessProductHeader.create: opts required");
+      throw new Error("OrchestratorProductHeader.create: opts required");
     }
     const root = opts.root;
     if (!root || typeof root.appendChild !== "function") {
-      throw new Error("HarnessProductHeader.create: root must be an element");
+      throw new Error("OrchestratorProductHeader.create: root must be an element");
     }
     const store = opts.store;
     if (!store || typeof store.subscribe !== "function") {
-      throw new Error("HarnessProductHeader.create: store required");
+      throw new Error("OrchestratorProductHeader.create: store required");
     }
     const _doc = opts.doc || (typeof document !== "undefined" ? document : null);
     if (!_doc || typeof _doc.createElement !== "function") {
-      throw new Error("HarnessProductHeader.create: no document available");
+      throw new Error("OrchestratorProductHeader.create: no document available");
     }
     const onActionClick = typeof opts.onActionClick === "function" ? opts.onActionClick : () => {};
     const onModeChange = typeof opts.onModeChange === "function" ? opts.onModeChange : () => {};
@@ -94,14 +94,14 @@
     let locale = opts.locale || "ko";
     // UI-P5-e: selectors for server + codex indicators
     const selectors = opts.dataSelectors
-      || (typeof window !== "undefined" && window.HarnessProductShellData)
+      || (typeof window !== "undefined" && window.OrchestratorProductShellData)
       || null;
     // UI-P7: i18n integration. Tests inject a stub via opts.i18n;
-    // browser auto-resolves window.HarnessI18n. When i18n is missing
+    // browser auto-resolves window.OrchestratorI18n. When i18n is missing
     // (Node test path without explicit injection) _t() returns the
     // fallback so existing assertions on Korean strings still pass.
     const i18n = opts.i18n
-      || (typeof window !== "undefined" && window.HarnessI18n)
+      || (typeof window !== "undefined" && window.OrchestratorI18n)
       || null;
     function _t(key, fallback) {
       if (i18n && typeof i18n.t === "function") {
@@ -131,7 +131,7 @@
     header.className = "prod-header";
     header.setAttribute("data-region", "header");
     header.setAttribute("role", "banner");
-    header.setAttribute("aria-label", _t("prod.aria.header", "SJ Harness 헤더 (상태 · 모드 · 액션)"));
+    header.setAttribute("aria-label", _t("prod.aria.header", "SJ Orchestrator 헤더 (상태 · 모드 · 액션)"));
 
     // Logo + title + version
     const logo = _doc.createElement("div");
@@ -143,7 +143,7 @@
       + '<path d="M2 17l10 5 10-5"/>'
       + '<path d="M2 12l10 5 10-5"/>'
       + '</svg>'
-      + '<span class="prod-header-title" data-header-slot="title">SJ Harness</span>'
+      + '<span class="prod-header-title" data-header-slot="title">SJ Orchestrator</span>'
       + '<span class="prod-header-version" data-header-slot="version">' + VERSION + '</span>';
     header.appendChild(logo);
 
@@ -419,11 +419,11 @@
         // UI-P7: re-render every translatable surface. Mode toggle
         // labels are bilingual constants but other panels (status pill
         // text, indicator labels, action button labels, aria labels)
-        // need refresh so HarnessI18n.getLang's new value lands in the
+        // need refresh so OrchestratorI18n.getLang's new value lands in the
         // visible DOM without waiting for the next store publish.
         try {
           // 1. aria labels
-          header.setAttribute("aria-label", _t("prod.aria.header", "SJ Harness 헤더 (상태 · 모드 · 액션)"));
+          header.setAttribute("aria-label", _t("prod.aria.header", "SJ Orchestrator 헤더 (상태 · 모드 · 액션)"));
           statusPill.setAttribute("aria-label", _t("prod.aria.statusPill", "실행 상태"));
           modeToggle.setAttribute("aria-label", _t("prod.aria.modeToggle", "사용자 모드 전환"));
           serverIndicator.setAttribute("aria-label", _t("prod.aria.serverIndicator", "서버 상태"));

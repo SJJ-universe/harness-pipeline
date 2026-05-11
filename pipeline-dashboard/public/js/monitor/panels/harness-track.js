@@ -26,13 +26,13 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessMonitorHarnessTrack = api;
+  if (typeof window !== "undefined") root.OrchestratorMonitorTrack = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
 
   function _resolveStateMachine() {
     try { return require("../horse-state-machine"); } catch (_) { /* browser path */ }
-    if (typeof window !== "undefined" && window.HarnessHorseStateMachine) {
-      return window.HarnessHorseStateMachine;
+    if (typeof window !== "undefined" && window.OrchestratorHorseStateMachine) {
+      return window.OrchestratorHorseStateMachine;
     }
     return null;
   }
@@ -42,7 +42,7 @@
       throw new Error("harness-track.create: root must be an element");
     }
     if (!store || typeof store.subscribe !== "function" || typeof store.snapshot !== "function") {
-      throw new Error("harness-track.create: store must be a HarnessMonitorStore");
+      throw new Error("harness-track.create: store must be a OrchestratorMonitorStore");
     }
     const _doc = doc || (typeof document !== "undefined" ? document : null);
     if (!_doc || typeof _doc.createElement !== "function") {
@@ -50,7 +50,7 @@
     }
     const SM = _resolveStateMachine();
     if (!SM) {
-      throw new Error("harness-track.create: HarnessHorseStateMachine unavailable");
+      throw new Error("harness-track.create: OrchestratorHorseStateMachine unavailable");
     }
 
     let unsubscribe = null;

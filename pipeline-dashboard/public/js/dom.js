@@ -38,5 +38,5 @@
     }, "");
   }
 
-  window.HarnessDom = { el, safeHtmlFromTemplate, text };
+  window.OrchestratorDom = { el, safeHtmlFromTemplate, text };
 })();

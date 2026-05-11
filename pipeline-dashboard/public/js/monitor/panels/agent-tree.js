@@ -1,4 +1,4 @@
-// Slice MA6 + MB2 (Phase D, 2026-04-27) — HarnessMonitorAgentTree.
+// Slice MA6 + MB2 (Phase D, 2026-04-27) — OrchestratorMonitorAgentTree.
 //
 // Left-rail companion to run-tree. Surfaces the operational data the
 // global-bar can only summarise as counters:
@@ -25,7 +25,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessMonitorAgentTree = api;
+  if (typeof window !== "undefined") root.OrchestratorMonitorAgentTree = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
 
   function _formatAge(ms) {
@@ -153,7 +153,7 @@
       throw new Error("agentTree.create: root must be an element");
     }
     if (!store || typeof store.subscribe !== "function" || typeof store.snapshot !== "function") {
-      throw new Error("agentTree.create: store must be a HarnessMonitorStore");
+      throw new Error("agentTree.create: store must be a OrchestratorMonitorStore");
     }
     const _doc = doc || (typeof document !== "undefined" ? document : null);
     if (!_doc || typeof _doc.createElement !== "function") {

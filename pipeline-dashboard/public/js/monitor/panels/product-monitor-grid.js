@@ -1,7 +1,7 @@
 // Slice UI-P1-f / UI-P2-c / UI-P4-b / UI-P5-c (Phase 2 Round 3, 2026-04-30) — monitor grid.
 //
 // UI-P5-c: each card now takes "real or mock" data via the
-// HarnessProductShellData selectors. On store.subscribe, the grid
+// OrchestratorProductShellData selectors. On store.subscribe, the grid
 // rebuilds — every card body picks its real data from the snapshot
 // or falls back to the UI-P4 MOCK constant. Demo state stays visible
 // when the store has no live run.
@@ -29,7 +29,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessProductMonitorGrid = api;
+  if (typeof window !== "undefined") root.OrchestratorProductMonitorGrid = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
 
   // UI-P4 demo mock — values match the reference inline arrays so the
@@ -397,17 +397,17 @@
 
   function create(opts) {
     if (!opts || typeof opts !== "object") {
-      throw new Error("HarnessProductMonitorGrid.create: opts required");
+      throw new Error("OrchestratorProductMonitorGrid.create: opts required");
     }
     const root = opts.root;
     const _doc = opts.doc || (typeof document !== "undefined" ? document : null);
-    if (!root || !_doc) throw new Error("HarnessProductMonitorGrid.create: root + doc required");
+    if (!root || !_doc) throw new Error("OrchestratorProductMonitorGrid.create: root + doc required");
 
     let mode = opts.mode || "simple";
     const allowMockData = opts.allowMockData !== false;
     const store = opts.store || null;
     const selectors = opts.dataSelectors
-      || (typeof window !== "undefined" && window.HarnessProductShellData)
+      || (typeof window !== "undefined" && window.OrchestratorProductShellData)
       || null;
 
     const grid = _doc.createElement("div");

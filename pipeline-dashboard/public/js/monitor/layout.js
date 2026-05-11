@@ -1,4 +1,4 @@
-// Slice MA3+MA4+MA5+MA6+MB4-a+MC1 (Phase D, 2026-04-27) — HarnessMonitorLayout.
+// Slice MA3+MA4+MA5+MA6+MB4-a+MC1 (Phase D, 2026-04-27) — OrchestratorMonitorLayout.
 //
 // Mounts the monitor shell into a host element, kicks off hydration, and
 // instantiates each panel.
@@ -10,8 +10,8 @@
 //   - MA6   — run-rail splits into run-rail-section (run-tree mount) and
 //             agent-rail-section (agent-tree mount); inspector picks up
 //             kind:"child" + kind:"subagent" via store.selectItem.
-//   - MB4-a — installs HarnessMonitorLegacyBridge so live WS events
-//             (via app.js → HarnessEventDispatcher tap) flow into the
+//   - MB4-a — installs OrchestratorMonitorLegacyBridge so live WS events
+//             (via app.js → OrchestratorEventDispatcher tap) flow into the
 //             store, and /api/server/info polls keep server summary +
 //             active children fresh. Without this the store is frozen
 //             at hydration time. Bridge handle returned for destroy().
@@ -30,8 +30,8 @@
 //     → { hydrationPromise, destroy }
 //
 //   - root        : HTMLElement (the #monitor-shell-root container).
-//   - store       : HarnessMonitorStore instance.
-//   - normalize   : function from HarnessMonitorNormalizer.normalize.
+//   - store       : OrchestratorMonitorStore instance.
+//   - normalize   : function from OrchestratorMonitorNormalizer.normalize.
 //   - fetchImpl   : optional fetch override (defaults to global fetch).
 //   - headers     : optional headers passed to hydrate.
 //   - panels      : {
@@ -43,11 +43,11 @@
 //                     bottomDock?:  { create({root,store,doc}) },           // MA5
 //                     agentTree?:   { create({root,store,onSelect,doc}) },  // MA6
 //                   }
-//                   Defaults are window.HarnessMonitor{GlobalBar,RunTree,
+//                   Defaults are window.OrchestratorMonitor{GlobalBar,RunTree,
 //                   RunSummary,Timeline,Inspector,BottomDock,AgentTree} in
 //                   browsers; tests inject stubs.
 //   - hydrate     : optional hydrate fn override (defaults to
-//                   HarnessMonitorHydrate.hydrateMonitorStore).
+//                   OrchestratorMonitorHydrate.hydrateMonitorStore).
 //   - doc         : optional document override (test injection).
 //
 // Hydration errors do NOT throw — they surface in the in-bar error box so
@@ -57,7 +57,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessMonitorLayout = api;
+  if (typeof window !== "undefined") root.OrchestratorMonitorLayout = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
 
   function _resolvePanel(panels, key, globalName) {
@@ -74,9 +74,9 @@
   function _resolveHydrate(override) {
     if (typeof override === "function") return override;
     if (typeof globalThis !== "undefined"
-        && globalThis.HarnessMonitorHydrate
-        && typeof globalThis.HarnessMonitorHydrate.hydrateMonitorStore === "function") {
-      return globalThis.HarnessMonitorHydrate.hydrateMonitorStore;
+        && globalThis.OrchestratorMonitorHydrate
+        && typeof globalThis.OrchestratorMonitorHydrate.hydrateMonitorStore === "function") {
+      return globalThis.OrchestratorMonitorHydrate.hydrateMonitorStore;
     }
     return null;
   }
@@ -84,25 +84,25 @@
   // Slice MC1: per-run detail hydrator. Same lookup pattern as
   // _resolveHydrate but reaches for hydrateRunDetail. Tests inject a
   // direct override; browser falls back to
-  // window.HarnessMonitorHydrate.hydrateRunDetail.
+  // window.OrchestratorMonitorHydrate.hydrateRunDetail.
   function _resolveRunDetailHydrate(override) {
     if (typeof override === "function") return override;
     if (typeof globalThis !== "undefined"
-        && globalThis.HarnessMonitorHydrate
-        && typeof globalThis.HarnessMonitorHydrate.hydrateRunDetail === "function") {
-      return globalThis.HarnessMonitorHydrate.hydrateRunDetail;
+        && globalThis.OrchestratorMonitorHydrate
+        && typeof globalThis.OrchestratorMonitorHydrate.hydrateRunDetail === "function") {
+      return globalThis.OrchestratorMonitorHydrate.hydrateRunDetail;
     }
     return null;
   }
 
   // Slice MB4-a: resolve the legacy bridge factory. Tests pass an
-  // explicit override; browser uses window.HarnessMonitorLegacyBridge.
+  // explicit override; browser uses window.OrchestratorMonitorLegacyBridge.
   function _resolveBridge(override) {
     if (override && typeof override.install === "function") return override;
     if (typeof globalThis !== "undefined"
-        && globalThis.HarnessMonitorLegacyBridge
-        && typeof globalThis.HarnessMonitorLegacyBridge.install === "function") {
-      return globalThis.HarnessMonitorLegacyBridge;
+        && globalThis.OrchestratorMonitorLegacyBridge
+        && typeof globalThis.OrchestratorMonitorLegacyBridge.install === "function") {
+      return globalThis.OrchestratorMonitorLegacyBridge;
     }
     return null;
   }
@@ -164,7 +164,7 @@
     hydrate,
     doc,
     // Slice MB4-a: legacy-bridge override for tests; browser falls back
-    // to window.HarnessMonitorLegacyBridge.
+    // to window.OrchestratorMonitorLegacyBridge.
     bridge,
     // Slice MB4-a: optional bridge config — refreshIntervalMs (0 disables
     // the periodic /api/server/info poll, useful in tests).
@@ -176,7 +176,7 @@
     // dual-agent-console renders its action row + binds buttons. When
     // null/undefined, dual-agent-console falls back to the original
     // read-only stream view + footer (UI-H3 behavior). Browser falls
-    // back to window.HarnessReviewSessionClient.
+    // back to window.OrchestratorReviewSessionClient.
     reviewSessionClient,
     // Slice UI-H1 (Phase D / Phase E1.5, 2026-04-30): shell mode.
     //
@@ -185,21 +185,21 @@
     //   "legacy"             — bypass the monitor shell entirely; the
     //                          legacy app.js DOM is untouched
     //
-    // Resolved by callers via HarnessMonitorMode.resolveMode (URL >
+    // Resolved by callers via OrchestratorMonitorMode.resolveMode (URL >
     // localStorage > envDefault > "simple"). Mount accepts the resolved
     // value; defaults to "advanced" so existing tests + ?monitor=1
     // direct mounts keep their behavior.
     mode = "advanced",
   } = {}) {
     if (!root || typeof root.appendChild !== "function") {
-      throw new Error("HarnessMonitorLayout.mount: root must be an element");
+      throw new Error("OrchestratorMonitorLayout.mount: root must be an element");
     }
     if (!store || typeof store.subscribe !== "function") {
-      throw new Error("HarnessMonitorLayout.mount: store is required");
+      throw new Error("OrchestratorMonitorLayout.mount: store is required");
     }
     const _doc = doc || (root.ownerDocument) || (typeof document !== "undefined" ? document : null);
     if (!_doc || typeof _doc.createElement !== "function") {
-      throw new Error("HarnessMonitorLayout.mount: no document available");
+      throw new Error("OrchestratorMonitorLayout.mount: no document available");
     }
 
     // Slice UI-H1: legacy mode short-circuits the shell mount entirely.
@@ -365,10 +365,10 @@
     // Animation"). Reads selectedRun.phase + pendingApprovals +
     // runDetails.verifyStatus + accountStatus.deployment.publicSector
     // (the last drives reduced-motion mode for public-sector posture).
-    const harnessTrackMount = _doc.createElement("div");
-    harnessTrackMount.className = "harness-track-region-mount";
-    harnessTrackMount.setAttribute("role", "region");
-    harnessTrackMount.setAttribute("aria-label", "Harness pipeline track");
+    const orchestratorTrackMount = _doc.createElement("div");
+    orchestratorTrackMount.className = "harness-track-region-mount";
+    orchestratorTrackMount.setAttribute("role", "region");
+    orchestratorTrackMount.setAttribute("aria-label", "Harness pipeline track");
 
     // Slice UI-H3 (Phase D / E1.5, 2026-04-30): Dual Agent Console
     // mount region. Claude on the left, Codex on the right; read-only
@@ -399,7 +399,7 @@
     // shell-body / simple-mount. In simple mode it's the primary
     // status visual; in advanced mode it's a compact summary above
     // the rail + center workspace.
-    root.appendChild(harnessTrackMount);
+    root.appendChild(orchestratorTrackMount);
     root.appendChild(approvalMount);
     // Slice UI-H5: security-status card sits between approvalMount
     // and the body, so operators on either shell mode see the
@@ -416,7 +416,7 @@
       root.appendChild(shellDock);
     } else {
       // Slice UI-H6: simple shell with 4 operator-friendly cards.
-      // The orchestrator (HarnessMonitorSimpleShell) mounts:
+      // The orchestrator (OrchestratorMonitorSimpleShell) mounts:
       //   [지금 AI가 하는 일]  [승인 필요]
       //   [최근 결과]          [연결 상태]
       // The 5th security-status card lives in its own region above
@@ -434,7 +434,7 @@
       runViewerMount.className = "run-viewer-mount";
       root.appendChild(runViewerMount);
 
-      const RunViewer = _resolvePanel(panels, "runViewer", "HarnessMonitorRunViewer");
+      const RunViewer = _resolvePanel(panels, "runViewer", "OrchestratorMonitorRunViewer");
       if (RunViewer && typeof RunViewer.create === "function") {
         try {
           runViewerHandle = RunViewer.create({
@@ -449,7 +449,7 @@
         }
       }
 
-      const SimpleShell = _resolvePanel(panels, "simpleShell", "HarnessMonitorSimpleShell");
+      const SimpleShell = _resolvePanel(panels, "simpleShell", "OrchestratorMonitorSimpleShell");
       if (SimpleShell && typeof SimpleShell.mount === "function") {
         try {
           simpleShellHandle = SimpleShell.mount({
@@ -562,7 +562,7 @@
 
     // ── Mount the global-bar panel ──
     let panelHandle = null;
-    const GlobalBar = _resolvePanel(panels, "globalBar", "HarnessMonitorGlobalBar");
+    const GlobalBar = _resolvePanel(panels, "globalBar", "OrchestratorMonitorGlobalBar");
     if (GlobalBar) {
       panelHandle = GlobalBar.create({
         root: globalBarRoot,
@@ -591,7 +591,7 @@
     // Mounted in BOTH simple AND advanced modes. Operators can switch
     // from either side; clicking persists to localStorage + reloads.
     let modeToggleHandle = null;
-    const ModeToggle = _resolvePanel(panels, "modeToggle", "HarnessMonitorModeToggle");
+    const ModeToggle = _resolvePanel(panels, "modeToggle", "OrchestratorMonitorModeToggle");
     if (ModeToggle) {
       try {
         modeToggleHandle = ModeToggle.create({
@@ -611,23 +611,23 @@
     // pipeline + horse marker + rear-callout for approval/verify gates.
     // Public-sector posture (snapshot.accountStatus.deployment.publicSector)
     // forces reduced-motion / idle state.
-    let harnessTrackHandle = null;
-    const HarnessTrack = _resolvePanel(panels, "harnessTrack", "HarnessMonitorHarnessTrack");
-    if (HarnessTrack) {
+    let orchestratorTrackHandle = null;
+    const OrchestratorTrack = _resolvePanel(panels, "orchestratorTrack", "OrchestratorMonitorTrack");
+    if (OrchestratorTrack) {
       try {
-        harnessTrackHandle = HarnessTrack.create({
-          root: harnessTrackMount,
+        orchestratorTrackHandle = OrchestratorTrack.create({
+          root: orchestratorTrackMount,
           store,
           doc: _doc,
         });
       } catch (err) {
-        showError("harness track: " + (err && err.message ? err.message : "init failed"), "harnessTrack");
+        showError("harness track: " + (err && err.message ? err.message : "init failed"), "orchestratorTrack");
       }
     }
 
     // ── Slice UI-H5: mount the security-status card (BOTH modes) ──
     let securityStatusHandle = null;
-    const SecurityStatusCard = _resolvePanel(panels, "securityStatusCard", "HarnessMonitorSecurityStatusCard");
+    const SecurityStatusCard = _resolvePanel(panels, "securityStatusCard", "OrchestratorMonitorSecurityStatusCard");
     if (SecurityStatusCard) {
       try {
         securityStatusHandle = SecurityStatusCard.create({
@@ -672,7 +672,7 @@
     // to the store; renders cards as approval_requested broadcasts
     // arrive, removes them on approval_resolved.
     let approvalHandle = null;
-    const ApprovalCard = _resolvePanel(panels, "approvalCard", "HarnessMonitorApprovalCard");
+    const ApprovalCard = _resolvePanel(panels, "approvalCard", "OrchestratorMonitorApprovalCard");
     if (ApprovalCard) {
       try {
         approvalHandle = ApprovalCard.create({
@@ -695,7 +695,7 @@
     // open/close just toggles visibility — the test result cache + any
     // in-flight fetches survive the close.
     let settingsHandle = null;
-    const SettingsAccounts = _resolvePanel(panels, "settingsAccounts", "HarnessMonitorSettingsAccounts");
+    const SettingsAccounts = _resolvePanel(panels, "settingsAccounts", "OrchestratorMonitorSettingsAccounts");
     if (SettingsAccounts) {
       try {
         settingsHandle = SettingsAccounts.create({
@@ -740,7 +740,7 @@
       // Slice MA6: run-tree mounts to .run-tree-mount inside the rail
       // section instead of the whole rail (agent-tree gets its own
       // sibling section below).
-      const RunTree = _resolvePanel(panels, "runTree", "HarnessMonitorRunTree");
+      const RunTree = _resolvePanel(panels, "runTree", "OrchestratorMonitorRunTree");
       if (RunTree) {
         runTreeHandle = RunTree.create({
           root: runTreeMount,
@@ -759,7 +759,7 @@
         });
       }
 
-      const RunSummary = _resolvePanel(panels, "runSummary", "HarnessMonitorRunSummary");
+      const RunSummary = _resolvePanel(panels, "runSummary", "OrchestratorMonitorRunSummary");
       if (RunSummary) {
         runSummaryHandle = RunSummary.create({
           root: cwSummary,    // MA5: was centerWs; now mounts to cw-summary subregion
@@ -769,7 +769,7 @@
       }
 
       // ── Slice MA5: timeline (centre bottom), inspector (right), bottom-dock (below) ──
-      const Timeline = _resolvePanel(panels, "timeline", "HarnessMonitorTimeline");
+      const Timeline = _resolvePanel(panels, "timeline", "OrchestratorMonitorTimeline");
       if (Timeline) {
         timelineHandle = Timeline.create({
           root: cwTimeline,
@@ -781,7 +781,7 @@
         });
       }
 
-      const Inspector = _resolvePanel(panels, "inspector", "HarnessMonitorInspector");
+      const Inspector = _resolvePanel(panels, "inspector", "OrchestratorMonitorInspector");
       if (Inspector) {
         inspectorHandle = Inspector.create({
           root: rightInspector,
@@ -790,7 +790,7 @@
         });
       }
 
-      const BottomDock = _resolvePanel(panels, "bottomDock", "HarnessMonitorBottomDock");
+      const BottomDock = _resolvePanel(panels, "bottomDock", "OrchestratorMonitorBottomDock");
       if (BottomDock) {
         bottomDockHandle = BottomDock.create({
           root: shellDock,
@@ -800,7 +800,7 @@
       }
 
       // ── Slice MA6: agent-tree (left rail bottom) ──
-      const AgentTree = _resolvePanel(panels, "agentTree", "HarnessMonitorAgentTree");
+      const AgentTree = _resolvePanel(panels, "agentTree", "OrchestratorMonitorAgentTree");
       if (AgentTree) {
         agentTreeHandle = AgentTree.create({
           root: agentTreeMount,
@@ -814,14 +814,14 @@
       }
 
       // ── Slice UI-H3 + UI-H7-c: dual-agent-console (Claude + Codex stream + action row) ──
-      const DualConsole = _resolvePanel(panels, "dualAgentConsole", "HarnessMonitorDualAgentConsole");
+      const DualConsole = _resolvePanel(panels, "dualAgentConsole", "OrchestratorMonitorDualAgentConsole");
       if (DualConsole) {
         // UI-H7-c: resolve review-session client. Test path uses the
         // explicit `reviewSessionClient` mount option; browser falls
-        // back to window.HarnessReviewSessionClient (loaded via
+        // back to window.OrchestratorReviewSessionClient (loaded via
         // <script src="js/monitor/review-session-client.js">).
         const _client = reviewSessionClient
-          || (typeof window !== "undefined" && window.HarnessReviewSessionClient)
+          || (typeof window !== "undefined" && window.OrchestratorReviewSessionClient)
           || null;
         try {
           dualConsoleHandle = DualConsole.create({
@@ -937,7 +937,7 @@
         // Slice UI-H3: tear down the dual-agent-console.
         try { dualConsoleHandle && dualConsoleHandle.destroy && dualConsoleHandle.destroy(); } catch (_) {}
         // Slice UI-H2: tear down the harness-track panel.
-        try { harnessTrackHandle && harnessTrackHandle.destroy && harnessTrackHandle.destroy(); } catch (_) {}
+        try { orchestratorTrackHandle && orchestratorTrackHandle.destroy && orchestratorTrackHandle.destroy(); } catch (_) {}
         // Slice UI-H5: tear down security-status card + posture watcher.
         try { securityStatusHandle && securityStatusHandle.destroy && securityStatusHandle.destroy(); } catch (_) {}
         try { _postureUnsubscribe && _postureUnsubscribe(); } catch (_) {}
@@ -983,8 +983,8 @@
       _approvalMount: approvalMount,
       _approvalHandle: approvalHandle,
       // Slice UI-H2: harness-track region + handle exposed for tests.
-      _harnessTrackMount: harnessTrackMount,
-      _harnessTrackHandle: harnessTrackHandle,
+      _orchestratorTrackMount: orchestratorTrackMount,
+      _orchestratorTrackHandle: orchestratorTrackHandle,
       // Slice UI-H3: dual-agent-console region + handle exposed for tests.
       _dualConsoleMount: dualConsoleMount,
       _dualConsoleHandle: dualConsoleHandle,

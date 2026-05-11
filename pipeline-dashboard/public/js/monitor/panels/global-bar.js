@@ -1,7 +1,7 @@
-// Slice MA3 (Phase D, 2026-04-27) — HarnessMonitorGlobalBar.
+// Slice MA3 (Phase D, 2026-04-27) — OrchestratorMonitorGlobalBar.
 //
 // First panel of the monitor shell. Renders process / orchestrator / child
-// summary cells from a HarnessMonitorStore snapshot, re-renders on every
+// summary cells from a OrchestratorMonitorStore snapshot, re-renders on every
 // store update, and exposes a Close button that calls back to the layout
 // to hide the shell.
 //
@@ -42,7 +42,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessMonitorGlobalBar = api;
+  if (typeof window !== "undefined") root.OrchestratorMonitorGlobalBar = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
 
   function _formatUptime(seconds) {
@@ -74,7 +74,7 @@
       throw new Error("globalBar.create: root must be an element");
     }
     if (!store || typeof store.subscribe !== "function" || typeof store.snapshot !== "function") {
-      throw new Error("globalBar.create: store must be a HarnessMonitorStore");
+      throw new Error("globalBar.create: store must be a OrchestratorMonitorStore");
     }
     const _doc = doc || (typeof document !== "undefined" ? document : null);
     if (!_doc || typeof _doc.createElement !== "function") {

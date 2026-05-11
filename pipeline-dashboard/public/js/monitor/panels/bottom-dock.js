@@ -1,4 +1,4 @@
-// Slice MA5 + MB3 (Phase D Round 2, 2026-04-27) — HarnessMonitorBottomDock.
+// Slice MA5 + MB3 (Phase D Round 2, 2026-04-27) — OrchestratorMonitorBottomDock.
 //
 // MA5 shipped this as a single-tab raw event log. MB3 promotes it to a
 // real tabbed dock matching spec section 4.1: raw log / terminal /
@@ -27,7 +27,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessMonitorBottomDock = api;
+  if (typeof window !== "undefined") root.OrchestratorMonitorBottomDock = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
   const MAX_DISPLAY = 80;
   const TABS = ["raw", "terminal", "replay", "debug"];
@@ -61,7 +61,7 @@
       throw new Error("bottomDock.create: root must be an element");
     }
     if (!store || typeof store.subscribe !== "function" || typeof store.snapshot !== "function") {
-      throw new Error("bottomDock.create: store must be a HarnessMonitorStore");
+      throw new Error("bottomDock.create: store must be a OrchestratorMonitorStore");
     }
     const _doc = doc || (typeof document !== "undefined" ? document : null);
     if (!_doc || typeof _doc.createElement !== "function") {

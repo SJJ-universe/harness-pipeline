@@ -189,9 +189,9 @@ describe("Harness track animation structure", () => {
     assert.ok(htmlSrc.includes('id="harness-status"'), "harness-status missing in legacy");
   });
 
-  it("legacy index.html title is SJ Harness Engine — Legacy", () => {
+  it("legacy index.html title is SJ Orchestrator — Legacy", () => {
     // UI-P1-a renamed the title to disambiguate from the product shell.
-    assert.ok(htmlSrc.includes("<title>SJ Harness Engine — Legacy</title>"), "legacy title not updated");
+    assert.ok(htmlSrc.includes("<title>SJ Orchestrator — Legacy</title>"), "legacy title not updated");
   });
 
   it("legacy index.html has pipeline-pill instead of select dropdown", () => {
@@ -208,8 +208,8 @@ describe("Harness track animation structure", () => {
     assert.ok(appSrc.includes("function setHorseState"), "setHorseState wrapper missing");
     assert.ok(appSrc.includes("function reinThenResume"), "reinThenResume wrapper missing");
     assert.ok(
-      appSrc.includes("window.HarnessHorseAnimation"),
-      "wrapper must delegate to window.HarnessHorseAnimation"
+      appSrc.includes("window.OrchestratorHorseAnimation"),
+      "wrapper must delegate to window.OrchestratorHorseAnimation"
     );
   });
 

@@ -301,7 +301,7 @@ test("launcher-cli: manifest-field extracts a single field value", (t) => {
 // ─────────────────────────────────────────────────────────────────
 //  D0-e (Phase E1, 2026-04-29) hardening tests:
 //   1. validate-manifest-url scheme enforcement
-//   2. verify-health app=="HarnessPipeline" discriminator
+//   2. verify-health app=="OrchestratorPipeline" discriminator
 // ─────────────────────────────────────────────────────────────────
 
 test("D0-e validate-manifest-url accepts https:// by default", () => {
@@ -357,7 +357,7 @@ test("D0-e verify-health: rejects URL that doesn't respond", () => {
   assert.equal(r.code, 1);
 });
 
-test("D0-e verify-health: accepts a real HarnessPipeline server", async () => {
+test("D0-e verify-health: accepts a real OrchestratorPipeline server", async () => {
   // Boot a real server and confirm verify-health says "ok". Uses the
   // ASYNC runCli — spawnSync would block this process and the test
   // server couldn't accept the connection.
@@ -373,7 +373,7 @@ test("D0-e verify-health: accepts a real HarnessPipeline server", async () => {
         // Inline assertion that the server actually advertises the
         // discriminator — without this, verify-health below would
         // pass on a server that didn't even know about D0-e.
-        assert.equal(body.app, "HarnessPipeline", "/api/health body must include app field");
+        assert.equal(body.app, "OrchestratorPipeline", "/api/health body must include app field");
         assert.equal(body.healthVersion, 1, "/api/health body must include healthVersion");
         ready = true;
       }
@@ -385,7 +385,7 @@ test("D0-e verify-health: accepts a real HarnessPipeline server", async () => {
   try {
     const r = await runCliAsync(["verify-health", `http://127.0.0.1:${PORT}/api/health`]);
     assert.equal(r.code, 0, "verify-health must accept the real server");
-    assert.match(r.stdout, /"app"\s*:\s*"HarnessPipeline"/);
+    assert.match(r.stdout, /"app"\s*:\s*"OrchestratorPipeline"/);
   } finally {
     await new Promise((resolve) => listener.close(resolve));
   }
@@ -405,7 +405,7 @@ test("D0-e verify-health: rejects a server that returns a different app field", 
   try {
     const r = await runCliAsync(["verify-health", `http://127.0.0.1:${port}/api/health`]);
     assert.equal(r.code, 1, "verify-health must reject foreign app field");
-    assert.match(r.stderr, /missing app="HarnessPipeline"/);
+    assert.match(r.stderr, /missing app="OrchestratorPipeline"/);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

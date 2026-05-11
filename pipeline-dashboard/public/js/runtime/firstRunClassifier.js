@@ -42,7 +42,7 @@
 // Module shape: UMD — works as both Node `require` (used by tests
 // and by the browser-side panel via the require fallback in
 // next-action-card.js) AND as a browser `<script src=...>` tag that
-// registers `window.HarnessFirstRunClassifier`. Same source, two
+// registers `window.OrchestratorFirstRunClassifier`. Same source, two
 // loaders.
 
 "use strict";
@@ -53,7 +53,7 @@
     module.exports = api;
   }
   if (typeof root !== "undefined") {
-    root.HarnessFirstRunClassifier = api;
+    root.OrchestratorFirstRunClassifier = api;
   }
 })(typeof window !== "undefined" ? window : (typeof globalThis !== "undefined" ? globalThis : this),
    function () {

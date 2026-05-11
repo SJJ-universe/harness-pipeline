@@ -144,7 +144,7 @@ test("UX-2-b: create throws without root", () => {
 test("UX-2-b: create throws without store", () => {
   const root = makeRoot();
   assert.throws(() => approvalCard.create({ root, doc: makeStubDoc() }),
-    /store must be a HarnessMonitorStore/);
+    /store must be a OrchestratorMonitorStore/);
 });
 
 // ── Empty state ───────────────────────────────────────────────────

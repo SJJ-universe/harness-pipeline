@@ -22,7 +22,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessMonitorEventFilters = api;
+  if (typeof window !== "undefined") root.OrchestratorMonitorEventFilters = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
 
   /**

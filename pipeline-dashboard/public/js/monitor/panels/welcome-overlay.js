@@ -35,7 +35,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessMonitorWelcomeOverlay = api;
+  if (typeof window !== "undefined") root.OrchestratorMonitorWelcomeOverlay = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
 
   const DISMISS_KEY = "harness:welcomeDismissed";
@@ -79,7 +79,7 @@
       throw new Error("welcome-overlay.create: root must be an element");
     }
     if (!store || typeof store.subscribe !== "function" || typeof store.snapshot !== "function") {
-      throw new Error("welcome-overlay.create: store must be a HarnessMonitorStore");
+      throw new Error("welcome-overlay.create: store must be a OrchestratorMonitorStore");
     }
     const _doc = doc || (typeof document !== "undefined" ? document : null);
     if (!_doc || typeof _doc.createElement !== "function") {

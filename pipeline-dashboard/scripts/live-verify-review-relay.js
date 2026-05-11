@@ -182,7 +182,7 @@ async function step01_health(opts, evidence, log) {
   log.step("01", "Server health probe");
   try {
     const h = await jsonGet(opts.base, "/api/health");
-    if (h.status !== "ok" || h.app !== "HarnessPipeline") {
+    if (h.status !== "ok" || h.app !== "OrchestratorPipeline") {
       log.fail(`unexpected health response: ${JSON.stringify(h)}`);
       evidence.steps.push({ name: "health", pass: false, response: h });
       return false;

@@ -7,7 +7,7 @@
 //   1. Append user bubble to history
 //   2. POST /api/chat/intent (existing endpoint; backend slice -0-a)
 //   3. Render returned proposal as a card with Approve / Edit / Cancel
-//   4. Approve → fire underlying action via HarnessShellActions[id]
+//   4. Approve → fire underlying action via OrchestratorShellActions[id]
 //      (existing dispatcher; no new execution path)
 //   5. Append [system] confirmation bubble
 //
@@ -26,7 +26,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessProductChatPanel = api;
+  if (typeof window !== "undefined") root.OrchestratorProductChatPanel = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
 
   // Recommended quick-action chips shown when history is empty. Each
@@ -46,7 +46,7 @@
   });
 
   // Action ids that the panel knows how to dispatch on Approve. Maps
-  // intent → handler key in HarnessShellActions (which already exists
+  // intent → handler key in OrchestratorShellActions (which already exists
   // and routes via product-shell._dispatch). Unknown intents render
   // the proposal but disable Approve (safety: never fire something we
   // can't trace).
@@ -61,15 +61,15 @@
 
   function create(opts) {
     if (!opts || typeof opts !== "object") {
-      throw new Error("HarnessProductChatPanel.create: opts required");
+      throw new Error("OrchestratorProductChatPanel.create: opts required");
     }
     const root = opts.root;
     if (!root || typeof root.appendChild !== "function") {
-      throw new Error("HarnessProductChatPanel.create: root must be an element");
+      throw new Error("OrchestratorProductChatPanel.create: root must be an element");
     }
     const _doc = opts.doc || (typeof document !== "undefined" ? document : null);
     if (!_doc) {
-      throw new Error("HarnessProductChatPanel.create: no document available");
+      throw new Error("OrchestratorProductChatPanel.create: no document available");
     }
 
     const _fetch = opts.fetchImpl
@@ -426,12 +426,12 @@
     }
 
     function _renderStatusSummary() {
-      // Inline implementation of show_status. Reads from window.__HarnessProductShell
+      // Inline implementation of show_status. Reads from window.__OrchestratorProductShell
       // when available (production); test envs pass null and we degrade gracefully.
       let summary = "현재 상태:\n";
       try {
         const shellApi = (typeof window !== "undefined")
-          ? window.__HarnessProductShell
+          ? window.__OrchestratorProductShell
           : null;
         if (shellApi && shellApi.handle && typeof shellApi.handle._state === "function") {
           const s = shellApi.handle._state();

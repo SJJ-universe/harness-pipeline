@@ -1,4 +1,4 @@
-// Slice MA5 (Phase D, 2026-04-27) — HarnessMonitorInspector.
+// Slice MA5 (Phase D, 2026-04-27) — OrchestratorMonitorInspector.
 //
 // Right-rail panel: shows the detail of snapshot.selectedItem. The
 // timeline panel populates this by calling store.selectItem("event", env)
@@ -18,7 +18,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessMonitorInspector = api;
+  if (typeof window !== "undefined") root.OrchestratorMonitorInspector = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
 
   function _formatTime(ts) {
@@ -44,7 +44,7 @@
       throw new Error("inspector.create: root must be an element");
     }
     if (!store || typeof store.subscribe !== "function" || typeof store.snapshot !== "function") {
-      throw new Error("inspector.create: store must be a HarnessMonitorStore");
+      throw new Error("inspector.create: store must be a OrchestratorMonitorStore");
     }
     const _doc = doc || (typeof document !== "undefined" ? document : null);
     if (!_doc || typeof _doc.createElement !== "function") {

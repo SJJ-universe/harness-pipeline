@@ -26,7 +26,7 @@
 // unless the operator scrolls up; resumes on scroll-to-bottom.
 //
 // UI-H7-c action-row contract:
-//   - Caller passes optional `client` (HarnessReviewSessionClient)
+//   - Caller passes optional `client` (OrchestratorReviewSessionClient)
 //     and `selectedRunId` (for "Claude → Codex" auto-link).
 //   - When no client is provided, the action row hides itself and
 //     the original "Read-only stream view" footer remains visible.
@@ -49,14 +49,14 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessMonitorDualAgentConsole = api;
+  if (typeof window !== "undefined") root.OrchestratorMonitorDualAgentConsole = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
 
   // Prefer require (test path); fall back to window global (browser).
   function _resolveFilters() {
     try { return require("../event-filters"); } catch (_) { /* no-op */ }
-    if (typeof window !== "undefined" && window.HarnessMonitorEventFilters) {
-      return window.HarnessMonitorEventFilters;
+    if (typeof window !== "undefined" && window.OrchestratorMonitorEventFilters) {
+      return window.OrchestratorMonitorEventFilters;
     }
     return null;
   }
@@ -93,7 +93,7 @@
     promptFn = null,
     // UI-H7-c: confirm-prompt seam for "Archive session?".
     confirmFn = null,
-    // S3-d: optional i18n (HarnessI18n.bind() result). Used for
+    // S3-d: optional i18n (OrchestratorI18n.bind() result). Used for
     // preset dropdown labels + "expert review focus" aria.
     i18n = null,
     // SMART-3-POLISH-a (Phase 2 v2 follow-up, 2026-05-05): localStorage
@@ -114,7 +114,7 @@
       throw new Error("dual-agent-console.create: root must be an element");
     }
     if (!store || typeof store.subscribe !== "function" || typeof store.snapshot !== "function") {
-      throw new Error("dual-agent-console.create: store must be a HarnessMonitorStore");
+      throw new Error("dual-agent-console.create: store must be a OrchestratorMonitorStore");
     }
     const _doc = doc || (typeof document !== "undefined" ? document : null);
     if (!_doc || typeof _doc.createElement !== "function") {
@@ -122,7 +122,7 @@
     }
     const filters = _resolveFilters();
     if (!filters) {
-      throw new Error("dual-agent-console.create: HarnessMonitorEventFilters unavailable");
+      throw new Error("dual-agent-console.create: OrchestratorMonitorEventFilters unavailable");
     }
     const _onError = typeof onError === "function" ? onError : (err) => {
       try { console.warn("[dual-agent-console]", err && err.message ? err.message : err); }

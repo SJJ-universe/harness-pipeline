@@ -34,7 +34,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessReviewSessionClient = api;
+  if (typeof window !== "undefined") root.OrchestratorReviewSessionClient = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
 
   const DEFAULT_BASE = "/api/review-sessions";

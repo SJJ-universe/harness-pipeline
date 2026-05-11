@@ -76,7 +76,7 @@ test("resolver: HARNESS_CONFIG_DIR appends FILENAME", () => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test("resolver: Windows OS default uses %APPDATA%/HarnessPipeline", () => {
+test("resolver: Windows OS default uses %APPDATA%/OrchestratorPipeline", () => {
   const dir = tmpDir();
   const appdata = path.join(dir, "AppData", "Roaming");
   fs.mkdirSync(appdata, { recursive: true });
@@ -85,7 +85,7 @@ test("resolver: Windows OS default uses %APPDATA%/HarnessPipeline", () => {
     platform: "win32",
     homedir: dir,
   });
-  assert.equal(r.path, path.join(appdata, "HarnessPipeline", FILENAME));
+  assert.equal(r.path, path.join(appdata, "OrchestratorPipeline", FILENAME));
   assert.equal(r.source, SOURCES.OS_DEFAULT);
   fs.rmSync(dir, { recursive: true, force: true });
 });
@@ -98,7 +98,7 @@ test("resolver: macOS OS default uses Library/Application Support", () => {
     homedir: dir,
   });
   assert.equal(r.path, path.join(
-    dir, "Library", "Application Support", "HarnessPipeline", FILENAME,
+    dir, "Library", "Application Support", "OrchestratorPipeline", FILENAME,
   ));
   assert.equal(r.source, SOURCES.OS_DEFAULT);
   fs.rmSync(dir, { recursive: true, force: true });
@@ -112,7 +112,7 @@ test("resolver: Linux OS default follows XDG (XDG_CONFIG_HOME wins over ~/.confi
     platform: "linux",
     homedir: dir,
   });
-  assert.equal(r1.path, path.join(xdg, "HarnessPipeline", FILENAME));
+  assert.equal(r1.path, path.join(xdg, "OrchestratorPipeline", FILENAME));
 
   // Without XDG_CONFIG_HOME, fall back to ~/.config.
   const r2 = resolveTrustStorePath({
@@ -120,7 +120,7 @@ test("resolver: Linux OS default follows XDG (XDG_CONFIG_HOME wins over ~/.confi
     platform: "linux",
     homedir: dir,
   });
-  assert.equal(r2.path, path.join(dir, ".config", "HarnessPipeline", FILENAME));
+  assert.equal(r2.path, path.join(dir, ".config", "OrchestratorPipeline", FILENAME));
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
@@ -144,7 +144,7 @@ test("resolver: portable install fallback only fires when OS default missing", (
   assert.equal(r1.source, SOURCES.PORTABLE_INSTALL);
 
   // Now place an OS-default file too. OS default wins (per priority).
-  const osPath = path.join(homedir, ".config", "HarnessPipeline", FILENAME);
+  const osPath = path.join(homedir, ".config", "OrchestratorPipeline", FILENAME);
   fs.mkdirSync(path.dirname(osPath), { recursive: true });
   fs.writeFileSync(osPath, "{}");
   const r2 = resolveTrustStorePath({
@@ -162,7 +162,7 @@ test("resolver: priority order documented in source matches behavior", () => {
   // Sanity check: cliFlag > env-trust-store > config-dir > os-default
   // (portable install only when os-default is missing).
   const dir = tmpDir();
-  fs.mkdirSync(path.join(dir, "AppData", "Roaming", "HarnessPipeline"), { recursive: true });
+  fs.mkdirSync(path.join(dir, "AppData", "Roaming", "OrchestratorPipeline"), { recursive: true });
 
   // 1. With cliFlag set + everything else: cliFlag wins.
   let r = resolveTrustStorePath({

@@ -13,7 +13,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const modeToggle = require("../../public/js/monitor/panels/mode-toggle");
-const HarnessMonitorMode = require("../../public/js/monitor/mode");
+const OrchestratorMonitorMode = require("../../public/js/monitor/mode");
 
 // ── DOM stub ──────────────────────────────────────────────────────
 
@@ -187,7 +187,7 @@ test("UI-H1: clicking a different mode persists + reloads", () => {
   advancedBtn._click();
 
   // Persistence
-  assert.equal(storage.getItem(HarnessMonitorMode.STORAGE_KEY), "advanced");
+  assert.equal(storage.getItem(OrchestratorMonitorMode.STORAGE_KEY), "advanced");
   // Optional callback
   assert.equal(onSelectArg, "advanced");
   // Reload triggered
@@ -208,7 +208,7 @@ test("UI-H1: clicking the CURRENT mode is a no-op (no persist, no reload)", () =
   const simpleBtn = root._findOneByDataAttr("data-mode", "simple");
   simpleBtn._click();
 
-  assert.equal(storage.getItem(HarnessMonitorMode.STORAGE_KEY), null,
+  assert.equal(storage.getItem(OrchestratorMonitorMode.STORAGE_KEY), null,
     "no persist on current-mode click");
   assert.equal(reloadCalls, 0, "no reload on current-mode click");
 });

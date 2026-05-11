@@ -11,7 +11,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const harnessTrack = require("../../public/js/monitor/panels/harness-track");
+const orchestratorTrack = require("../../public/js/monitor/panels/harness-track");
 const { createMonitorStore } = require("../../public/js/monitor/store");
 
 // ── DOM stub ──────────────────────────────────────────────────────
@@ -75,13 +75,13 @@ function makeRoot() { return makeStubElement("div"); }
 // ── Construction guards ──────────────────────────────────────────
 
 test("UI-H2: harness-track.create throws without root", () => {
-  assert.throws(() => harnessTrack.create({ store: createMonitorStore() }),
+  assert.throws(() => orchestratorTrack.create({ store: createMonitorStore() }),
     /root must be an element/);
 });
 
 test("UI-H2: harness-track.create throws without store", () => {
-  assert.throws(() => harnessTrack.create({ root: makeRoot(), doc: makeStubDoc() }),
-    /store must be a HarnessMonitorStore/);
+  assert.throws(() => orchestratorTrack.create({ root: makeRoot(), doc: makeStubDoc() }),
+    /store must be a OrchestratorMonitorStore/);
 });
 
 // ── Initial render ───────────────────────────────────────────────
@@ -89,7 +89,7 @@ test("UI-H2: harness-track.create throws without store", () => {
 test("UI-H2: empty store → 7 lanes + waiting state", () => {
   const root = makeRoot();
   const store = createMonitorStore();
-  harnessTrack.create({ root, store, doc: makeStubDoc() });
+  orchestratorTrack.create({ root, store, doc: makeStubDoc() });
 
   // ARIA contract
   assert.equal(root.attributes.role, "region");
@@ -114,7 +114,7 @@ test("UI-H2: empty store → 7 lanes + waiting state", () => {
 test("UI-H2: lane labels show English uppercase per LANES order", () => {
   const root = makeRoot();
   const store = createMonitorStore();
-  harnessTrack.create({ root, store, doc: makeStubDoc() });
+  orchestratorTrack.create({ root, store, doc: makeStubDoc() });
   const labels = root._findAllByClass("ht-lane-label").map((e) => e._textContent);
   assert.deepEqual(labels, ["PLAN", "CRITIQUE", "REVISE", "RE-CHECK", "EXECUTE", "VERIFY", "DONE"]);
 });
@@ -124,7 +124,7 @@ test("UI-H2: lane labels show English uppercase per LANES order", () => {
 test("UI-H2: setting selectedRunId + phase moves the horse", () => {
   const root = makeRoot();
   const store = createMonitorStore();
-  harnessTrack.create({ root, store, doc: makeStubDoc() });
+  orchestratorTrack.create({ root, store, doc: makeStubDoc() });
 
   store.upsertRun("r1", { phase: "critique" });
   store.selectRun("r1");
@@ -143,7 +143,7 @@ test("UI-H2: setting selectedRunId + phase moves the horse", () => {
 test("UI-H2: status pill shows STAGE N/7 · {phase} when running", () => {
   const root = makeRoot();
   const store = createMonitorStore();
-  harnessTrack.create({ root, store, doc: makeStubDoc() });
+  orchestratorTrack.create({ root, store, doc: makeStubDoc() });
 
   store.upsertRun("r1", { phase: "execute" });
   store.selectRun("r1");
@@ -159,7 +159,7 @@ test("UI-H2: status pill shows STAGE N/7 · {phase} when running", () => {
 test("UI-H2: pendingApproval → rearing state + callout + status pill 'APPROVAL'", () => {
   const root = makeRoot();
   const store = createMonitorStore();
-  harnessTrack.create({ root, store, doc: makeStubDoc() });
+  orchestratorTrack.create({ root, store, doc: makeStubDoc() });
 
   store.upsertRun("r1", { phase: "execute" });
   store.selectRun("r1");
@@ -187,7 +187,7 @@ test("UI-H2: pendingApproval → rearing state + callout + status pill 'APPROVAL
 test("UI-H2: clearing the approval clears the rear state", () => {
   const root = makeRoot();
   const store = createMonitorStore();
-  harnessTrack.create({ root, store, doc: makeStubDoc() });
+  orchestratorTrack.create({ root, store, doc: makeStubDoc() });
 
   store.upsertRun("r1", { phase: "execute" });
   store.selectRun("r1");
@@ -207,7 +207,7 @@ test("UI-H2: clearing the approval clears the rear state", () => {
 test("UI-H2: verify lane + verifyStatus='fail' → rearing + gate=verify", () => {
   const root = makeRoot();
   const store = createMonitorStore();
-  harnessTrack.create({ root, store, doc: makeStubDoc() });
+  orchestratorTrack.create({ root, store, doc: makeStubDoc() });
 
   store.upsertRun("r1", { phase: "verify" });
   store.selectRun("r1");
@@ -222,7 +222,7 @@ test("UI-H2: verify lane + verifyStatus='fail' → rearing + gate=verify", () =>
 test("UI-H2: verify lane + verifyStatus='pass' → running (no rear)", () => {
   const root = makeRoot();
   const store = createMonitorStore();
-  harnessTrack.create({ root, store, doc: makeStubDoc() });
+  orchestratorTrack.create({ root, store, doc: makeStubDoc() });
 
   store.upsertRun("r1", { phase: "verify" });
   store.selectRun("r1");
@@ -236,7 +236,7 @@ test("UI-H2: verify lane + verifyStatus='pass' → running (no rear)", () => {
 test("UI-H2: public-sector posture forces idle state (reduced motion)", () => {
   const root = makeRoot();
   const store = createMonitorStore();
-  harnessTrack.create({ root, store, doc: makeStubDoc() });
+  orchestratorTrack.create({ root, store, doc: makeStubDoc() });
 
   store.upsertRun("r1", { phase: "execute" });
   store.selectRun("r1");
@@ -253,7 +253,7 @@ test("UI-H2: public-sector posture forces idle state (reduced motion)", () => {
 test("UI-H2: reduced motion + approval pending → still idle (no rear animation)", () => {
   const root = makeRoot();
   const store = createMonitorStore();
-  harnessTrack.create({ root, store, doc: makeStubDoc() });
+  orchestratorTrack.create({ root, store, doc: makeStubDoc() });
 
   store.upsertRun("r1", { phase: "execute" });
   store.selectRun("r1");
@@ -273,7 +273,7 @@ test("UI-H2: reduced motion + approval pending → still idle (no rear animation
 test("UI-H2: destroy() unsubscribes + clears DOM + ARIA attrs", () => {
   const root = makeRoot();
   const store = createMonitorStore();
-  const handle = harnessTrack.create({ root, store, doc: makeStubDoc() });
+  const handle = orchestratorTrack.create({ root, store, doc: makeStubDoc() });
   store.upsertRun("r1", { phase: "plan" });
   store.selectRun("r1");
 
@@ -292,7 +292,7 @@ test("UI-H2: destroy() unsubscribes + clears DOM + ARIA attrs", () => {
 test("UI-H2: gate icon (◈) renders on lanes 4 (Execute) + 5 (Verify) only", () => {
   const root = makeRoot();
   const store = createMonitorStore();
-  harnessTrack.create({ root, store, doc: makeStubDoc() });
+  orchestratorTrack.create({ root, store, doc: makeStubDoc() });
 
   const gates = root._findAllByClass("ht-lane-gate");
   // Lanes 4 + 5 have a gate marker; others don't

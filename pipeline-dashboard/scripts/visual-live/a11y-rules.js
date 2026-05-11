@@ -79,14 +79,14 @@ const A11Y_FAILING_IMPACTS = Object.freeze(["critical", "serious"]);
 function _evalLangMatchesLocale() {
   const html = document.documentElement;
   const lang = (html.getAttribute("lang") || "").trim();
-  // Active locale: prefer HarnessI18n.getLang() if available,
+  // Active locale: prefer OrchestratorI18n.getLang() if available,
   // otherwise fall back to localStorage/data-locale shell attr.
   let activeLocale = null;
   let source = null;
   try {
-    if (window.HarnessI18n && typeof window.HarnessI18n.getLang === "function") {
-      activeLocale = window.HarnessI18n.getLang();
-      source = "HarnessI18n.getLang";
+    if (window.OrchestratorI18n && typeof window.OrchestratorI18n.getLang === "function") {
+      activeLocale = window.OrchestratorI18n.getLang();
+      source = "OrchestratorI18n.getLang";
     }
   } catch (_) { /* keep null */ }
   if (!activeLocale) {

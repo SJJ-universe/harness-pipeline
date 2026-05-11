@@ -266,7 +266,7 @@ test("UI-FirstRun simple-shell: next-action-card is destroyed when shell is dest
 });
 
 test("UI-FirstRun simple-shell: card mount survives if the panel constructor is missing", () => {
-  // No panels.nextActionCard, no globalThis.HarnessNextActionCard.
+  // No panels.nextActionCard, no globalThis.OrchestratorNextActionCard.
   // Shell should NOT crash — the absent card simply doesn't render.
   const doc = _makeDoc();
   const store = createMonitorStore();

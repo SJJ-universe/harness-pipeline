@@ -7,7 +7,7 @@
 //      eviction (FIFO once the visible stack hits `maxStack`).
 //   2. `installToast()` — browser-side wiring. Renders entries into
 //      `<div id="toast-container">`, attaches dismiss timers, and exposes
-//      `window.HarnessToast = { show, dismiss, clear, state }`.
+//      `window.OrchestratorToast = { show, dismiss, clear, state }`.
 //
 // The module doubles as a CommonJS export so `tests/unit/toast.test.js` can
 // require it directly and drive ToastState without loading any HTML.
@@ -21,9 +21,9 @@
     // Installed immediately so the rest of the app can call showToast() right
     // after this script tag loads. We rely on #toast-container existing in
     // index.html — if it doesn't, the system silently degrades to a no-op.
-    root.HarnessToast = api.install({ doc: document, win: window });
+    root.OrchestratorToast = api.install({ doc: document, win: window });
     // Expose the pure state class for diagnostics / tests run in-browser.
-    root.HarnessToast.ToastState = api.ToastState;
+    root.OrchestratorToast.ToastState = api.ToastState;
   }
 })(typeof window !== "undefined" ? window : globalThis, function () {
   const DEFAULT_DURATION = 5000;

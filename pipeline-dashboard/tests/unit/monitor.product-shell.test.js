@@ -341,7 +341,7 @@ test("UI-P7: mount with locale=en stamps data-locale='en' on the shell", () => {
   assert.equal(handle.getLocale(), "en");
 });
 
-test("UI-P7: mount default locale = 'ko' (HarnessI18n default)", () => {
+test("UI-P7: mount default locale = 'ko' (OrchestratorI18n default)", () => {
   const root = makeRoot();
   const store = createMonitorStore();
   const stubFactory = () => ({ destroy() {}, setMode() {} });
@@ -391,7 +391,7 @@ test("UI-P7: setLocale coerces unknown locale to 'ko' (no propagation if same)",
   assert.equal(calls.length, 0, "garbage coerces to ko which is current → no-op");
 });
 
-test("UI-P7: onLocaleChange callback fires on setLocale (init persists via HarnessI18n.setLang)", () => {
+test("UI-P7: onLocaleChange callback fires on setLocale (init persists via OrchestratorI18n.setLang)", () => {
   const root = makeRoot();
   const store = createMonitorStore();
   let lastLocale = null;

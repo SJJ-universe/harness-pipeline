@@ -4,7 +4,7 @@
 // simple / advanced / legacy shells without editing the URL. The
 // click handler:
 //
-//   1. Writes the selected mode to localStorage (HarnessMonitorMode.persistMode).
+//   1. Writes the selected mode to localStorage (OrchestratorMonitorMode.persistMode).
 //   2. Reloads the page (mode change is destructive of the panel
 //      mount; reload is the simplest correctness story).
 //
@@ -25,7 +25,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessMonitorModeToggle = api;
+  if (typeof window !== "undefined") root.OrchestratorMonitorModeToggle = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
 
   // Mode → operator-friendly Korean + English label pair (matches the
@@ -59,15 +59,15 @@
       || (typeof window !== "undefined" && window.localStorage
             ? window.localStorage : null);
 
-    // Resolve HarnessMonitorMode: try CommonJS require (test path)
+    // Resolve OrchestratorMonitorMode: try CommonJS require (test path)
     // first, then window global (browser path).
     let MonitorMode = null;
     try { MonitorMode = require("../mode"); } catch (_) { /* no-op */ }
     if (!MonitorMode && typeof window !== "undefined") {
-      MonitorMode = window.HarnessMonitorMode;
+      MonitorMode = window.OrchestratorMonitorMode;
     }
     if (!MonitorMode || typeof MonitorMode.persistMode !== "function") {
-      throw new Error("mode-toggle.create: HarnessMonitorMode unavailable");
+      throw new Error("mode-toggle.create: OrchestratorMonitorMode unavailable");
     }
 
     const validModes = MonitorMode.MODES || ["simple", "advanced", "legacy"];

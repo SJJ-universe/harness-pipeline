@@ -1,5 +1,5 @@
 // ── State ──
-// Slice K (v5): raw WebSocket is now owned by HarnessWsClient. app.js keeps
+// Slice K (v5): raw WebSocket is now owned by OrchestratorWsClient. app.js keeps
 // a reference to the client for watchdog reads.
 let _wsClient = null;
 let startTime = null;
@@ -394,23 +394,23 @@ function nodeToPhase(node) {
 // ── Harness Horse Animation ──
 // Slice AC (Phase 2.5): the pixel-art horse SVG generator, the gallop
 // frame loop, and the idle/galloping/reining state machine all moved
-// to public/js/horse-animation.js (HarnessHorseAnimation). The wrappers
+// to public/js/horse-animation.js (OrchestratorHorseAnimation). The wrappers
 // below keep every inline call site in app.js working without a mass
 // find-and-replace, so this refactor stays diff-safe. New callers should
-// use `window.HarnessHorseAnimation.*` directly.
+// use `window.OrchestratorHorseAnimation.*` directly.
 function setHorseState(state, statusText) {
-  if (window.HarnessHorseAnimation) {
-    window.HarnessHorseAnimation.setState(state, statusText);
+  if (window.OrchestratorHorseAnimation) {
+    window.OrchestratorHorseAnimation.setState(state, statusText);
   }
 }
 function reinThenResume(statusText, delayMs) {
-  if (window.HarnessHorseAnimation) {
-    window.HarnessHorseAnimation.reinThenResume(statusText, delayMs);
+  if (window.OrchestratorHorseAnimation) {
+    window.OrchestratorHorseAnimation.reinThenResume(statusText, delayMs);
   }
 }
 function setHorseStatusText(text) {
-  if (window.HarnessHorseAnimation) {
-    window.HarnessHorseAnimation.setStatusText(text);
+  if (window.OrchestratorHorseAnimation) {
+    window.OrchestratorHorseAnimation.setStatusText(text);
   }
 }
 
@@ -438,7 +438,7 @@ function _trimCodexLive() {
 
 // ── WebSocket ──
 // Slice K (v5): the raw socket / reconnect loop / wasConnected bookkeeping
-// moved into public/js/ws-client.js (HarnessWsClient). app.js keeps only
+// moved into public/js/ws-client.js (OrchestratorWsClient). app.js keeps only
 //   - the watchdog that reads the client's last-event timestamp
 //   - the toast callbacks wired into the client's lifecycle events
 //   - a thin connectWS() entry point so init() reads the same as before.
@@ -459,20 +459,20 @@ function startWsMonitor() {
 
 function _toast(opts) {
   try {
-    if (window.HarnessToast && typeof window.HarnessToast.show === "function") {
-      return window.HarnessToast.show(opts);
+    if (window.OrchestratorToast && typeof window.OrchestratorToast.show === "function") {
+      return window.OrchestratorToast.show(opts);
     }
   } catch (_) {}
   return null;
 }
 
 function connectWS() {
-  if (!window.HarnessWsClient) {
-    console.error("HarnessWsClient not loaded — check index.html script order");
+  if (!window.OrchestratorWsClient) {
+    console.error("OrchestratorWsClient not loaded — check index.html script order");
     return;
   }
   const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-  _wsClient = window.HarnessWsClient.install({
+  _wsClient = window.OrchestratorWsClient.install({
     url: `${protocol}//${location.host}`,
     onEvent: (event) => handleEvent(event),
     onConnected: () => { startWsMonitor(); },
@@ -580,13 +580,13 @@ function applyReplayEvent(event) {
     // a refreshed page should see historical subagents in their final state,
     // not watch them fade immediately after replay.
     case "subagent_started":
-      if (window.HarnessSubagentTray && typeof window.HarnessSubagentTray.restore === "function") {
-        window.HarnessSubagentTray.restore("subagent_started", d);
+      if (window.OrchestratorSubagentTray && typeof window.OrchestratorSubagentTray.restore === "function") {
+        window.OrchestratorSubagentTray.restore("subagent_started", d);
       }
       break;
     case "subagent_completed":
-      if (window.HarnessSubagentTray && typeof window.HarnessSubagentTray.restore === "function") {
-        window.HarnessSubagentTray.restore("subagent_completed", d);
+      if (window.OrchestratorSubagentTray && typeof window.OrchestratorSubagentTray.restore === "function") {
+        window.OrchestratorSubagentTray.restore("subagent_completed", d);
       }
       break;
     // Intentionally skipped (side-effectful): codex_started, codex_progress, heartbeat,
@@ -600,8 +600,8 @@ function handleEvent(event) {
   // Slice MB4-a (Phase D Round 2): notify wildcard taps FIRST so the
   // monitor legacy-bridge sees every event regardless of legacy
   // routing. Throws are swallowed inside notifyTaps — no abort risk.
-  if (window.HarnessEventDispatcher && typeof window.HarnessEventDispatcher.notifyTaps === "function") {
-    window.HarnessEventDispatcher.notifyTaps(event);
+  if (window.OrchestratorEventDispatcher && typeof window.OrchestratorEventDispatcher.notifyTaps === "function") {
+    window.OrchestratorEventDispatcher.notifyTaps(event);
   }
 
   // Slice U (v6): feed every event's runId into the tab bar so new runs
@@ -621,26 +621,26 @@ function handleEvent(event) {
   // render into the active timeline — otherwise parallel runs collapse
   // into one visual stream and the tabs are meaningless. Global UI events
   // without a `data.runId` (toast, hook_event, context_alarm, etc.) still
-  // render on every tab; see HarnessRunIdFilter.shouldSkip for the exact
+  // render on every tab; see OrchestratorRunIdFilter.shouldSkip for the exact
   // carve-out rules. The seen()/complete() calls above already fired, so
   // the tab bar still surfaces the other run's existence even while we
   // stop here.
   if (
-    window.HarnessRunIdFilter &&
+    window.OrchestratorRunIdFilter &&
     window._runTabBar &&
     typeof window._runTabBar.current === "function"
   ) {
-    if (window.HarnessRunIdFilter.shouldSkip(event, window._runTabBar.current())) {
+    if (window.OrchestratorRunIdFilter.shouldSkip(event, window._runTabBar.current())) {
       return;
     }
   }
 
   // Slice R (v6): try the registry first. Handlers registered via
-  // HarnessEventDispatcher.register() handle their own type; the switch
+  // OrchestratorEventDispatcher.register() handle their own type; the switch
   // below is the legacy fallback for types that haven't been migrated yet.
   // This lets Slice T/U add new event types (child_queue_depth, run_tab_*,
   // runId-scoped events) without stretching the 32-case switch.
-  if (window.HarnessEventDispatcher && window.HarnessEventDispatcher.dispatch(event)) {
+  if (window.OrchestratorEventDispatcher && window.OrchestratorEventDispatcher.dispatch(event)) {
     return;
   }
 
@@ -802,7 +802,7 @@ function handleEvent(event) {
     case "harness_complete":
       stopTimer();
       setBadge("done", "완료");
-      addLog("phase", `하네스 완료: ${event.data.harnessId || "unknown"}`);
+      addLog("phase", `오케스트레이터 완료: ${event.data.orchestratorId || "unknown"}`);
       break;
 
     case "auto_pipeline_detect":
@@ -812,7 +812,7 @@ function handleEvent(event) {
 
     // ── Harness events (Phase 1-4) ──
     case "harness_mode":
-      updateHarnessMode(event.data.enabled);
+      updateOrchestratorMode(event.data.enabled);
       break;
 
     case "tool_blocked": {
@@ -1050,8 +1050,8 @@ function handleEvent(event) {
     // the newly-added template without reloading.
     case "template_registry_reloaded": {
       const d = event.data || {};
-      if (window.HarnessTemplateEditor && typeof window.HarnessTemplateEditor.onRegistryReloaded === "function") {
-        window.HarnessTemplateEditor.onRegistryReloaded();
+      if (window.OrchestratorTemplateEditor && typeof window.OrchestratorTemplateEditor.onRegistryReloaded === "function") {
+        window.OrchestratorTemplateEditor.onRegistryReloaded();
       }
       // Refresh in-memory template cache that cyclePipelineTemplate uses
       try { if (typeof loadAllTemplates === "function") loadAllTemplates(); } catch (_) {}
@@ -1062,7 +1062,7 @@ function handleEvent(event) {
 
     // Slice MA7-c (Phase D, 2026-04-27): subagent_started + subagent_completed
     // cases moved to public/js/event-handlers/subagent-events.js. They now
-    // register via HarnessEventDispatcher.register and short-circuit BEFORE
+    // register via OrchestratorEventDispatcher.register and short-circuit BEFORE
     // this switch (see line ~643). Replay-path subagent restoration still
     // lives in applyReplayEvent above, since the dispatcher doesn't intercept
     // replay events.
@@ -1163,7 +1163,7 @@ function updateCycleCounter(iteration) {
   if (el) el.textContent = `×${iteration}`;
 }
 
-function updateHarnessMode(enabled) {
+function updateOrchestratorMode(enabled) {
   let el = document.getElementById("harness-mode-indicator");
   if (!el) {
     const right = document.querySelector(".header-right");
@@ -1171,15 +1171,15 @@ function updateHarnessMode(enabled) {
     el = document.createElement("span");
     el.id = "harness-mode-indicator";
     el.className = "harness-mode-indicator";
-    el.title = "하네스 모드 (클릭하여 토글)";
-    el.addEventListener("click", toggleHarnessMode);
+    el.title = "오케스트레이터 모드 (클릭하여 토글)";
+    el.addEventListener("click", toggleOrchestratorMode);
     right.appendChild(el);
   }
   el.textContent = enabled ? "🔒 Harness ON" : "Harness OFF";
   el.classList.toggle("on", !!enabled);
 }
 
-function toggleHarnessMode() {
+function toggleOrchestratorMode() {
   fetch("/api/executor/mode")
     .then((r) => r.json())
     .then((s) => fetch("/api/executor/mode", {
@@ -1188,14 +1188,14 @@ function toggleHarnessMode() {
       body: JSON.stringify({ enabled: !s.enabled }),
     }))
     .then((r) => r.json())
-    .then((s) => updateHarnessMode(s.enabled))
+    .then((s) => updateOrchestratorMode(s.enabled))
     .catch((err) => console.error("toggle failed:", err));
 }
 
-function fetchHarnessMode() {
+function fetchOrchestratorMode() {
   fetch("/api/executor/mode")
     .then((r) => r.json())
-    .then((s) => updateHarnessMode(s.enabled))
+    .then((s) => updateOrchestratorMode(s.enabled))
     .catch(() => {});
 }
 
@@ -1261,8 +1261,8 @@ function showFindingsBadge(node, count) {
 let __toolFeedRender = null;
 function _ensureToolFeedRender() {
   if (__toolFeedRender) return __toolFeedRender;
-  if (typeof window === "undefined" || !window.HarnessToolFeedRender) return null;
-  __toolFeedRender = window.HarnessToolFeedRender.install({});
+  if (typeof window === "undefined" || !window.OrchestratorToolFeedRender) return null;
+  __toolFeedRender = window.OrchestratorToolFeedRender.install({});
   return __toolFeedRender;
 }
 
@@ -1292,21 +1292,21 @@ function renderFindingCounts() {
 }
 
 // Slice AC (Phase 2.5): summarizeToolInput / shortPath / formatHMS moved
-// to public/js/formatters.js (HarnessFormatters). Thin wrappers preserve
+// to public/js/formatters.js (OrchestratorFormatters). Thin wrappers preserve
 // every inline call site so the refactor stays diff-safe.
 function summarizeToolInput(tool, input) {
-  return window.HarnessFormatters
-    ? window.HarnessFormatters.summarizeToolInput(tool, input)
+  return window.OrchestratorFormatters
+    ? window.OrchestratorFormatters.summarizeToolInput(tool, input)
     : "";
 }
 
 function shortPath(p) {
-  return window.HarnessFormatters ? window.HarnessFormatters.shortPath(p) : "";
+  return window.OrchestratorFormatters ? window.OrchestratorFormatters.shortPath(p) : "";
 }
 
 function formatHMS(ts) {
-  return window.HarnessFormatters
-    ? window.HarnessFormatters.formatHMS(ts)
+  return window.OrchestratorFormatters
+    ? window.OrchestratorFormatters.formatHMS(ts)
     : new Date(ts).toISOString();
 }
 
@@ -1415,8 +1415,8 @@ function clearLog() {
 
 // Slice AC (Phase 2.5): escapeHtml moved to public/js/formatters.js.
 function escapeHtml(str) {
-  return window.HarnessFormatters
-    ? window.HarnessFormatters.escapeHtml(str)
+  return window.OrchestratorFormatters
+    ? window.OrchestratorFormatters.escapeHtml(str)
     : String(str == null ? "" : str);
 }
 
@@ -1451,8 +1451,8 @@ function resetUI() {
   stageLogs = {};
   // Slice D (v4): drop the subagent tray state along with everything else so
   // a new pipeline doesn't inherit ghost agents from the previous run.
-  if (window.HarnessSubagentTray && typeof window.HarnessSubagentTray.reset === "function") {
-    window.HarnessSubagentTray.reset();
+  if (window.OrchestratorSubagentTray && typeof window.OrchestratorSubagentTray.reset === "function") {
+    window.OrchestratorSubagentTray.reset();
   }
 }
 
@@ -1500,8 +1500,8 @@ function updateVerificationStatus(verification) {
 let __stageModal = null;
 function _ensureStageModal() {
   if (__stageModal) return __stageModal;
-  if (typeof window === "undefined" || !window.HarnessStageModal) return null;
-  __stageModal = window.HarnessStageModal.install({});
+  if (typeof window === "undefined" || !window.OrchestratorStageModal) return null;
+  __stageModal = window.OrchestratorStageModal.install({});
   return __stageModal;
 }
 function openModal(title, key) {
@@ -1533,8 +1533,8 @@ document.addEventListener("keydown", (e) => {
 let __terminalHandle = null;
 function _ensureTerminalHandle() {
   if (__terminalHandle) return __terminalHandle;
-  if (typeof window === "undefined" || !window.HarnessTerminalMount) return null;
-  __terminalHandle = window.HarnessTerminalMount.install({});
+  if (typeof window === "undefined" || !window.OrchestratorTerminalMount) return null;
+  __terminalHandle = window.OrchestratorTerminalMount.install({});
   return __terminalHandle;
 }
 
@@ -1646,8 +1646,8 @@ async function verifyCodex() {
 let __gpmHandle = null;
 function _ensureGPMHandle() {
   if (__gpmHandle) return __gpmHandle;
-  if (typeof window === "undefined" || !window.HarnessGeneralPipelineModal) return null;
-  __gpmHandle = window.HarnessGeneralPipelineModal.install({
+  if (typeof window === "undefined" || !window.OrchestratorGeneralPipelineModal) return null;
+  __gpmHandle = window.OrchestratorGeneralPipelineModal.install({
     loadPipelineTemplate: (id) => loadPipelineTemplate(id),
     getCurrentTemplateId: () => currentTemplateId,
     addLog: (kind, msg) => addLog(kind, msg),
@@ -1695,19 +1695,19 @@ function initEventBindings() {
   _b("#btn-toggle-compact", toggleCompactMode);
   // Slice E (v4): open template editor modal
   _b("#btn-open-template-editor", () => {
-    if (window.HarnessTemplateEditor) window.HarnessTemplateEditor.open();
+    if (window.OrchestratorTemplateEditor) window.OrchestratorTemplateEditor.open();
   });
   // Slice E (v4): run history drawer. applyReplayEvent must be reachable from
   // the drawer's click handler — expose it on window explicitly so the test
   // harness and the drawer both use the same reducer.
   window.applyReplayEvent = applyReplayEvent;
   _b("#btn-open-run-history", () => {
-    if (window.HarnessRunHistory) window.HarnessRunHistory.open();
+    if (window.OrchestratorRunHistory) window.OrchestratorRunHistory.open();
   });
   // Slice F (v5): analytics panel — install handles the open/close button
   // wiring + backdrop + Escape key, so no separate _b binding is needed.
-  if (window.HarnessAnalyticsPanel) {
-    window.HarnessAnalyticsPanel.install({
+  if (window.OrchestratorAnalyticsPanel) {
+    window.OrchestratorAnalyticsPanel.install({
       overlayId: "analytics-drawer",
       bodyId: "analytics-body",
       timelineId: "analytics-timeline",
@@ -1722,7 +1722,7 @@ function initEventBindings() {
   // panel.js individually. Traps are released on close() so previously-
   // focused elements regain focus — standard modal a11y contract.
   function _installFocusTraps() {
-    if (!window.HarnessFocusTrap) return;
+    if (!window.OrchestratorFocusTrap) return;
     const wrap = (panel, overlayId) => {
       if (!panel || typeof panel.open !== "function") return;
       const origOpen = panel.open.bind(panel);
@@ -1732,7 +1732,7 @@ function initEventBindings() {
         const result = await origOpen(...args);
         const el = document.getElementById(overlayId);
         if (el) {
-          release = window.HarnessFocusTrap.trap(el, {
+          release = window.OrchestratorFocusTrap.trap(el, {
             onEscape: () => { if (origClose) origClose(); },
           });
         }
@@ -1745,27 +1745,27 @@ function initEventBindings() {
         };
       }
     };
-    wrap(window.HarnessTemplateEditor, "template-editor-overlay");
-    wrap(window.HarnessRunHistory, "run-history-drawer");
-    wrap(window.HarnessAnalyticsPanel, "analytics-drawer");
+    wrap(window.OrchestratorTemplateEditor, "template-editor-overlay");
+    wrap(window.OrchestratorRunHistory, "run-history-drawer");
+    wrap(window.OrchestratorAnalyticsPanel, "analytics-drawer");
   }
   _installFocusTraps();
 
   // Slice H (v5): keyboard shortcuts. 'g t' → template editor, 'g h' →
   // history, 'g m' → metrics, '?' → tooltip hint. Escape is already
   // handled by each modal's onEscape trap, so we don't bind it here.
-  if (window.HarnessKeybindings) {
-    window.HarnessKeybindings.install({ doc: document });
-    window.HarnessKeybindings.register({
-      "g t": () => { if (window.HarnessTemplateEditor) window.HarnessTemplateEditor.open(); },
-      "g h": () => { if (window.HarnessRunHistory) window.HarnessRunHistory.open(); },
-      "g m": () => { if (window.HarnessAnalyticsPanel) window.HarnessAnalyticsPanel.open(); },
+  if (window.OrchestratorKeybindings) {
+    window.OrchestratorKeybindings.install({ doc: document });
+    window.OrchestratorKeybindings.register({
+      "g t": () => { if (window.OrchestratorTemplateEditor) window.OrchestratorTemplateEditor.open(); },
+      "g h": () => { if (window.OrchestratorRunHistory) window.OrchestratorRunHistory.open(); },
+      "g m": () => { if (window.OrchestratorAnalyticsPanel) window.OrchestratorAnalyticsPanel.open(); },
       "?": () => {
-        if (window.HarnessToast) {
-          const msg = window.HarnessI18n
-            ? window.HarnessI18n.t("toast.keybindings")
+        if (window.OrchestratorToast) {
+          const msg = window.OrchestratorI18n
+            ? window.OrchestratorI18n.t("toast.keybindings")
             : "단축키: g t=템플릿, g h=히스토리, g m=메트릭, Esc=닫기";
-          window.HarnessToast.show({ type: "info", message: msg, duration: 6000 });
+          window.OrchestratorToast.show({ type: "info", message: msg, duration: 6000 });
         }
       },
     });
@@ -1780,8 +1780,8 @@ function initEventBindings() {
   // already fired once at their original wall-clock time and should NOT
   // re-fire every time the user flips tabs. The live filter (Slice AA-1)
   // already routes runId-less events to every tab, so nothing is lost.
-  if (window.HarnessRunTabBar) {
-    window._runTabBar = window.HarnessRunTabBar.install({
+  if (window.OrchestratorRunTabBar) {
+    window._runTabBar = window.OrchestratorRunTabBar.install({
       mountEl: "run-tabs",
       onSelect: (runId) => {
         try { resetUI(); } catch (_) { /* resetUI is defensive; never fatal */ }
@@ -1798,15 +1798,15 @@ function initEventBindings() {
 
   // Slice I (v5): translate static DOM content + wire language toggle.
   // ko/en tables are loaded from /js/i18n/{ko,en}.js before this script,
-  // and HarnessI18n picks up the stored lang from localStorage.
-  if (window.HarnessI18n) {
-    const currentLang = window.HarnessI18n.getLang();
+  // and OrchestratorI18n picks up the stored lang from localStorage.
+  if (window.OrchestratorI18n) {
+    const currentLang = window.OrchestratorI18n.getLang();
     document.documentElement.lang = currentLang;
-    window.HarnessI18n.applyDom();
+    window.OrchestratorI18n.applyDom();
     // Reflect active language in the toolbar toggle.
     const langBtns = Array.from(document.querySelectorAll(".lang-btn"));
     function _refreshLangToggle() {
-      const lang = window.HarnessI18n.getLang();
+      const lang = window.OrchestratorI18n.getLang();
       for (const btn of langBtns) {
         btn.classList.toggle("is-active", btn.dataset.lang === lang);
         btn.setAttribute("aria-pressed", btn.dataset.lang === lang ? "true" : "false");
@@ -1814,7 +1814,7 @@ function initEventBindings() {
     }
     for (const btn of langBtns) {
       btn.addEventListener("click", () => {
-        window.HarnessI18n.setLang(btn.dataset.lang);
+        window.OrchestratorI18n.setLang(btn.dataset.lang);
         _refreshLangToggle();
       });
     }
@@ -1862,7 +1862,7 @@ function initEventBindings() {
 // PRODUCT-SHELL-WIRING (2026-05-06): exported as a module-level helper
 // (not nested inside initEventBindings) so unit tests can drive it
 // without rebooting the whole legacy boot path. Tests stub
-// `window.HarnessAnalyticsPanel` etc. and call `_handleHashOnLoad()`
+// `window.OrchestratorAnalyticsPanel` etc. and call `_handleHashOnLoad()`
 // after seeding `window.location.hash`.
 function _handleHashOnLoad() {
   let hash = "";
@@ -1877,21 +1877,21 @@ function _handleHashOnLoad() {
   if (!normalised) return;
   switch (normalised) {
     case "analytics":
-      if (window.HarnessAnalyticsPanel
-          && typeof window.HarnessAnalyticsPanel.open === "function") {
-        try { window.HarnessAnalyticsPanel.open(); } catch (_) {}
+      if (window.OrchestratorAnalyticsPanel
+          && typeof window.OrchestratorAnalyticsPanel.open === "function") {
+        try { window.OrchestratorAnalyticsPanel.open(); } catch (_) {}
       }
       break;
     case "run-history":
-      if (window.HarnessRunHistory
-          && typeof window.HarnessRunHistory.open === "function") {
-        try { window.HarnessRunHistory.open(); } catch (_) {}
+      if (window.OrchestratorRunHistory
+          && typeof window.OrchestratorRunHistory.open === "function") {
+        try { window.OrchestratorRunHistory.open(); } catch (_) {}
       }
       break;
     case "template-editor":
-      if (window.HarnessTemplateEditor
-          && typeof window.HarnessTemplateEditor.open === "function") {
-        try { window.HarnessTemplateEditor.open(); } catch (_) {}
+      if (window.OrchestratorTemplateEditor
+          && typeof window.OrchestratorTemplateEditor.open === "function") {
+        try { window.OrchestratorTemplateEditor.open(); } catch (_) {}
       }
       break;
     case "compact":
@@ -1920,8 +1920,8 @@ initEventBindings();
 // handlers BEFORE the WS opens. The dispatcher fires before the legacy
 // switch in handleEvent, so registered types short-circuit and never
 // reach the switch.
-if (window.HarnessSubagentEvents && typeof window.HarnessSubagentEvents.install === "function") {
-  window.HarnessSubagentEvents.install({
+if (window.OrchestratorSubagentEvents && typeof window.OrchestratorSubagentEvents.install === "function") {
+  window.OrchestratorSubagentEvents.install({
     addLog: (kind, msg) => addLog(kind, msg),
   });
 }
@@ -1934,9 +1934,9 @@ renderCritiqueTimeline();
 // Load pipeline templates and render default
 loadAllTemplates();
 // Show harness mode indicator (state from server)
-fetchHarnessMode();
+fetchOrchestratorMode();
 // Server / Codex initial status
 fetchServerInfo();
 setInterval(fetchServerInfo, 15000);
 // Init horse in idle state
-if (window.HarnessHorseAnimation) window.HarnessHorseAnimation.renderInitial();
+if (window.OrchestratorHorseAnimation) window.OrchestratorHorseAnimation.renderInitial();

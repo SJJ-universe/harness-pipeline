@@ -30,7 +30,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessProductHorseRider = api;
+  if (typeof window !== "undefined") root.OrchestratorProductHorseRider = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
 
   const HORSE_FRAME_W = 168;
@@ -64,15 +64,15 @@
    */
   function create(opts) {
     if (!opts || typeof opts !== "object") {
-      throw new Error("HarnessProductHorseRider.create: opts required");
+      throw new Error("OrchestratorProductHorseRider.create: opts required");
     }
     const root = opts.root;
     if (!root || typeof root.appendChild !== "function") {
-      throw new Error("HarnessProductHorseRider.create: root must be an element");
+      throw new Error("OrchestratorProductHorseRider.create: root must be an element");
     }
     const _doc = opts.doc || (typeof document !== "undefined" ? document : null);
     if (!_doc || typeof _doc.createElement !== "function") {
-      throw new Error("HarnessProductHorseRider.create: no document available");
+      throw new Error("OrchestratorProductHorseRider.create: no document available");
     }
     const accent = opts.accent || "#C9A66B";
     const size = (typeof opts.size === "number" && opts.size > 0) ? opts.size : 84;

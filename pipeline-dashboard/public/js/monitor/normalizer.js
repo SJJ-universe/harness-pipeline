@@ -1,4 +1,4 @@
-// Slice MA1 (Phase D, 2026-04-27) — HarnessMonitorNormalizer.
+// Slice MA1 (Phase D, 2026-04-27) — OrchestratorMonitorNormalizer.
 //
 // Translates the harness's heterogeneous broadcast events into the single
 // canonical envelope spec section 6.5 defines:
@@ -23,7 +23,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessMonitorNormalizer = api;
+  if (typeof window !== "undefined") root.OrchestratorMonitorNormalizer = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
   // Scope routing — keep tight to known categories so the inspector +
   // panel filters can pick the right surface for each envelope.

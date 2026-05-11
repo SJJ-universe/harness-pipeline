@@ -62,7 +62,7 @@ function makeToastSink() {
 
 // ── Wave 1: pipelineStart ──────────────────────────────────────────
 
-test("pipelineStart invokes window.HarnessGeneralPipelineModal.install().open()", () => {
+test("pipelineStart invokes window.OrchestratorGeneralPipelineModal.install().open()", () => {
   const opens = [];
   const fakeModal = {
     install(opts) {
@@ -71,12 +71,12 @@ test("pipelineStart invokes window.HarnessGeneralPipelineModal.install().open()"
       };
     },
   };
-  const fakeWin = { HarnessGeneralPipelineModal: fakeModal };
+  const fakeWin = { OrchestratorGeneralPipelineModal: fakeModal };
   shellActions.pipelineStart({ win: fakeWin, doc: { body: {} } });
   assert.equal(opens.length, 1, "modal.open() must fire exactly once");
 });
 
-test("pipelineStart toasts an error when HarnessGeneralPipelineModal is not loaded", () => {
+test("pipelineStart toasts an error when OrchestratorGeneralPipelineModal is not loaded", () => {
   const sink = makeToastSink();
   shellActions.pipelineStart({ win: {}, doc: {}, toastFn: sink.toastFn });
   assert.equal(sink.messages.length, 1);

@@ -25,7 +25,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessMonitorApprovalCard = api;
+  if (typeof window !== "undefined") root.OrchestratorMonitorApprovalCard = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
 
   const TOAST_TTL_MS = 4000;
@@ -58,7 +58,7 @@
       throw new Error("approval-card.create: root must be an element");
     }
     if (!store || typeof store.subscribe !== "function" || typeof store.snapshot !== "function") {
-      throw new Error("approval-card.create: store must be a HarnessMonitorStore");
+      throw new Error("approval-card.create: store must be a OrchestratorMonitorStore");
     }
     const _doc = doc || (typeof document !== "undefined" ? document : null);
     if (!_doc || typeof _doc.createElement !== "function") {

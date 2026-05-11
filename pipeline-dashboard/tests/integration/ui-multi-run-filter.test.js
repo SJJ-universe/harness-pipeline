@@ -2,9 +2,9 @@
 //
 // The pure logic lives in public/js/run-id-filter.js and is covered by
 // tests/unit/runIdFilter.test.js. These tests instead prove the *wiring*:
-//   1. index.html loads run-id-filter.js before app.js so HarnessRunIdFilter
+//   1. index.html loads run-id-filter.js before app.js so OrchestratorRunIdFilter
 //      is on window by the time handleEvent runs.
-//   2. handleEvent in app.js actually calls HarnessRunIdFilter.shouldSkip
+//   2. handleEvent in app.js actually calls OrchestratorRunIdFilter.shouldSkip
 //      with the current run-tab focus before dispatching the event.
 //   3. The call lives AFTER `_runTabBar.seen()` so the tab bar still
 //      surfaces other runs even when their events don't render.
@@ -23,7 +23,7 @@ const INDEX_HTML = fs.readFileSync(path.join(ROOT, "public/index.legacy.html"), 
 const FILTER_JS = fs.readFileSync(path.join(ROOT, "public/js/run-id-filter.js"), "utf-8");
 
 test("public/js/run-id-filter.js exists and exports shouldSkip via UMD", () => {
-  assert.match(FILTER_JS, /HarnessRunIdFilter/, "window global assigned");
+  assert.match(FILTER_JS, /OrchestratorRunIdFilter/, "window global assigned");
   assert.match(FILTER_JS, /function shouldSkip\s*\(/, "shouldSkip function defined");
   assert.match(FILTER_JS, /module\.exports\s*=\s*api/, "CommonJS export for Node tests");
 });
@@ -37,7 +37,7 @@ test("index.html loads run-id-filter.js (and before app.js)", () => {
   assert.ok(appIdx > -1, "app.js script tag is present");
   assert.ok(
     filterIdx < appIdx,
-    "run-id-filter.js must load before app.js so HarnessRunIdFilter is ready"
+    "run-id-filter.js must load before app.js so OrchestratorRunIdFilter is ready"
   );
 });
 
@@ -48,7 +48,7 @@ test("index.html loads run-id-filter.js after run-tab-bar.js (co-located tab wir
   assert.ok(filterIdx > tabBarIdx, "tab bar sets the runId, filter consumes it");
 });
 
-test("handleEvent invokes HarnessRunIdFilter.shouldSkip with the current tab runId", () => {
+test("handleEvent invokes OrchestratorRunIdFilter.shouldSkip with the current tab runId", () => {
   // Pull out the handleEvent function body (approximate region).
   const handleStart = APP_JS.indexOf("function handleEvent");
   assert.ok(handleStart > -1, "handleEvent function exists");
@@ -57,7 +57,7 @@ test("handleEvent invokes HarnessRunIdFilter.shouldSkip with the current tab run
   const region = APP_JS.slice(handleStart, handleStart + 2500);
   assert.match(
     region,
-    /HarnessRunIdFilter\.shouldSkip\s*\(\s*event\s*,\s*window\._runTabBar\.current\s*\(\s*\)\s*\)/,
+    /OrchestratorRunIdFilter\.shouldSkip\s*\(\s*event\s*,\s*window\._runTabBar\.current\s*\(\s*\)\s*\)/,
     "handleEvent passes the focused runId from the tab bar into shouldSkip"
   );
   assert.match(
@@ -71,7 +71,7 @@ test("shouldSkip gate sits AFTER the tab-bar seen() / complete() calls", () => {
   const handleStart = APP_JS.indexOf("function handleEvent");
   const region = APP_JS.slice(handleStart, handleStart + 2500);
   const seenIdx = region.indexOf("_runTabBar.seen(");
-  const shouldSkipIdx = region.indexOf("HarnessRunIdFilter.shouldSkip");
+  const shouldSkipIdx = region.indexOf("OrchestratorRunIdFilter.shouldSkip");
   assert.ok(seenIdx > -1, "_runTabBar.seen() is present");
   assert.ok(shouldSkipIdx > -1, "shouldSkip call is present");
   assert.ok(
@@ -83,8 +83,8 @@ test("shouldSkip gate sits AFTER the tab-bar seen() / complete() calls", () => {
 test("shouldSkip gate sits BEFORE the event-dispatcher and legacy switch", () => {
   const handleStart = APP_JS.indexOf("function handleEvent");
   const region = APP_JS.slice(handleStart, handleStart + 2500);
-  const shouldSkipIdx = region.indexOf("HarnessRunIdFilter.shouldSkip");
-  const dispatchIdx = region.indexOf("HarnessEventDispatcher.dispatch");
+  const shouldSkipIdx = region.indexOf("OrchestratorRunIdFilter.shouldSkip");
+  const dispatchIdx = region.indexOf("OrchestratorEventDispatcher.dispatch");
   const switchIdx = region.indexOf("switch (event.type)");
   assert.ok(shouldSkipIdx > -1);
   assert.ok(dispatchIdx > -1);
@@ -106,8 +106,8 @@ const SERVER_JS = fs.readFileSync(path.join(ROOT, "server.js"), "utf-8");
 test("AA-2: app.js onSelect resets UI then sends replay_request with includeGlobal:false", () => {
   // Locate the run tab bar install block and inspect just that region so
   // matches in other handlers don't muddy the signal.
-  const installIdx = APP_JS.indexOf("HarnessRunTabBar.install");
-  assert.ok(installIdx > -1, "HarnessRunTabBar.install() call present in app.js");
+  const installIdx = APP_JS.indexOf("OrchestratorRunTabBar.install");
+  assert.ok(installIdx > -1, "OrchestratorRunTabBar.install() call present in app.js");
   const region = APP_JS.slice(installIdx, installIdx + 1500);
   assert.match(region, /onSelect:\s*\(runId\)\s*=>/, "onSelect closure is still wired");
   assert.match(region, /resetUI\s*\(\s*\)/, "onSelect clears the current timeline");

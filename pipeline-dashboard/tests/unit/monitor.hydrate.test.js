@@ -1,7 +1,7 @@
-// Slice MA2 (Phase D, 2026-04-27) — HarnessMonitorHydrate unit tests.
+// Slice MA2 (Phase D, 2026-04-27) — OrchestratorMonitorHydrate unit tests.
 //
 // Drives the hydration helper with a stub fetch + the real
-// HarnessMonitorStore + the real HarnessMonitorNormalizer to confirm the
+// OrchestratorMonitorStore + the real OrchestratorMonitorNormalizer to confirm the
 // full bootstrap → store action sequence works end-to-end without a
 // browser. Tests cover the happy path, fetch failures (HTTP error +
 // network error), and graceful tolerance of missing payload sections.
@@ -209,7 +209,7 @@ test("hydrateMonitorStore rejects when payload is not an object", async () => {
 test("hydrateMonitorStore throws if `store` is missing", async () => {
   await assert.rejects(
     () => hydrateMonitorStore({ normalize, fetchImpl: fakeFetch(fakeResponse()) }),
-    /must be a HarnessMonitorStore instance/
+    /must be a OrchestratorMonitorStore instance/
   );
 });
 
@@ -333,7 +333,7 @@ test("hydrateRunDetail rejects on missing runId / non-store / no fetch", async (
   );
   await assert.rejects(
     () => hydrateRunDetail({ runId: "x", fetchImpl: fakeFetch(fakeResponse()) }),
-    /must be a HarnessMonitorStore/
+    /must be a OrchestratorMonitorStore/
   );
   // Unset global fetch + omit fetchImpl → should throw.
   const savedFetch = globalThis.fetch;

@@ -3,7 +3,7 @@
 // Behaviour-preserving lift of the legacy `initTerminal()` + lazy mount
 // out of public/app.js. The module owns the term + termWs state and
 // the auto-`claude --continue` boot dance. app.js calls
-// HarnessTerminalMount.mount() lazily on the first tab switch to
+// OrchestratorTerminalMount.mount() lazily on the first tab switch to
 // "terminal" — same trigger semantics as before.
 //
 // Contract (return value of install()):
@@ -16,7 +16,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessTerminalMount = api;
+  if (typeof window !== "undefined") root.OrchestratorTerminalMount = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
 
   function install({
@@ -109,14 +109,14 @@
       }
 
       // Resolve the auth token. apiTokenGetter is the canonical
-      // injection point; falls back to window.HarnessApi.getToken,
+      // injection point; falls back to window.OrchestratorApi.getToken,
       // then window.HARNESS_TOKEN.
       let token = "";
       if (typeof apiTokenGetter === "function") {
         try { token = await apiTokenGetter(); } catch (_) { token = ""; }
       } else if (typeof globalThis !== "undefined") {
-        if (globalThis.HarnessApi && typeof globalThis.HarnessApi.getToken === "function") {
-          try { token = await globalThis.HarnessApi.getToken(); } catch (_) {}
+        if (globalThis.OrchestratorApi && typeof globalThis.OrchestratorApi.getToken === "function") {
+          try { token = await globalThis.OrchestratorApi.getToken(); } catch (_) {}
         }
         if (!token && globalThis.HARNESS_TOKEN) token = globalThis.HARNESS_TOKEN;
       }

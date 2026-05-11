@@ -75,7 +75,7 @@ const BUTTONS = Object.freeze([
     appliesTo: (_v, route) => route.id !== "legacy",
     clickSafe: true,
     expectedActivity: "mutation",
-    notes: "Switches i18n locale to KO (calls HarnessI18n.setLang).",
+    notes: "Switches i18n locale to KO (calls OrchestratorI18n.setLang).",
   }),
   Object.freeze({
     id: "header-locale-en",

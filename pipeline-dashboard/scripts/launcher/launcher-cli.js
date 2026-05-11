@@ -55,8 +55,8 @@
 //        manifest, which is the first thing an MITM attacker would target.
 //
 //   node launcher-cli.js verify-health <url>
-//        → exit 0 if the URL serves a HarnessPipeline /api/health response
-//        → exit 1 if the response is missing, non-JSON, or app != "HarnessPipeline"
+//        → exit 0 if the URL serves a OrchestratorPipeline /api/health response
+//        → exit 1 if the response is missing, non-JSON, or app != "OrchestratorPipeline"
 //        Used by harness-start.bat / .sh to confirm "already running"
 //        is actually OUR server — without this discriminator, an
 //        unrelated service squatting on port 4201 would let the
@@ -197,7 +197,7 @@ function cmdVerifyHealth(args) {
   // The launcher's "already running" branch fires when GET /api/health
   // returns 200. Pre-D0-e the body was {status:"ok"}, indistinguishable
   // from any random "I'm alive" endpoint another service might serve.
-  // After D0-e the body includes {app:"HarnessPipeline", healthVersion}
+  // After D0-e the body includes {app:"OrchestratorPipeline", healthVersion}
   // and this command checks for that discriminator before the launcher
   // trusts the "already running" path.
   //
@@ -236,10 +236,10 @@ function cmdVerifyHealth(args) {
         process.stderr.write(`verify-health: response is not JSON\n`);
         process.exit(1);
       }
-      // Must be a HarnessPipeline server. Accept any healthVersion the
+      // Must be a OrchestratorPipeline server. Accept any healthVersion the
       // server advertises (forward-compatible — newer servers may bump
       // the version when they add fields, but the discriminator stays).
-      if (body && body.app === "HarnessPipeline") {
+      if (body && body.app === "OrchestratorPipeline") {
         process.stdout.write(JSON.stringify({
           ok: true,
           app: body.app,
@@ -248,7 +248,7 @@ function cmdVerifyHealth(args) {
         process.exit(0);
       }
       process.stderr.write(
-        `verify-health: response missing app="HarnessPipeline" ` +
+        `verify-health: response missing app="OrchestratorPipeline" ` +
         `(got ${JSON.stringify(body)}) — refusing to assume already-running\n`,
       );
       process.exit(1);

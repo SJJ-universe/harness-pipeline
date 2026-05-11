@@ -1,7 +1,7 @@
 // Slice MA7-c (Phase D, 2026-04-27) — subagent-events tests.
 //
 // install() registers two handlers on the supplied (or global)
-// HarnessEventDispatcher. We verify:
+// OrchestratorEventDispatcher. We verify:
 //   - registration happens for both event types
 //   - dispatched events drive subagentTray.start / .complete
 //   - addLog is called with the canonical Korean log strings

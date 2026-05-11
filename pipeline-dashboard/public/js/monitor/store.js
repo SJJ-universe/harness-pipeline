@@ -1,9 +1,9 @@
-// Slice MA1 (Phase D, 2026-04-27) — HarnessMonitorStore.
+// Slice MA1 (Phase D, 2026-04-27) — OrchestratorMonitorStore.
 //
 // DOM-free, framework-free state container. Serves as the single source
 // of truth for the future monitoring-first console (run-monitor-ui spec
 // section 5.1). Lives next to the existing UMD modules so it can be
-// loaded as `window.HarnessMonitorStore` in the browser AND `require()`d
+// loaded as `window.OrchestratorMonitorStore` in the browser AND `require()`d
 // from Node tests; no dependency on `document` / `window` / WebSocket.
 //
 // Policy
@@ -55,7 +55,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessMonitorStore = api;
+  if (typeof window !== "undefined") root.OrchestratorMonitorStore = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
   const DEFAULT_MAX_EVENTS = 200;
   // Slice UI-H7-a — per-session per-side stream cap so a runaway

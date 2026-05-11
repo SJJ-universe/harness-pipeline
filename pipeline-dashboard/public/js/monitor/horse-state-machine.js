@@ -57,7 +57,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessHorseStateMachine = api;
+  if (typeof window !== "undefined") root.OrchestratorHorseStateMachine = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
 
   // The 7-lane pipeline. Order is canonical — UI consumers index into

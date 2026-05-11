@@ -1,9 +1,9 @@
-// Slice I (v5) — HarnessI18n: runtime translation table + DOM applier.
+// Slice I (v5) — OrchestratorI18n: runtime translation table + DOM applier.
 //
 // Two layers (UMD, same convention as toast.js / focus-trap.js):
 //   1. Pure helpers — `t()`, `getLang()`, `setLang()`, `applyDom()`.
 //      Tests drive them against injected locale tables without a DOM.
-//   2. Browser auto-assign — `window.HarnessI18n = { ... }` plus a default
+//   2. Browser auto-assign — `window.OrchestratorI18n = { ... }` plus a default
 //      language load from localStorage.
 //
 // Locale source: ko.js / en.js populate `window.HARNESS_I18N.{ko,en}`
@@ -19,7 +19,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessI18n = api;
+  if (typeof window !== "undefined") root.OrchestratorI18n = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
   const SUPPORTED = ["ko", "en"];
   const DEFAULT = "ko";

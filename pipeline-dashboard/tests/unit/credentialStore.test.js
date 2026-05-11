@@ -73,7 +73,7 @@ function tmpConfigPaths(t) {
     try { fs.rmSync(dir, { recursive: true, force: true }); } catch (_) {}
   });
   return {
-    appName: "HarnessPipeline",
+    appName: "OrchestratorPipeline",
     appdataConfig: dir,
     profileFile: path.join(dir, "profiles.json"),
   };
@@ -183,7 +183,7 @@ test("D1-a: keychain backend round-trip set/get/list/delete", async () => {
   assert.equal(await store.getSecret("personal", "OPENAI_API_KEY"), null);
 });
 
-test("D1-a: keychain backend uses HarnessPipeline-<profileId> service name", async () => {
+test("D1-a: keychain backend uses OrchestratorPipeline-<profileId> service name", async () => {
   // Profile isolation in the keychain itself: secrets for profile A must
   // not be visible under the service name for profile B (the OS keychain
   // separates by service name).
@@ -197,8 +197,8 @@ test("D1-a: keychain backend uses HarnessPipeline-<profileId> service name", asy
   for (const k of keytar._store.keys()) {
     seen.add(k.split("::")[0]);
   }
-  assert.ok(seen.has("HarnessPipeline-alpha"));
-  assert.ok(seen.has("HarnessPipeline-beta"));
+  assert.ok(seen.has("OrchestratorPipeline-alpha"));
+  assert.ok(seen.has("OrchestratorPipeline-beta"));
   assert.equal(seen.size, 2);
 });
 

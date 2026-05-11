@@ -55,7 +55,7 @@ test("D0-a: env override is independent — config can be overridden alone", () 
   });
   assert.equal(r.resolvedFrom.config, "env");
   assert.equal(r.resolvedFrom.data, "os-default");
-  assert.match(r.localAppdataData, /HarnessPipeline/);
+  assert.match(r.localAppdataData, /OrchestratorPipeline/);
 });
 
 // ── Windows defaults ───────────────────────────────────────────────
@@ -73,7 +73,7 @@ test("D0-a: Windows uses %APPDATA% for config (roaming)", () => {
     platform: "win32",
     homedir: "C:\\Users\\SJ",
   });
-  assert.equal(r.appdataConfig, path.join(APPDATA, "HarnessPipeline", "config"));
+  assert.equal(r.appdataConfig, path.join(APPDATA, "OrchestratorPipeline", "config"));
   assert.equal(r.resolvedFrom.config, "os-default");
 });
 
@@ -85,7 +85,7 @@ test("D0-a: Windows uses %LOCALAPPDATA% for data (non-roaming)", () => {
     platform: "win32",
     homedir: "C:\\Users\\SJ",
   });
-  assert.equal(r.localAppdataData, path.join(LOCALAPPDATA, "HarnessPipeline"));
+  assert.equal(r.localAppdataData, path.join(LOCALAPPDATA, "OrchestratorPipeline"));
   assert.equal(r.resolvedFrom.data, "os-default");
 });
 
@@ -97,8 +97,8 @@ test("D0-a: Windows falls back to homedir when APPDATA / LOCALAPPDATA env are ab
     platform: "win32",
     homedir: "C:\\Users\\SJ",
   });
-  assert.match(r.appdataConfig, /AppData[\\/]Roaming[\\/]HarnessPipeline/);
-  assert.match(r.localAppdataData, /AppData[\\/]Local[\\/]HarnessPipeline/);
+  assert.match(r.appdataConfig, /AppData[\\/]Roaming[\\/]OrchestratorPipeline/);
+  assert.match(r.localAppdataData, /AppData[\\/]Local[\\/]OrchestratorPipeline/);
 });
 
 // ── macOS defaults ─────────────────────────────────────────────────
@@ -111,11 +111,11 @@ test("D0-a: macOS uses ~/Library/Application Support", () => {
   });
   assert.equal(
     r.appdataConfig,
-    path.join("/Users/sj", "Library", "Application Support", "HarnessPipeline", "config"),
+    path.join("/Users/sj", "Library", "Application Support", "OrchestratorPipeline", "config"),
   );
   assert.equal(
     r.localAppdataData,
-    path.join("/Users/sj", "Library", "Application Support", "HarnessPipeline", "data"),
+    path.join("/Users/sj", "Library", "Application Support", "OrchestratorPipeline", "data"),
   );
 });
 
@@ -127,8 +127,8 @@ test("D0-a: Linux follows XDG defaults (~/.config + ~/.local/share)", () => {
     platform: "linux",
     homedir: "/home/sj",
   });
-  assert.equal(r.appdataConfig, path.join("/home/sj", ".config", "HarnessPipeline"));
-  assert.equal(r.localAppdataData, path.join("/home/sj", ".local", "share", "HarnessPipeline"));
+  assert.equal(r.appdataConfig, path.join("/home/sj", ".config", "OrchestratorPipeline"));
+  assert.equal(r.localAppdataData, path.join("/home/sj", ".local", "share", "OrchestratorPipeline"));
 });
 
 test("D0-a: Linux respects XDG_CONFIG_HOME / XDG_DATA_HOME when set", () => {
@@ -140,8 +140,8 @@ test("D0-a: Linux respects XDG_CONFIG_HOME / XDG_DATA_HOME when set", () => {
     platform: "linux",
     homedir: "/home/sj",
   });
-  assert.equal(r.appdataConfig, path.join("/custom/xdg/config", "HarnessPipeline"));
-  assert.equal(r.localAppdataData, path.join("/custom/xdg/data", "HarnessPipeline"));
+  assert.equal(r.appdataConfig, path.join("/custom/xdg/config", "OrchestratorPipeline"));
+  assert.equal(r.localAppdataData, path.join("/custom/xdg/data", "OrchestratorPipeline"));
 });
 
 test("D0-a: unknown platform falls back to XDG layout", () => {
@@ -151,8 +151,8 @@ test("D0-a: unknown platform falls back to XDG layout", () => {
     platform: "freebsd",
     homedir: "/home/sj",
   });
-  assert.equal(r.appdataConfig, path.join("/home/sj", ".config", "HarnessPipeline"));
-  assert.equal(r.localAppdataData, path.join("/home/sj", ".local", "share", "HarnessPipeline"));
+  assert.equal(r.appdataConfig, path.join("/home/sj", ".config", "OrchestratorPipeline"));
+  assert.equal(r.localAppdataData, path.join("/home/sj", ".local", "share", "OrchestratorPipeline"));
 });
 
 // ── path components ────────────────────────────────────────────────
@@ -203,6 +203,6 @@ test("D0-a: versionInstallDir rejects empty / non-string version", () => {
 
 test("D0-a: APP_NAME exposed for caller-side path joins", () => {
   // Uninstall scripts and backup tooling may need APP_NAME directly
-  // (e.g. to find ~/.config/HarnessPipeline). Pin the export.
-  assert.equal(APP_NAME, "HarnessPipeline");
+  // (e.g. to find ~/.config/OrchestratorPipeline). Pin the export.
+  assert.equal(APP_NAME, "OrchestratorPipeline");
 });

@@ -1,4 +1,4 @@
-// Slice MA4 + MC3 (Phase D, 2026-04-27) — HarnessMonitorRunSummary.
+// Slice MA4 + MC3 (Phase D, 2026-04-27) — OrchestratorMonitorRunSummary.
 //
 // Centre-workspace panel: shows the currently-selected run's high-level
 // state (status, template, phase + index, started time). Re-renders on
@@ -23,7 +23,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessMonitorRunSummary = api;
+  if (typeof window !== "undefined") root.OrchestratorMonitorRunSummary = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
 
   function _statusClass(status) {
@@ -87,7 +87,7 @@
       throw new Error("runSummary.create: root must be an element");
     }
     if (!store || typeof store.subscribe !== "function" || typeof store.snapshot !== "function") {
-      throw new Error("runSummary.create: store must be a HarnessMonitorStore");
+      throw new Error("runSummary.create: store must be a OrchestratorMonitorStore");
     }
     const _doc = doc || (typeof document !== "undefined" ? document : null);
     if (!_doc || typeof _doc.createElement !== "function") {

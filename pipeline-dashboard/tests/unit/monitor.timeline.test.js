@@ -1,4 +1,4 @@
-// Slice MA5 (Phase D, 2026-04-27) — HarnessMonitorTimeline unit tests.
+// Slice MA5 (Phase D, 2026-04-27) — OrchestratorMonitorTimeline unit tests.
 //
 // Hand-rolled DOM stub. Exercises filter contract (focused run + global
 // passthrough), newest-first display cap, click/Enter/Space dispatch,
@@ -71,7 +71,7 @@ function makeStubElement(tag) {
 function makeDoc() { return { createElement: makeStubElement }; }
 
 function pushEnv(store, partial) {
-  // Push an envelope shaped the way HarnessMonitorNormalizer produces.
+  // Push an envelope shaped the way OrchestratorMonitorNormalizer produces.
   store.pushEvent(Object.assign(
     { type: "phase_update", runId: "default", ts: 1, scope: "phase", summary: "x", payload: {} },
     partial
@@ -284,7 +284,7 @@ test("create throws on bad inputs", () => {
   const store = createMonitorStore();
   const doc = makeDoc();
   assert.throws(() => create({ store, doc }), /root must be an element/);
-  assert.throws(() => create({ root: doc.createElement("div"), doc }), /store must be a HarnessMonitorStore/);
+  assert.throws(() => create({ root: doc.createElement("div"), doc }), /store must be a OrchestratorMonitorStore/);
   assert.throws(
     () => create({ root: doc.createElement("div"), store, doc: {} }),
     /no document available/

@@ -2,7 +2,7 @@
 //
 // Behaviour-preserving lift of the live-path subagent_started +
 // subagent_completed cases out of app.js's handleEvent switch.
-// Registers them as HarnessEventDispatcher.register entries so the
+// Registers them as OrchestratorEventDispatcher.register entries so the
 // legacy switch's fall-through never even sees them.
 //
 // This is the FIRST module to use the dispatcher.register extraction
@@ -11,20 +11,20 @@
 // touching the legacy switch in app.js.
 //
 // Replay-path subagent cases (in applyReplayEvent inside app.js)
-// remain in place because they go through HarnessSubagentTray.restore
+// remain in place because they go through OrchestratorSubagentTray.restore
 // instead of .start/.complete and never log. Replay events fire from
 // a different code path that the dispatcher doesn't intercept.
 
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessSubagentEvents = api;
+  if (typeof window !== "undefined") root.OrchestratorSubagentEvents = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
 
   /**
    * install({ dispatcher, subagentTray, addLog })
-   *   - dispatcher    : HarnessEventDispatcher (defaults to window global)
-   *   - subagentTray  : HarnessSubagentTray (defaults to window global)
+   *   - dispatcher    : OrchestratorEventDispatcher (defaults to window global)
+   *   - subagentTray  : OrchestratorSubagentTray (defaults to window global)
    *   - addLog(kind, message) : optional log writer (defaults to no-op)
    *
    * Returns { uninstall } so tests can clean up between cases.
@@ -35,7 +35,7 @@
     addLog = null,
   } = {}) {
     const _dispatcher = dispatcher
-      || (typeof globalThis !== "undefined" && globalThis.HarnessEventDispatcher);
+      || (typeof globalThis !== "undefined" && globalThis.OrchestratorEventDispatcher);
     if (!_dispatcher || typeof _dispatcher.register !== "function") {
       // No dispatcher — nothing to register. install() becomes a no-op
       // so app.js init doesn't crash in environments without the
@@ -43,7 +43,7 @@
       return { uninstall: () => {} };
     }
     const _tray = subagentTray
-      || (typeof globalThis !== "undefined" ? globalThis.HarnessSubagentTray : null);
+      || (typeof globalThis !== "undefined" ? globalThis.OrchestratorSubagentTray : null);
     const _log = typeof addLog === "function" ? addLog : (() => {});
 
     function _shortId(id) {

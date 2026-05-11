@@ -44,9 +44,9 @@ function buildHandler({ hash, panels = {}, toggleCompactMode = () => {} }) {
   // Build a window stub with the requested hash + optional panel modules.
   const win = {
     location: { hash: String(hash || "") },
-    HarnessAnalyticsPanel: panels.analytics || null,
-    HarnessRunHistory: panels.runHistory || null,
-    HarnessTemplateEditor: panels.templateEditor || null,
+    OrchestratorAnalyticsPanel: panels.analytics || null,
+    OrchestratorRunHistory: panels.runHistory || null,
+    OrchestratorTemplateEditor: panels.templateEditor || null,
   };
   // Construct a closure that exposes the function and runs it once.
   // The function body references `window` + `toggleCompactMode` — both

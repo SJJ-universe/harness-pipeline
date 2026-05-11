@@ -46,10 +46,10 @@ test("horse rein animation has rear-leg pivot and upward lift", () => {
 });
 
 // Slice K (v5): ws-client extracted out of app.js. The app must route
-// through window.HarnessWsClient and the script tag must load before app.js.
-test("app.js delegates the main pipeline WebSocket to HarnessWsClient", () => {
-  assert.match(app, /window\.HarnessWsClient/);
-  assert.match(app, /HarnessWsClient\.install\(/);
+// through window.OrchestratorWsClient and the script tag must load before app.js.
+test("app.js delegates the main pipeline WebSocket to OrchestratorWsClient", () => {
+  assert.match(app, /window\.OrchestratorWsClient/);
+  assert.match(app, /OrchestratorWsClient\.install\(/);
   // The pipeline-WS inline constructor is gone — regex is narrow enough to
   // ignore the separate terminal WebSocket (URL ends with /terminal?token=).
   assert.ok(!/new WebSocket\(`\$\{protocol\}\/\/\$\{location\.host\}`\)/.test(app),
@@ -58,7 +58,7 @@ test("app.js delegates the main pipeline WebSocket to HarnessWsClient", () => {
 
 test("ws-client.js script tag loads before app.js in legacy index.html", () => {
   // Legacy view: ws-client must precede app.js (app.js calls
-  // window.HarnessWsClient.install). Product shell doesn't load app.js
+  // window.OrchestratorWsClient.install). Product shell doesn't load app.js
   // so this ordering check applies only to the legacy shell.
   const posWs = index.indexOf("js/ws-client.js");
   const posApp = index.indexOf("app.js\"></script>");
@@ -67,19 +67,19 @@ test("ws-client.js script tag loads before app.js in legacy index.html", () => {
 });
 
 // Slice R (v6): event dispatcher registry must be loaded before app.js so
-// handleEvent's `window.HarnessEventDispatcher.dispatch()` call works.
+// handleEvent's `window.OrchestratorEventDispatcher.dispatch()` call works.
 test("event-dispatcher.js loads before app.js in legacy; handleEvent checks registry first", () => {
   const posEd = index.indexOf("js/event-dispatcher.js");
   const posApp = index.indexOf("app.js\"></script>");
   assert.ok(posEd > 0, "event-dispatcher.js script tag missing in legacy");
   assert.ok(posEd < posApp, "event-dispatcher.js must load before app.js in legacy");
-  assert.match(app, /window\.HarnessEventDispatcher\.dispatch\(event\)/,
+  assert.match(app, /window\.OrchestratorEventDispatcher\.dispatch\(event\)/,
     "handleEvent must consult the dispatcher before falling through to switch");
 });
 
 // UI-P1 contract: product shell must load shared runtime modules before
-// product-shell-init.js (which boots the shell + needs HarnessProductShell,
-// HarnessMonitorStore, HarnessMonitorLegacyBridge etc. to be defined).
+// product-shell-init.js (which boots the shell + needs OrchestratorProductShell,
+// OrchestratorMonitorStore, OrchestratorMonitorLegacyBridge etc. to be defined).
 test("product index.html loads core modules + panels before product-shell-init.js", () => {
   const posStore = indexProduct.indexOf("js/monitor/store.js");
   const posShell = indexProduct.indexOf("js/monitor/shells/product-shell.js");
@@ -116,10 +116,10 @@ test("product index.html loads event-dispatcher.js BEFORE legacy-bridge.js + bef
     "event-dispatcher.js must load BEFORE product-shell-init.js (init's WS client calls .dispatch)");
 });
 
-test("product shell runtime installs HarnessWsClient + forwards events to EventDispatcher.dispatch", () => {
+test("product shell runtime installs OrchestratorWsClient + forwards events to EventDispatcher.dispatch", () => {
   assert.match(productShellInit, /function _installWsClient\(store\)/);
-  assert.match(productShellInit, /HarnessWsClient\.install\(/);
-  assert.match(productShellInit, /HarnessEventDispatcher\.dispatch\(event\)/);
+  assert.match(productShellInit, /OrchestratorWsClient\.install\(/);
+  assert.match(productShellInit, /OrchestratorEventDispatcher\.dispatch\(event\)/);
   // Toast adapters for connection-state transitions are wired so
   // operators see when the live event stream drops or recovers.
   assert.match(productShellInit, /onReconnected/);

@@ -77,7 +77,7 @@ const path = require("node:path");
 // HARNESS_ALLOW_PLAINTEXT_SECRETS opt-in flag.
 const { resolveDeploymentProfile } = require("../policy/deploymentProfile");
 
-const APP_NAME = "HarnessPipeline";
+const APP_NAME = "OrchestratorPipeline";
 
 // ── keytar lazy-load ────────────────────────────────────────────────
 //

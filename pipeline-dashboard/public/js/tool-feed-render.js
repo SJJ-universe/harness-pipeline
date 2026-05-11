@@ -20,7 +20,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessToolFeedRender = api;
+  if (typeof window !== "undefined") root.OrchestratorToolFeedRender = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
 
   function install({
@@ -31,9 +31,9 @@
     const _formatHMS = typeof formatHMS === "function"
       ? formatHMS
       : (typeof globalThis !== "undefined"
-          && globalThis.HarnessFormatters
-          && typeof globalThis.HarnessFormatters.formatHMS === "function"
-          ? globalThis.HarnessFormatters.formatHMS
+          && globalThis.OrchestratorFormatters
+          && typeof globalThis.OrchestratorFormatters.formatHMS === "function"
+          ? globalThis.OrchestratorFormatters.formatHMS
           : (ts) => new Date(ts).toISOString());
 
     function _div(className, textContent) {

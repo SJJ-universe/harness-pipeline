@@ -18,12 +18,12 @@
   if (typeof window !== "undefined") {
     // The installed singleton is exposed to app.js for wiring the open/close
     // buttons and the post-complete auto-save hook.
-    root.HarnessRunHistory = api.install({
+    root.OrchestratorRunHistory = api.install({
       win: window,
       doc: document,
       storage: window.localStorage,
     });
-    root.HarnessRunHistory.RunHistoryStore = api.RunHistoryStore;
+    root.OrchestratorRunHistory.RunHistoryStore = api.RunHistoryStore;
   }
 })(typeof window !== "undefined" ? window : globalThis, function () {
   const STORAGE_KEY = "harness:runHistory:v1";
@@ -134,8 +134,8 @@
 
     function _toast(opts) {
       try {
-        if (win && win.HarnessToast && typeof win.HarnessToast.show === "function") {
-          return win.HarnessToast.show(opts);
+        if (win && win.OrchestratorToast && typeof win.OrchestratorToast.show === "function") {
+          return win.OrchestratorToast.show(opts);
         }
       } catch (_) {}
     }

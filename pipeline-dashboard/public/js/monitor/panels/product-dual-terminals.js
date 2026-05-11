@@ -40,7 +40,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessProductDualTerminals = api;
+  if (typeof window !== "undefined") root.OrchestratorProductDualTerminals = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
 
   const TABS_LEFT = Object.freeze([
@@ -100,7 +100,7 @@
 
   // UI-P6: state labels mirror dual-agent-console for consistency.
   // UI-P7: each entry now carries an i18n key + Korean fallback. The
-  // create() closure builds a t() helper from window.HarnessI18n (or
+  // create() closure builds a t() helper from window.OrchestratorI18n (or
   // an injected stub for tests) and looks up keys at render time.
   const STATE_LABELS = Object.freeze({
     created:           { key: "prod.terminals.state.created",           fallback: "준비됨" },
@@ -497,24 +497,24 @@
 
   function create(opts) {
     if (!opts || typeof opts !== "object") {
-      throw new Error("HarnessProductDualTerminals.create: opts required");
+      throw new Error("OrchestratorProductDualTerminals.create: opts required");
     }
     const root = opts.root;
     const _doc = opts.doc || (typeof document !== "undefined" ? document : null);
-    if (!root || !_doc) throw new Error("HarnessProductDualTerminals.create: root + doc required");
+    if (!root || !_doc) throw new Error("OrchestratorProductDualTerminals.create: root + doc required");
 
     const store = opts.store || null;
     const client = opts.client || null;
     const allowMockData = opts.allowMockData !== false;
     const selectors = opts.dataSelectors
-      || (typeof window !== "undefined" && window.HarnessProductShellData)
+      || (typeof window !== "undefined" && window.OrchestratorProductShellData)
       || null;
     // UI-P7: i18n integration. Tests inject opts.i18n or omit it
     // entirely (returns Korean fallbacks); browser auto-resolves
-    // window.HarnessI18n. _t() returns the translation when valid,
+    // window.OrchestratorI18n. _t() returns the translation when valid,
     // the fallback otherwise.
     let i18n = opts.i18n
-      || (typeof window !== "undefined" && window.HarnessI18n)
+      || (typeof window !== "undefined" && window.OrchestratorI18n)
       || null;
     function _t(key, fallback) {
       if (i18n && typeof i18n.t === "function") {
@@ -760,16 +760,16 @@
       setMode: function () { /* mode is CSS-driven only */ },
       // UI-P7: locale propagation. Triggers a fresh action-row render
       // so labels/titles + posture badge pick up the new translations
-      // (HarnessI18n.setLang already updated the table). The two
+      // (OrchestratorI18n.setLang already updated the table). The two
       // terminal bodies (left/right) are mock or live stream content
       // — neither needs locale, but rerender keeps caret + tabs in
       // sync with any DOM mutation that happened during the swap.
       setLocale: function (l) {
         const next = (l === "en") ? "en" : "ko";
-        // refresh i18n reference in case window.HarnessI18n was lazily
+        // refresh i18n reference in case window.OrchestratorI18n was lazily
         // loaded after create() — defensive, harmless when stub.
-        if (!opts.i18n && typeof window !== "undefined" && window.HarnessI18n) {
-          i18n = window.HarnessI18n;
+        if (!opts.i18n && typeof window !== "undefined" && window.OrchestratorI18n) {
+          i18n = window.OrchestratorI18n;
         }
         try { wrap.setAttribute("aria-label", _t("prod.aria.dualTerminals", "듀얼 터미널 (Claude / Codex 스트림)")); } catch (_) {}
         // Re-render action row + terminal bodies (cheap rebuild).

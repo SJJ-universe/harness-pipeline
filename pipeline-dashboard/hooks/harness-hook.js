@@ -21,7 +21,7 @@ const HOST = process.env.HARNESS_HOST || "127.0.0.1";
 const PORT = parseInt(process.env.HARNESS_PORT || "4201", 10);
 const HARNESS_ROOT = process.env.HARNESS_ROOT || path.resolve(__dirname, "..", "..");
 
-function readHarnessToken() {
+function readOrchestratorToken() {
   if (process.env.HARNESS_TOKEN) return process.env.HARNESS_TOKEN;
   try {
     return fs.readFileSync(path.join(HARNESS_ROOT, ".harness", "local-token"), "utf-8").trim();
@@ -77,7 +77,7 @@ process.stdin.on("end", () => {
         headers: {
           "content-type": "application/json",
           "content-length": Buffer.byteLength(body),
-          "x-harness-token": readHarnessToken(),
+          "x-harness-token": readOrchestratorToken(),
         },
         timeout: 2000,
       },
@@ -108,7 +108,7 @@ process.stdin.on("end", () => {
       headers: {
         "content-type": "application/json",
         "content-length": Buffer.byteLength(body),
-        "x-harness-token": readHarnessToken(),
+        "x-harness-token": readOrchestratorToken(),
       },
       timeout: TIMEOUT_MS,
     },

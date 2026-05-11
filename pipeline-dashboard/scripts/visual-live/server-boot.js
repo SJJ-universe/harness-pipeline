@@ -37,7 +37,7 @@ async function _waitForHealth(base, timeoutMs, pollMs) {
       const res = await fetch(`${base}/api/health`);
       if (res.ok) {
         const body = await res.json().catch(() => null);
-        if (body && body.app === "HarnessPipeline") {
+        if (body && body.app === "OrchestratorPipeline") {
           return { ok: true, elapsedMs: Date.now() - started };
         }
       }

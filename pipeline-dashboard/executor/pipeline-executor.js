@@ -206,7 +206,7 @@ class PipelineExecutor {
       return {
         suppressOutput: false,
         message:
-          `[SJ 하네스 엔진] Phase ${phase.id} (${phase.name}) 시작\n` +
+          `[SJ 오케스트레이터] Phase ${phase.id} (${phase.name}) 시작\n` +
           `허용 도구: ${tools || "제한 없음"}\n` +
           `완료 조건: ${criteria || "없음"}\n` +
           `조건을 충족한 후 턴을 종료하면 다음 Phase로 진행됩니다.`,
@@ -231,7 +231,7 @@ class PipelineExecutor {
     return {
       suppressOutput: false,
       message:
-        `[SJ 하네스 엔진] ${kindLabel}\n\n` +
+        `[SJ 오케스트레이터] ${kindLabel}\n\n` +
         `원래 작업: "${originalPrompt || "(unknown)"}"\n` +
         `현재 Phase: ${phase.id} (${phase.name})\n\n` +
         `진행 단계:\n${completedList}\n` +
@@ -321,7 +321,7 @@ class PipelineExecutor {
         ? "파일을 수정하려면 Edit 대신 Write로 전체 내용을 다시 작성하세요.\n"
         : "";
       const reason =
-        `[SJ 하네스] Phase ${phase.id} (${phase.name})에서 ${tool}은(는) 사용할 수 없습니다.\n` +
+        `[SJ 오케스트레이터] Phase ${phase.id} (${phase.name})에서 ${tool}은(는) 사용할 수 없습니다.\n` +
         `현재 허용: ${allowed.join(", ")}\n` +
         `${altHint}` +
         `${nextInfo}\n` +
@@ -900,7 +900,7 @@ class PipelineExecutor {
       ? `Codex phase 완료 조건 미충족 — 다음 반복에서 재검증합니다.`
       : `위 조건을 충족한 후 다시 턴을 종료하세요.`;
     const reason =
-      `[SJ 하네스] Phase ${phase.id} (${phase.name}) 완료 조건 미충족\n` +
+      `[SJ 오케스트레이터] Phase ${phase.id} (${phase.name}) 완료 조건 미충족\n` +
       `미충족 조건: ${gateResult.missing.join("; ")}\n` +
       `허용 도구: ${tools || "제한 없음"}\n` +
       `${suffix} (시도 ${this.active.gateRetries}/${MAX_GATE_RETRIES})`;

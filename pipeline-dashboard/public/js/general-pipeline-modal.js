@@ -16,7 +16,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessGeneralPipelineModal = api;
+  if (typeof window !== "undefined") root.OrchestratorGeneralPipelineModal = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
 
   function install({
@@ -35,7 +35,7 @@
     // product mode there is no `app.js` doing the `_b("#btn-gr-start",
     // submitGeneralRun)` wiring. `mountTarget` is the parent (defaults
     // to `_doc.body`); `installFocusTrap` is the trap factory (defaults
-    // to `window.HarnessFocusTrap?.trap` if available).
+    // to `window.OrchestratorFocusTrap?.trap` if available).
     mountTarget = null,
     installFocusTrap = null,
   } = {}) {
@@ -49,9 +49,9 @@
     const _trap = (typeof installFocusTrap === "function")
       ? installFocusTrap
       : ((typeof window !== "undefined"
-          && window.HarnessFocusTrap
-          && typeof window.HarnessFocusTrap.trap === "function")
-            ? window.HarnessFocusTrap.trap
+          && window.OrchestratorFocusTrap
+          && typeof window.OrchestratorFocusTrap.trap === "function")
+            ? window.OrchestratorFocusTrap.trap
             : null);
 
     // Tracks the active focus-trap release fn between open() and close().

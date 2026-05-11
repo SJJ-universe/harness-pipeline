@@ -1,7 +1,7 @@
 // Slice UI-P1-g (Phase 2 Round 3, 2026-04-30) — product shell init.
 //
 // Boot script for the product shell. Loaded last by index.html so all
-// other modules (HarnessMonitorStore, HarnessProductShell, panel
+// other modules (OrchestratorMonitorStore, OrchestratorProductShell, panel
 // factories) are available on `window`.
 //
 // Mode resolution priority (per §S sign-off decision 1):
@@ -56,14 +56,14 @@
     } catch (_) { return false; }
   }
 
-  // UI-P7: locale resolution defers to HarnessI18n which already owns
+  // UI-P7: locale resolution defers to OrchestratorI18n which already owns
   // the localStorage key (`harness:lang`) and the supported set
   // (`["ko", "en"]`). Falling back to "ko" matches the i18n module's
   // own DEFAULT.
   function _resolveLocale() {
     try {
-      if (window.HarnessI18n && typeof window.HarnessI18n.getLang === "function") {
-        const lg = window.HarnessI18n.getLang();
+      if (window.OrchestratorI18n && typeof window.OrchestratorI18n.getLang === "function") {
+        const lg = window.OrchestratorI18n.getLang();
         if (lg === "ko" || lg === "en") return lg;
       }
     } catch (_) { /* defensive */ }
@@ -84,22 +84,22 @@
     // at page load so the next bug-report screenshot pinpoints the
     // failure in one read.
     console.log("[product-shell] _installWsClient ENTRY", {
-      hasWsClient: !!(window.HarnessWsClient
-        && typeof window.HarnessWsClient.install === "function"),
-      hasDispatcher: !!(window.HarnessEventDispatcher
-        && typeof window.HarnessEventDispatcher.dispatch === "function"),
+      hasWsClient: !!(window.OrchestratorWsClient
+        && typeof window.OrchestratorWsClient.install === "function"),
+      hasDispatcher: !!(window.OrchestratorEventDispatcher
+        && typeof window.OrchestratorEventDispatcher.dispatch === "function"),
       hasWebSocketCtor: typeof WebSocket,
       locationProtocol: window.location && window.location.protocol,
       locationHost: window.location && window.location.host,
     });
-    if (!window.HarnessWsClient || typeof window.HarnessWsClient.install !== "function") {
-      console.warn("[product-shell] HarnessWsClient missing — live events will not flow. Check js/ws-client.js loaded.");
+    if (!window.OrchestratorWsClient || typeof window.OrchestratorWsClient.install !== "function") {
+      console.warn("[product-shell] OrchestratorWsClient missing — live events will not flow. Check js/ws-client.js loaded.");
       return null;
     }
-    if (!window.HarnessEventDispatcher
-        || typeof window.HarnessEventDispatcher.dispatch !== "function") {
+    if (!window.OrchestratorEventDispatcher
+        || typeof window.OrchestratorEventDispatcher.dispatch !== "function") {
       console.warn(
-        "[product-shell] HarnessEventDispatcher missing — bridge tap will not fire; "
+        "[product-shell] OrchestratorEventDispatcher missing — bridge tap will not fire; "
         + "check that event-dispatcher.js loads before product-shell-init.js",
       );
       return null;
@@ -107,14 +107,14 @@
     const protocol = (window.location && window.location.protocol === "https:") ? "wss:" : "ws:";
     const host = (window.location && window.location.host) || "127.0.0.1:4201";
     function _toast(payload) {
-      if (window.HarnessToast && typeof window.HarnessToast.show === "function") {
-        try { window.HarnessToast.show(payload); } catch (_) { /* defensive */ }
+      if (window.OrchestratorToast && typeof window.OrchestratorToast.show === "function") {
+        try { window.OrchestratorToast.show(payload); } catch (_) { /* defensive */ }
       }
     }
     const wsUrl = protocol + "//" + host;
-    console.log("[product-shell] calling HarnessWsClient.install", { url: wsUrl });
+    console.log("[product-shell] calling OrchestratorWsClient.install", { url: wsUrl });
     try {
-      const client = window.HarnessWsClient.install({
+      const client = window.OrchestratorWsClient.install({
         url: wsUrl,
         onEvent: function (event) {
           // First few events are the most diagnostic — log the type so
@@ -142,13 +142,13 @@
           // Comment in event-dispatcher.js line 25-26 documents the
           // contract: "notifyTaps(event) → invoked by app.js handleEvent
           // for every event, in addition to dispatch()."
-          try { window.HarnessEventDispatcher.dispatch(event); }
+          try { window.OrchestratorEventDispatcher.dispatch(event); }
           catch (err) {
             console.warn("[product-shell] dispatch failed for event:",
               event && event.type, err && err.message ? err.message : err);
           }
-          if (typeof window.HarnessEventDispatcher.notifyTaps === "function") {
-            try { window.HarnessEventDispatcher.notifyTaps(event); }
+          if (typeof window.OrchestratorEventDispatcher.notifyTaps === "function") {
+            try { window.OrchestratorEventDispatcher.notifyTaps(event); }
             catch (err) {
               console.warn("[product-shell] notifyTaps failed for event:",
                 event && event.type, err && err.message ? err.message : err);
@@ -180,7 +180,7 @@
           }
         },
       });
-      console.log("[product-shell] HarnessWsClient.install returned", {
+      console.log("[product-shell] OrchestratorWsClient.install returned", {
         hasClient: !!client,
         isConnectedNow: client && typeof client.isConnected === "function" ? client.isConnected() : "n/a",
       });
@@ -196,8 +196,8 @@
   }
 
   function _hydrateInitialStore(store) {
-    const hydrator = window.HarnessMonitorHydrate;
-    const normalizer = window.HarnessMonitorNormalizer;
+    const hydrator = window.OrchestratorMonitorHydrate;
+    const normalizer = window.OrchestratorMonitorNormalizer;
     if (!hydrator || typeof hydrator.hydrateMonitorStore !== "function") return;
     if (!normalizer || typeof normalizer.normalize !== "function") return;
 
@@ -227,38 +227,38 @@
       console.error("[product-shell] #product-shell-root not found");
       return;
     }
-    if (typeof window.HarnessProductShell === "undefined") {
-      console.error("[product-shell] HarnessProductShell module missing");
+    if (typeof window.OrchestratorProductShell === "undefined") {
+      console.error("[product-shell] OrchestratorProductShell module missing");
       return;
     }
-    if (typeof window.HarnessMonitorStore === "undefined") {
-      console.error("[product-shell] HarnessMonitorStore module missing");
+    if (typeof window.OrchestratorMonitorStore === "undefined") {
+      console.error("[product-shell] OrchestratorMonitorStore module missing");
       return;
     }
 
     const mode = _resolveMode();
     const locale = _resolveLocale();
     const demoMode = _resolveDemoMode();
-    const store = window.HarnessMonitorStore.createMonitorStore();
+    const store = window.OrchestratorMonitorStore.createMonitorStore();
 
     // UI-P6: instantiate the review-relay client when the script is
     // loaded. The client is a thin wrapper over /api/review-sessions/*
     // — methods like createSession/sendToCodex are bound functions, NOT
     // a class instance, so we just expose the module's namespace.
-    const reviewClient = (typeof window.HarnessReviewSessionClient === "object")
-      ? window.HarnessReviewSessionClient
+    const reviewClient = (typeof window.OrchestratorReviewSessionClient === "object")
+      ? window.OrchestratorReviewSessionClient
       : null;
 
     // PRODUCT-SHELL-WIRING: build the action handler map from
-    // window.HarnessShellActions (loaded by index.html before this
+    // window.OrchestratorShellActions (loaded by index.html before this
     // init script). Each handler receives env defaults plus an
     // optional per-call payload from the dispatcher. The default
     // env supplies window/document/fetch/confirm + a toast adapter
-    // that wraps window.HarnessToast.show. Tests inject their own
-    // actionHandlers via window.HarnessProductShell.mount opts.
+    // that wraps window.OrchestratorToast.show. Tests inject their own
+    // actionHandlers via window.OrchestratorProductShell.mount opts.
     function _toastAdapter(payload) {
-      if (window.HarnessToast && typeof window.HarnessToast.show === "function") {
-        try { window.HarnessToast.show(payload); } catch (_) {}
+      if (window.OrchestratorToast && typeof window.OrchestratorToast.show === "function") {
+        try { window.OrchestratorToast.show(payload); } catch (_) {}
       }
     }
     // PRODUCT-SHELL-WIRING: when the lazy-DOM modal submits a task,
@@ -267,9 +267,9 @@
     // entry; product shell has no log panel). Bridge addLog → toast
     // so the operator sees a confirmation when the run kicks off.
     function _addLogAdapter(_kind, message) {
-      if (window.HarnessToast && typeof window.HarnessToast.show === "function") {
+      if (window.OrchestratorToast && typeof window.OrchestratorToast.show === "function") {
         try {
-          window.HarnessToast.show({
+          window.OrchestratorToast.show({
             kind: "info",
             message: message,
             duration: 3500,
@@ -277,9 +277,9 @@
         } catch (_) { /* defensive */ }
       }
     }
-    const actionHandlers = (window.HarnessShellActions
-        && typeof window.HarnessShellActions.createDefaultHandlers === "function")
-      ? window.HarnessShellActions.createDefaultHandlers({
+    const actionHandlers = (window.OrchestratorShellActions
+        && typeof window.OrchestratorShellActions.createDefaultHandlers === "function")
+      ? window.OrchestratorShellActions.createDefaultHandlers({
           win: window,
           doc: document,
           fetchImpl: (typeof fetch === "function") ? fetch : null,
@@ -291,7 +291,7 @@
 
     let handle;
     try {
-      handle = window.HarnessProductShell.mount({
+      handle = window.OrchestratorProductShell.mount({
         root: rootEl,
         store: store,
         mode: mode,
@@ -314,13 +314,13 @@
           _persistMode(next);
         },
         // UI-P7: locale toggle in the header → shell.setLocale → here.
-        // We delegate persistence to HarnessI18n.setLang which writes
+        // We delegate persistence to OrchestratorI18n.setLang which writes
         // `harness:lang` localStorage and dispatches the lang-changed
         // CustomEvent that legacy panels also listen on.
         onLocaleChange: function (next) {
           try {
-            if (window.HarnessI18n && typeof window.HarnessI18n.setLang === "function") {
-              window.HarnessI18n.setLang(next, { persist: true, applyNow: true });
+            if (window.OrchestratorI18n && typeof window.OrchestratorI18n.setLang === "function") {
+              window.OrchestratorI18n.setLang(next, { persist: true, applyNow: true });
             }
           } catch (err) {
             console.warn("[product-shell] setLang failed:",
@@ -333,8 +333,8 @@
           console.warn("[product-shell] panel error:",
             err && err.message ? err.message : err);
           try {
-            if (window.HarnessToast && typeof window.HarnessToast.show === "function") {
-              window.HarnessToast.show({
+            if (window.OrchestratorToast && typeof window.OrchestratorToast.show === "function") {
+              window.OrchestratorToast.show({
                 kind: "error",
                 message: (err && err.message)
                   ? "Review relay 오류: " + err.message
@@ -354,17 +354,17 @@
     // run-summary / approval / review-session sync; UI-P1 just wires
     // the basic event tap so the status pill can react to live runs.
     try {
-      if (window.HarnessMonitorLegacyBridge
-          && typeof window.HarnessMonitorLegacyBridge.install === "function") {
-        // The bridge subscribes to HarnessEventDispatcher via addTap
+      if (window.OrchestratorMonitorLegacyBridge
+          && typeof window.OrchestratorMonitorLegacyBridge.install === "function") {
+        // The bridge subscribes to OrchestratorEventDispatcher via addTap
         // — it needs the dispatcher to be loaded AND fed by the WS
         // client (see _installWsClient below). install() returns a
         // handle whose destroy() unhooks both the tap and the
         // /api/server/info polling interval.
-        window.HarnessMonitorLegacyBridge.install({
+        window.OrchestratorMonitorLegacyBridge.install({
           store: store,
-          normalize: window.HarnessMonitorNormalizer
-            && window.HarnessMonitorNormalizer.normalize,
+          normalize: window.OrchestratorMonitorNormalizer
+            && window.OrchestratorMonitorNormalizer.normalize,
         });
       }
     } catch (err) {
@@ -372,7 +372,7 @@
     }
 
     // PRODUCT-SHELL-WIRING (rc.5 prep, 2026-05-06): install the WS
-    // client so server events flow → HarnessEventDispatcher.dispatch
+    // client so server events flow → OrchestratorEventDispatcher.dispatch
     // → legacy-bridge tap → store.pushEvent → panel re-render.
     //
     // Pre-rc.5 the product shell mounted the bridge but had nobody
@@ -406,7 +406,7 @@
 
     // Expose for tests + the eventual settings-accounts modal that
     // needs a handle to the running shell.
-    window.__HarnessProductShell = {
+    window.__OrchestratorProductShell = {
       handle: handle,
       store: store,
       mode: mode,

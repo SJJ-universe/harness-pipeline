@@ -9,7 +9,7 @@
 // Real-world drift scenario:
 //   ko:  "하드 게이트: {mode}"
 //   en:  "Hard gates: {m}"           ← typo
-// At runtime HarnessI18n.t("...", { mode: "hard" }) substitutes
+// At runtime OrchestratorI18n.t("...", { mode: "hard" }) substitutes
 // correctly in ko (returns "하드 게이트: hard") but leaves the
 // literal "{m}" in en (returns "Hard gates: {m}"). Operators on
 // English see broken UI; operators on Korean see correct UI; the
@@ -41,7 +41,7 @@ const ko = require("../../public/js/i18n/ko");
 const en = require("../../public/js/i18n/en");
 
 // Extract placeholder names from a template value. The harness's
-// HarnessI18n.t() interpolation regex is /\{(\w+)\}/g — this MUST
+// OrchestratorI18n.t() interpolation regex is /\{(\w+)\}/g — this MUST
 // match that semantics or the test will give false confidence.
 const PLACEHOLDER_RE = /\{(\w+)\}/g;
 
@@ -140,7 +140,7 @@ test("I18N-PARITY-1-a: no key contains a 'looks like placeholder but isn't' patt
       `→ suspicious: ${JSON.stringify(v.suspicious)}`);
     assert.fail(
       `${violations.length} value(s) contain brace patterns that look like ` +
-      `placeholders but won't be substituted by HarnessI18n.t() ` +
+      `placeholders but won't be substituted by OrchestratorI18n.t() ` +
       `(must match /\\{(\\w+)\\}/ — letters/digits/underscore only):\n${lines.join("\n")}`,
     );
   }
@@ -219,8 +219,8 @@ test("I18N-PARITY-1-a: no key value has leading/trailing whitespace", () => {
     "leading/trailing whitespace in i18n values — trim them");
 });
 
-test("I18N-PARITY-1-a: anchor — extractPlaceholders matches HarnessI18n.t regex", () => {
-  // Belt-and-suspenders: if HarnessI18n.t() ever changes its
+test("I18N-PARITY-1-a: anchor — extractPlaceholders matches OrchestratorI18n.t regex", () => {
+  // Belt-and-suspenders: if OrchestratorI18n.t() ever changes its
   // interpolation regex, this test must update too. Today both
   // use /\{(\w+)\}/g — keep them in sync.
   assert.deepEqual(

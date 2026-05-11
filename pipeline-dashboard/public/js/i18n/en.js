@@ -7,7 +7,7 @@
 (function (root) {
   const table = {
     // ── Header / chrome ─────────────────────────────────────────────
-    "header.title": "SJ Harness Engine",
+    "header.title": "SJ Orchestrator",
     "status.idle": "Idle",
     "server.status.title": "Server status",
     "server.label.checking": "Server: checking",
@@ -110,7 +110,7 @@
     "prod.indicator.codex.ready":         "Codex READY",
     "prod.indicator.codex.authNeeded":    "Codex auth needed",
     "prod.indicator.codex.notInstalled":  "Codex not installed",
-    "prod.aria.header":             "SJ Harness header (status · mode · actions)",
+    "prod.aria.header":             "SJ Orchestrator header (status · mode · actions)",
     "prod.aria.statusPill":         "Run status",
     "prod.aria.modeToggle":         "User mode toggle",
     "prod.aria.localeToggle":       "Language toggle",

@@ -1,4 +1,4 @@
-// Slice MA4 (Phase D, 2026-04-27) — HarnessMonitorRunTree unit tests.
+// Slice MA4 (Phase D, 2026-04-27) — OrchestratorMonitorRunTree unit tests.
 //
 // Hand-rolled DOM stub (matches global-bar / focus-trap pattern). Only
 // the surface the panel actually touches is implemented; that keeps the
@@ -258,7 +258,7 @@ test("create throws on bad inputs", () => {
   const store = createMonitorStore();
   const doc = makeDoc();
   assert.throws(() => create({ store, doc }), /root must be an element/);
-  assert.throws(() => create({ root: doc.createElement("div"), doc }), /store must be a HarnessMonitorStore/);
+  assert.throws(() => create({ root: doc.createElement("div"), doc }), /store must be a OrchestratorMonitorStore/);
   assert.throws(
     () => create({ root: doc.createElement("div"), store, doc: {} }),
     /no document available/

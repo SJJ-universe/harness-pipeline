@@ -20,7 +20,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessMonitorMode = api;
+  if (typeof window !== "undefined") root.OrchestratorMonitorMode = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
 
   /**

@@ -96,11 +96,11 @@ test("focus-trap and keybindings scripts load before the panels that use them", 
   );
 });
 
-test("app.js wraps panels with HarnessFocusTrap and registers keybindings", () => {
+test("app.js wraps panels with OrchestratorFocusTrap and registers keybindings", () => {
   const app = fs.readFileSync(path.join(root, "public", "app.js"), "utf-8");
-  assert.match(app, /HarnessFocusTrap\.trap/);
-  assert.match(app, /HarnessKeybindings\.install/);
-  assert.match(app, /HarnessKeybindings\.register/);
+  assert.match(app, /OrchestratorFocusTrap\.trap/);
+  assert.match(app, /OrchestratorKeybindings\.install/);
+  assert.match(app, /OrchestratorKeybindings\.register/);
   assert.match(app, /"g t"/);
   assert.match(app, /"g h"/);
   assert.match(app, /"g m"/);

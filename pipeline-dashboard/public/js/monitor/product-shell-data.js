@@ -1,6 +1,6 @@
 // Slice UI-P5-a (Phase 2 Round 3, 2026-04-30) — product-shell data selectors.
 //
-// Pure selector functions that adapt the HarnessMonitorStore snapshot
+// Pure selector functions that adapt the OrchestratorMonitorStore snapshot
 // into the data shapes each product-shell panel renders. Every selector
 // returns either the real value (when the store has it) or `null`, so
 // each panel can fall back to its UI-P4 mock when no live data exists.
@@ -19,7 +19,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessProductShellData = api;
+  if (typeof window !== "undefined") root.OrchestratorProductShellData = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
 
   // ── Run selection ────────────────────────────────────────────────

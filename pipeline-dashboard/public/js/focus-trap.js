@@ -1,7 +1,7 @@
 // Slice H (v5) — Focus trap for modal dialogs.
 //
 // UMD module following the toast.js / run-history.js convention so tests can
-// require() it directly and the browser auto-assigns window.HarnessFocusTrap.
+// require() it directly and the browser auto-assigns window.OrchestratorFocusTrap.
 //
 // The `trap()` function:
 //   - Cycles Tab / Shift+Tab within `container` so focus can't leave the modal.
@@ -19,7 +19,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessFocusTrap = api;
+  if (typeof window !== "undefined") root.OrchestratorFocusTrap = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
   const FOCUSABLE_SELECTOR = [
     "a[href]",

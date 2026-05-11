@@ -1,4 +1,4 @@
-// Slice I (v5) — HarnessI18n pure-logic + applyDom() unit tests.
+// Slice I (v5) — OrchestratorI18n pure-logic + applyDom() unit tests.
 
 const test = require("node:test");
 const assert = require("node:assert/strict");

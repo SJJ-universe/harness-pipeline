@@ -1,11 +1,11 @@
-// HarnessApi — shared HTTP plumbing for the dashboard frontend.
+// OrchestratorApi — shared HTTP plumbing for the dashboard frontend.
 //
 // Responsibilities:
 //   1. Fetch the per-session harness auth token once (cached in window.HARNESS_TOKEN).
 //   2. Attach `x-harness-token` to every state-changing /api/* request.
 //   3. Slice C (v4): surface HTTP 500+ and network-level failures as toasts
 //      with a "재시도" action, instead of failing silently. Same-message
-//      toasts dedup via HarnessToast's counter so retry loops don't stack up.
+//      toasts dedup via OrchestratorToast's counter so retry loops don't stack up.
 
 (function () {
   const originalFetch = window.fetch.bind(window);
@@ -38,13 +38,13 @@
   }
 
   // Slice C (v4): the toast system loads as a separate <script> so we can't
-  // assume HarnessToast is ready the instant this IIFE runs. We late-resolve
+  // assume OrchestratorToast is ready the instant this IIFE runs. We late-resolve
   // per call and degrade to a console.warn if no toast surface is mounted
   // (e.g. in tests that load api-client directly).
   function _showFailToast(opts) {
     try {
-      if (window.HarnessToast && typeof window.HarnessToast.show === "function") {
-        window.HarnessToast.show({
+      if (window.OrchestratorToast && typeof window.OrchestratorToast.show === "function") {
+        window.OrchestratorToast.show({
           type: opts.type || "error",
           message: opts.message,
           actionLabel: opts.actionLabel,
@@ -53,7 +53,7 @@
         return;
       }
     } catch (_) {}
-    try { console.warn("[HarnessApi]", opts.message); } catch (_) {}
+    try { console.warn("[OrchestratorApi]", opts.message); } catch (_) {}
   }
 
   function _isApiUrl(url) {
@@ -66,10 +66,10 @@
     return err.message || String(err);
   }
 
-  window.HarnessApi = { getToken };
+  window.OrchestratorApi = { getToken };
   getToken();
 
-  window.fetch = async function harnessFetch(input, init) {
+  window.fetch = async function orchestratorFetch(input, init) {
     const request = typeof input === "string" ? input : input && input.url;
     const url = request || "";
     const options = { ...(init || {}) };

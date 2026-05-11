@@ -28,7 +28,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessEventDispatcher = api;
+  if (typeof window !== "undefined") root.OrchestratorEventDispatcher = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
   const _registry = new Map();
   // Slice MB4-a: wildcard subscribers. Set so addTap is idempotent on

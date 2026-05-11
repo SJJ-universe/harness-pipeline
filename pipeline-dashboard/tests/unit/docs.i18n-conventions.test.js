@@ -74,8 +74,8 @@ test("I18N-DOC-1: references all 3 i18n test files", () => {
   }
 });
 
-test("I18N-DOC-1: references runtime HarnessI18n.t", () => {
-  assert.match(read(), /HarnessI18n\.t/);
+test("I18N-DOC-1: references runtime OrchestratorI18n.t", () => {
+  assert.match(read(), /OrchestratorI18n\.t/);
 });
 
 test("I18N-DOC-1: references both i18n locale files", () => {

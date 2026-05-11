@@ -1,4 +1,4 @@
-// Slice AC (Phase 2.5) — HarnessHorseAnimation structural tests.
+// Slice AC (Phase 2.5) — OrchestratorHorseAnimation structural tests.
 //
 // Node has no DOM, so we focus on what's safely testable here:
 //   - the SVG generator produces a valid-looking `<svg>` string for each

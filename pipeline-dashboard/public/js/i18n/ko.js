@@ -3,12 +3,12 @@
 // Keys are dot.namespaced so related UI surfaces cluster alphabetically.
 // New key → add matching English entry in en.js (enforced by
 // tests/unit/i18n.coverage.test.js). `{param}` placeholders get replaced
-// by HarnessI18n.t("...", { param: "value" }).
+// by OrchestratorI18n.t("...", { param: "value" }).
 
 (function (root) {
   const table = {
     // ── Header / chrome ─────────────────────────────────────────────
-    "header.title": "SJ 하네스 엔진",
+    "header.title": "SJ 오케스트레이터",
     "status.idle": "대기",
     "server.status.title": "서버 상태",
     "server.label.checking": "서버: 확인중",
@@ -111,7 +111,7 @@
     "prod.indicator.codex.ready":         "Codex READY",
     "prod.indicator.codex.authNeeded":    "Codex 인증 필요",
     "prod.indicator.codex.notInstalled":  "Codex 미설치",
-    "prod.aria.header":             "SJ Harness 헤더 (상태 · 모드 · 액션)",
+    "prod.aria.header":             "SJ Orchestrator 헤더 (상태 · 모드 · 액션)",
     "prod.aria.statusPill":         "실행 상태",
     "prod.aria.modeToggle":         "사용자 모드 전환",
     "prod.aria.localeToggle":       "언어 선택",

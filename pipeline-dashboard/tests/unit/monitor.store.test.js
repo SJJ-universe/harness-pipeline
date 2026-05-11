@@ -1,4 +1,4 @@
-// Slice MA1 (Phase D, 2026-04-27) — HarnessMonitorStore unit tests.
+// Slice MA1 (Phase D, 2026-04-27) — OrchestratorMonitorStore unit tests.
 //
 // The store is the single source of truth for the future monitoring
 // console. These tests lock down the action surface so panels (run-tree,

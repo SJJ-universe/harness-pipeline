@@ -2,7 +2,7 @@
 //
 // Consolidated hydration endpoint for the future monitoring console
 // (run-monitor-ui-hybrid spec section 5.3). The dashboard fetches this
-// once at boot to seed every panel of HarnessMonitorStore in a single
+// once at boot to seed every panel of OrchestratorMonitorStore in a single
 // round-trip:
 //
 //   { server, runs, selectedRunId, activeChildren, activeChildCount,
@@ -21,7 +21,7 @@
 //
 // Per spec D-out-of-scope this round only does CLIENT-side normalization;
 // `recentEvents` returns the raw replay-buffer entries, and the client
-// passes each `entry.event` through HarnessMonitorNormalizer before
+// passes each `entry.event` through OrchestratorMonitorNormalizer before
 // pushing into the store.
 //
 // All inputs are optional + null-safe so the route can be mounted even

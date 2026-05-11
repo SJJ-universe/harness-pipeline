@@ -1,4 +1,4 @@
-// Slice MA3 (Phase D, 2026-04-27) — HarnessMonitorLayout unit tests.
+// Slice MA3 (Phase D, 2026-04-27) — OrchestratorMonitorLayout unit tests.
 //
 // Drives layout.mount() with a hand-rolled DOM stub (matches the
 // global-bar / focus-trap pattern) plus the real store/normalizer/hydrate.
@@ -826,7 +826,7 @@ test("UX-2-c: mount uses panels.approvalCard override", async () => {
 test("UX-2-c: missing approvalCard panel does not break layout (graceful)", async () => {
   // Ensure no global resolution finds the panel — tests run with the
   // module loaded but the layout's _resolvePanel falls through to
-  // window.HarnessMonitorApprovalCard, which is undefined here.
+  // window.OrchestratorMonitorApprovalCard, which is undefined here.
   const doc = makeStubDoc();
   const root = doc.createElement("div");
   const store = createMonitorStore();

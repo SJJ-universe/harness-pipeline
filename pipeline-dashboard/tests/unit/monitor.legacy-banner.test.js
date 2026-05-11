@@ -206,7 +206,7 @@ test("UI-P8: harness:lang-changed event re-applies i18n on the banner", () => {
   const i18n = { applyDom: (el) => calls.push(el) };
   legacyBanner.install({ doc, storage, i18n });
   assert.equal(calls.length, 1, "initial applyDom");
-  // Simulate HarnessI18n.setLang dispatching the event
+  // Simulate OrchestratorI18n.setLang dispatching the event
   doc._fireDocEvent("harness:lang-changed", { lang: "en" });
   assert.equal(calls.length, 2, "applyDom re-fired on lang change");
   assert.equal(calls[1], banner);

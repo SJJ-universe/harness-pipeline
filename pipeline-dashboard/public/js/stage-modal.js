@@ -12,7 +12,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessStageModal = api;
+  if (typeof window !== "undefined") root.OrchestratorStageModal = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
 
   function install({ doc = null } = {}) {

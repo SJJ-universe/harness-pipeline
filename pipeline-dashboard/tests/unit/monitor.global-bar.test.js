@@ -1,4 +1,4 @@
-// Slice MA3 (Phase D, 2026-04-27) — HarnessMonitorGlobalBar unit tests.
+// Slice MA3 (Phase D, 2026-04-27) — OrchestratorMonitorGlobalBar unit tests.
 //
 // Pattern matches focus-trap.test.js / runHistory.test.js — hand-rolled
 // DOM stub instead of jsdom (which isn't a project dependency). The stub
@@ -274,7 +274,7 @@ test("create throws on bad inputs", () => {
   const store = createMonitorStore();
   const doc = makeStubDoc();
   assert.throws(() => create({ store, doc }), /root must be an element/);
-  assert.throws(() => create({ root: doc.createElement("div"), doc }), /store must be a HarnessMonitorStore/);
+  assert.throws(() => create({ root: doc.createElement("div"), doc }), /store must be a OrchestratorMonitorStore/);
   assert.throws(
     () => create({ root: doc.createElement("div"), store, doc: {} }),
     /no document available/

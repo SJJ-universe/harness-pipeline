@@ -198,21 +198,21 @@ function _stubPage(canned) {
 
 test("UI-P12 lang-matches-locale: ok when html.lang === active locale (case-insensitive)", async () => {
   const rule = A11Y_CUSTOM_RULES.find((r) => r.id === "lang-matches-locale");
-  const page = _stubPage([{ lang: "ko", activeLocale: "ko", source: "HarnessI18n.getLang" }]);
+  const page = _stubPage([{ lang: "ko", activeLocale: "ko", source: "OrchestratorI18n.getLang" }]);
   const out = await rule.evaluate(page);
   assert.equal(out.ok, true);
 });
 
 test("UI-P12 lang-matches-locale: handles en-US ↔ en simplification", async () => {
   const rule = A11Y_CUSTOM_RULES.find((r) => r.id === "lang-matches-locale");
-  const page = _stubPage([{ lang: "en-US", activeLocale: "en", source: "HarnessI18n.getLang" }]);
+  const page = _stubPage([{ lang: "en-US", activeLocale: "en", source: "OrchestratorI18n.getLang" }]);
   const out = await rule.evaluate(page);
   assert.equal(out.ok, true, "en-US should match en after simplification");
 });
 
 test("UI-P12 lang-matches-locale: fail when html.lang differs from active", async () => {
   const rule = A11Y_CUSTOM_RULES.find((r) => r.id === "lang-matches-locale");
-  const page = _stubPage([{ lang: "ko", activeLocale: "en", source: "HarnessI18n.getLang" }]);
+  const page = _stubPage([{ lang: "ko", activeLocale: "en", source: "OrchestratorI18n.getLang" }]);
   const out = await rule.evaluate(page);
   assert.equal(out.ok, false);
   assert.equal(out.failures.length, 1);
@@ -277,12 +277,12 @@ test("UI-P12 skip-link-focus-visible: fail when no visual state change", async (
 
 // ── Browser-side helpers smoke ──────────────────────────────────
 
-test("UI-P12 _evalLangMatchesLocale: prefers HarnessI18n then data-locale then html.lang fallback", () => {
+test("UI-P12 _evalLangMatchesLocale: prefers OrchestratorI18n then data-locale then html.lang fallback", () => {
   const fn = r._evalLangMatchesLocale;
   assert.equal(typeof fn, "function");
-  // Case 1: HarnessI18n available
+  // Case 1: OrchestratorI18n available
   globalThis.window = {
-    HarnessI18n: { getLang: () => "ko" },
+    OrchestratorI18n: { getLang: () => "ko" },
   };
   globalThis.document = {
     documentElement: { getAttribute: (k) => k === "lang" ? "ko" : null },
@@ -291,12 +291,12 @@ test("UI-P12 _evalLangMatchesLocale: prefers HarnessI18n then data-locale then h
   try {
     const out = fn();
     assert.equal(out.activeLocale, "ko");
-    assert.equal(out.source, "HarnessI18n.getLang");
+    assert.equal(out.source, "OrchestratorI18n.getLang");
   } finally {
     delete globalThis.window;
     delete globalThis.document;
   }
-  // Case 2: HarnessI18n missing, data-locale present
+  // Case 2: OrchestratorI18n missing, data-locale present
   globalThis.window = {};
   globalThis.document = {
     documentElement: { getAttribute: (k) => k === "lang" ? "en" : null },

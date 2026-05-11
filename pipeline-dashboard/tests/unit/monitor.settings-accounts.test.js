@@ -190,7 +190,7 @@ test("D3-d: create throws on bad inputs (root + store + doc)", () => {
   const doc = makeStubDoc();
   const store = createMonitorStore();
   assert.throws(() => create({}), /root must be an element/);
-  assert.throws(() => create({ root: doc.createElement("div") }), /store must be a HarnessMonitorStore/);
+  assert.throws(() => create({ root: doc.createElement("div") }), /store must be a OrchestratorMonitorStore/);
   assert.throws(
     () => create({ root: doc.createElement("div"), store, doc: {} }),
     /no document available/,

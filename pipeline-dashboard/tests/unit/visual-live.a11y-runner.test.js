@@ -154,7 +154,7 @@ function _stubPlaywright({
                       if (this.__customQueue === undefined) {
                         this.__customQueue = [
                           // lang-matches-locale shape
-                          { lang: "ko", activeLocale: "ko", source: "HarnessI18n.getLang" },
+                          { lang: "ko", activeLocale: "ko", source: "OrchestratorI18n.getLang" },
                           // skip-link-focus-visible shape
                           {
                             found: true, isFocused: true, changed: true,
@@ -274,7 +274,7 @@ test("UI-P12 runCustomRules: aggregates per-rule results", async () => {
   const page = {
     async evaluate() {
       count += 1;
-      if (count === 1) return { lang: "ko", activeLocale: "ko", source: "HarnessI18n.getLang" };
+      if (count === 1) return { lang: "ko", activeLocale: "ko", source: "OrchestratorI18n.getLang" };
       return {
         found: true, isFocused: true, changed: true,
         baseline: { width: 1, height: 1, top: -9999, opacity: "1", transform: "none" },

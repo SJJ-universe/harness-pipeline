@@ -31,7 +31,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof window !== "undefined") root.HarnessProductPipelineRail = api;
+  if (typeof window !== "undefined") root.OrchestratorProductPipelineRail = api;
 })(typeof window !== "undefined" ? window : globalThis, function () {
 
   // UI-P4: 7-stage demo mock matching the reference's PIPELINE_STAGES.
@@ -200,11 +200,11 @@
 
   function create(opts) {
     if (!opts || typeof opts !== "object") {
-      throw new Error("HarnessProductPipelineRail.create: opts required");
+      throw new Error("OrchestratorProductPipelineRail.create: opts required");
     }
     const root = opts.root;
     const _doc = opts.doc || (typeof document !== "undefined" ? document : null);
-    if (!root || !_doc) throw new Error("HarnessProductPipelineRail.create: root + doc required");
+    if (!root || !_doc) throw new Error("OrchestratorProductPipelineRail.create: root + doc required");
 
     let mode = opts.mode || "simple";
     const allowMockData = opts.allowMockData !== false;
@@ -219,9 +219,9 @@
       : function () {};
     // UI-P5-b: selectors module resolves real run data → phases array
     // or null. Test injection via opts.dataSelectors; production reads
-    // from window.HarnessProductShellData.
+    // from window.OrchestratorProductShellData.
     const selectors = opts.dataSelectors
-      || (typeof window !== "undefined" && window.HarnessProductShellData)
+      || (typeof window !== "undefined" && window.OrchestratorProductShellData)
       || null;
 
     const rail = _doc.createElement("div");

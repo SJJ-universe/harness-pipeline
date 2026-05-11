@@ -78,7 +78,7 @@ test("UI-H5: security-status-card.create throws without root", () => {
 
 test("UI-H5: security-status-card.create throws without store", () => {
   assert.throws(() => ssc.create({ root: makeRoot(), doc: makeStubDoc() }),
-    /store must be a HarnessMonitorStore/);
+    /store must be a OrchestratorMonitorStore/);
 });
 
 // ── Default state (no accountStatus loaded) ──────────────────────

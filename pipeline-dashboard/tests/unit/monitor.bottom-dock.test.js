@@ -1,4 +1,4 @@
-// Slice MA5 (Phase D, 2026-04-27) — HarnessMonitorBottomDock unit tests.
+// Slice MA5 (Phase D, 2026-04-27) — OrchestratorMonitorBottomDock unit tests.
 //
 // Verifies the raw-log header (tab + count), newest-first display,
 // MAX_DISPLAY cap, empty state, live re-render, destroy.
@@ -183,7 +183,7 @@ test("create throws on bad inputs", () => {
   const store = createMonitorStore();
   const doc = makeDoc();
   assert.throws(() => create({ store, doc }), /root must be an element/);
-  assert.throws(() => create({ root: doc.createElement("div"), doc }), /store must be a HarnessMonitorStore/);
+  assert.throws(() => create({ root: doc.createElement("div"), doc }), /store must be a OrchestratorMonitorStore/);
   assert.throws(
     () => create({ root: doc.createElement("div"), store, doc: {} }),
     /no document available/
