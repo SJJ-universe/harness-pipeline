@@ -477,12 +477,19 @@
     return { status: "ok", label: "Codex READY", labelKey: "prod.indicator.codex.ready" };
   }
 
-  // ── UX-POLISH-1 (2026-05-11): findings drawer iteration summary ──
+  // ── UX-POLISH-1 (2026-05-11) + UX-POLISH-2 (2026-05-11): findings
+  // drawer iteration summary, sourced from snap.events.
   //
-  // Aggregates critique-cycle metadata for the findings drawer's new
-  // "비평 반복" section. The drawer shows: total iteration count,
-  // re-entry drivers (which severity tiers showed up + sample messages),
-  // and per-iteration duration timeline.
+  // Aggregates critique-cycle metadata for the findings drawer's
+  // "비평 반복" section. Shows total iteration count, re-entry drivers
+  // (which severity tiers showed up + sample messages), and per-
+  // iteration duration timeline.
+  //
+  // Why event-based: the synthetic general-task review session never
+  // populates `history` (legacy-bridge writes stream chunks, not turn
+  // objects). The events buffer is the canonical source — codex_started
+  // marks iteration start; critique_received marks iteration done with
+  // findings + severity counts.
 
   /**
    * @returns {{
@@ -493,28 +500,40 @@
    */
   function selectIterationSummary(snap, runId) {
     if (!snap) return null;
-    // ── Iteration count ────────────────────────────────────────────
-    // Walk the review session history — each codex turn corresponds to
-    // one critique iteration. This gives us a robust count even when
-    // the upstream pipeline doesn't emit explicit cycle_iteration events.
-    const sessions = (snap.reviewSessions && typeof snap.reviewSessions.values === "function")
-      ? Array.from(snap.reviewSessions.values())
-      : Object.values((snap.reviewSessions || {}));
-    const ours = sessions.filter(function (s) {
-      return s && (s.runId === runId || (!runId && s.runId == null));
-    });
-    const session = ours.length > 0 ? ours[ours.length - 1] : null;
-    const history = (session && Array.isArray(session.history)) ? session.history : [];
-    const critiqueTurns = history.filter(function (h) {
-      const actor = (h && (h.actor || h.role) || "").toLowerCase();
-      return actor === "codex";
-    });
-    const iterations = critiqueTurns.length;
+    const events = Array.isArray(snap.events) ? snap.events : [];
+    // Walk events, pairing codex_started → critique_received per run.
+    // Each codex_started without a matching critique_received yet is
+    // an "active" iteration. critique_received also brings findings;
+    // we accumulate them into the drivers map below.
+    const starts = [];
+    const dones = [];
+    let lastFindings = [];
+    let lastSeverityCounts = null;
+    for (const e of events) {
+      if (!e || !e.type) continue;
+      const eRunId = e.runId || (e.data && e.data.runId) || null;
+      if (runId && eRunId && eRunId !== runId) continue;
+      if (e.type === "codex_started") {
+        starts.push({ ts: _parseTs(e.ts || (e.data && (e.data.at || e.data.ts))) });
+      } else if (e.type === "critique_received") {
+        const d = e.data || {};
+        const ts = _parseTs(e.ts || d.at || d.ts);
+        dones.push({ ts: ts, ok: d.ok !== false, findings: d.findings || [] });
+        if (Array.isArray(d.findings) && d.findings.length > 0) lastFindings = d.findings;
+        if (d.severityCounts) lastSeverityCounts = d.severityCounts;
+      }
+    }
+    const iterations = Math.max(starts.length, dones.length);
     // ── Drivers (severity → count + sampleMessage) ─────────────────
-    // Pull from run.findings; cap sampleMessage to ≤ 120 chars to keep
-    // the drawer scannable.
+    // Prefer findings carried in the latest critique_received event
+    // (richer than the aggregated run.findings). Fall back to run
+    // findings when the event payload is empty (e.g. critique didn't
+    // include detailed findings).
     const detail = _runDetails(snap, runId);
-    const findingsArr = (detail && Array.isArray(detail.findings)) ? detail.findings : [];
+    let findingsArr = lastFindings;
+    if (findingsArr.length === 0 && detail && Array.isArray(detail.findings)) {
+      findingsArr = detail.findings;
+    }
     const driverMap = {};
     for (const f of findingsArr) {
       if (!f) continue;
@@ -529,36 +548,35 @@
         driverMap[sev].sampleMessage = String(msg).slice(0, 120);
       }
     }
+    // If we only have severityCounts (no individual messages), still
+    // surface the bucket counts so the operator sees the shape.
+    if (Object.keys(driverMap).length === 0 && lastSeverityCounts) {
+      for (const sev of Object.keys(lastSeverityCounts)) {
+        const n = lastSeverityCounts[sev];
+        if (typeof n === "number" && n > 0) {
+          driverMap[sev] = { severity: sev, count: n, sampleMessage: null };
+        }
+      }
+    }
     const severityOrder = ["critical", "high", "medium", "low", "note"];
     const drivers = severityOrder
       .map(function (s) { return driverMap[s]; })
       .filter(function (d) { return d && d.count > 0; });
     // ── Timeline (per-iteration duration) ──────────────────────────
-    // Use codex turn timestamps to derive duration between turns.
-    // Last turn's duration depends on session state:
-    //   - state === "critique_received" + no follow-up: last turn done
-    //   - state === "awaiting_critique" or session active: last is in progress
+    // Pair start[i] ↔ done[i]. Unmatched starts (start without done)
+    // → active. Unmatched dones (done without start, unusual) → done
+    // with null duration.
     const timeline = [];
-    const sessionActive = session && session.state
-      && session.state !== "archived"
-      && session.state !== "completed";
-    for (let i = 0; i < critiqueTurns.length; i += 1) {
-      const t = critiqueTurns[i];
-      const ts = _parseTs(t && (t.at || t.ts));
-      const nextT = critiqueTurns[i + 1];
-      const nextTs = nextT ? _parseTs(nextT && (nextT.at || nextT.ts)) : null;
-      let durationMs = null;
-      let status = "done";
-      if (ts != null && nextTs != null) {
-        durationMs = nextTs - ts;
-      } else if (i === critiqueTurns.length - 1 && sessionActive) {
-        status = "active";
+    for (let i = 0; i < iterations; i += 1) {
+      const s = starts[i];
+      const d = dones[i];
+      if (s && d && s.ts != null && d.ts != null) {
+        timeline.push({ n: i + 1, durationMs: d.ts - s.ts, status: "done" });
+      } else if (s && !d) {
+        timeline.push({ n: i + 1, durationMs: null, status: "active" });
+      } else {
+        timeline.push({ n: i + 1, durationMs: null, status: "done" });
       }
-      timeline.push({
-        n: i + 1,
-        durationMs: durationMs,
-        status: status,
-      });
     }
     if (iterations === 0 && drivers.length === 0) return null;
     return { iterations: iterations, drivers: drivers, timeline: timeline };
@@ -574,23 +592,50 @@
     return null;
   }
 
-  // ── UX-POLISH-1 (2026-05-11): chat-panel progress milestones ─────
+  // ── UX-POLISH-1 + UX-POLISH-2 (2026-05-11): chat-panel progress
+  // milestones, sourced from snap.events.
   //
   // Surfaces a stream of "what just happened" milestones for the chat
   // panel to render as system bubbles. Each milestone has a stable
   // `id` so the chat panel can dedupe (a single subscribe callback may
   // fire multiple times for the same underlying event burst).
   //
-  // Kinds (i18n keys → chat.progress.*):
-  //   phase_enter        — pipeline entered a new lifecycle phase
-  //   iteration_start    — Codex starts a critique iteration
-  //   iteration_done     — Codex critique iteration completed
-  //   pipeline_complete  — run finished successfully
-  //   pipeline_error     — run failed
+  // Why event-based: UX-POLISH-1 originally derived milestones from
+  // run.phases + reviewSessions.history. Production runs never populate
+  // run.phases (legacy-bridge stores phase/phaseIdx as scalars, not an
+  // array) and the synthetic general-task review session has empty
+  // history. So the operator saw "✓ 시작했습니다" and nothing else —
+  // the screenshot incident that triggered UX-POLISH-2. snap.events
+  // is the canonical sequence of lifecycle signals: every WS event the
+  // bridge accepted lands there with a stable timestamp.
+  //
+  // Recognized event types + emitted milestone kinds:
+  //   phase_update (status="active")  → phase_enter
+  //   codex_started                   → iteration_start
+  //   critique_received (ok=true)     → iteration_done
+  //   critique_received (ok=false)    → iteration_failed
+  //   error                           → halt_error
+  //   tool_blocked                    → tool_blocked
+  //   pipeline_paused                 → pause
+  //   pipeline_complete (failed)      → halt_failed
+  //   pipeline_complete (ok)          → pipeline_complete
   //
   // The selector is pure — no subscriptions, no clocks. The chat panel
   // is responsible for tracking `sinceTs` and emitting only milestones
   // newer than its last seen timestamp.
+
+  // Map phase letter → human label for milestone params. PLAN/REVISE
+  // are the Claude phases (B/D); CRITIQUE/RE-CHECK are Codex (C);
+  // EXECUTE/VERIFY are runtime phases (E/F). Falls through to letter.
+  const _PHASE_LABEL = Object.freeze({
+    A: "CONTEXT", B: "PLAN", C: "CRITIQUE", D: "REVISE",
+    E: "EXECUTE", F: "VERIFY", G: "DONE",
+  });
+  function _phaseLabel(phaseLetter) {
+    if (!phaseLetter) return "?";
+    const up = String(phaseLetter).toUpperCase();
+    return _PHASE_LABEL[up] ? (up + " (" + _PHASE_LABEL[up] + ")") : up;
+  }
 
   /**
    * @param {object} snap     — store snapshot
@@ -599,97 +644,153 @@
    * @returns {Array<{id, ts, kind, params}>}
    */
   function selectProgressMilestones(snap, runId, sinceTs) {
-    if (!snap) return [];
+    if (!snap || !Array.isArray(snap.events)) return [];
     const since = (typeof sinceTs === "number") ? sinceTs : 0;
     const out = [];
-    // ── Phase enter milestones (from run.phases) ───────────────────
-    // run.phases is the canonical lifecycle marker — each non-pending
-    // entry with an `at` timestamp is when that phase activated.
-    const detail = _runDetails(snap, runId);
-    const phases = (detail && Array.isArray(detail.run && detail.run.phases))
-      ? detail.run.phases : [];
-    for (const p of phases) {
-      if (!p || !p.id) continue;
-      const ts = _parseTs(p.activatedAt || p.at);
-      if (ts == null || ts <= since) continue;
-      out.push({
-        id: "phase:" + runId + ":" + p.id,
-        ts: ts,
-        kind: "phase_enter",
-        params: { phase: p.label || p.id },
-      });
-    }
-    // ── Critique iteration start/done (from review session history) ─
-    const sessions = (snap.reviewSessions && typeof snap.reviewSessions.values === "function")
-      ? Array.from(snap.reviewSessions.values())
-      : Object.values((snap.reviewSessions || {}));
-    const ours = sessions.filter(function (s) {
-      return s && (s.runId === runId || (!runId && s.runId == null));
-    });
-    const session = ours.length > 0 ? ours[ours.length - 1] : null;
-    const history = (session && Array.isArray(session.history)) ? session.history : [];
-    let critiqueN = 0;
-    for (const h of history) {
-      const actor = (h && (h.actor || h.role) || "").toLowerCase();
-      if (actor !== "codex") continue;
-      critiqueN += 1;
-      const ts = _parseTs(h.at || h.ts);
-      if (ts == null || ts <= since) continue;
-      out.push({
-        id: "critique-done:" + runId + ":" + critiqueN,
-        ts: ts,
-        kind: "iteration_done",
-        params: {
-          n: critiqueN,
-          c: (h.severityCounts && h.severityCounts.critical) || 0,
-          h: (h.severityCounts && h.severityCounts.high)     || 0,
-        },
-      });
-    }
-    // If session is awaiting_critique state, emit a "start" milestone
-    // for the next iteration so the user sees Codex is actively working.
-    if (session && session.state === "awaiting_critique") {
-      const nextN = critiqueN + 1;
-      const ts = _parseTs(session.lastActivityAt || session.updatedAt);
-      if (ts != null && ts > since) {
-        out.push({
-          id: "critique-start:" + runId + ":" + nextN,
-          ts: ts,
-          kind: "iteration_start",
-          params: { n: nextN },
-        });
-      }
-    }
-    // ── Pipeline complete / error (from run.status) ────────────────
-    const run = detail && detail.run;
-    if (run && run.status && run.completedAt) {
-      const ts = _parseTs(run.completedAt);
-      if (ts != null && ts > since) {
-        if (run.status === "completed" || run.status === "complete" || run.status === "done") {
-          const totalMs = (run.metrics && typeof run.metrics.elapsedMs === "number")
-            ? run.metrics.elapsedMs : null;
+    // Track per-phase entry dedupe (phase_update fires for both
+    // "active" and "completed" — we only want one bubble per phase
+    // entry, keyed by phase letter). Also track iteration counter
+    // so iteration_done can report 1번/2번/... in the bubble.
+    const seenPhases = new Set();
+    let iterationN = 0;
+    // ── pipeline_complete metrics needed for the final bubble ──
+    let pipelineStartTs = null;
+    for (const e of snap.events) {
+      if (!e || !e.type) continue;
+      // Filter by runId — events without runId are global lifecycle
+      // (heartbeats etc.) and shouldn't trigger milestones.
+      const eRunId = e.runId || (e.data && e.data.runId) || null;
+      if (runId && eRunId && eRunId !== runId) continue;
+      const ts = _parseTs(e.ts || (e.data && (e.data.at || e.data.ts)));
+      if (ts == null) continue;
+      const d = e.data || {};
+      if (e.type === "pipeline_start" && pipelineStartTs == null) pipelineStartTs = ts;
+      // Skip emitting milestones older than sinceTs, but still let
+      // counters above advance so iteration numbers stay consistent
+      // across multiple selector calls.
+      const visible = ts > since;
+      if (e.type === "phase_update") {
+        const phase = d.phase;
+        const status = d.status;
+        if (!phase) continue;
+        if (status === "active" && !seenPhases.has(phase)) {
+          seenPhases.add(phase);
+          if (visible) {
+            out.push({
+              id: "phase:" + (runId || "x") + ":" + phase,
+              ts: ts,
+              kind: "phase_enter",
+              params: { phase: _phaseLabel(phase) },
+            });
+          }
+        }
+      } else if (e.type === "codex_started") {
+        iterationN = (typeof d.iteration === "number" ? d.iteration + 1 : iterationN + 1);
+        if (visible) {
           out.push({
-            id: "complete:" + runId,
+            id: "iter-start:" + (runId || "x") + ":" + iterationN,
             ts: ts,
-            kind: "pipeline_complete",
+            kind: "iteration_start",
+            params: { n: iterationN, phase: _phaseLabel(d.phase || "C") },
+          });
+        }
+      } else if (e.type === "critique_received") {
+        // Derive iteration number from event payload when present, else
+        // from our running counter.
+        const n = (typeof d.iteration === "number")
+          ? d.iteration + 1 : (iterationN || 1);
+        const sev = d.severityCounts
+          || (d.findings ? _bucketSeverity(d.findings) : { critical: 0, high: 0 });
+        if (visible) {
+          const ok = d.ok !== false;  // legacy default
+          if (ok) {
+            out.push({
+              id: "iter-done:" + (runId || "x") + ":" + n,
+              ts: ts,
+              kind: "iteration_done",
+              params: { n: n, c: sev.critical || 0, h: sev.high || 0 },
+            });
+          } else {
+            out.push({
+              id: "iter-failed:" + (runId || "x") + ":" + n,
+              ts: ts,
+              kind: "iteration_failed",
+              params: { n: n, msg: d.error || "비평 실패" },
+            });
+          }
+        }
+      } else if (e.type === "error") {
+        if (visible) {
+          out.push({
+            id: "halt-error:" + (runId || "x") + ":" + ts,
+            ts: ts,
+            kind: "halt_error",
             params: {
-              iters: critiqueN,
-              sec: totalMs ? Math.round(totalMs / 100) / 10 : "—",
+              phase: _phaseLabel(d.phase || "?"),
+              node: d.node || "?",
+              msg: d.message || d.error || "원인 미상",
             },
           });
-        } else if (run.status === "failed" || run.status === "error") {
+        }
+      } else if (e.type === "tool_blocked") {
+        if (visible) {
           out.push({
-            id: "error:" + runId,
+            id: "tool-blocked:" + (runId || "x") + ":" + ts,
             ts: ts,
-            kind: "pipeline_error",
-            params: { msg: run.errorMessage || run.error || "unknown" },
+            kind: "tool_blocked",
+            params: { tool: d.tool || d.name || "?", reason: d.reason || "정책 차단" },
           });
+        }
+      } else if (e.type === "pipeline_paused") {
+        if (visible) {
+          out.push({
+            id: "pause:" + (runId || "x") + ":" + ts,
+            ts: ts,
+            kind: "pause",
+            params: { reason: d.reason || "" },
+          });
+        }
+      } else if (e.type === "pipeline_complete") {
+        const failed = !!d.failed
+          || (Array.isArray(d.errors) && d.errors.length > 0);
+        const elapsedSec = (pipelineStartTs != null)
+          ? Math.round((ts - pipelineStartTs) / 100) / 10
+          : null;
+        const sec = (elapsedSec != null) ? elapsedSec : "—";
+        if (visible) {
+          if (failed) {
+            out.push({
+              id: "halt-failed:" + (runId || "x"),
+              ts: ts,
+              kind: "halt_failed",
+              params: { reason: d.reason || (d.errors && d.errors[0]) || "원인 미상", sec: sec },
+            });
+          } else {
+            out.push({
+              id: "complete:" + (runId || "x"),
+              ts: ts,
+              kind: "pipeline_complete",
+              params: { iters: iterationN, sec: sec },
+            });
+          }
         }
       }
     }
-    // Sort by timestamp ascending so the chat appends in time order.
     out.sort(function (a, b) { return a.ts - b.ts; });
     return out;
+  }
+
+  // Bucket a finding list into severity counts. Mirrors selectFindings
+  // but produces a {critical, high, ...} object instead of an array.
+  function _bucketSeverity(findings) {
+    const counts = { critical: 0, high: 0, medium: 0, low: 0, note: 0 };
+    if (!Array.isArray(findings)) return counts;
+    for (const f of findings) {
+      if (!f) continue;
+      const sev = String(f.severity || f.tier || "").toLowerCase();
+      if (Object.prototype.hasOwnProperty.call(counts, sev)) counts[sev] += 1;
+    }
+    return counts;
   }
 
   return {

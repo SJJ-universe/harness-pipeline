@@ -322,9 +322,15 @@
     "drawer.findings.iteration.timelineItem":            "Critique #{n} — {sec}s",
     "drawer.findings.iteration.timelineActive":          "Critique #{n} — in progress",
 
-    "chat.progress.phaseEnter":                          "Entered phase {phase}",
-    "chat.progress.iterStart":                           "Critique #{n} starting…",
-    "chat.progress.iterDone":                            "Critique #{n} done (CRITICAL {c} · HIGH {h})",
+    "chat.progress.phaseEnter":                          "▸ Entered phase {phase}",
+    "chat.progress.iterStart":                           "⏳ Critique #{n} starting ({phase})",
+    "chat.progress.iterDone":                            "✓ Critique #{n} done (CRITICAL {c} · HIGH {h})",
+    "chat.progress.iterFailed":                          "✗ Critique #{n} failed: {msg}",
+    "chat.progress.haltError":                           "⛔ Halted — {phase} / {node}: {msg}",
+    "chat.progress.toolBlocked":                         "🚫 Tool blocked: {tool} ({reason})",
+    "chat.progress.pauseSimple":                         "⏸ Paused",
+    "chat.progress.pauseWithReason":                     "⏸ Paused — {reason}",
+    "chat.progress.haltFailed":                          "⛔ Task halted — reason: {reason} ({sec}s total)",
     "chat.progress.complete":                            "✓ Task complete ({iters} iterations, {sec}s total)",
     "chat.progress.error":                               "✗ Task failed: {msg}",
   };

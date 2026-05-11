@@ -333,9 +333,15 @@
     "drawer.findings.iteration.timelineItem":            "{n}번 비평 — {sec}초",
     "drawer.findings.iteration.timelineActive":          "{n}번 비평 — 진행 중",
 
-    "chat.progress.phaseEnter":                          "{phase} 단계 진입",
-    "chat.progress.iterStart":                           "{n}번 비평 진행 중…",
-    "chat.progress.iterDone":                            "{n}번 비평 완료 (CRITICAL {c} · HIGH {h})",
+    "chat.progress.phaseEnter":                          "▸ {phase} 단계 진입",
+    "chat.progress.iterStart":                           "⏳ {n}번 비평 시작 ({phase})",
+    "chat.progress.iterDone":                            "✓ {n}번 비평 완료 (CRITICAL {c} · HIGH {h})",
+    "chat.progress.iterFailed":                          "✗ {n}번 비평 실패: {msg}",
+    "chat.progress.haltError":                           "⛔ 중단됨 — {phase} / {node}: {msg}",
+    "chat.progress.toolBlocked":                         "🚫 도구 차단: {tool} ({reason})",
+    "chat.progress.pauseSimple":                         "⏸ 일시중지",
+    "chat.progress.pauseWithReason":                     "⏸ 일시중지 — {reason}",
+    "chat.progress.haltFailed":                          "⛔ 작업 중단 — 사유: {reason} (총 {sec}초)",
     "chat.progress.complete":                            "✓ 작업 완료 ({iters}번 반복, 총 {sec}초)",
     "chat.progress.error":                               "✗ 작업 실패: {msg}",
   };

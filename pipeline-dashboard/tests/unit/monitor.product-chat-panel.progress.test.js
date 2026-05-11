@@ -1,13 +1,10 @@
-// UX-POLISH-1 (2026-05-11) — product-chat-panel progress emitter tests.
+// UX-POLISH-1 + UX-POLISH-2 (2026-05-11) — product-chat-panel
+// progress emitter tests (event-based).
 //
-// Verifies the new store subscription path:
-//   - chat panel subscribes to store on mount
-//   - selectProgressMilestones results become [system] bubbles
-//   - milestones with the same `id` are deduped (single-emit)
-//   - run change resets the dedupe set
-//   - i18n params (n, c, h, phase, ...) are substituted into text
-//   - panel without store still mounts cleanly (graceful degrade)
-//   - destroy unsubscribes from the store
+// Verifies the chat panel subscribes to the store and converts the
+// event-derived milestones into [system] bubbles. snap.events is the
+// production source of lifecycle signals; session.history is empty for
+// general-task synthetic sessions.
 
 "use strict";
 
@@ -15,6 +12,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const chatPanel = require("../../public/js/monitor/panels/product-chat-panel");
+const productShellData = require("../../public/js/monitor/product-shell-data");
 
 // ── DOM stub ─────────────────────────────────────────────────────
 
@@ -73,246 +71,302 @@ function makeStubStore(initialSnap) {
   };
 }
 
-// ── i18n stub (echoes the param-substituted fallback when key missing) ──
-//
-// product-chat-panel.js falls back to module-scope `_PROGRESS_FALLBACKS`
-// when `_i18n.t(key)` returns the key itself. So we pass an i18n stub
-// that does exactly that — the panel must still produce the correct
-// substituted text from the fallback table.
+// ── i18n stub — echoes key (production miss behavior) ────────────
 
-function makeI18nStub(table) {
-  return {
-    t(key) {
-      if (table && Object.prototype.hasOwnProperty.call(table, key)) return table[key];
-      return key;  // mirror the production i18n.t miss behavior
-    },
-  };
+function makeI18nStub() {
+  return { t(key) { return key; } };
 }
 
-// ── Snapshot factories ───────────────────────────────────────────
+// ── Snapshot factory (event-based) ───────────────────────────────
 
-function makeSnap({ runId = "r1", history = [], state = "awaiting_critique" } = {}) {
+function ev(type, dataPayload, ts) {
+  return {
+    type: type,
+    ts: typeof ts === "string" ? Date.parse(ts) : (ts || Date.now()),
+    runId: (dataPayload && dataPayload.runId) || null,
+    data: dataPayload || {},
+  };
+}
+function makeSnap({ runId = "r1", events = [] } = {}) {
   const runDetails = new Map();
   runDetails.set(runId, {
     run: { id: runId, status: "active", phases: [], completedAt: null, metrics: null },
     findings: [],
   });
-  const reviewSessions = new Map();
-  reviewSessions.set("s1", {
-    sessionId: "s1", runId: runId, state: state, history: history,
-    lastActivityAt: history.length ? history[history.length - 1].at : "2026-05-11T10:00:00Z",
-  });
   return {
     runs: new Map([[runId, { id: runId, status: "active" }]]),
     runDetails: runDetails,
-    reviewSessions: reviewSessions,
-    events: [],
+    reviewSessions: new Map(),
+    events: events,
     selectedRunId: runId,
   };
 }
 
-const productShellData = require("../../public/js/monitor/product-shell-data");
-
 // ── Tests ────────────────────────────────────────────────────────
 
-test("UX-POLISH-1 chat: mounts cleanly without store (no progress wiring)", () => {
+test("UX-POLISH chat: mounts cleanly without store (no progress wiring)", () => {
   const root = makeRoot();
   const handle = chatPanel.create({ root, doc: makeStubDoc() });
   assert.ok(handle, "panel must return handle without store");
-  assert.ok(typeof handle.destroy === "function");
 });
 
-test("UX-POLISH-1 chat: subscribes to store on mount when store provided", () => {
+test("UX-POLISH chat: subscribes to store on mount when store provided", () => {
   const root = makeRoot();
-  const store = makeStubStore(makeSnap());
   let subscribed = false;
-  store.subscribe = function (fn) { subscribed = true; return function () {}; };
-  // Re-decorate snapshot so the panel can call it without throwing.
-  store.snapshot = function () { return makeSnap(); };
+  const store = {
+    snapshot() { return makeSnap(); },
+    subscribe(fn) { subscribed = true; return function () {}; },
+  };
   chatPanel.create({
     root, doc: makeStubDoc(),
-    store: store,
-    selectors: productShellData,
-    i18n: makeI18nStub(),
+    store: store, selectors: productShellData, i18n: makeI18nStub(),
   });
   assert.ok(subscribed, "panel must call store.subscribe on mount");
 });
 
-test("UX-POLISH-1 chat: emits system bubble for each milestone on store update", () => {
+test("UX-POLISH chat: codex_started → iteration_start bubble", () => {
   const root = makeRoot();
-  const initialSnap = makeSnap({ history: [], state: "created" });
-  const store = makeStubStore(initialSnap);
+  const store = makeStubStore(makeSnap({ events: [] }));
   chatPanel.create({
     root, doc: makeStubDoc(),
-    store: store,
-    selectors: productShellData,
-    i18n: makeI18nStub(),
+    store: store, selectors: productShellData, i18n: makeI18nStub(),
   });
-  // Initial: no milestones (empty history)
-  let systemMessages = root._findAllByAttr("data-role", "system");
-  assert.equal(systemMessages.length, 0, "no milestones at idle state");
-  // Add codex turn → should emit 1 iteration_done milestone.
-  const nextSnap = makeSnap({
-    history: [{ actor: "codex", at: "2026-05-11T10:00:10Z", severityCounts: { critical: 0, high: 1 } }],
-    state: "critique_received",
-  });
-  store._setSnap(nextSnap);
-  systemMessages = root._findAllByAttr("data-role", "system");
-  assert.equal(systemMessages.length, 1, "exactly 1 iteration_done bubble emitted");
-  assert.match(systemMessages[0].textContent, /1번 비평 완료/);
-  assert.match(systemMessages[0].textContent, /CRITICAL 0/);
-  assert.match(systemMessages[0].textContent, /HIGH 1/);
+  // Fire a snapshot containing a codex_started event.
+  store._setSnap(makeSnap({
+    events: [ev("codex_started", { runId: "r1", iteration: 0, phase: "C" },
+                                    "2026-05-11T10:00:00Z")],
+  }));
+  const sys = root._findAllByAttr("data-role", "system");
+  assert.equal(sys.length, 1);
+  assert.match(sys[0].textContent, /1번 비평 시작/);
 });
 
-test("UX-POLISH-1 chat: dedupes same milestone across repeated subscribe fires", () => {
+test("UX-POLISH chat: critique_received ok=true → iteration_done bubble", () => {
+  const root = makeRoot();
+  const store = makeStubStore(makeSnap({ events: [] }));
+  chatPanel.create({
+    root, doc: makeStubDoc(),
+    store: store, selectors: productShellData, i18n: makeI18nStub(),
+  });
+  store._setSnap(makeSnap({
+    events: [
+      ev("codex_started",     { runId: "r1", iteration: 0 }, "2026-05-11T10:00:00Z"),
+      ev("critique_received", {
+        runId: "r1", iteration: 0, ok: true,
+        severityCounts: { critical: 0, high: 1 },
+      }, "2026-05-11T10:00:15Z"),
+    ],
+  }));
+  const sys = root._findAllByAttr("data-role", "system");
+  // 1 iteration_start + 1 iteration_done = 2
+  assert.equal(sys.length, 2);
+  assert.match(sys[1].textContent, /1번 비평 완료/);
+  assert.match(sys[1].textContent, /CRITICAL 0/);
+  assert.match(sys[1].textContent, /HIGH 1/);
+});
+
+test("UX-POLISH chat: error event → halt_error bubble (the screenshot incident)", () => {
+  const root = makeRoot();
+  const store = makeStubStore(makeSnap({ events: [] }));
+  chatPanel.create({
+    root, doc: makeStubDoc(),
+    store: store, selectors: productShellData, i18n: makeI18nStub(),
+  });
+  store._setSnap(makeSnap({
+    events: [
+      ev("codex_started", { runId: "r1", iteration: 0, phase: "C" },
+                                                "2026-05-11T10:00:00Z"),
+      ev("error", {
+        runId: "r1", phase: "C", node: "plan-critic",
+        message: "Codex flagged content for cybersecurity risk",
+      }, "2026-05-11T10:00:10Z"),
+    ],
+  }));
+  const sys = root._findAllByAttr("data-role", "system");
+  const haltBubble = sys[sys.length - 1].textContent;
+  assert.match(haltBubble, /중단됨/);
+  assert.match(haltBubble, /C \(CRITIQUE\)/);
+  assert.match(haltBubble, /plan-critic/);
+  assert.match(haltBubble, /cybersecurity risk/);
+});
+
+test("UX-POLISH chat: pipeline_complete failed → halt_failed bubble", () => {
+  const root = makeRoot();
+  const store = makeStubStore(makeSnap({ events: [] }));
+  chatPanel.create({
+    root, doc: makeStubDoc(),
+    store: store, selectors: productShellData, i18n: makeI18nStub(),
+  });
+  store._setSnap(makeSnap({
+    events: [
+      ev("pipeline_start",    { runId: "r1" }, "2026-05-11T10:00:00Z"),
+      ev("pipeline_complete", { runId: "r1", failed: true, reason: "codex-critique-failed" },
+                                                "2026-05-11T10:00:25Z"),
+    ],
+  }));
+  const sys = root._findAllByAttr("data-role", "system");
+  const haltBubble = sys[sys.length - 1].textContent;
+  assert.match(haltBubble, /작업 중단/);
+  assert.match(haltBubble, /codex-critique-failed/);
+  assert.match(haltBubble, /25초|25\.0/);
+});
+
+test("UX-POLISH chat: pipeline_complete ok → pipeline_complete bubble", () => {
+  const root = makeRoot();
+  const store = makeStubStore(makeSnap({ events: [] }));
+  chatPanel.create({
+    root, doc: makeStubDoc(),
+    store: store, selectors: productShellData, i18n: makeI18nStub(),
+  });
+  store._setSnap(makeSnap({
+    events: [
+      ev("pipeline_start",    { runId: "r1" }, "2026-05-11T10:00:00Z"),
+      ev("codex_started",     { runId: "r1", iteration: 0 }, "2026-05-11T10:00:05Z"),
+      ev("critique_received", { runId: "r1", iteration: 0, ok: true },
+                                                "2026-05-11T10:00:15Z"),
+      ev("pipeline_complete", { runId: "r1", failed: false }, "2026-05-11T10:00:40Z"),
+    ],
+  }));
+  const sys = root._findAllByAttr("data-role", "system");
+  const completeBubble = sys[sys.length - 1].textContent;
+  assert.match(completeBubble, /작업 완료/);
+  assert.match(completeBubble, /1번 반복/);
+  assert.match(completeBubble, /40초|40\.0/);
+});
+
+test("UX-POLISH chat: pipeline_paused → pause bubble (with reason variant)", () => {
+  const root = makeRoot();
+  const store = makeStubStore(makeSnap({ events: [] }));
+  chatPanel.create({
+    root, doc: makeStubDoc(),
+    store: store, selectors: productShellData, i18n: makeI18nStub(),
+  });
+  store._setSnap(makeSnap({
+    events: [
+      ev("pipeline_paused", { runId: "r1", reason: "operator paused" },
+                                                "2026-05-11T10:00:10Z"),
+    ],
+  }));
+  const sys = root._findAllByAttr("data-role", "system");
+  assert.match(sys[0].textContent, /일시중지/);
+  assert.match(sys[0].textContent, /operator paused/);
+});
+
+test("UX-POLISH chat: tool_blocked → tool_blocked bubble", () => {
+  const root = makeRoot();
+  const store = makeStubStore(makeSnap({ events: [] }));
+  chatPanel.create({
+    root, doc: makeStubDoc(),
+    store: store, selectors: productShellData, i18n: makeI18nStub(),
+  });
+  store._setSnap(makeSnap({
+    events: [
+      ev("tool_blocked", {
+        runId: "r1", tool: "Bash", reason: "denylist: rm -rf",
+      }, "2026-05-11T10:00:10Z"),
+    ],
+  }));
+  const sys = root._findAllByAttr("data-role", "system");
+  assert.match(sys[0].textContent, /도구 차단/);
+  assert.match(sys[0].textContent, /Bash/);
+  assert.match(sys[0].textContent, /denylist/);
+});
+
+test("UX-POLISH chat: dedupes same milestone across repeated subscribe fires", () => {
   const root = makeRoot();
   const snap = makeSnap({
-    history: [{ actor: "codex", at: "2026-05-11T10:00:10Z", severityCounts: { critical: 0, high: 0 } }],
-    state: "critique_received",
+    events: [ev("codex_started", { runId: "r1", iteration: 0 }, "2026-05-11T10:00:00Z")],
   });
   const store = makeStubStore(snap);
   chatPanel.create({
     root, doc: makeStubDoc(),
-    store: store,
-    selectors: productShellData,
-    i18n: makeI18nStub(),
+    store: store, selectors: productShellData, i18n: makeI18nStub(),
   });
-  // Fire 3 more times with the SAME snap — no new bubbles.
   store._setSnap(snap);
   store._setSnap(snap);
   store._setSnap(snap);
-  const systemMessages = root._findAllByAttr("data-role", "system");
-  assert.equal(systemMessages.length, 1, "milestone with same id must NOT double-emit");
+  const sys = root._findAllByAttr("data-role", "system");
+  assert.equal(sys.length, 1, "milestone with same id must NOT double-emit");
 });
 
-test("UX-POLISH-1 chat: resets dedupe set when runId changes (new task)", () => {
+test("UX-POLISH chat: resets dedupe when runId changes", () => {
   const root = makeRoot();
   const snapA = makeSnap({
     runId: "r1",
-    history: [{ actor: "codex", at: "2026-05-11T10:00:10Z" }],
-    state: "critique_received",
+    events: [ev("codex_started", { runId: "r1", iteration: 0 }, "2026-05-11T10:00:00Z")],
   });
   const store = makeStubStore(snapA);
   chatPanel.create({
     root, doc: makeStubDoc(),
-    store: store,
-    selectors: productShellData,
-    i18n: makeI18nStub(),
+    store: store, selectors: productShellData, i18n: makeI18nStub(),
   });
   let sys = root._findAllByAttr("data-role", "system");
-  assert.equal(sys.length, 1, "first run emits 1 milestone");
-  // Switch to a brand new run with its own first iteration.
+  assert.equal(sys.length, 1);
   const snapB = makeSnap({
     runId: "r2",
-    history: [{ actor: "codex", at: "2026-05-11T11:00:10Z" }],
-    state: "critique_received",
+    events: [ev("codex_started", { runId: "r2", iteration: 0 }, "2026-05-11T11:00:00Z")],
   });
   store._setSnap(snapB);
   sys = root._findAllByAttr("data-role", "system");
-  // 1 (from r1) + 1 (from r2's first iteration) = 2
-  assert.equal(sys.length, 2,
-    "new run's first iteration emits a fresh bubble (dedupe set was reset)");
+  assert.equal(sys.length, 2, "new run's first iteration_start fires fresh bubble");
 });
 
-test("UX-POLISH-1 chat: pipeline_complete emits with iteration count + duration", () => {
+test("UX-POLISH chat: destroy unsubscribes from the store", () => {
   const root = makeRoot();
-  const startSnap = makeSnap({ history: [], state: "created" });
-  const store = makeStubStore(startSnap);
-  chatPanel.create({
-    root, doc: makeStubDoc(),
-    store: store,
-    selectors: productShellData,
-    i18n: makeI18nStub(),
-  });
-  // Run completes after 2 iterations.
-  const doneRunDetails = new Map();
-  doneRunDetails.set("r1", {
-    run: {
-      id: "r1", status: "completed",
-      completedAt: "2026-05-11T10:05:00Z",
-      metrics: { elapsedMs: 90000 },
-      phases: [],
-    },
-    findings: [],
-  });
-  const reviewSessions = new Map();
-  reviewSessions.set("s1", {
-    sessionId: "s1", runId: "r1", state: "archived",
-    history: [
-      { actor: "codex", at: "2026-05-11T10:00:10Z" },
-      { actor: "codex", at: "2026-05-11T10:03:10Z" },
-    ],
-  });
-  const completedSnap = {
-    runs: new Map([["r1", { id: "r1", status: "completed" }]]),
-    runDetails: doneRunDetails,
-    reviewSessions: reviewSessions,
-    events: [],
-    selectedRunId: "r1",
-  };
-  store._setSnap(completedSnap);
-  const sys = root._findAllByAttr("data-role", "system");
-  // Expect: 2 iteration_done + 1 pipeline_complete = 3
-  assert.equal(sys.length, 3);
-  const completeMsg = sys[sys.length - 1].textContent;
-  assert.match(completeMsg, /작업 완료/);
-  assert.match(completeMsg, /2번 반복/);
-  assert.match(completeMsg, /90초|90\.0/);
-});
-
-test("UX-POLISH-1 chat: pipeline_error renders error message in bubble", () => {
-  const root = makeRoot();
-  const startSnap = makeSnap({ history: [], state: "created" });
-  const store = makeStubStore(startSnap);
-  chatPanel.create({
-    root, doc: makeStubDoc(),
-    store: store,
-    selectors: productShellData,
-    i18n: makeI18nStub(),
-  });
-  const errRunDetails = new Map();
-  errRunDetails.set("r1", {
-    run: {
-      id: "r1", status: "failed",
-      completedAt: "2026-05-11T10:01:00Z",
-      errorMessage: "codex unreachable",
-      phases: [],
-    },
-    findings: [],
-  });
-  const reviewSessions = new Map();
-  reviewSessions.set("s1", { sessionId: "s1", runId: "r1", state: "archived", history: [] });
-  const errSnap = {
-    runs: new Map([["r1", { id: "r1", status: "failed" }]]),
-    runDetails: errRunDetails,
-    reviewSessions: reviewSessions,
-    events: [],
-    selectedRunId: "r1",
-  };
-  store._setSnap(errSnap);
-  const sys = root._findAllByAttr("data-role", "system");
-  // The last bubble is pipeline_error.
-  const errBubble = sys[sys.length - 1];
-  assert.match(errBubble.textContent, /작업 실패/);
-  assert.match(errBubble.textContent, /codex unreachable/);
-});
-
-test("UX-POLISH-1 chat: destroy unsubscribes from the store", () => {
-  const root = makeRoot();
-  const snap = makeSnap();
-  let subscribers = 0;
+  let subs = 0;
   const store = {
-    snapshot() { return snap; },
-    subscribe(fn) {
-      subscribers += 1;
-      return function () { subscribers -= 1; };
-    },
+    snapshot() { return makeSnap(); },
+    subscribe() { subs += 1; return () => { subs -= 1; }; },
   };
   const handle = chatPanel.create({
     root, doc: makeStubDoc(),
     store: store, selectors: productShellData, i18n: makeI18nStub(),
   });
-  assert.equal(subscribers, 1);
+  assert.equal(subs, 1);
   handle.destroy();
-  assert.equal(subscribers, 0, "destroy must call the unsubscribe returned by subscribe()");
+  assert.equal(subs, 0);
+});
+
+test("UX-POLISH chat: full life-cycle stream produces ordered bubbles", () => {
+  // End-to-end smoke: pipeline_start → phase_update B → codex_started
+  // → critique_received → phase_update D → pipeline_complete. Expected
+  // bubbles (in order):
+  //   ▸ B (PLAN) 단계 진입
+  //   ⏳ 1번 비평 시작 (C (CRITIQUE))
+  //   ✓ 1번 비평 완료 (CRITICAL 0 · HIGH 0)
+  //   ▸ C (CRITIQUE) 단계 진입
+  //   ▸ D (REVISE) 단계 진입
+  //   ✓ 작업 완료 (1번 반복, 30초)
+  const root = makeRoot();
+  const store = makeStubStore(makeSnap({ events: [] }));
+  chatPanel.create({
+    root, doc: makeStubDoc(),
+    store: store, selectors: productShellData, i18n: makeI18nStub(),
+  });
+  store._setSnap(makeSnap({
+    events: [
+      ev("pipeline_start",    { runId: "r1" }, "2026-05-11T10:00:00Z"),
+      ev("phase_update",      { runId: "r1", phase: "B", status: "active" },
+                                                "2026-05-11T10:00:01Z"),
+      ev("phase_update",      { runId: "r1", phase: "C", status: "active" },
+                                                "2026-05-11T10:00:05Z"),
+      ev("codex_started",     { runId: "r1", iteration: 0, phase: "C" },
+                                                "2026-05-11T10:00:06Z"),
+      ev("critique_received", { runId: "r1", iteration: 0, ok: true,
+                                severityCounts: { critical: 0, high: 0 } },
+                                                "2026-05-11T10:00:15Z"),
+      ev("phase_update",      { runId: "r1", phase: "D", status: "active" },
+                                                "2026-05-11T10:00:16Z"),
+      ev("pipeline_complete", { runId: "r1", failed: false }, "2026-05-11T10:00:30Z"),
+    ],
+  }));
+  const sys = root._findAllByAttr("data-role", "system");
+  const texts = sys.map(function (m) { return m.textContent; });
+  assert.equal(texts.length, 6);
+  assert.match(texts[0], /B \(PLAN\) 단계 진입/);
+  assert.match(texts[1], /C \(CRITIQUE\) 단계 진입/);
+  assert.match(texts[2], /1번 비평 시작/);
+  assert.match(texts[3], /1번 비평 완료/);
+  assert.match(texts[4], /D \(REVISE\) 단계 진입/);
+  assert.match(texts[5], /작업 완료/);
 });

@@ -498,8 +498,17 @@
       if (!m || !m.id || _emittedMilestones.has(m.id)) return;
       _emittedMilestones.add(m.id);
       if (typeof m.ts === "number" && m.ts > _lastEmittedTs) _lastEmittedTs = m.ts;
-      const fallback = _PROGRESS_FALLBACKS[m.kind] || "";
-      const key = "chat.progress." + _PROGRESS_KIND_TO_KEY[m.kind];
+      // UX-POLISH-2: pause has two variants — with / without a reason
+      // string. selectProgressMilestones always returns kind="pause"
+      // with params.reason possibly empty.
+      let keySuffix = _PROGRESS_KIND_TO_KEY[m.kind];
+      let fallback  = _PROGRESS_FALLBACKS[m.kind] || "";
+      if (m.kind === "pause" && m.params && m.params.reason) {
+        keySuffix = "pauseWithReason";
+        fallback  = _PROGRESS_FALLBACKS.pause_with_reason;
+      }
+      if (!keySuffix) return;
+      const key = "chat.progress." + keySuffix;
       const text = _t(key, fallback, m.params || {});
       if (text) _appendSystem(text);
     }
@@ -565,20 +574,33 @@
     };
   }
 
-  // UX-POLISH-1: milestone kind → i18n key + fallback text. Kept at
-  // module scope so the create() closure doesn't re-build the table
-  // on every panel mount.
+  // UX-POLISH-1 + UX-POLISH-2: milestone kind → i18n key + fallback
+  // text. Kept at module scope so the create() closure doesn't
+  // re-build the table on every panel mount. The kinds map 1:1 onto
+  // selectProgressMilestones output; `pause` picks between two i18n
+  // keys depending on whether `reason` is non-empty.
   const _PROGRESS_KIND_TO_KEY = Object.freeze({
     phase_enter:       "phaseEnter",
     iteration_start:   "iterStart",
     iteration_done:    "iterDone",
+    iteration_failed:  "iterFailed",
+    halt_error:        "haltError",
+    halt_failed:       "haltFailed",
+    tool_blocked:      "toolBlocked",
+    pause:             "pauseSimple",       // overridden when params.reason set
     pipeline_complete: "complete",
     pipeline_error:    "error",
   });
   const _PROGRESS_FALLBACKS = Object.freeze({
-    phase_enter:       "{phase} 단계 진입",
-    iteration_start:   "{n}번 비평 진행 중…",
-    iteration_done:    "{n}번 비평 완료 (CRITICAL {c} · HIGH {h})",
+    phase_enter:       "▸ {phase} 단계 진입",
+    iteration_start:   "⏳ {n}번 비평 시작 ({phase})",
+    iteration_done:    "✓ {n}번 비평 완료 (CRITICAL {c} · HIGH {h})",
+    iteration_failed:  "✗ {n}번 비평 실패: {msg}",
+    halt_error:        "⛔ 중단됨 — {phase} / {node}: {msg}",
+    halt_failed:       "⛔ 작업 중단 — 사유: {reason} (총 {sec}초)",
+    tool_blocked:      "🚫 도구 차단: {tool} ({reason})",
+    pause:             "⏸ 일시중지",         // simple variant
+    pause_with_reason: "⏸ 일시중지 — {reason}",
     pipeline_complete: "✓ 작업 완료 ({iters}번 반복, 총 {sec}초)",
     pipeline_error:    "✗ 작업 실패: {msg}",
   });
