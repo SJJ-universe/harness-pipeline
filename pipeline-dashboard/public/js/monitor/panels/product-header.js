@@ -309,24 +309,12 @@
     const proActions = _doc.createElement("span");
     proActions.className = "prod-header-pro-actions";
     proActions.setAttribute("data-header-slot", "pro-actions");
-    // UI-P7: reuse existing i18n keys (btn.openAnalytics /
-    // btn.openRunHistory) so the legacy app and the product header
-    // stay in sync when those labels are tweaked.
-    const proActionEntries = [
-      { id: "metrics", labelKey: "btn.openAnalytics",  fallback: "📈 메트릭" },
-      { id: "history", labelKey: "btn.openRunHistory", fallback: "📜 히스토리" },
-    ];
-    proActionEntries.forEach(function (entry) {
-      const btn = _doc.createElement("button");
-      btn.type = "button";
-      btn.className = "prod-header-action";
-      btn.setAttribute("data-action", entry.id);
-      btn.textContent = _t(entry.labelKey, entry.fallback);
-      btn.addEventListener("click", function () {
-        try { onActionClick(entry.id); } catch (_) {}
-      });
-      proActions.appendChild(btn);
-    });
+    // LEGACY-VIEW-REMOVE-0 (2026-05-11): the "📈 메트릭" / "📜 히스토리"
+    // buttons that lived here used to navigate to /?mode=legacy#analytics
+    // and /?mode=legacy#run-history — pages that only existed in the
+    // legacy view (now retired). The buttons were removed along with
+    // their Wave 2 handlers in shell-actions.js; only "서버 종료"
+    // remains in this pro-actions cluster.
 
     // 서버 종료 — appended into proActions so _refreshProActions()
     // toggles its visibility. Pre-rc.5 it was attached to `indicators`
@@ -440,15 +428,10 @@
                 + '<span class="prod-mode-en">' + _t(entry[3], entry[4]) + '</span>';
             }
           });
-          // 3. pro-action button labels
-          proActionEntries.forEach(function (entry) {
-            for (let i = 0; i < proActions.children.length; i++) {
-              const btn = proActions.children[i];
-              if (btn && btn.getAttribute && btn.getAttribute("data-action") === entry.id) {
-                btn.textContent = _t(entry.labelKey, entry.fallback);
-              }
-            }
-          });
+          // 3. pro-action button labels — removed at LEGACY-VIEW-REMOVE-0
+          // (2026-05-11) along with the metrics/history buttons. The
+          // shutdown button still lives in proActions but has its own
+          // re-render at step 4 below.
           // 3b. PRODUCT-SHELL-WIRING: tools-cluster button labels
           // (codex-verify lives outside proActions for always-visible
           // semantics; needs its own re-render iteration so locale

@@ -222,14 +222,12 @@ test("UI-P1: pro action button click fires onActionClick with action id", () => 
     root, store, doc: makeStubDoc(),
     onActionClick(id) { actions.push(id); },
   });
-  // Pro actions: metrics / history / codex-verify + always-visible shutdown
-  const metricsBtn = root._findByAttr("data-action", "metrics");
-  metricsBtn._click();
-  const historyBtn = root._findByAttr("data-action", "history");
-  historyBtn._click();
+  // LEGACY-VIEW-REMOVE-0 (2026-05-11): metrics + history buttons were
+  // removed when their legacy-view targets disappeared. The remaining
+  // pro-action surface is just shutdown.
   const shutdownBtn = root._findByAttr("data-action", "shutdown");
   shutdownBtn._click();
-  assert.deepEqual(actions, ["metrics", "history", "shutdown"]);
+  assert.deepEqual(actions, ["shutdown"]);
 });
 
 // ── pro-only visibility ──────────────────────────────────────────

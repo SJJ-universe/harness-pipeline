@@ -500,14 +500,18 @@ test("PRODUCT-SHELL-WIRING: rail panel exposes exactly the 3 documented data-act
   assert.deepEqual(seen, ["pipeline-compact", "pipeline-start", "pipeline-template"]);
 });
 
-test("PRODUCT-SHELL-WIRING: header exposes the 4 documented data-action ids (codex-verify + metrics + history + shutdown)", () => {
+test("PRODUCT-SHELL-WIRING: header exposes the 2 documented data-action ids (codex-verify + shutdown)", () => {
+  // LEGACY-VIEW-REMOVE-0 (2026-05-11): metrics + history buttons were
+  // removed when their legacy-view targets (/?mode=legacy#analytics
+  // and #run-history) disappeared. The header surface is now just
+  // codex-verify (tools cluster) + shutdown (pro-actions cluster).
   const root = makeRoot();
   const store = createMonitorStore();
   productHeader.create({ root, store, doc: makeStubDoc() });
   const seen = root._findAllByAttrPresent("data-action")
     .map((el) => el.attributes["data-action"])
     .sort();
-  assert.deepEqual(seen, ["codex-verify", "history", "metrics", "shutdown"]);
+  assert.deepEqual(seen, ["codex-verify", "shutdown"]);
 });
 
 test("PRODUCT-SHELL-WIRING: codex-verify lives in the always-visible tools cluster (NOT pro-actions)", () => {

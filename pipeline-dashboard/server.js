@@ -209,23 +209,28 @@ const _runnerStaleMonitor = _remoteRunner.runnerRegistry
 //   /api/csp-report before any production break. Promote via
 //   ORCHESTRATOR_CSP_MODE=enforce once /api/csp-report is quiet.
 const INDEX_HTML = fs.readFileSync(path.join(__dirname, "public", "index.html"), "utf-8");
-// Slice UI-P1-g (Phase 2 Round 3, 2026-04-30): preserve legacy view
-// for ?mode=legacy. The legacy DOM is the EXACT pre-port markup
-// (saved in UI-P1-a). Both files apply the same nonce+CSP wrapping
-// — operators can switch back without losing security posture. The
-// legacy view stays available indefinitely (sign-off decision 6).
-const INDEX_LEGACY_HTML = fs.existsSync(path.join(__dirname, "public", "index.legacy.html"))
-  ? fs.readFileSync(path.join(__dirname, "public", "index.legacy.html"), "utf-8")
-  : INDEX_HTML; // fallback if legacy file deleted — never serve nothing
+// Slice LEGACY-VIEW-REMOVE-0 (2026-05-11): the preserved legacy view
+// (index.legacy.html + public/app.js + UI-P8 banner) was retired. The
+// product shell at index.html is now the only first-paint experience.
+// Operators arriving via old `?mode=legacy` bookmarks get a 302
+// redirect to `/` so they land on the product shell instead of a
+// stale 404 / mystery blank page. The redirect is permanent in intent
+// but we use 302 (not 301) so browsers don't cache the redirect — if
+// we ever bring back a different "legacy" page we won't be fighting
+// stale client caches.
 
 function indexRenderer(req, res) {
+  // LEGACY-VIEW-REMOVE-0: ?mode=legacy is no longer routed to a
+  // preserved DOM. Redirect to / so old bookmarks / menu links still
+  // land somewhere useful. Empty query string drops the hash too —
+  // operators who had `?mode=legacy#analytics` lose the deep-link
+  // (analytics page is gone with the legacy view).
+  if (req && req.query && req.query.mode === "legacy") {
+    res.redirect(302, "/");
+    return;
+  }
   const nonce = crypto.randomBytes(16).toString("base64");
-  // UI-P1-g: route ?mode=legacy to the preserved DOM. Anything else
-  // (no ?mode, ?mode=simple, ?mode=pro, even invalid values) gets
-  // the new product shell.
-  const wantsLegacy = req && req.query && req.query.mode === "legacy";
-  const sourceHtml = wantsLegacy ? INDEX_LEGACY_HTML : INDEX_HTML;
-  const html = sourceHtml
+  const html = INDEX_HTML
     .replace(/<script(\s|>)/g, `<script nonce="${nonce}"$1`)
     .replace(/<link(\s[^>]*rel="stylesheet")/g, `<link nonce="${nonce}"$1`);
 

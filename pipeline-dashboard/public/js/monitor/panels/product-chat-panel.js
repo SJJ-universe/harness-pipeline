@@ -52,8 +52,11 @@
   // can't trace).
   const INTENT_TO_DISPATCH = Object.freeze({
     "codex_verify":  "codex-verify",
-    "open_history":  "history",
-    "open_metrics":  "metrics",
+    // LEGACY-VIEW-REMOVE-0 (2026-05-11): open_history + open_metrics
+    // intents are removed — the analytics page and run-history page
+    // they targeted lived only in the legacy view (now retired). If
+    // the LLM still emits these intents the proposal will render with
+    // Approve disabled (safety: never fire something we can't trace).
     "show_status":   "show_status",     // handled inline, see _onApprove
     "start_run":     "pipeline-start",
     "general_task":  "general-task",    // chat-specific dispatch (calls /api/pipeline/general-run with parameters)

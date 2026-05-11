@@ -1,6 +1,10 @@
 // Slice UI-P1-h (Phase 2 Round 3, 2026-04-30) — product shell routing.
-// Pins: GET / serves product shell by default, ?mode=legacy serves
-// the preserved legacy DOM, both apply nonce + CSP headers.
+// Slice LEGACY-VIEW-REMOVE-0 (2026-05-11): legacy view retired. The
+// preserved legacy DOM is gone; ?mode=legacy now 302-redirects to /
+// so old bookmarks still land somewhere useful.
+//
+// Pins: GET / serves product shell HTML with nonce + CSP, ?mode=legacy
+// 302-redirects to /, ?mode=simple/pro also serve product shell.
 
 "use strict";
 
@@ -55,19 +59,16 @@ test("UI-P1 routing: GET / returns product shell HTML (no ?mode)", async () => {
   });
 });
 
-test("UI-P1 routing: ?mode=legacy serves preserved index.legacy.html + ?mode=simple/pro stay product", async () => {
+test("LEGACY-VIEW-REMOVE-0 routing: ?mode=legacy 302-redirects to /", async () => {
   // One server boot covers the 4 mode variants — keeps the integration
   // suite fast (no need for a per-test boot of all 4 cases).
   await withServer(async () => {
-    // ?mode=legacy → legacy DOM
-    const legacy = await fetch(`${BASE}/?mode=legacy`);
-    assert.equal(legacy.status, 200);
-    const legacyHtml = await legacy.text();
-    assert.match(legacyHtml, /SJ Orchestrator — Legacy/i);
-    assert.ok(legacyHtml.includes("monitor-shell-root") || legacyHtml.includes("skip-link"));
-    assert.equal(legacyHtml.includes("product-shell-root"), false,
-      "legacy view must NOT contain product-shell-root mount",
-    );
+    // ?mode=legacy → 302 → /
+    const legacy = await fetch(`${BASE}/?mode=legacy`, { redirect: "manual" });
+    assert.equal(legacy.status, 302,
+      "?mode=legacy must redirect after LEGACY-VIEW-REMOVE-0 (was 200 OK + legacy DOM)");
+    assert.equal(legacy.headers.get("location"), "/",
+      "redirect target must be / (default product shell)");
 
     // ?mode=simple → product
     const simple = await fetch(`${BASE}/?mode=simple`);
@@ -77,80 +78,27 @@ test("UI-P1 routing: ?mode=legacy serves preserved index.legacy.html + ?mode=sim
     const pro = await fetch(`${BASE}/?mode=pro`);
     assert.match(await pro.text(), /id="product-shell-root"/);
 
-    // ?mode=garbage → product (falls through, NOT legacy)
+    // ?mode=garbage → product (falls through)
     const garbage = await fetch(`${BASE}/?mode=garbage-value-here`);
     assert.match(await garbage.text(), /id="product-shell-root"/);
   });
 });
 
-test("UI-P1 routing: both / and /?mode=legacy receive nonce + CSP header", async () => {
-  await withServer(async () => {
-    for (const path of ["/", "/?mode=legacy"]) {
-      const res = await fetch(`${BASE}${path}`);
-      const csp = res.headers.get("content-security-policy")
-        || res.headers.get("content-security-policy-report-only");
-      assert.ok(csp, `CSP header must be present for ${path}`);
-      assert.match(csp, /'nonce-/, `CSP must include nonce for ${path}`);
-      const html = await res.text();
-      assert.match(html, /<script nonce="/, `script tags must carry nonce for ${path}`);
-      assert.match(html, /<link nonce="[^"]+" rel="stylesheet"/, `link tags must carry nonce for ${path}`);
-    }
-  });
-});
-
-// ── UI-P8: legacy retreat — deprecation banner ─────────────────────
-
-test("UI-P8 routing: /?mode=legacy serves the deprecation banner + dismiss controller", async () => {
-  await withServer(async () => {
-    const res = await fetch(`${BASE}/?mode=legacy`);
-    assert.equal(res.status, 200);
-    const html = await res.text();
-    // Banner mount + class hooks present
-    assert.match(html, /id="orchestrator-legacy-banner"/,
-      "legacy banner element must be present in /?mode=legacy");
-    assert.match(html, /class="orchestrator-legacy-banner"/);
-    assert.match(html, /class="legacy-banner-dismiss"/,
-      "dismiss button must be present in legacy banner markup");
-    // CTA links to root (the product shell)
-    assert.match(html, /href="\/"/,
-      "banner CTA links to / so dismissed users can still reach the shell");
-    // Korean copy ships baked-in for first paint
-    assert.match(html, /새 대시보드가 준비되었습니다/);
-    // i18n hooks for KO/EN toggle
-    assert.match(html, /data-i18n="legacy\.banner\.message"/);
-    assert.match(html, /data-i18n="legacy\.banner\.cta"/);
-    // legacy-banner.js loaded (will be nonce-injected by indexRenderer)
-    assert.match(html, /<script nonce="[^"]+" src="js\/legacy-banner\.js"><\/script>/,
-      "legacy-banner.js must be loaded with nonce on /?mode=legacy");
-  });
-});
-
-test("UI-P8 routing: GET / (product shell) does NOT contain the legacy banner", async () => {
+test("UI-P1 routing: GET / receives nonce + CSP header", async () => {
   await withServer(async () => {
     const res = await fetch(`${BASE}/`);
-    assert.equal(res.status, 200);
+    const csp = res.headers.get("content-security-policy")
+      || res.headers.get("content-security-policy-report-only");
+    assert.ok(csp, "CSP header must be present for /");
+    assert.match(csp, /'nonce-/, "CSP must include nonce for /");
     const html = await res.text();
-    assert.equal(html.includes("orchestrator-legacy-banner"), false,
-      "product shell never carries the legacy deprecation banner — banner is " +
-      "scoped to /?mode=legacy only (per UI-P0 §285+286)",
-    );
-    assert.equal(html.includes("legacy-banner.js"), false,
-      "product shell does NOT load legacy-banner.js — script lives only in " +
-      "index.legacy.html and is irrelevant to product-shell sessions",
-    );
+    assert.match(html, /<script nonce="/, "script tags must carry nonce");
+    assert.match(html, /<link nonce="[^"]+" rel="stylesheet"/, "link tags must carry nonce");
   });
 });
 
-test("UI-P8 routing: legacy banner CTA points at the product shell route", async () => {
-  await withServer(async () => {
-    const res = await fetch(`${BASE}/?mode=legacy`);
-    const html = await res.text();
-    // Find banner section + verify CTA href is "/"
-    const m = html.match(/<a class="legacy-banner-cta"[^>]*href="([^"]+)"/);
-    assert.ok(m, "legacy banner must contain a CTA <a> with href");
-    assert.equal(m[1], "/",
-      "CTA href must be '/' so the operator lands on the product shell " +
-      "without any query string (default mode = simple per UI-P0 §S decision 1)",
-    );
-  });
-});
+// ── UI-P8: legacy banner tests removed (LEGACY-VIEW-REMOVE-0) ──────
+//
+// The banner element, dismiss controller, CTA <a>, and i18n hooks
+// were retired along with index.legacy.html + js/legacy-banner.js
+// when the legacy view was removed.

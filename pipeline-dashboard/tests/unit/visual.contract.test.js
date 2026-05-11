@@ -90,23 +90,10 @@ test("UI-P9 visual contract: product shell mount + load chain match", () => {
   );
 });
 
-test("UI-P9 visual contract: legacy view retains UI-P8 banner mount + script", () => {
-  const baseline = _readBaseline();
-  const actual = captureSnapshot();
-  // Banner element is present
-  assert.ok(
-    actual.indexLegacyHtml.mountIds.indexOf("orchestrator-legacy-banner") >= 0,
-    "/?mode=legacy must mount the UI-P8 deprecation banner — operator " +
-    "escape hatch needs the visible CTA to the product shell",
-  );
-  // legacy-banner.js is loaded
-  assert.ok(
-    actual.indexLegacyHtml.scripts.indexOf("js/legacy-banner.js") >= 0,
-    "legacy view must load legacy-banner.js (dismiss controller)",
-  );
-  // No regression in stylesheet chain
-  assert.deepEqual(actual.indexLegacyHtml.stylesheets, baseline.indexLegacyHtml.stylesheets);
-});
+// LEGACY-VIEW-REMOVE-0 (2026-05-11): the "legacy view retains UI-P8
+// banner mount + script" test was removed — index.legacy.html +
+// legacy-banner.js were deleted with the legacy view. The product
+// shell's mount/load chain is still asserted by the test above.
 
 test("UI-P9 visual contract: design tokens (--prod-*) all present", () => {
   const baseline = _readBaseline();
@@ -142,16 +129,10 @@ test("UI-P9 visual contract: high-signal product CSS classes compile in style.pr
   }
 });
 
-test("UI-P9 visual contract: UI-P8 legacy-banner CSS classes compile in style.css", () => {
-  const actual = captureSnapshot();
-  const c = actual.legacyBannerCss;
-  for (const cls of Object.keys(c)) {
-    assert.ok(c[cls] > 0,
-      `class .${cls} must appear at least once in style.css — ` +
-      `UI-P8 banner styling deleted?`,
-    );
-  }
-});
+// LEGACY-VIEW-REMOVE-0 (2026-05-11): the "UI-P8 legacy-banner CSS
+// classes compile in style.css" test was removed — the banner CSS
+// (.orchestrator-legacy-banner + .legacy-banner-*) was deleted along
+// with index.legacy.html and js/legacy-banner.js.
 
 test("UI-P9 visual contract: every product panel renders the documented region/slot vocabulary", () => {
   const baseline = _readBaseline();

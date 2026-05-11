@@ -64,6 +64,10 @@ test("UI-H1: _validateMode rejects garbage input", () => {
 test("UI-H1: _readUrlMode reads ?mode= from URL search", () => {
   assert.equal(_readUrlMode("?mode=simple"), "simple");
   assert.equal(_readUrlMode("?mode=advanced"), "advanced");
+  // LEGACY-VIEW-REMOVE-0 (2026-05-11): "legacy" is still a parsed value
+  // (the parser stays mode-agnostic) but the server-side route now
+  // 302-redirects ?mode=legacy to / so this value never reaches the
+  // product shell's resolver in practice.
   assert.equal(_readUrlMode("?mode=legacy"), "legacy");
   assert.equal(_readUrlMode("?monitor=1&mode=simple"), "simple");
   assert.equal(_readUrlMode("?mode=Simple"), "simple", "case-insensitive");

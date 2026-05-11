@@ -97,18 +97,20 @@ const makeRoot = () => makeStubElement("div");
 // ── Snapshot composition ─────────────────────────────────────────
 
 /**
- * Capture the current visual shape of the product shell + legacy
- * view + design tokens + each product panel's rendered DOM.
+ * Capture the current visual shape of the product shell + design
+ * tokens + each product panel's rendered DOM.
  *
  * The shape is intentionally COARSE — names + counts + sorted lists
  * — so meaningful structural drift surfaces as a diff while harmless
  * value tweaks (token color tuning, label copy edits) stay invisible.
+ *
+ * LEGACY-VIEW-REMOVE-0 (2026-05-11): indexLegacyHtml + legacyBannerCss
+ * fields removed — the legacy view (index.legacy.html + UI-P8 banner)
+ * was retired. Snapshot diff is now product-shell-only.
  */
 function captureSnapshot() {
   const indexHtml  = fs.readFileSync(path.join(PUBLIC, "index.html"),         "utf-8");
-  const legacyHtml = fs.readFileSync(path.join(PUBLIC, "index.legacy.html"),  "utf-8");
   const productCss = fs.readFileSync(path.join(PUBLIC, "style.product.css"),  "utf-8");
-  const sharedCss  = fs.readFileSync(path.join(PUBLIC, "style.css"),          "utf-8");
 
   const panelShapes = _capturePanelShapes();
 
@@ -119,7 +121,6 @@ function captureSnapshot() {
       "`npm run visual:update`. Drift requires explicit operator " +
       "review of the JSON diff in the PR.",
     indexHtml:           extract.extractHtmlShape(indexHtml),
-    indexLegacyHtml:     extract.extractHtmlShape(legacyHtml),
     productCssTokens:    extract.extractCssTokens(productCss, "--prod-"),
     productCssClasses:   extract.countCssClasses(productCss, [
       "prod-shell",
@@ -133,14 +134,6 @@ function captureSnapshot() {
       "prod-actions-buttons",
       "prod-actions-indicator",
       "prod-actions-posture-badge",
-    ]),
-    legacyBannerCss:     extract.countCssClasses(sharedCss, [
-      "orchestrator-legacy-banner",
-      "legacy-banner-body",
-      "legacy-banner-message",
-      "legacy-banner-cta",
-      "legacy-banner-footnote",
-      "legacy-banner-dismiss",
     ]),
     panels:              panelShapes,
   };

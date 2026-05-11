@@ -1,11 +1,15 @@
 // Slice PRODUCT-SHELL-WIRING (rc.5 prep, 2026-05-06) — shell-actions
 // handler tests.
+// Slice LEGACY-VIEW-REMOVE-0 (2026-05-11): Wave 2 handler tests
+// (metrics / history / pipelineCompact / pipelineTemplate) removed
+// when the legacy view was retired.
 //
-// Pure-function tests of the 7 action handlers (pipelineStart, shutdown,
-// codexVerify, metrics, history, pipelineCompact, pipelineTemplate) +
-// the `createDefaultHandlers()` factory that the product shell consumes.
-// Every dependency (fetch, confirm, location, modal module, toast) is
-// injected via opts so we can assert exact behavior with no globals.
+// Pure-function tests of the 3 remaining action handlers (pipelineStart,
+// shutdown, codexVerify) + the chat-flow dispatchers (generalTask,
+// showStatus) + the `createDefaultHandlers()` factory that the product
+// shell consumes. Every dependency (fetch, confirm, location, modal
+// module, toast) is injected via opts so we can assert exact behavior
+// with no globals.
 
 "use strict";
 
@@ -153,38 +157,12 @@ test("codexVerify toasts FAIL when body.ok is false", async () => {
   assert.match(sink.messages[0].message, /FAIL/);
 });
 
-// ── Wave 2: legacy redirect handlers ───────────────────────────────
-
-test("metrics handler navigates to /?mode=legacy#analytics + toasts announcement", () => {
-  const sink = makeToastSink();
-  const win = makeFakeWin();
-  shellActions.metrics({ win, toastFn: sink.toastFn });
-  assert.equal(win._calls.assigned.length, 1);
-  assert.equal(win._calls.assigned[0], "/?mode=legacy#analytics");
-  assert.equal(sink.messages.length, 1);
-  assert.match(sink.messages[0].message, /메트릭/);
-});
-
-test("history handler navigates to /?mode=legacy#run-history", () => {
-  const sink = makeToastSink();
-  const win = makeFakeWin();
-  shellActions.history({ win, toastFn: sink.toastFn });
-  assert.equal(win._calls.assigned[0], "/?mode=legacy#run-history");
-});
-
-test("pipelineCompact handler navigates to /?mode=legacy#compact", () => {
-  const sink = makeToastSink();
-  const win = makeFakeWin();
-  shellActions.pipelineCompact({ win, toastFn: sink.toastFn });
-  assert.equal(win._calls.assigned[0], "/?mode=legacy#compact");
-});
-
-test("pipelineTemplate handler navigates to /?mode=legacy#template-editor", () => {
-  const sink = makeToastSink();
-  const win = makeFakeWin();
-  shellActions.pipelineTemplate({ win, toastFn: sink.toastFn });
-  assert.equal(win._calls.assigned[0], "/?mode=legacy#template-editor");
-});
+// ── Wave 2: removed (LEGACY-VIEW-REMOVE-0, 2026-05-11) ─────────────
+//
+// The metrics / history / pipelineCompact / pipelineTemplate handlers
+// targeted /?mode=legacy#anchor URLs that lived only in the legacy
+// view. With the legacy view retired, those handlers — and the
+// corresponding header/rail buttons — were removed.
 
 // ── Default handler map ────────────────────────────────────────────
 
@@ -195,11 +173,7 @@ test("createDefaultHandlers exposes all documented action ids", () => {
     [
       "codex-verify",
       "general-task",     // AGENT-DESKTOP-0-c: chat-flow general task dispatcher
-      "history",
-      "metrics",
-      "pipeline-compact",
       "pipeline-start",
-      "pipeline-template",
       "show_status",      // AGENT-DESKTOP-0-c: inline status summary
       "shutdown",
     ],

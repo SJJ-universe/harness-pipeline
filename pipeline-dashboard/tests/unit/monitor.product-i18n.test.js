@@ -233,14 +233,12 @@ test("UI-P7: header pro-action buttons reuse existing btn.* keys", () => {
     root, store, doc: makeStubDoc(),
     i18n: makeI18nStub("ko"), mode: "pro",
   });
-  // Buttons carry data-action with the canonical id; their text is the
-  // translation of the matching legacy i18n key.
-  const metrics = root._findOneByAttr("data-action", "metrics");
-  const history = root._findOneByAttr("data-action", "history");
+  // LEGACY-VIEW-REMOVE-0 (2026-05-11): metrics + history buttons were
+  // removed when their legacy-view targets disappeared. The remaining
+  // header buttons are codex-verify (tools cluster) + shutdown
+  // (pro-actions cluster).
   const verify  = root._findOneByAttr("data-action", "codex-verify");
   const stop    = root._findOneByAttr("data-action", "shutdown");
-  assert.equal(metrics.textContent, ko["btn.openAnalytics"]);
-  assert.equal(history.textContent, ko["btn.openRunHistory"]);
   assert.equal(verify.textContent,  ko["btn.codexVerify"]);
   assert.equal(stop.textContent,    ko["btn.serverStop"]);
 });

@@ -1,22 +1,22 @@
 // Slice PRODUCT-SHELL-WIRING (Phase 2 v2 follow-up, 2026-05-06) — shell action
 // handlers for the product shell.
+// Slice LEGACY-VIEW-REMOVE-0 (2026-05-11): Wave 2 handlers removed.
 //
-// The product shell at `/` has 7 action buttons (header: metrics, history,
-// codex-verify, shutdown; rail: pipeline-start, pipeline-compact,
-// pipeline-template). This module owns the routing implementations so the
-// shell + panels stay DOM-only. Each handler is a pure-ish function that
-// takes an env bag (`{doc, win, fetchImpl, confirmFn, toastFn}`) — tests
-// inject stubs for every dependency.
+// The product shell at `/` has 3 action buttons (header: codex-verify,
+// shutdown; rail: pipeline-start). This module owns the routing
+// implementations so the shell + panels stay DOM-only. Each handler is
+// a pure-ish function that takes an env bag
+// (`{doc, win, fetchImpl, confirmFn, toastFn}`) — tests inject stubs
+// for every dependency.
 //
 // Wave 1 (real work):
 //   - pipeline-start: open the lazy-DOM general-pipeline-modal
 //   - shutdown:       confirm + POST /api/server/shutdown
 //   - codex-verify:   POST /api/codex/verify + toast result
 //
-// Wave 2 (legacy view redirect for advanced features that the product
-// shell intentionally doesn't reimplement):
-//   - metrics, history, pipeline-compact, pipeline-template:
-//       toast announcement → window.location.assign("/?mode=legacy#anchor")
+// Wave 2 (DELETED 2026-05-11 — these handlers navigated to legacy view
+// pages that no longer exist):
+//   - metrics, history, pipeline-compact, pipeline-template
 //
 // `createDefaultHandlers(env)` returns the {actionId → handler} map that
 // `product-shell._dispatch` consumes. Tests can pass a custom map to mock
@@ -52,24 +52,6 @@
   function _toast(toastFn, payload) {
     if (typeof toastFn !== "function") return;
     try { toastFn(payload); } catch (_) { /* swallow toast errors */ }
-  }
-
-  // Wave 2 helper — same-tab navigate with a toast pre-announcement.
-  function _legacyRedirect(win, toastFn, anchor, korLabel) {
-    _toast(toastFn, {
-      message: "고급 보기로 이동합니다 — " + korLabel,
-      kind: "info",
-      duration: 1500,
-    });
-    if (!win || !win.location || typeof win.location.assign !== "function") return;
-    const url = "/?mode=legacy" + anchor;
-    // Tiny delay so the toast renders before the page swap. Tests use
-    // a fake `setTimeout` (or skip the timer) so this stays deterministic.
-    if (typeof win.setTimeout === "function") {
-      win.setTimeout(function () { win.location.assign(url); }, 250);
-    } else {
-      win.location.assign(url);
-    }
   }
 
   // ── Wave 1 handlers ────────────────────────────────────────────────
@@ -151,21 +133,6 @@
         kind: "error",
       });
     }
-  }
-
-  // ── Wave 2 handlers (legacy view redirect) ─────────────────────────
-
-  function metrics(opts) {
-    _legacyRedirect(_resolveWin(opts), opts && opts.toastFn, "#analytics", "메트릭");
-  }
-  function history(opts) {
-    _legacyRedirect(_resolveWin(opts), opts && opts.toastFn, "#run-history", "히스토리");
-  }
-  function pipelineCompact(opts) {
-    _legacyRedirect(_resolveWin(opts), opts && opts.toastFn, "#compact", "compact 보기");
-  }
-  function pipelineTemplate(opts) {
-    _legacyRedirect(_resolveWin(opts), opts && opts.toastFn, "#template-editor", "템플릿 편집기");
   }
 
   // ── AGENT-DESKTOP-0-c (2026-05-06) — chat-driven dispatchers ──────
@@ -263,10 +230,6 @@
     }
     return {
       "pipeline-start":    _wrap(pipelineStart),
-      "pipeline-compact":  _wrap(pipelineCompact),
-      "pipeline-template": _wrap(pipelineTemplate),
-      "metrics":           _wrap(metrics),
-      "history":           _wrap(history),
       "codex-verify":      _wrap(codexVerify),
       "shutdown":          _wrap(shutdown),
       // AGENT-DESKTOP-0-c (2026-05-06): chat-flow dispatchers
@@ -279,10 +242,6 @@
     pipelineStart,
     shutdown,
     codexVerify,
-    metrics,
-    history,
-    pipelineCompact,
-    pipelineTemplate,
     generalTask,
     showStatus,
     createDefaultHandlers,
