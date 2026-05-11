@@ -210,13 +210,29 @@
     const detail = _runDetails(snap, runId);
     if (!detail || !Array.isArray(detail.subagents) || detail.subagents.length === 0) return null;
     return detail.subagents.map(function (a, idx) {
+      // SUBAGENTS-RICH-0 (2026-05-11): forward the server's metrics
+      // payload so the monitor-grid card can render tool breakdown +
+      // parent context. pipeline-executor.js Slice W emits these
+      // fields on subagent_completed:
+      //   metrics: { toolCount, byTool: {Edit: 3, Read: 7, ...},
+      //              durationMs }
+      // The card reads agentType (for color coding), byTool (for top-3
+      // pill display), toolCount (fallback when byTool is absent),
+      // and parentSessionId (future tree-indent affordance).
+      const metrics = (a.metrics && typeof a.metrics === "object") ? a.metrics : null;
       return {
         id: a.session_id || a.id || ("agent-" + idx),
         name: a.label || a.agent_type || a.name || ("Agent " + (idx + 1)),
         status: a.active ? "running" : (a.completedAt ? "done" : "queued"),
-        dur: a.metrics && a.metrics.durationMs
-          ? Math.round(a.metrics.durationMs / 100) / 10 + "s"
+        dur: metrics && metrics.durationMs
+          ? Math.round(metrics.durationMs / 100) / 10 + "s"
           : "—",
+        agentType: a.agent_type || null,
+        toolCount: metrics && typeof metrics.toolCount === "number"
+          ? metrics.toolCount : null,
+        byTool: metrics && metrics.byTool && typeof metrics.byTool === "object"
+          ? metrics.byTool : null,
+        parentSessionId: a.parent_session_id || a.parentSessionId || null,
       };
     });
   }

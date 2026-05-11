@@ -178,7 +178,17 @@
     row.setAttribute("data-card-slot", "caret-line");
     const time = _doc.createElement("span");
     time.className = "prod-terminal-line-time";
-    time.textContent = "16:42:35";
+    // LIVE-TERMINAL-FRESH-TIME (2026-05-11): use the current clock for
+    // the prompt-line timestamp instead of the legacy hardcoded
+    // "16:42:35" baseline. Format: HH:MM:SS in the operator's local
+    // timezone. We refresh only on render — the row sits at the
+    // bottom of the terminal so the time always reads "now-ish"
+    // because new renders fire whenever the panel re-runs.
+    const _now = new Date();
+    const _hh = String(_now.getHours()).padStart(2, "0");
+    const _mm = String(_now.getMinutes()).padStart(2, "0");
+    const _ss = String(_now.getSeconds()).padStart(2, "0");
+    time.textContent = _hh + ":" + _mm + ":" + _ss;
     row.appendChild(time);
     const text = _doc.createElement("span");
     text.className = "prod-terminal-line-text";

@@ -399,10 +399,8 @@
       ],
       "regionMounts": [],
       "cards": [
-        "context",
         "findings",
-        "subagents",
-        "verify"
+        "subagents"
       ],
       "headerSlots": [],
       "trackSlots": [],
@@ -424,7 +422,7 @@
       "modes": [],
       "laneIndices": [],
       "gateLanes": 0,
-      "proOnlyCount": 1
+      "proOnlyCount": 0
     },
     "dual-terminals": {
       "regions": [

@@ -277,14 +277,48 @@
   }
 
   function _buildSubagents(_doc, data) {
-    const agents = data || MOCK_SUBAGENTS;
+    // SUBAGENTS-RICH-0 (2026-05-11): card enriched to reflect the
+    // server emit shape that pipeline-executor.js already broadcasts:
+    //   subagent_started   {session_id, agent_type, parent_session_id}
+    //   subagent_completed {session_id, agent_type, elapsedMs,
+    //                       metrics: {toolCount, byTool, durationMs}}
+    // The selector (selectSubagents in product-shell-data.js) maps
+    // each agent to {id, name, status, dur, metrics?, agentType?,
+    // toolCount?, byTool?, parentSessionId?}. This builder renders:
+    //   - empty state when no agents (instead of an empty row)
+    //   - active vs done counter in the title meta ("활성 1 · 완료 3")
+    //   - per-agent tool breakdown ("Edit×3 Read×7") when metrics present
+    //   - status dot pulses while running, ✓ on done
+    //   - parent_session_id implied via subtle indent (future tree view)
+    const agents = (data && data.length > 0) ? data
+      : ((data === EMPTY_SUBAGENTS) ? EMPTY_SUBAGENTS : MOCK_SUBAGENTS);
+    const isEmpty = agents.length === 0;
+    const activeCount = agents.filter(function (a) { return a.status === "running"; }).length;
+    const doneCount = agents.filter(function (a) { return a.status === "done"; }).length;
+
+    const metaText = isEmpty
+      ? "대기 중"
+      : "활성 " + activeCount + " · 완료 " + doneCount;
+
     const card = _cardShell(_doc, {
       id: "subagents",
       title: "🤝 서브에이전트 · Subagents",
-      meta: String(agents.length),
+      meta: metaText,
       extraClass: "prod-card-subagents",
-      aria: "활성 서브에이전트",
+      aria: isEmpty
+        ? "활성 서브에이전트 없음"
+        : "서브에이전트 · 활성 " + activeCount + " / 완료 " + doneCount,
     });
+
+    if (isEmpty) {
+      const empty = _doc.createElement("div");
+      empty.className = "prod-subagent-empty";
+      empty.setAttribute("data-card-slot", "empty");
+      empty.textContent = "활성 서브에이전트가 없습니다. Claude/Codex가 작업 중 보조 에이전트를 호출하면 여기에 표시됩니다.";
+      card.appendChild(empty);
+      return card;
+    }
+
     const row = _doc.createElement("div");
     row.className = "prod-subagent-row";
     row.setAttribute("data-card-slot", "row");
@@ -293,13 +327,52 @@
       pill.className = "prod-subagent-pill";
       pill.setAttribute("data-subagent-id", agent.id);
       pill.setAttribute("data-status", agent.status);
+      if (agent.parentSessionId) {
+        pill.setAttribute("data-parent", agent.parentSessionId);
+      }
+
       const dot = _doc.createElement("span");
       dot.className = "prod-subagent-pill-dot";
+      if (agent.status === "done") {
+        dot.textContent = "✓";
+        dot.setAttribute("data-card-slot", "done-mark");
+      }
       pill.appendChild(dot);
+
       const name = _doc.createElement("span");
+      name.className = "prod-subagent-pill-name";
       name.setAttribute("data-card-slot", "name");
       name.textContent = agent.name;
       pill.appendChild(name);
+
+      // Tool breakdown: render byTool counts when available.
+      // Format example: "Edit×3 Read×7" — limit to top 3 to keep the
+      // pill scannable. Falls back to total toolCount when no byTool
+      // breakdown, falls back to nothing when neither.
+      const byTool = agent.byTool && typeof agent.byTool === "object"
+        ? agent.byTool : null;
+      if (byTool) {
+        const entries = Object.keys(byTool)
+          .map(function (k) { return [k, byTool[k]]; })
+          .sort(function (a, b) { return b[1] - a[1]; })
+          .slice(0, 3);
+        if (entries.length > 0) {
+          const tools = _doc.createElement("span");
+          tools.className = "prod-subagent-pill-tools";
+          tools.setAttribute("data-card-slot", "tools");
+          tools.textContent = entries
+            .map(function (e) { return e[0] + "×" + e[1]; })
+            .join(" ");
+          pill.appendChild(tools);
+        }
+      } else if (typeof agent.toolCount === "number" && agent.toolCount > 0) {
+        const tools = _doc.createElement("span");
+        tools.className = "prod-subagent-pill-tools";
+        tools.setAttribute("data-card-slot", "tools");
+        tools.textContent = "tools×" + agent.toolCount;
+        pill.appendChild(tools);
+      }
+
       const dur = _doc.createElement("span");
       dur.className = "prod-subagent-pill-dur";
       dur.setAttribute("data-card-slot", "dur");
@@ -469,9 +542,16 @@
       const data = _resolveData();
       while (grid.firstChild) grid.removeChild(grid.firstChild);
 
-      // LAYOUT-REORG-PRO-0: 4 cards remain in the grid:
-      //   FINDINGS (clickable → drawer), CONTEXT, VERIFY, SUBAGENTS
-      // Removed in this round (now elsewhere):
+      // GRID-TRIM-1 (2026-05-11): only 2 cards remain in the grid:
+      //   FINDINGS (clickable → drawer)
+      //   SUBAGENTS (enriched — metrics + active/done split, see below)
+      // Removed in this commit:
+      //   CONTEXT  — server emits no token-usage data for general-task
+      //              runs (always 0/0), so the card always read "0%"
+      //              which was misleading
+      //   VERIFY   — same reason: no verify-status events fire for
+      //              general-task runs, so the card always said IDLE
+      // The other 3 cards were already removed in LAYOUT-REORG-PRO-0:
       //   CODEX LIVE     → live terminals panel (left column)
       //   TOOL CALLS     → findings drawer
       //   CRITIQUE 타임라인 → findings drawer
@@ -479,8 +559,6 @@
       statRow.className = "prod-grid-stat-row";
       const findingsCard = _buildFindings(_doc, data.findings, mode);
       statRow.appendChild(findingsCard);
-      statRow.appendChild(_buildContext(_doc, data.context));
-      statRow.appendChild(_buildVerify(_doc, data.verify));
       grid.appendChild(statRow);
 
       grid.appendChild(_buildSubagents(_doc, data.subagents));

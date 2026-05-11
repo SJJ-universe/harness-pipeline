@@ -2209,3 +2209,35 @@ html, body {
 .prod-pipeline-flow[data-flow-state="complete"] .prod-pipeline-flow-meta {
   color: #9ece6a;
 }
+
+/* ── SUBAGENTS-RICH-0 (2026-05-11) ── empty state + tool breakdown */
+
+.prod-subagent-empty {
+  padding: 18px 16px;
+  color: var(--prod-text-dim-55, rgba(232, 230, 225, 0.55));
+  font-size: 12px;
+  font-style: italic;
+  line-height: 1.5;
+}
+
+.prod-subagent-pill-name {
+  margin-right: 6px;
+}
+.prod-subagent-pill-tools {
+  font-family: var(--prod-font-mono, 'Consolas', monospace);
+  font-size: 10px;
+  color: var(--prod-bronze, #c9a66b);
+  background: var(--prod-bronze-bg-08, rgba(201, 166, 107, 0.08));
+  padding: 1px 6px;
+  border-radius: var(--prod-radius-tiny, 2px);
+  margin-right: 6px;
+}
+.prod-subagent-pill[data-status="done"] .prod-subagent-pill-dot {
+  background: var(--prod-green, #9bd8a6);
+  color: var(--prod-bg-app, #08090b);
+  font-weight: 700;
+  font-size: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}

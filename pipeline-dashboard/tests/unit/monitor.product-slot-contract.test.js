@@ -173,15 +173,15 @@ test("UI-P4 contract: shell skeleton carries data-region-mount slots for all pan
 
 // ── Monitor grid card vocabulary ────────────────────────────────
 
-test("UI-P4 contract: monitor-grid renders 4 documented cards (LAYOUT-REORG-PRO-0)", () => {
+test("UI-P4 contract: monitor-grid renders 2 documented cards (GRID-TRIM-1)", () => {
   const root = makeRoot();
   const store = createMonitorStore();
   productMonitorGrid.create({ root, store, doc: makeStubDoc(), mode: "pro" });
-  // LAYOUT-REORG-PRO-0 (2026-05-08): grid trimmed from 7 to 4 cards.
-  // Removed cards' surfaces moved as follows:
-  //   codex-live → live-terminals panel (left column)
-  //   tools, critique → findings drawer (slide in on FINDINGS click)
-  const expectedCards = ["findings", "context", "verify", "subagents"];
+  // GRID-TRIM-1 (2026-05-11): grid trimmed from 4 to 2 cards.
+  // Server emits no data for CONTEXT / VERIFY in general-task runs,
+  // so the cards always read "0%" / "IDLE" — misleading. Removed in
+  // this commit; will return when the relevant server events ship.
+  const expectedCards = ["findings", "subagents"];
   for (const id of expectedCards) {
     const card = root._findOneByAttr("data-card", id);
     assert.ok(card, `monitor-grid must render card data-card="${id}"`);
@@ -189,8 +189,8 @@ test("UI-P4 contract: monitor-grid renders 4 documented cards (LAYOUT-REORG-PRO-
       `card "${id}" must carry aria-label`,
     );
   }
-  // Removed cards must NOT be present anymore.
-  for (const id of ["codex-live", "tools", "critique"]) {
+  // Cards removed in earlier rounds + this commit must NOT be present.
+  for (const id of ["context", "verify", "codex-live", "tools", "critique"]) {
     assert.equal(root._findOneByAttr("data-card", id), null,
       `monitor-grid must NOT render removed card data-card="${id}"`,
     );

@@ -171,13 +171,13 @@ test("UI-P9 visual contract: every product panel renders the documented region/s
   }
 });
 
-test("UI-P9 visual contract: monitor-grid renders 4 documented cards (LAYOUT-REORG-PRO-0)", () => {
+test("UI-P9 visual contract: monitor-grid renders 2 documented cards (GRID-TRIM-1)", () => {
   const actual = captureSnapshot();
   assert.deepEqual(
     actual.panels["monitor-grid"].cards.slice().sort(),
-    ["context", "findings", "subagents", "verify"].sort(),
-    "monitor-grid must render the 4 cards remaining after LAYOUT-REORG-PRO-0 " +
-    "(codex-live → live-terminals; tools + critique → findings drawer)"
+    ["findings", "subagents"].sort(),
+    "monitor-grid must render the 2 cards remaining after GRID-TRIM-1 " +
+    "(context + verify removed — server emits no data for general-task runs)"
   );
 });
 
