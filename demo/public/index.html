@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>하네스 파이프라인 — AI를 절차로 묶는 실험</title>
+<meta name="description" content="작업 AI와 비평 AI를 서로 다른 최저가 모델로 묶어 Phase A-F 절차를 실행하는 하네스 엔지니어링 라이브 데모">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%23b3372b' stroke-width='2.5'/%3E%3Ctext x='16' y='21' text-anchor='middle' font-family='serif' font-weight='900' font-size='14' fill='%23b3372b'%3E합%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@700;900&family=IBM+Plex+Sans+KR:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<header class="doc-head">
+  <div class="wrap">
+    <span class="doc-no">HARNESS-PIPELINE · 연구기록 2026-04-14 – 05-11 · 커밋 368건</span>
+    <a class="doc-repo" href="https://github.com/SJJ-universe/harness-pipeline" rel="noopener">SJJ-universe/harness-pipeline</a>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="wrap">
+      <p class="eyebrow">Harness Engineering — Live Demo</p>
+      <h1>AI를 절차로 묶고,<br>다른 AI가 판정한다</h1>
+      <p class="lead">
+        하네스(harness)는 AI 에이전트를 자유롭게 두지 않습니다. 단계마다 쓸 수 있는 도구를
+        <strong>정책 게이트</strong>로 잠그고, 서로 다른 모델로 구동되는 <strong>비평 AI</strong>가
+        계획과 결과물을 검증합니다. 아래에 지시 한 줄을 넣으면 작업 AI와 비평 AI가
+        6단계 절차를 지금 실제로 수행합니다.
+      </p>
+
+      <div class="console">
+        <div class="console-label">
+          <span>작업 지시서 — 요청 1건이 Phase A→F를 통과합니다</span>
+          <span>무료 모델 우선 · 회당 약 0원</span>
+        </div>
+        <div class="console-body">
+          <input id="task-input" type="text" maxlength="400" autocomplete="off"
+                 placeholder="예: 재고 CSV에서 품절 상품만 골라 보고서를 만드는 파이썬 함수">
+          <button id="run-btn" type="button">파이프라인 가동</button>
+        </div>
+      </div>
+      <div class="examples">
+        <span>예시 지시:</span>
+        <button type="button" data-task="비밀번호 강도를 검사해 등급을 돌려주는 자바스크립트 함수를 만들어줘">비밀번호 강도 검사기</button>
+        <button type="button" data-task="민원 텍스트에서 전화번호와 주민등록번호를 마스킹하는 파이썬 스크립트를 만들어줘">민원 개인정보 마스킹</button>
+        <button type="button" data-task="일별 방문자 수 목록에서 이동평균을 계산하는 파이썬 함수를 만들어줘">방문자 이동평균</button>
+      </div>
+      <p class="run-note">입력한 지시는 서버에 저장되지 않고 공개 무료 모델로 전송됩니다. 개인정보와 기밀은 입력하지 마세요.</p>
+      <div id="run-error" class="run-error" role="alert"></div>
+    </div>
+  </section>
+
+  <div class="wrap">
+    <section id="board" class="board" aria-live="polite">
+      <aside class="rail">
+        <p class="rail-title">절차 진행</p>
+        <ol id="rail-list"></ol>
+      </aside>
+      <div>
+        <div id="phases" class="phases"></div>
+        <p id="run-summary" class="run-summary"></p>
+      </div>
+    </section>
+  </div>
+
+  <section class="block">
+    <div class="wrap">
+      <p class="sec-eyebrow">Policy Gate</p>
+      <h2>같은 도구라도, 단계가 판정을 바꿉니다</h2>
+      <p class="sec-lead">
+        원본 하네스의 <span class="mono">policies/default-policy.json</span>에 선언된 게이트를 그대로 옮겼습니다.
+        탐색 단계에서 Write는 차단되고, 실행 단계에서도 Bash는 허용 접두사만 통과합니다.
+        아래에서 직접 눌러 확인해 보세요.
+      </p>
+      <div class="sim">
+        <div class="sim-row">
+          <p class="sim-label">1. PHASE 선택</p>
+          <div id="sim-phases" class="seg"></div>
+        </div>
+        <div class="sim-row">
+          <p class="sim-label">2. AI가 이 도구를 호출하면</p>
+          <div id="sim-tools" class="toolgrid"></div>
+        </div>
+        <div class="sim-row">
+          <p class="sim-label">3. 게이트 판정</p>
+          <p id="sim-verdict" class="sim-verdict"></p>
+        </div>
+        <div class="sim-row">
+          <p class="sim-label">단계와 무관하게 상시 차단되는 명령</p>
+          <p class="always-blocked">
+            <s>rm -rf</s><s>git reset --hard</s><s>git push --force</s><s>--dangerously-skip-permissions</s><s>del /s</s><s>format c:</s>
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="wrap">
+      <p class="sec-eyebrow">Research Record</p>
+      <h2>28일, 368커밋의 연구 기록</h2>
+      <p class="sec-lead">
+        2026년 4월 14일 저장소 생성부터 5월 11일까지, 이 하네스는 "AI를 어디까지 안전하게
+        묶을 수 있는가"를 실험했습니다. 아래는 커밋 로그에서 복원한 실제 진행 순서입니다.
+      </p>
+
+      <table class="ledger">
+        <thead><tr><th>기간</th><th>연구 주제</th><th>커밋</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="when">04-14</td>
+            <td><p class="theme">최초 커밋 — 하네스 골격</p><p class="detail">파이프라인 대시보드, Phase 게이팅, Codex 피드백 루프의 뼈대</p></td>
+            <td class="commits">1</td>
+          </tr>
+          <tr>
+            <td class="when">04-15 – 17</td>
+            <td><p class="theme">훅 기반 도구 차단</p><p class="detail">Claude Code 훅으로 Phase별 도구를 실시간 차단, CSP 인라인 제거 착수</p></td>
+            <td class="commits">22</td>
+          </tr>
+          <tr>
+            <td class="when">04-20 – 21</td>
+            <td><p class="theme">라이프사이클과 무결성</p><p class="detail">훅 이벤트 5종 확장, 품질 게이트, CSP nonce와 SRI 해시 도입</p></td>
+            <td class="commits">33</td>
+          </tr>
+          <tr>
+            <td class="when">04-27 – 28</td>
+            <td><p class="theme">인증·샌드박스·이그레스 검증</p><p class="detail">JWT(HS256)와 WebSocket 인증 게이트, 파일 샌드박스, 원격 러너 strict 모드 이그레스 프로브, 대시보드-러너 2망 분리 토폴로지, 정화(sanitization) 브리지</p></td>
+            <td class="commits">82</td>
+          </tr>
+          <tr>
+            <td class="when">04-29 – 30</td>
+            <td><p class="theme">공공기관 프로파일</p><p class="detail">public-sector 정책(D1-gov), 증적 원장 비밀 레다크션, 샌드박스 전용 실행 강제, PII 파일 스캔 API, 보안 상태 카드</p></td>
+            <td class="commits">65</td>
+          </tr>
+          <tr>
+            <td class="when">05-04 – 05</td>
+            <td><p class="theme">정책의 동결 — 최대 피크</p><p class="detail">정책 게이트 어휘 동결(하드 게이트 4종), 기관 정책팩 5종, 미지의 팩은 거부하는 fail-closed 프로파일, public_sector 타임아웃 프리셋</p></td>
+            <td class="commits">139</td>
+          </tr>
+          <tr>
+            <td class="when">05-06 – 11</td>
+            <td><p class="theme">안정화와 가시성</p><p class="detail">저작 블루프린트, OAuth 차단 버그 수정, 중단 사유(halt-reason) 가시화</p></td>
+            <td class="commits">26</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="focus">
+        <article>
+          <span class="tag">GATE</span>
+          <h3>단계별 정책 게이트</h3>
+          <p>어느 Phase에서 어떤 도구가 열리는지를 선언적 JSON으로 고정하고, 훅이 매 도구 호출을 가로채 판정합니다. 모르는 정책팩은 실행을 거부하는 fail-closed가 원칙입니다.</p>
+        </article>
+        <article>
+          <span class="tag">GOV</span>
+          <h3>공공기관 정책팩</h3>
+          <p>기관 유형별로 동결된 정책팩 5종을 두고, PII 파일 스캔 API와 증적 원장의 비밀 레다크션으로 민감 정보가 기록에 남지 않게 했습니다.</p>
+        </article>
+        <article>
+          <span class="tag">EGRESS</span>
+          <h3>이그레스 통제 연구</h3>
+          <p>strict 모드에서 러너의 바깥 통신을 프로브로 검증하고, 대시보드와 실행 러너를 2개 망으로 분리했으며, 밖으로 나가는 데이터는 정화 브리지를 거치게 했습니다.</p>
+        </article>
+        <article>
+          <span class="tag">DUAL-AI</span>
+          <h3>이중 AI 상호 검증</h3>
+          <p>작업 AI와 비평 AI를 서로 다른 모델로 두어, 한 모델의 맹점을 다른 모델이 지적하는 순환 비평 구조를 파이프라인에 내장했습니다.</p>
+        </article>
+      </div>
+
+      <div class="vision">
+        <span class="mark">연구 방향 — 아직 도달하지 않은 종착점</span>
+        <p>
+          최종 목표는 폐쇄망에 준하는 기관 환경에서 <strong>외부 상용 모델을 쓰면서도 정보가 밖으로
+          새어 나가지 않는 상태</strong>입니다. 나가는 트래픽을 하네스가 가로채 검사하고, 민감 정보를
+          제거·최소화·파편화한 뒤에만 외부 모델에 도달하도록 하는 이그레스 제어 계층이 그 종착점입니다.
+        </p>
+        <p>
+          저장소에는 그 전 단계 — strict 모드 이그레스 프로브, 2망 토폴로지, 정화 브리지 — 까지가
+          구현·검증되어 있습니다. 이 페이지의 파이프라인과 게이트 시뮬레이터는 같은 원리를
+          브라우저에서 체험할 수 있게 옮긴 것입니다.
+        </p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="cols">
+      <div>
+        <h4>데모 구성</h4>
+        <ul class="mono">
+          <li>작업 AI: qwen3-coder:free → gemma-4-26b:free → ling-2.6-flash</li>
+          <li>비평 AI: llama-3.3-70b:free → gpt-oss-20b:free → mistral-nemo</li>
+        </ul>
+        <p class="chain-note">무료(0원) 모델을 우선 사용하고, 무료 풀이 혼잡하면 유료 최저가 모델로 자동 폴백합니다. 폴백 시에도 실행 1회 비용은 1원 미만입니다.</p>
+      </div>
+      <div>
+        <h4>한도와 보안</h4>
+        <ul>
+          <li>IP당 10분에 4회, 전체 하루 150회 실행 제한</li>
+          <li>API 키는 서버 환경변수에만 존재하며 지출 상한이 걸려 있습니다</li>
+          <li>지시 내용은 저장·로깅하지 않습니다 (소요 시간과 토큰 수만 기록)</li>
+        </ul>
+      </div>
+    </div>
+    <p class="fine">
+      이 페이지는 저장소의 demo/ 폴더에서 그대로 서빙됩니다. 전체 연구 기록은
+      <a href="https://github.com/SJJ-universe/harness-pipeline" rel="noopener">README와 커밋 로그</a>에서
+      확인할 수 있습니다.
+    </p>
+  </div>
+</footer>
+
+<script src="/app.js" defer></script>
+</body>
+</html>
