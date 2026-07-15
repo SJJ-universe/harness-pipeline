@@ -1,0 +1,12 @@
+{
+  "name": "harness-pipeline-demo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "하네스 파이프라인 라이브 데모 — 의존성 0, Node 내장 모듈만 사용",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

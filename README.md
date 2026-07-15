@@ -1,0 +1,107 @@
+# harness-pipeline
+
+AI 에이전트를 절차(Phase)로 묶고, 단계마다 쓸 수 있는 도구를 정책으로 잠그고,
+서로 다른 모델의 비평 AI가 결과를 검증하게 만드는 **하네스 엔지니어링 연구 저장소**입니다.
+
+![SJ Orchestrator v2.5.0 대시보드 — Phase 트랙 위를 픽셀 기수마가 달리고, 파이프라인 카드와 Codex 채팅 패널이 보인다](demo/public/assets/orchestrator-shell.gif)
+
+> 연구 본체 **SJ Orchestrator v2.5.0**의 실제 구동 화면.
+> 상단 트랙(PLAN→CRITIQUE→REVISE→RE-CHECK→EXECUTE→VERIFY)을 달리는 기수마가 파이프라인 진행 상태이고,
+> Claude Code 훅이 수신한 도구 호출을 정책 게이트로 판정해 카드에 기록하며, Codex 비평이 순환합니다.
+
+**라이브 데모: https://harness-pipeline-demo.onrender.com** — 작업 AI와 비평 AI(서로 다른 최저가
+모델)가 Phase A→F 절차를 브라우저에서 실제로 수행합니다. 무료 플랜이라 첫 접속은 수십 초 걸릴 수 있습니다.
+
+## 연구 기록 — 2026년 4월부터 지금까지
+
+| 기간 | 연구 주제 — 무엇이 만들어졌나 | 커밋 |
+|------|----------|-----:|
+| 04-14 | 최초 커밋 — 파이프라인 대시보드, Phase 게이팅, Codex 피드백 루프 골격. 첫날부터 이중 AI 구조 | 1 |
+| 04-15 – 17 | 훅 기반 도구 차단 + 경마 트랙 UI — Phase별 허용 도구 실시간 판정, 도트 기수마·고삐(reining) 애니메이션, CSP 착수 | 22 |
+| 04-20 – 21 | 라이프사이클과 무결성 — 훅 이벤트 5종 확장, 품질 게이트, CSP nonce + SRI 해시 | 33 |
+| 04-27 – 28 | 인증·샌드박스·이그레스 검증 — JWT(HS256)·WebSocket 인증 게이트, 파일 샌드박스, 원격 러너 strict 모드 **이그레스 프로브**, 대시보드-러너 **2망 분리 토폴로지**, 정화(sanitization) 브리지 | 82 |
+| 04-29 – 30 | **공공기관 프로파일** — public-sector 정책(D1-gov), 증적 원장 비밀 레다크션, 샌드박스 전용 실행 강제, PII 파일 스캔 API | 65 |
+| 05-04 – 05 | 정책의 동결(최대 피크, 하루 94커밋) — 정책 게이트 어휘 동결(하드 게이트 4종), **기관 정책팩 5종**, 미지의 팩은 거부하는 fail-closed 프로파일, public_sector 타임아웃 프리셋 | 139 |
+| 05-06 – 11 | 안정화와 가시성 — 저작 블루프린트, OAuth 차단 수정, 중단 사유(halt-reason) 가시화. 본체 연구 일단락 | 26 |
+| 07-15 | **라이브 데모 공개** — 대시보드 없이도 원리를 체험하도록, 작업/비평 AI를 최저가 모델 2계열로 붙인 의존성 0 데모 + 이 연구 서사 정리 | 2 |
+
+## 이 하네스는 무엇을 하는가
+
+1. **단계별 정책 게이트** — 어느 Phase에서 어떤 도구가 열리는지를 선언적 JSON
+   (`pipeline-dashboard/policies/default-policy.json`)으로 고정하고, Claude Code 훅이
+   모든 도구 호출을 가로채 판정합니다. 미지의 정책팩은 실행을 거부합니다(fail-closed).
+2. **진행 가시화** — 파이프라인 상태를 경마 트랙으로 표시합니다. 기수마가 달리면 실행 중,
+   고삐를 당기면(reining) 게이트에 걸린 것입니다. 중단 시 중단 사유가 함께 표시됩니다.
+3. **이중 AI 상호 검증** — 작업 AI(Claude)와 비평 AI(Codex)를 다른 모델로 두어
+   계획과 결과물을 교차 검증하는 순환 구조. 비평이 수렴해야 다음 Phase로 갑니다.
+4. **공공기관 정책팩** — 기관 유형별 동결 정책팩 5종, PII 파일 스캔 API,
+   증적 원장(EvidenceLedger)의 비밀 레다크션.
+5. **이그레스 통제 연구** — strict 모드 이그레스 프로브, 대시보드와 실행 러너의
+   2망 분리, 외부로 나가는 데이터의 정화 브리지.
+
+### 연구 방향 (아직 도달하지 않은 종착점)
+
+최종 목표는 폐쇄망에 준하는 기관 환경에서 **외부 상용 모델을 쓰면서도 정보가 밖으로
+새어 나가지 않는 상태**입니다. 나가는 트래픽을 하네스가 가로채 검사하고, 민감 정보를
+제거·최소화·파편화한 뒤에만 외부 모델에 도달하게 하는 이그레스 제어 계층이 종착점입니다.
+저장소에는 그 전 단계(이그레스 프로브, 2망 토폴로지, 정화 브리지)까지 구현·검증되어 있습니다.
+
+## 라이브 데모 (demo/)
+
+`demo/`는 이 하네스의 작동 원리를 브라우저에서 체험하게 만든 **의존성 0** 데모입니다.
+
+- 작업 AI와 비평 AI를 OpenRouter 최저가 모델 2계열로 연결
+  - 작업: `qwen/qwen3-coder:free` → `google/gemma-4-26b-a4b-it:free` → `inclusionai/ling-2.6-flash`
+  - 비평: `meta-llama/llama-3.3-70b-instruct:free` → `openai/gpt-oss-20b:free` → `mistralai/mistral-nemo`
+  - 무료(0원) 모델 우선, 무료 풀 혼잡 시 유료 최저가로 자동 폴백(회당 1원 미만)
+- Phase A(컨텍스트) → B(계획) → C(계획 비평) → D(보완) → E(코드 작성) → F(검증·판정)를
+  SSE로 실시간 스트리밍, 마지막에 비평 AI의 판정 도장이 찍힙니다
+- 원본 정책 게이트를 그대로 옮긴 **게이트 시뮬레이터** 포함
+
+### 로컬 실행
+
+```powershell
+# 키를 환경변수로 주거나
+$env:OPENROUTER_API_KEY = "sk-or-..."
+node demo/server.js
+
+# 키 파일을 가리켜도 됩니다
+$env:OPENROUTER_KEY_FILE = "C:\path\to\openR.env"
+node demo/server.js
+```
+
+기본 주소: http://127.0.0.1:4300
+
+### Render 배포 (약 3분)
+
+1. [Render](https://render.com) 로그인 → **New → Blueprint** → 이 저장소 선택
+   (루트의 `render.yaml`이 자동 인식됩니다)
+2. 환경변수 `OPENROUTER_API_KEY` 입력 → **Apply**
+3. 완료되면 `https://harness-pipeline-demo.onrender.com` 형태의 공개 URL이 생깁니다
+
+### 공개 데모 가드레일
+
+- IP당 10분에 4회, 전체 하루 150회 실행 제한 (`RUNS_PER_IP`, `DAILY_RUN_CAP`)
+- 지시 내용은 저장·로깅하지 않음(소요 시간·토큰 수만 기록), 키는 서버 환경변수에만 존재
+- OpenRouter 키에는 지출 상한을 걸어 두는 것을 권장합니다 (이 데모의 키는 $2 상한)
+- 무료 모델은 입력이 학습에 쓰일 수 있으므로 페이지에 개인정보 입력 금지 고지 포함
+- 긴급 중지: 환경변수 `DEMO_DISABLED=1`
+
+## 저장소 구조
+
+```
+demo/                  라이브 데모 (의존성 0 — Node 내장만)
+pipeline-dashboard/    연구 본체: SJ Orchestrator 대시보드, 정책, 실행기, 테스트 307개
+  policies/            선언적 정책 게이트 (default-policy.json + 스키마)
+  docs/                아키텍처·보안·운영 문서
+.claude/               하네스 에이전트 9종 + 스킬 2종 + 훅 설정
+.github/workflows/     CI (시각 회귀·접근성 포함)
+```
+
+로컬에서 본체 대시보드를 직접 보려면:
+
+```powershell
+cd pipeline-dashboard
+npm install
+npm start   # http://127.0.0.1:4201
+```

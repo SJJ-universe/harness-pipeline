@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: harness-pipeline-demo
+    runtime: node
+    rootDir: demo
+    plan: free
+    buildCommand: echo "zero-dependency demo - nothing to build"
+    startCommand: node server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: DAILY_RUN_CAP
+        value: "150"
+      - key: RUNS_PER_IP
+        value: "4"
