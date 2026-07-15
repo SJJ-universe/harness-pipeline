@@ -73,6 +73,17 @@ h1 {
 }
 .lead strong { color: var(--ink); }
 
+/* ------------------------------------------------ 대시보드 껍데기 히어로 */
+.shell-figure {
+  margin: 30px 0 0; border: 1.5px solid var(--ink); background: #0d0d0f;
+  box-shadow: 5px 5px 0 var(--paper-deep);
+}
+.shell-figure img { display: block; width: 100%; height: auto; }
+.shell-figure figcaption {
+  padding: 12px 16px; border-top: 1.5px solid var(--ink); background: var(--card);
+  font-size: 13.5px; color: var(--ink-soft); line-height: 1.6;
+}
+
 /* ------------------------------------------------ 실행 콘솔 */
 .console {
   margin: 36px 0 0; border: 1.5px solid var(--ink); background: var(--card);
